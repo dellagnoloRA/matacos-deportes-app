@@ -135,12 +135,14 @@ El repositorio cuenta con configuración nativa para agentes de Inteligencia Art
 
 ## 🌿 Convenciones de Git y Ramas
 
-* **Rama Principal:** `main` (código estable de producción).
-* **Rama de Desarrollo:** `develop` (integración de incrementos).
-* **Ramas de Funcionalidad:** `feature/nombre-de-tarea` (ej. `feature/pos-barcode-scanner`, `feature/stock-crud`).
+Para conocer la estrategia completa de trabajo en paralelo, convención de nombres y flujo de Pull Requests, consulta la [**Guía de Estrategia de Ramas (GUIA_DE_RAMAS.md)**](file:///C:/Users/della/matacos-deportes-app/GUIA_DE_RAMAS.md).
+
+* **Rama Principal:** `main` (código estable de producción / entregas de cátedra).
+* **Rama de Desarrollo:** `develop` (integración diaria del equipo).
+* **Ramas de Funcionalidad:** `feature/fe-<rf>-<tarea>` o `feature/be-<rf>-<tarea>`.
 * **Mensajes de Commit (Conventional Commits):**
-  * `feat:` Nueva funcionalidad (ej. `feat: agregar buscador de productos por código de barras`).
-  * `fix:` Corrección de error (ej. `fix: corregir cálculo de vuelto en cobro en efectivo`).
-  * `docs:` Documentación (ej. `docs: actualizar manual de instalación`).
+  * `feat:` Nueva funcionalidad (ej. `feat(pos): agregar buscador de productos por código de barras`).
+  * `fix:` Corrección de error (ej. `fix(caja): corregir cálculo de vuelto en cobro en efectivo`).
+  * `docs:` Documentación (ej. `docs: actualizar guía de desarrollo por ramas`).
   * `refactor:` Refactorización de código sin cambio de comportamiento.
   * `style:` Formateo, estilos o diseño de interfaz.
