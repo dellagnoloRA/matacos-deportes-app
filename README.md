@@ -57,11 +57,10 @@ git --version && node -v && docker --version && docker compose version
 
 Si todos devuelven su número de versión, tu entorno está listo.
 
-A continuación, habilita **PNPM** (incluido en Node.js mediante `corepack`):
+A continuación, instala **PNPM** globalmente (método universal y recomendado):
 
 ```bash
-corepack enable
-corepack prepare pnpm@latest --activate
+npm install -g pnpm
 pnpm -v
 ```
 

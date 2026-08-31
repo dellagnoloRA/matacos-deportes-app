@@ -16,11 +16,14 @@ Esta guía permite a cualquier miembro del equipo (**Dellagnolo, Fornari, Bordó
 
 ## 🚀 Pasos de Instalación (El Flujo del Día 1)
 
-### 1. Habilitar PNPM en tu sistema operativo
-Node.js incluye `corepack` para activar `pnpm` de forma segura e instantánea sin instalaciones globales adicionales:
+### 1. Instalar PNPM en tu sistema operativo
+La forma más directa y universal de tener PNPM en Windows/macOS/Linux:
 ```bash
-corepack enable
-corepack prepare pnpm@latest --activate
+npm install -g pnpm
+```
+Verifica la instalación con:
+```bash
+pnpm -v
 ```
 
 ### 2. Clonar el repositorio y entrar a la carpeta
