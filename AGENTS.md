@@ -41,3 +41,4 @@
 * **Tipado Estricto:** Prohibido el uso de `any`. Toda entidad y payload de Server Action debe estar tipado con TypeScript y validado con Zod.
 * **Componentes UI:** Utilizar componentes de `shadcn/ui` reutilizables ubicados en `src/components/ui/`.
 * **Commits:** Seguir el estándar *Conventional Commits* (`feat:`, `fix:`, `refactor:`, `docs:`, `style:`, `test:`).
+* **Control de Commits (Regla Estricta):** El agente de IA **NUNCA** debe ejecutar `git commit` ni `git push` de manera automática. Solo debe realizar commits cuando el usuario lo solicite explícitamente.

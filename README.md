@@ -24,7 +24,7 @@ Sistema desarrollado para **Matacos Deportes** (Saavedra 241, Formosa Capital, A
 
 ---
 
-## 🛠️ Stack Tecnológico Oficial
+## Stack Tecnológico Oficial
 
 * **Gestor de Paquetes:** **PNPM** (`pnpm install`, `pnpm dlx`, `pnpm prisma`, `pnpm dev`).
 * **Frontend:** Next.js 15 (App Router), React 19, TypeScript (modo estricto), Tailwind CSS, componentes `shadcn/ui` y `lucide-react`.
@@ -35,7 +35,7 @@ Sistema desarrollado para **Matacos Deportes** (Saavedra 241, Formosa Capital, A
 
 ---
 
-## 📋 Requisitos Previos en tu Computadora
+## Requisitos Previos en tu Computadora
 
 Antes de clonar el proyecto, cada desarrollador debe tener instalado en su máquina:
 
@@ -47,7 +47,7 @@ Antes de clonar el proyecto, cada desarrollador debe tener instalado en su máqu
 
 ---
 
-## 🧪 ¿Cómo comprobar que tu computadora está lista?
+## ¿Cómo comprobar que tu computadora está lista?
 
 Abre una terminal (PowerShell, Git Bash o Terminal) y ejecuta el siguiente comando de verificación:
 
@@ -66,48 +66,56 @@ pnpm -v
 
 ---
 
-## 🚀 Guía de Puesta en Marcha Rápida (Flujo del Desarrollador)
+## Guía de Puesta en Marcha Rápida (Flujo del Desarrollador)
 
 Sigue estos 6 pasos para tener la aplicación y la base de datos funcionando localmente:
 
 ### 1. Clonar el repositorio y acceder a la carpeta
+
 ```bash
 git clone <URL_DEL_REPOSITORIO_GITHUB>
 cd matacos-deportes
 ```
 
 ### 2. Crear el archivo de variables de entorno
+
 ```bash
 # En Windows (PowerShell / CMD) o Linux / macOS:
 cp .env.example .env
 ```
 
 ### 3. Instalar las dependencias con PNPM
+
 ```bash
 pnpm install
 ```
 
 ### 4. Levantar la base de datos PostgreSQL en Docker
+
 ```bash
 docker compose up -d postgres
 ```
+
 *(Esto descarga e inicia el contenedor de PostgreSQL 16 en el puerto 5432 con las credenciales de `.env`)*.
 
 ### 5. Aplicar migraciones y cargar productos iniciales de prueba
+
 ```bash
 pnpm prisma migrate dev
 pnpm prisma db seed
 ```
 
 ### 6. Iniciar el servidor de desarrollo
+
 ```bash
 pnpm dev
 ```
+
 Abre tu navegador en [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 🤖 Agente de IA y Skills Estandarizadas
+## Agente de IA y Skills Estandarizadas
 
 El repositorio cuenta con configuración nativa para agentes de Inteligencia Artificial (Antigravity CLI `agy`, Claude Code, Cursor, Copilot):
 
@@ -117,22 +125,22 @@ El repositorio cuenta con configuración nativa para agentes de Inteligencia Art
 
 ---
 
-## 🛠️ Comandos de Uso Frecuente
+## Comandos de Uso Frecuente
 
-| Comando | Acción |
-| :--- | :--- |
-| `pnpm dev` | Inicia el entorno de desarrollo Next.js |
-| `pnpm build` | Compila la aplicación para producción |
-| `pnpm dlx shadcn@latest add <componente>` | Añade un componente de interfaz shadcn/ui |
-| `docker compose up -d postgres` | Levanta el contenedor de PostgreSQL |
-| `docker compose down` | Detiene los contenedores de Docker |
-| `pnpm prisma studio` | Abre el gestor visual de base de datos en el navegador |
-| `pnpm prisma migrate dev` | Crea y aplica migraciones a la base de datos |
-| `pnpm prisma db seed` | Recarga los datos iniciales de prueba |
+| Comando                                   | Acción                                                 |
+|:----------------------------------------- |:------------------------------------------------------ |
+| `pnpm dev`                                | Inicia el entorno de desarrollo Next.js                |
+| `pnpm build`                              | Compila la aplicación para producción                  |
+| `pnpm dlx shadcn@latest add <componente>` | Añade un componente de interfaz shadcn/ui              |
+| `docker compose up -d postgres`           | Levanta el contenedor de PostgreSQL                    |
+| `docker compose down`                     | Detiene los contenedores de Docker                     |
+| `pnpm prisma studio`                      | Abre el gestor visual de base de datos en el navegador |
+| `pnpm prisma migrate dev`                 | Crea y aplica migraciones a la base de datos           |
+| `pnpm prisma db seed`                     | Recarga los datos iniciales de prueba                  |
 
 ---
 
-## 🌿 Convenciones de Git y Ramas
+## Convenciones de Git y Ramas
 
 Para conocer la estrategia completa de trabajo en paralelo, convención de nombres y flujo de Pull Requests, consulta la [**Guía de Estrategia de Ramas (GUIA_DE_RAMAS.md)**](file:///C:/Users/della/matacos-deportes-app/GUIA_DE_RAMAS.md).
 
