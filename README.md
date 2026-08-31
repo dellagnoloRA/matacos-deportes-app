@@ -13,12 +13,12 @@ Sistema desarrollado para **Matacos Deportes** (Saavedra 241, Formosa Capital, A
 
 ---
 
-## 👥 Equipo de Desarrollo y Asignación de Roles
+## Equipo de Desarrollo y Asignación de Roles
 
-* **Dellagnolo, Ricardo Agustín:** Líder de Proyecto / Desarrollador Backend *(Arquitectura, Docker, PostgreSQL/Prisma, APIs y Sincronización)*.
-* **Fornari, Nahir Agustín:** Desarrollador Backend / Analista Funcional *(Lógica de inventario, reglas de stock, Server Actions y cálculo de ventas/arqueo)*.
-* **Bordón Sbardella, Lourdes Antonella:** Desarrolladora Frontend / Diseñadora UI-UX *(Maquetación Next.js 15, Tailwind CSS, shadcn/ui, plantillas de tickets/etiquetas)*.
-* **González, Eugenia Milagros:** Desarrolladora Frontend / Especialista UI & QA *(Estado con Zustand, persistencia IndexedDB con Dexie.js, formularios Zod y pruebas)*.
+* **Dellagnolo, Ricardo Agustín:** Líder de Proyecto / Desarrollador Backend.
+* **Fornari, Nahir Agustín:** Desarrollador Backend / Analista Funcional.
+* **Bordón Sbardella, Lourdes Antonella:** Desarrolladora Frontend / Diseñadora UI-UX.
+* **González, Eugenia Milagros:** Desarrolladora Frontend / Diseñadora UI-UX.
 
 **Supervisión Académica:** Prof. Dr. Cerquand, Cristian Fernando (Docente Titular PPS I).
 
@@ -32,6 +32,57 @@ Sistema desarrollado para **Matacos Deportes** (Saavedra 241, Formosa Capital, A
 * **Base de Datos Principal:** PostgreSQL 16 con Prisma ORM (desplegado localmente con Docker Compose).
 * **Punto de Venta Mostrador (Offline-First):** IndexedDB administrado con **Dexie.js** y estado reactivo con **Zustand**.
 * **Infraestructura:** Docker Compose, Caddy Server (HTTPS automático con Let's Encrypt), VPS Linux.
+
+---
+
+## Estructura del Proyecto y Arquitectura de Carpetas
+
+Este proyecto está organizado bajo una arquitectura **Modular y Limpia (*Clean Architecture*)** aprovechando el **App Router de Next.js 15** y la separación estricta de responsabilidades:
+
+```text
+matacos-deportes/
+├── .agents/                   # [AI / CONFIG] Directivas y skills de IA compartidas
+│   └── skills/                # Skills de pair programming + 'matacos-domain'
+├── .vscode/                   # [CONFIG] Formateo automático idéntico para el equipo
+├── prisma/                    # [BACKEND]
+│   ├── schema.prisma          # Modelado relacional PostgreSQL (Tablas, variantes, relaciones)
+│   └── seed.ts                # Semilla de datos de prueba para alimentar el sistema
+├── src/                       # Código fuente de la aplicación
+│   ├── app/                   # [FRONTEND] & [BACKEND] (Next.js 15 App Router)
+│   │   ├── (ecommerce)/       # [FRONTEND] — Catálogo público, ficha y checkout
+│   │   ├── (dashboard)/       # [FRONTEND] — Pantallas del POS mostrador, stock y caja
+│   │   ├── api/               # [BACKEND] — Route Handlers, Webhooks Mercado Pago, AFIP
+│   │   ├── globals.css        # [FRONTEND] Estilos globales y paleta verde en Tailwind CSS
+│   │   ├── layout.tsx         # [FRONTEND] Layout raíz de la aplicación
+│   │   └── page.tsx           # [FRONTEND] Landing informativa inicial
+│   ├── components/            # [FRONTEND] 
+│   │   ├── ui/                # Componentes base atómicos shadcn/ui (Button, Dialog, Input, Table)
+│   │   ├── pos/               # Componentes del mostrador (Lector de código de barras, modal de cobro, tickets)
+│   │   └── ecommerce/         # Componentes de tienda web (ProductCard, Navbar, CartDrawer, WhatsAppBtn)
+│   ├── lib/                   # [COMPARTIDO / UTILIDADES]
+│   │   ├── prisma.ts          # [BACKEND] Cliente singleton de Prisma ORM (PostgreSQL)
+│   │   ├── dexie.ts           # [FRONTEND] Base de datos local IndexedDB (Modo Offline Mostrador)
+│   │   └── utils.ts           # [COMPARTIDO] Helpers globales (formatCurrency ARS, formatDate, cn)
+│   ├── server/actions/        # [BACKEND] (Dellagnolo / Fornari)
+│   │   └── *.ts               # Server Actions (crearProducto, cobrarVenta, registrarMovimientoStock, cerrarCaja)
+│   └── schemas/               # [COMPARTIDO] (Validaciones Zod compartidas FE / BE)
+│       └── *.ts               # Esquemas de datos (ProductSchema, SaleSchema, CashShiftSchema)
+├── docker-compose.yml         # [BACKEND / DEVOPS] Contenedores PostgreSQL 16 y servicios
+├── Dockerfile                 # [BACKEND / DEVOPS] Construcción multi-stage de producción con PNPM
+├── Caddyfile                  # [BACKEND / DEVOPS] Proxy inverso y SSL automático (HTTPS)
+├── .env.example               # [COMPARTIDO] Variables de entorno de referencia
+├── AGENTS.md / GEMINI.md      # [AI / DIRECTIVAS] Reglas maestras del proyecto
+├── DEV_SETUP.md               # [GUÍA] Manual de instalación rápida
+└── GUIA_DE_RAMAS.md           # [GIT] Flujo de trabajo colaborativo en Git Flow
+```
+
+### Guía Rápida: ¿Dónde programo según mi rol?
+
+| Si tu tarea es de...     | Responsables             | Trabajas principalmente en:                                                                                                                                                                                                                                                                                                            |
+|:------------------------ |:------------------------ |:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend / UI-UX**     | **Bordón / González**    | • `src/app/(ecommerce)/` y `src/app/(dashboard)/` *(Páginas y Vistas)*<br>• `src/components/` *(Componentes visuales, modal de cobro, layout POS)*<br>• `src/lib/dexie.ts` *(Manejo de almacenamiento offline en navegador)*<br>• `src/app/globals.css` y `tailwind.config.ts` *(Estilos visuales)*                                    |
+| **Backend / Lógica**     | **Dellagnolo / Fornari** | • `src/server/actions/` *(Server Actions: mutaciones seguras de stock, ventas y caja)*<br>• `src/app/api/` *(Route Handlers REST: Webhooks MP, integración AFIP/ARCA)*<br>• `prisma/schema.prisma` y `prisma/seed.ts` *(Tablas y datos relacionales)*<br>• `src/lib/prisma.ts` y `docker-compose.yml` *(Base de datos y contenedores)* |
+| **Compartido (FE + BE)** | **Equipo Completo**      | • `src/schemas/` *(Validaciones Zod compartidas para formularios y endpoints)*<br>• `src/lib/utils.ts` *(Funciones helper de moneda ARS y fechas)*                                                                                                                                                                                     |
 
 ---
 
