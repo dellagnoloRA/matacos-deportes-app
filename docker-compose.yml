@@ -1,0 +1,89 @@
+services:
+  # =========================================================================
+  # 1. BASE DE DATOS: PostgreSQL 16 (Transacciones ACID y Bloqueo de Filas)
+  # =========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: matacos_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-matacos_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matacos_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-matacos_db}
+    ports:
+      - "5432:5432" # Accesible localmente para Prisma Studio / DBeaver
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d # Opcional: scripts SQL de inicio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-matacos_admin} -d ${POSTGRES_DB:-matacos_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matacos_network
+
+  # =========================================================================
+  # 2. APLICACIÓN FULL-STACK: Next.js 15 (E-commerce + POS Mostrador + API)
+  # =========================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: matacos_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-matacos_admin}:${POSTGRES_PASSWORD:-matacos_secure_password_2026}@postgres:5432/${POSTGRES_DB:-matacos_db}?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-super_secret_jwt_key_matacos_2026}
+      # Pasarela Mercado Pago
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-TEST-0000000000000000-000000-00000000000000000000000000000000-000000000}
+      MERCADOPAGO_PUBLIC_KEY: ${MERCADOPAGO_PUBLIC_KEY:-TEST-00000000-0000-0000-0000-000000000000}
+      # Integración Fiscal AFIP / ARCA
+      AFIP_CUIT: ${AFIP_CUIT:-20000000001}
+      AFIP_PRODUCTION: ${AFIP_PRODUCTION:-false}
+    ports:
+      - "3000:3000"
+    networks:
+      - matacos_network
+
+  # =========================================================================
+  # 3. PROXY INVERSO & SSL AUTOMÁTICO: Caddy Server (Producción VPS)
+  # =========================================================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: matacos_caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"   # HTTP (Redirección automática)
+      - "443:443" # HTTPS (Certificado SSL automático Let's Encrypt)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - matacos_network
+
+# =========================================================================
+# VOLÚMENES PERSISTENTES (Los datos no se pierden al reiniciar)
+# =========================================================================
+volumes:
+  postgres_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+# =========================================================================
+# RED INTERNA AISLADA
+# =========================================================================
+networks:
+  matacos_network:
+    driver: bridge

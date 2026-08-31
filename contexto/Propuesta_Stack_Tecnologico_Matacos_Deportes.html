@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propuesta de Stack Tecnológico y Arquitectura - Matacos Deportes</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #222222;
+            background-color: #ffffff;
+            margin: 0 auto;
+            max-width: 850px;
+            padding: 20px;
+        }
+        .header-box {
+            background-color: #f0f4f8;
+            border-left: 5px solid #0056b3;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 25px;
+        }
+        h1 {
+            color: #003366;
+            font-size: 19pt;
+            margin-top: 0;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .meta-table td {
+            padding: 4px 8px;
+            font-size: 10.5pt;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #003366;
+            width: 25%;
+        }
+        .meta-value {
+            border-bottom: 1px solid #c5d5e5;
+            width: 75%;
+        }
+        .stack-summary-box {
+            background-color: #1e293b;
+            color: #f8fafc;
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 10pt;
+            line-height: 1.6;
+        }
+        .stack-summary-title {
+            color: #38bdf8;
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            font-family: 'Calibri', 'Arial', sans-serif;
+        }
+        h2 {
+            color: #ffffff;
+            background-color: #004085;
+            font-size: 13pt;
+            padding: 8px 12px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        h3 {
+            color: #0056b3;
+            font-size: 11.5pt;
+            border-bottom: 1.5px solid #e0e0e0;
+            padding-bottom: 4px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .tech-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+        .tech-table th {
+            background-color: #004085;
+            color: #ffffff;
+            padding: 9px 12px;
+            text-align: left;
+            font-size: 10pt;
+        }
+        .tech-table td {
+            border: 1px solid #dddddd;
+            padding: 8px 12px;
+            font-size: 9.5pt;
+            vertical-align: top;
+        }
+        .tech-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            background-color: #e2e8f0;
+            color: #0f172a;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+        .phase-box {
+            border-left: 4px solid #0056b3;
+            background-color: #f8fafc;
+            padding: 10px 15px;
+            margin-bottom: 12px;
+            border-radius: 0 4px 4px 0;
+        }
+        .phase-title {
+            font-weight: bold;
+            color: #004085;
+            margin-bottom: 4px;
+        }
+        .code-snippet {
+            background-color: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 9pt;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .footer-note {
+            margin-top: 40px;
+            border-top: 1px solid #cccccc;
+            padding-top: 10px;
+            font-size: 9pt;
+            color: #777777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-box">
+        <h1>Propuesta de Stack Tecnológico y Arquitectura</h1>
+        <div style="font-size: 13pt; font-weight: bold; color: #0056b3; margin-bottom: 10px;">
+            Sistema Integral Web (E-commerce), Gestión de Stock y Punto de Venta (POS)
+        </div>
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">Proyecto:</td>
+                <td class="meta-value">Matacos Deportes (Saavedra 241, Formosa, Argentina)</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Destinatarios:</td>
+                <td class="meta-value">Equipo de Desarrollo / Arquitectura de Software</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Fecha:</td>
+                <td class="meta-value">Agosto 2026</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Enfoque:</td>
+                <td class="meta-value">Monolito Modular Full-Stack 100% TypeScript</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== RESUMEN EJECUTIVO ==================== -->
+    <div class="stack-summary-box">
+        <div class="stack-summary-title">⚡ Resumen Ejecutivo del Stack Tecnológico</div>
+        • <strong>Lenguaje Global:</strong> TypeScript (End-to-End Type Safety Front & Back)<br>
+        • <strong>Runtime Backend:</strong> Node.js (v20+ LTS / v22 LTS)<br>
+        • <strong>Framework Web & POS:</strong> Next.js 15 (React 19, Server Components & Actions)<br>
+        • <strong>Diseño & Componentes:</strong> Tailwind CSS + shadcn/ui + Lucide Icons<br>
+        • <strong>Base de Datos:</strong> PostgreSQL 16 (Relacional con soporte ACID & Row Locking)<br>
+        • <strong>ORM / Migraciones:</strong> Prisma ORM o Drizzle ORM<br>
+        • <strong>Estado & Modo Offline:</strong> Zustand + Dexie.js (IndexedDB local para mostrador)<br>
+        • <strong>Validación:</strong> Zod (Esquemas compartidos cliente/servidor)<br>
+        • <strong>Pagos & Facturación:</strong> Mercado Pago SDK + afip.js (Facturas A, B, C con CAE)<br>
+        • <strong>Despliegue & DevOps:</strong> Docker + Docker Compose + Caddy Server (SSL Auto)
+    </div>
+
+    <!-- ==================== DETALLE POR CAPAS ==================== -->
+    <h2>1. Detalle de Arquitectura por Capas</h2>
+
+    <h3>A. Frontend (Tienda Online + Punto de Venta)</h3>
+    <p>
+        Se utiliza <strong>Next.js 15 con App Router</strong> para resolver dos perfiles de uso en una sola base de código:
+    </p>
+    <ul>
+        <li><strong>E-commerce Público:</strong> Renderizado del lado del servidor (<em>Server Components / SSR</em>) para garantizar tiempos de carga inferiores a 1 segundo en teléfonos móviles y posicionamiento SEO óptimo.</li>
+        <li><strong>Punto de Venta Mostrador (<code>/pos</code>):</strong> Interfaz cliente ultra reactiva, optimizada para atajos de teclado, navegación sin mouse y lectura instantánea de códigos de barra.</li>
+        <li><strong>Diseño con shadcn/ui + Tailwind CSS:</strong> Componentes accesibles, minimalistas y sin sobrecarga de librerías externas pesadas.</li>
+        <li><strong>Modo Offline-First con Dexie.js:</strong> El catálogo se cachea en la base de datos local del navegador (IndexedDB) para que el mostrador pueda seguir cobrando si se corta internet.</li>
+    </ul>
+
+    <h3>B. Backend y Lógica de Negocio (TypeScript + Node.js)</h3>
+    <p>
+        El backend corre en <strong>TypeScript sobre Node.js</strong> integrado dentro del mismo proyecto:
+    </p>
+    <ul>
+        <li><strong>Server Actions:</strong> Funciones fuertemente tipadas en el servidor para ejecutar transacciones de venta, descuentos de inventario y aperturas de caja sin necesidad de crear endpoints manuales redundantes.</li>
+        <li><strong>Route Handlers (<code>/api/...</code>):</strong> Rutas REST dedicadas para recibir los <em>webhooks</em> de confirmación de Mercado Pago y peticiones de integración externa.</li>
+        <li><strong>Validación Unificada con Zod:</strong> Un único archivo de validación para asegurar la integridad de precios, números de CUIT/DNI y campos obligatorios tanto en formularios del front como en el back.</li>
+    </ul>
+
+    <h3>C. Persistencia de Datos (PostgreSQL + Prisma)</h3>
+    <ul>
+        <li><strong>PostgreSQL 16:</strong> Indispensable para transacciones financieras y de stock. Permite bloqueo de filas (<em>Row-Level Locking</em> con <code>SELECT FOR UPDATE</code>) para evitar que dos clientes (uno online y otro presencial) compren la última unidad en simultáneo.</li>
+        <li><strong>Prisma ORM:</strong> Definición declarativa del modelo relacional, autocompletado en todo el código y migraciones de base de datos automatizadas.</li>
+    </ul>
+
+    <!-- ==================== INTEGRACIONES ==================== -->
+    <h2>2. Integraciones de Hardware y Servicios Externos</h2>
+
+    <table class="tech-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Área</th>
+                <th style="width: 30%;">Librería / Herramienta</th>
+                <th style="width: 45%;">Comportamiento Operativo</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Pasarela de Pagos</strong></td>
+                <td><code>mercadopago</code> (SDK Node.js)</td>
+                <td>Checkout Pro / Transparente y generación de QR interoperable. Confirmación de cobro vía Webhooks.</td>
+            </tr>
+            <tr>
+                <td><strong>Facturación AFIP / ARCA</strong></td>
+                <td><code>@afipsdk/afip.js</code> / <code>afip.js</code></td>
+                <td>Conexión con WSFE para emisión de Facturas Electrónicas (A, B, C) y obtención automática de CAE.</td>
+            </tr>
+            <tr>
+                <td><strong>Lector Código de Barras</strong></td>
+                <td>Listener Global <code>keydown</code></td>
+                <td>Captura la ráfaga de pulsaciones de teclado del escáner USB y agrega el producto al carrito con <code>Enter</code>.</td>
+            </tr>
+            <tr>
+                <td><strong>Impresora Térmica</strong></td>
+                <td>CSS <code>@media print</code> / ESC-POS</td>
+                <td>Formato de ticket optimizado para 58mm y 80mm con corte automático al presionar "Cobrar".</td>
+            </tr>
+            <tr>
+                <td><strong>Autenticación y Roles</strong></td>
+                <td><code>Auth.js</code> (NextAuth)</td>
+                <td>Control de roles: <code>ADMIN</code> (dueños), <code>CAJERO</code> (mostrador) y <code>DESPACHO</code> (pedidos web).</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== ROADMAP ==================== -->
+    <h2>3. Roadmap de Desarrollo Sugerido (Fases)</h2>
+
+    <div class="phase-box">
+        <div class="phase-title">🔹 Sprint 1: Arquitectura Base y Modelo de Datos</div>
+        Inicialización del repositorio TypeScript con Next.js 15, Tailwind y shadcn/ui. Definición del esquema Prisma (Tablas <code>Product</code>, <code>ProductVariant</code>, <code>Stock</code>, <code>Category</code>) y contenedor Docker de PostgreSQL.
+    </div>
+
+    <div class="phase-box">
+        <div class="phase-title">🔹 Sprint 2: Módulo de Mostrador / POS (Caja Física)</div>
+        Desarrollo de la pantalla de cobro rápido, soporte para lector de código de barras, cobro multimetodopago (Efectivo/Transferencia/QR), impresión de ticket y arqueo de caja diaria.
+    </div>
+
+    <div class="phase-box">
+        <div class="phase-title">🔹 Sprint 3: Catálogo Web (E-commerce) y Checkout</div>
+        Diseño del catálogo responsive, filtros por deportes y marcas, carrito de compras y checkout integrado con Mercado Pago.
+    </div>
+
+    <div class="phase-box">
+        <div class="phase-title">🔹 Sprint 4: Sincronización, AFIP y Despliegue en VPS</div>
+        Lógica de concurrencia atómica de stock, emisión de comprobantes fiscales con AFIP y despliegue del contenedor Docker en VPS con Caddy (SSL).
+    </div>
+
+    <!-- ==================== COMANDOS INICIALES ==================== -->
+    <h2>4. Comandos de Inicialización para el Equipo (con pnpm)</h2>
+    <div class="code-snippet"># 1. Habilitar pnpm de forma nativa en Node.js
+corepack enable
+
+# 2. Crear el proyecto Next.js con pnpm y App Router
+pnpm create next-app matacos-app --typescript --tailwind --eslint --app
+
+# 3. Inicializar componentes de UI shadcn
+pnpm dlx shadcn@latest init
+
+# 4. Instalar dependencias principales y ORM
+pnpm add @prisma/client mercadopago zod zustand dexie @tanstack/react-query lucide-react
+pnpm add -D prisma
+pnpm prisma init</div>
+
+    <div class="footer-note">
+        Documento de Arquitectura de Software • Matacos Deportes • Formosa, Argentina • 2026
+    </div>
+
+</body>
+</html>

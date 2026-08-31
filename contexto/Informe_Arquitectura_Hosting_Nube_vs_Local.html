@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Técnico y Financiero: Infraestructura Nube vs. Servidor Local - Matacos Deportes</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #222222;
+            background-color: #ffffff;
+            margin: 0 auto;
+            max-width: 850px;
+            padding: 20px;
+        }
+        .header-box {
+            background-color: #f0f4f8;
+            border-left: 5px solid #0056b3;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 25px;
+        }
+        h1 {
+            color: #003366;
+            font-size: 19pt;
+            margin-top: 0;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .meta-table td {
+            padding: 4px 8px;
+            font-size: 10.5pt;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #003366;
+            width: 25%;
+        }
+        .meta-value {
+            border-bottom: 1px solid #c5d5e5;
+            width: 75%;
+        }
+        .verdict-box {
+            background-color: #e8f4fd;
+            border: 1.5px solid #b8daff;
+            border-left: 5px solid #0056b3;
+            padding: 14px 18px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+        .verdict-title {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #004085;
+            margin-bottom: 6px;
+        }
+        h2 {
+            color: #ffffff;
+            background-color: #004085;
+            font-size: 13pt;
+            padding: 8px 12px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        h3 {
+            color: #0056b3;
+            font-size: 11.5pt;
+            border-bottom: 1.5px solid #e0e0e0;
+            padding-bottom: 4px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+        }
+        .comparison-table th {
+            background-color: #004085;
+            color: #ffffff;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 10.5pt;
+        }
+        .comparison-table td {
+            border: 1px solid #dddddd;
+            padding: 9px 12px;
+            font-size: 10pt;
+            vertical-align: top;
+        }
+        .comparison-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .tag-cloud {
+            color: #006600;
+            font-weight: bold;
+        }
+        .tag-local {
+            color: #990000;
+            font-weight: bold;
+        }
+        .financial-box {
+            background-color: #f7f9fa;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+        .financial-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .financial-table th {
+            background-color: #334155;
+            color: #ffffff;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 10pt;
+        }
+        .financial-table td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            font-size: 9.5pt;
+        }
+        .financial-table tr:nth-child(even) {
+            background-color: #ffffff;
+        }
+        .savings-alert {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+            padding: 10px 15px;
+            font-weight: bold;
+            margin-top: 12px;
+            border-radius: 3px;
+            font-size: 10.5pt;
+        }
+        .architecture-step {
+            margin-bottom: 12px;
+            padding-left: 10px;
+            border-left: 3px solid #0056b3;
+        }
+        .footer-note {
+            margin-top: 40px;
+            border-top: 1px solid #cccccc;
+            padding-top: 10px;
+            font-size: 9pt;
+            color: #777777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-box">
+        <h1>Informe Técnico y Financiero</h1>
+        <div style="font-size: 13pt; font-weight: bold; color: #0056b3; margin-bottom: 10px;">
+            Análisis de Infraestructura: Servidor en la Nube (Cloud/VPS) vs. Servidor Físico Local
+        </div>
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">Proyecto:</td>
+                <td class="meta-value">Sistema Integral Web, Gestión de Stock y Punto de Venta (POS)</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Cliente:</td>
+                <td class="meta-value"><strong>Matacos Deportes</strong> (Saavedra 241, Formosa, Argentina)</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Fecha:</td>
+                <td class="meta-value">Agosto 2026</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Finalidad:</td>
+                <td class="meta-value">Evaluación de Factibilidad Técnica, Riesgos y Retorno de Inversión (ROI)</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== VEREDICTO ==================== -->
+    <div class="verdict-box">
+        <div class="verdict-title">🎯 Veredicto y Recomendación Ejecutiva</div>
+        <p style="margin: 0; font-size: 10.5pt;">
+            Tras evaluar las necesidades comerciales, operativas y el contexto técnico de <strong>Matacos Deportes</strong>, se concluye de manera concluyente que <strong>la opción más conveniente, segura y económica es contratar un Servidor en la Nube (Host / VPS)</strong>, complementado con una aplicación de mostrador (POS) con capacidad de funcionamiento sin conexión (<em>offline-first</em>).
+        </p>
+    </div>
+
+    <!-- ==================== CUADRO COMPARATIVO ==================== -->
+    <h2>1. Matriz Comparativa: Nube vs. Servidor Local</h2>
+
+    <table class="comparison-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Criterio</th>
+                <th style="width: 38%;">☁️ Servidor en la Nube (Host / VPS)</th>
+                <th style="width: 37%;">🏢 Servidor Físico Local (En el negocio)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Disponibilidad E-commerce</strong></td>
+                <td><span class="tag-cloud">24/7/365 ininterrumpida.</span> La tienda vende de noche, fines de semana y feriados.</td>
+                <td><span class="tag-local">Limitada.</span> Si se apaga la PC al cerrar el local (20:30 hs), la web se cae por completo.</td>
+            </tr>
+            <tr>
+                <td><strong>Cortes de Luz y Clima</strong></td>
+                <td><span class="tag-cloud">Inmune.</span> Datacenters con generadores diésel redundantes y refrigeración industrial.</td>
+                <td><span class="tag-local">Vulnerable.</span> Cortes de luz estacionales o tormentas en Formosa apagan el sistema.</td>
+            </tr>
+            <tr>
+                <td><strong>Estabilidad de Internet</strong></td>
+                <td>Fibra óptica corporativa simétrica con 99.9% de tiempo activo (uptime).</td>
+                <td>Depende del proveedor local hogareño/comercial (microcortes habituales).</td>
+            </tr>
+            <tr>
+                <td><strong>Cobros con Mercado Pago</strong></td>
+                <td><span class="tag-cloud">Webhooks instantáneos</span> gracias a IP pública fija y certificado SSL seguro (HTTPS).</td>
+                <td><span class="tag-local">Propenso a fallas.</span> Requiere abrir puertos y lidiar con IPs dinámicas o CGNAT.</td>
+            </tr>
+            <tr>
+                <td><strong>Facturación AFIP / ARCA</strong></td>
+                <td>Conexión directa, rápida y estable con los web services fiscales.</td>
+                <td>Inestable si la conexión del local presenta latencia o pérdidas de paquete.</td>
+            </tr>
+            <tr>
+                <td><strong>Inversión Inicial</strong></td>
+                <td><span class="tag-cloud">$0 USD.</span> No se requiere comprar hardware físico para el servidor.</td>
+                <td><span class="tag-local">$800 a $1.500 USD</span> (PC servidor dedicada, UPS/baterías, discos RAID).</td>
+            </tr>
+            <tr>
+                <td><strong>Costo Mensual Operativo</strong></td>
+                <td><strong>Bajo y predecible:</strong> ~$6 a $15 USD / mes.</td>
+                <td>Mayor consumo eléctrico 24/7 + service técnico presencial ante roturas.</td>
+            </tr>
+            <tr>
+                <td><strong>Seguridad y Copias de Seguridad</strong></td>
+                <td><span class="tag-cloud">Backups diarios automáticos</span> en centros de datos seguros externos.</td>
+                <td><span class="tag-local">Alto riesgo</span> de pérdida total por virus (ransomware), daño de disco o robo.</td>
+            </tr>
+            <tr>
+                <td><strong>Control para los Dueños</strong></td>
+                <td>Los dueños consultan ventas, caja y stock desde su celular o casa en cualquier momento.</td>
+                <td>Imposible o muy complejo sin configurar una red privada virtual (VPN).</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== JUSTIFICACION ==================== -->
+    <h2>2. Justificación Técnica y Operativa de la Elección</h2>
+
+    <h3>A. Comercio Electrónico 24/7 y Ventas Fuera de Horario</h3>
+    <p>
+        En el comercio minorista actual, más del <strong>40% de las visitas a tiendas online y consultas por redes sociales ocurren fuera del horario comercial tradicional</strong> (durante la noche, los fines de semana y feriados).
+    </p>
+    <ul>
+        <li><strong>Con Servidor en la Nube:</strong> El catálogo y el carrito de compras están permanentemente activos, permitiendo captar ventas y cobrar por Mercado Pago a cualquier hora sin requerir personal presente.</li>
+        <li><strong>Con Servidor Físico Local:</strong> Para mantener la web abierta, habría que dejar una computadora encendida toda la noche en un local comercial cerrado y sin supervisión, representando un riesgo eléctrico innecesario.</li>
+    </ul>
+
+    <h3>B. Estabilidad Energética y Climatológica en Formosa</h3>
+    <p>
+        La región presenta recurrentes picos de demanda eléctrica por calor y tormentas estacionales. Si el servidor dependiera de la instalación eléctrica de Saavedra 241, cada corte de luz desconectaría el e-commerce de Matacos Deportes. La nube garantiza que el negocio continúe visible y operando online aún si el local físico está temporalmente sin luz.
+    </p>
+
+    <h3>C. Integración con Pasarelas de Pago (Mercado Pago)</h3>
+    <p>
+        Cuando un usuario abona una compra online o escanea un QR, Mercado Pago envía un aviso digital automático (<em>webhook</em>) para confirmar el cobro en milisegundos:
+    </p>
+    <ul>
+        <li>Los servidores cloud cuentan con una dirección IP fija y certificados SSL automáticos, garantizando que Mercado Pago valide las compras de inmediato.</li>
+        <li>En conexiones de internet comunes, los proveedores utilizan <em>CGNAT</em> (IPs compartidas) que impiden recibir notificaciones entrantes de forma confiable, provocando compras "congeladas" o carritos abandonados.</li>
+    </ul>
+
+    <h3>D. Continuidad del Negocio y Respaldo de Datos (Backups)</h3>
+    <p>
+        El inventario, los costos, el historial de clientes y los saldos de cuentas corrientes constituyen el activo más valioso de Matacos Deportes.
+    </p>
+    <ul>
+        <li>En la nube se generan copias de seguridad diarias y automáticas. Si la computadora del mostrador sufre una rotura física o robo, los datos permanecen 100% seguros; basta con conectar otra máquina para seguir trabajando al instante.</li>
+    </ul>
+
+    <!-- ==================== FINANCIERO ==================== -->
+    <h2>3. Análisis Financiero y Retorno de Inversión (TCO a 3 Años)</h2>
+
+    <div class="financial-box">
+        <table class="financial-table">
+            <thead>
+                <tr>
+                    <th style="width: 50%;">Concepto</th>
+                    <th style="width: 25%; text-align: right;">🏢 Servidor Físico Local</th>
+                    <th style="width: 25%; text-align: right;">☁️ Servidor en la Nube (VPS)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Inversión inicial de equipamiento (Hardware dedicado + UPS)</td>
+                    <td style="text-align: right;">$1.000 USD</td>
+                    <td style="text-align: right;"><strong>$0 USD</strong></td>
+                </tr>
+                <tr>
+                    <td>Costo de alojamiento / hosting (36 meses)</td>
+                    <td style="text-align: right;">$0 USD</td>
+                    <td style="text-align: right;">$360 USD ($10/mes)</td>
+                </tr>
+                <tr>
+                    <td>Copias de seguridad automáticas externas (36 meses)</td>
+                    <td style="text-align: right;">$0 USD</td>
+                    <td style="text-align: right;">$54 USD ($1.5/mes)</td>
+                </tr>
+                <tr>
+                    <td>Mantenimiento técnico preventivo y recambio de componentes</td>
+                    <td style="text-align: right;">$300 USD</td>
+                    <td style="text-align: right;">$0 USD</td>
+                </tr>
+                <tr>
+                    <td>Consumo eléctrico estimado del servidor 24/7 (36 meses)</td>
+                    <td style="text-align: right;">$250 USD</td>
+                    <td style="text-align: right;">$0 USD</td>
+                </tr>
+                <tr style="font-weight: bold; background-color: #e2e8f0;">
+                    <td>COSTO TOTAL ESTIMADO A 3 AÑOS (TCO)</td>
+                    <td style="text-align: right; color: #990000;">$1.550 USD</td>
+                    <td style="text-align: right; color: #006600;">$414 USD</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="savings-alert">
+            💰 Conclusión Financiera: Optar por un servidor en la Nube genera un <strong>ahorro directo superior al 70%</strong> frente al montaje de un servidor propio en el local.
+        </div>
+    </div>
+
+    <!-- ==================== ARQUITECTURA HIBRIDA ==================== -->
+    <h2>4. La Arquitectura Recomendada: Esquema Híbrido</h2>
+    <p>
+        Para que el mostrador físico no dependa del 100% de la conectividad para cobrar, se implementa una arquitectura híbrida inteligente:
+    </p>
+
+    <div class="architecture-step">
+        <strong>1. El Núcleo en la Nube (VPS):</strong> Aloja la base de datos principal, la tienda web pública, el catálogo y las pasarelas de pago. Disponible las 24 horas.
+    </div>
+    <div class="architecture-step">
+        <strong>2. El Mostrador Inteligente (POS Offline-First):</strong> El sistema de caja en Saavedra 241 almacena una copia local en memoria. Si se corta internet en el local, el vendedor <strong>puede seguir escaneando artículos, cobrando en efectivo y emitiendo tickets sin ninguna interrupción</strong>.
+    </div>
+    <div class="architecture-step">
+        <strong>3. Sincronización Automática:</strong> En el instante en que se restablece la conexión a internet, el sistema local envía las ventas acumuladas a la nube en 2 segundos, manteniendo el stock web 100% actualizado.
+    </div>
+
+    <!-- ==================== PROVEEDORES ==================== -->
+    <h2>5. Proveedores de Nube Recomendados para el Proyecto</h2>
+
+    <ul>
+        <li><strong>Hetzner Cloud / DigitalOcean:</strong> Proveedores líderes de infraestructura en la nube con servidores VPS desde <strong>$5 a $12 USD mensuales</strong>. Máxima estabilidad y escalabilidad garantizada.</li>
+        <li><strong>DonWeb (Cloud VPS Argentina):</strong> Infraestructura regional con servidores en Argentina y facturación en pesos (desde <strong>$8.000 a $15.000 ARS/mes</strong>), ideal para una gestión administrativa local sin fluctuaciones cambiarias.</li>
+    </ul>
+
+    <div class="footer-note">
+        Documento de Análisis de Infraestructura • Matacos Deportes • Formosa, Argentina • 2026
+    </div>
+
+</body>
+</html>

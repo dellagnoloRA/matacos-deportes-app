@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía de Elicitación de Requerimientos - Matacos Deportes</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #222222;
+            background-color: #ffffff;
+            margin: 0 auto;
+            max-width: 850px;
+            padding: 20px;
+        }
+        .header-box {
+            background-color: #f0f4f8;
+            border-left: 5px solid #0056b3;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 25px;
+        }
+        h1 {
+            color: #003366;
+            font-size: 20pt;
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .meta-table td {
+            padding: 4px 8px;
+            font-size: 10.5pt;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #003366;
+            width: 25%;
+        }
+        .meta-value {
+            border-bottom: 1px solid #999;
+            width: 75%;
+        }
+        .alert-info {
+            background-color: #fff9e6;
+            border: 1px solid #ffeeba;
+            border-left: 4px solid #f0ad4e;
+            padding: 10px 15px;
+            margin-bottom: 25px;
+            font-size: 10pt;
+            border-radius: 3px;
+        }
+        h2 {
+            color: #ffffff;
+            background-color: #004085;
+            font-size: 13pt;
+            padding: 8px 12px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        h3 {
+            color: #0056b3;
+            font-size: 11.5pt;
+            border-bottom: 1.5px solid #e0e0e0;
+            padding-bottom: 4px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .question {
+            margin-bottom: 15px;
+        }
+        .question-text {
+            font-weight: bold;
+            color: #111111;
+            margin-bottom: 5px;
+        }
+        .hint {
+            font-size: 9.5pt;
+            color: #555555;
+            font-style: italic;
+            margin-bottom: 6px;
+        }
+        .answer-box {
+            border-bottom: 1px dotted #888888;
+            min-height: 22px;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .answer-box-multiline {
+            border-bottom: 1px dotted #888888;
+            height: 48px;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .checklist {
+            list-style: none;
+            padding-left: 5px;
+            margin: 6px 0;
+        }
+        .checklist li {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            text-indent: -20px;
+        }
+        .checkbox-symbol {
+            font-family: 'Arial', sans-serif;
+            font-size: 12pt;
+            color: #444444;
+            margin-right: 6px;
+        }
+        .architecture-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        .architecture-table th {
+            background-color: #004085;
+            color: #ffffff;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 10pt;
+        }
+        .architecture-table td {
+            border: 1px solid #dddddd;
+            padding: 8px 10px;
+            font-size: 9.5pt;
+        }
+        .architecture-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .footer-note {
+            margin-top: 40px;
+            border-top: 1px solid #cccccc;
+            padding-top: 10px;
+            font-size: 9pt;
+            color: #777777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-box">
+        <h1>Guía de Elicitación de Requerimientos</h1>
+        <div style="font-size: 13pt; font-weight: bold; color: #0056b3; margin-bottom: 10px;">
+            Proyecto: Sistema Integral Web, Gestión de Stock y Punto de Venta (POS)
+        </div>
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">Comercio / Cliente:</td>
+                <td class="meta-value"><strong>Matacos Deportes</strong> (Saavedra 241, Formosa)</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Fecha de Relevamiento:</td>
+                <td class="meta-value">______ / ______ / 2026</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Entrevistador(es):</td>
+                <td class="meta-value"></td>
+            </tr>
+            <tr>
+                <td class="meta-label">Entrevistado(s) / Rol:</td>
+                <td class="meta-value"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="alert-info">
+        <strong>📌 Nota de Relevamiento:</strong> El negocio parte de un esquema <strong>100% analógico</strong> (sin base de datos previa ni software de gestión digital). El objetivo prioritario es relevar las necesidades operativas reales, la carga inicial de inventario, el hardware de mostrador y la prevención de sobreventas entre local y canales digitales.
+    </div>
+
+    <!-- ==================== BLOQUE 0 ==================== -->
+    <h2>🏛️ Bloque 0: Historia, Identidad Institucional y Vínculo Comunitario</h2>
+    <p class="hint">Insumo clave para la sección «Quiénes Somos / Nuestra Historia» de la tienda online y el branding del proyecto.</p>
+
+    <h3>1. Origen y Fundación</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿En qué año abrió sus puertas Matacos Deportes y quién o quiénes fueron sus fundadores?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.2. ¿Cómo y por qué surgió la idea de abrir una tienda deportiva en la ciudad?</div>
+        <div class="hint">(¿Proyecto familiar, pasión por un deporte específico, falta de oferta especializada en la zona?)</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.3. ¿El local siempre estuvo en Saavedra 241 o tuvieron otras ubicaciones históricas antes?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>2. Identidad y Elección del Nombre</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Cuál es el significado o la historia detrás de la elección del nombre «Matacos»?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Homenaje e identificación con las raíces culturales y pueblos originarios de la región del Gran Chaco.</li>
+            <li><span class="checkbox-symbol">☐</span> Vínculo con algún equipo, club o apodo histórico de la zona.</li>
+            <li><span class="checkbox-symbol">☐</span> Otra razón específica: ________________________________________________________________</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. ¿El logotipo actual ha tenido rediseños a lo largo de los años o conserva su diseño fundacional?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>3. Hitos, Evolución y Comunidad Formoseña</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Qué momentos o etapas marcaron un antes y un después en la trayectoria del negocio?</div>
+        <div class="hint">(Ej. ampliaciones del local, incorporación de marcas líderes, épocas de crisis superadas, cambios generacionales en la administración).</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.2. ¿Qué disciplinas o productos eran los más vendidos en los comienzos y cómo cambió la demanda hoy?</div>
+        <div class="hint">(Ej. antes predominaba el fútbol tradicional; hoy se sumaron running, pádel, hockey, indumentaria urbana o entrenamiento funcional).</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.3. ¿Qué relación histórica ha tenido el local con clubes, ligas, escuelas o atletas de Formosa?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Proveedor de indumentaria / equipamiento para clubes o colegios locales.</li>
+            <li><span class="checkbox-symbol">☐</span> Auspiciante / sponsor de torneos barriales, maratones o eventos deportivos provinciales.</li>
+            <li><span class="checkbox-symbol">☐</span> Apoyo a deportistas destacados de la provincia.</li>
+        </ul>
+        <div class="hint" style="margin-top: 5px;">Detallar nombres de clubes o atletas con vínculo:</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.4. ¿Tienen alguna anécdota destacada o visita memorable de algún deportista o referente que recuerden con cariño?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>4. Filosofía de Marca y Mirada al Futuro (Misión y Visión)</h3>
+    <div class="question">
+        <div class="question-text">4.1. ¿Cuál consideran que es el principal valor que los diferencia de las grandes cadenas o tiendas departamentales?</div>
+        <div class="hint">(Ej. atención personalizada y asesoramiento técnico por sus propios dueños, conocimiento del cliente local, trayectoria y confianza).</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">4.2. ¿Cómo describirían la misión del negocio hoy?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">4.3. ¿Qué representa este salto a la plataforma web dentro de la historia del negocio?</div>
+        <div class="hint">(Ej. llegar a clientes del interior provincial que antes debían viajar a la capital, modernización, agilizar la atención).</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== BLOQUE 1 ==================== -->
+    <h2>📊 Bloque 1: Diagnóstico Operativo Actual (AS-IS Analógico)</h2>
+    <p class="hint">Comprender cómo funciona el negocio hoy en el papel para diseñar un sistema intuitivo y sin fricciones de adopción.</p>
+
+    <h3>1. Registro Diario de Operaciones</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿Cómo anotan o registran hoy las ventas del mostrador?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Cuaderno de ventas manuscrito.</li>
+            <li><span class="checkbox-symbol">☐</span> Talonario de papel / boletas manuales.</li>
+            <li><span class="checkbox-symbol">☐</span> Planilla de cálculo básica (Excel/Sheets sin automatizar).</li>
+            <li><span class="checkbox-symbol">☐</span> De memoria / solo conteo final de dinero al final del día.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.2. ¿Cómo realizan el cierre de caja diario al finalizar la jornada?</div>
+        <div class="hint">(¿Cómo concilian el dinero físico en el cajón con los cupones de tarjetas/Posnet y los comprobantes de transferencias en el teléfono?)</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.3. ¿Registran salidas de dinero de la caja chica durante el día?</div>
+        <div class="hint">(Ej. pagos a cadetes, fletes, viáticos, artículos de limpieza, retiros particulares de los dueños).</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>2. Consulta y Actualización de Precios en Mostrador</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Cómo sabe hoy el vendedor el precio de un artículo cuando un cliente consulta?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Etiqueta adhesiva de precio pegada en la prenda o caja.</li>
+            <li><span class="checkbox-symbol">☐</span> Lista de precios impresa en papel detrás del mostrador.</li>
+            <li><span class="checkbox-symbol">☐</span> Preguntándole verbalmente al dueño o encargado.</li>
+            <li><span class="checkbox-symbol">☐</span> De memoria.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. Cuando los proveedores envían listas con aumentos de precios, ¿cómo trasladan el aumento hoy?</div>
+        <div class="hint">(¿Remarcan etiquetas una por una a mano, aplican un recargo mental al momento de cobrar, etc.?)</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>3. Nivel de Adopción Tecnológica y Dispositivos</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Qué nivel de manejo y familiaridad tiene el personal que estará a cargo del mostrador con PCs, tablets o celulares?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.2. ¿Qué dispositivo prefieren físicamente para operar y cobrar en el mostrador?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Computadora de escritorio (PC) con teclado y mouse.</li>
+            <li><span class="checkbox-symbol">☐</span> Notebook.</li>
+            <li><span class="checkbox-symbol">☐</span> Tablet táctil.</li>
+        </ul>
+    </div>
+
+    <!-- ==================== BLOQUE 2 ==================== -->
+    <h2>📦 Bloque 2: Catálogo, Inventario Inicial y Reglas de Negocio</h2>
+
+    <h3>1. Estimación de Inventario y Carga Inicial (Onboarding)</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿Cuántos productos o artículos distintos (SKUs) estiman que tienen físicamente en el local?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Menos de 500 artículos.</li>
+            <li><span class="checkbox-symbol">☐</span> Entre 500 y 2.000 artículos.</li>
+            <li><span class="checkbox-symbol">☐</span> Más de 2.000 artículos.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.2. ¿Cómo planifican realizar el primer inventario físico para alimentar la base de datos inicial?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Cerrar el local un fin de semana completo para conteo total y carga masiva.</li>
+            <li><span class="checkbox-symbol">☐</span> Carga progresiva por marcas o categorías (ej. primero todo Calzado, luego Indumentaria).</li>
+            <li><span class="checkbox-symbol">☐</span> Carga sobre la marcha a medida que ingresa nueva mercadería.</li>
+        </ul>
+    </div>
+
+    <h3>2. Estructura y Variantes de Productos</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Cómo organizan las categorías y disciplinas deportivas?</div>
+        <div class="hint">(Fútbol, Running, Pádel, Básquet, Vóley, Hockey, Natación, Gimnasio / Training, Urbano, etc.).</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. ¿Qué variantes específicas maneja cada artículo?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Talles de calzado: Tabla AR / US / EUR / Equivalencias en centímetros.</li>
+            <li><span class="checkbox-symbol">☐</span> Talles de indumentaria: S, M, L, XL, XXL y Talles infantiles (4 al 16).</li>
+            <li><span class="checkbox-symbol">☐</span> Género: Hombre / Mujer / Niño/a / Unisex.</li>
+            <li><span class="checkbox-symbol">☐</span> Color y combinaciones.</li>
+        </ul>
+    </div>
+
+    <h3>3. Material Fotográfico para la Web</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Disponen de fotos digitales de los productos para la tienda online?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Fotos oficiales provistas por los catálogos de marcas (Nike, Adidas, Topper, Umbro, etc.).</li>
+            <li><span class="checkbox-symbol">☐</span> Fotos propias tomadas con teléfono celular para redes sociales.</li>
+            <li><span class="checkbox-symbol">☐</span> Será necesario coordinar una etapa de toma de fotografías antes del lanzamiento web.</li>
+        </ul>
+    </div>
+
+    <h3>4. Listas de Precios, Promociones y Personalizaciones</h3>
+    <div class="question">
+        <div class="question-text">4.1. ¿Manejan listas de precios diferenciadas o convenios especiales?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Precios minoristas vs. precios mayoristas.</li>
+            <li><span class="checkbox-symbol">☐</span> Descuentos por cantidad a clubes, escuelas o ligas deportivas.</li>
+            <li><span class="checkbox-symbol">☐</span> Combos y promociones por paquete (ej. conjunto camiseta + short + medias).</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">4.2. ¿Ofrecen servicios de personalización? (Estampado de nombres, números o sponsors en camisetas).</div>
+        <div class="hint">¿Cómo debe solicitarse esto desde la web o registrarse en el mostrador?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== BLOQUE 3 ==================== -->
+    <h2>🏷️ Bloque 3: Operativa del Punto de Venta (POS), Hardware y Stock Concurrente</h2>
+
+    <h3>1. Identificación de Artículos y Códigos de Barra</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿La mercadería que compran a proveedores ya viene con código de barras de fábrica?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Sí, la gran mayoría posee código EAN-13 estándar de fábrica.</li>
+            <li><span class="checkbox-symbol">☐</span> No, muchos artículos vienen sin código (artículos genéricos, accesorios sueltos, etc.).</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.2. ¿Desean incorporar una impresora térmica de etiquetas para generar códigos de barra propios, o prefieren buscar los artículos en pantalla mediante buscador de texto/categorías?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>2. Equipamiento Físico del Mostrador</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Cuántas cajas o terminales de cobro simultáneas funcionarán en el local?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. ¿Qué periféricos planean utilizar en el puesto de cobro?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Lector de código de barras (USB o inalámbrico).</li>
+            <li><span class="checkbox-symbol">☐</span> Impresora térmica de tickets comandera (58mm o 80mm).</li>
+            <li><span class="checkbox-symbol">☐</span> Gaveta / cajón de dinero con apertura automática al cobrar.</li>
+        </ul>
+    </div>
+
+    <h3>3. Gestión de Stock Concurrente (Local Físico vs. Web / Redes)</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Cómo gestionan hoy cuando un cliente pide apartar un producto por WhatsApp/Instagram mientras el local está abierto al público?</div>
+        <div class="hint">(¿Cómo evitan que otro vendedor lo venda en el mostrador en ese lapso?)</div>
+        <div class="answer-box-multiline"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.2. En el nuevo sistema: ¿Desean una función de "Reserva Temporal" (ej. bloquear stock por 2 horas para un cliente de WhatsApp hasta que envíe el comprobante de transferencia)?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.3. ¿Cómo debe comportarse la tienda web cuando un producto se queda sin stock?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Ocultar el producto automáticamente.</li>
+            <li><span class="checkbox-symbol">☐</span> Mostrarlo como «Agotado» impidiendo la compra.</li>
+            <li><span class="checkbox-symbol">☐</span> Permitir dejar contacto para aviso de reingreso («Avisarme cuando haya stock»).</li>
+        </ul>
+    </div>
+
+    <h3>4. Tolerancia a Cortes de Conectividad (Modo Offline)</h3>
+    <div class="question">
+        <div class="question-text">4.1. Ante un corte temporal del servicio de internet en el local físico, ¿es indispensable que el mostrador pueda seguir cobrando y emitiendo tickets en modo offline para luego sincronizarse automáticamente al volver la red?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== BLOQUE 4 ==================== -->
+    <h2>💳 Bloque 4: Pagos, Facturación, Envíos y Postventa</h2>
+
+    <h3>1. Métodos de Cobro y Promociones</h3>
+    <div class="question">
+        <div class="question-text">1.1. En el local: ¿Qué medios de pago reciben actualmente?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Efectivo.</li>
+            <li><span class="checkbox-symbol">☐</span> Tarjetas de débito / crédito (POSNET tradicional / Mercado Pago Point).</li>
+            <li><span class="checkbox-symbol">☐</span> Transferencias bancarias (Alias / CBU).</li>
+            <li><span class="checkbox-symbol">☐</span> QR de billeteras virtuales (Mercado Pago, Cuenta DNI, MODO, etc.).</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.2. En la web: ¿Qué opciones desean habilitar para los clientes online?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Pasarela online (Mercado Pago Checkout / Tarjetas / Dinero en cuenta).</li>
+            <li><span class="checkbox-symbol">☐</span> Transferencia bancaria directa con carga de comprobante.</li>
+            <li><span class="checkbox-symbol">☐</span> Pago al retirar en el local físico.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">1.3. ¿Aplican promociones o recargos según el método de pago? (Descuento en efectivo, recargo en cuotas con tarjeta, etc.)</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>2. Facturación y Aspectos Impositivos (AFIP / ARCA)</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Cuál es la condición fiscal del comercio ante AFIP/ARCA?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Monotributo.</li>
+            <li><span class="checkbox-symbol">☐</span> Responsable Inscripto.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. ¿Cómo emiten comprobantes actualmente?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Facturación manual en talonario de papel.</li>
+            <li><span class="checkbox-symbol">☐</span> Portal web "Comprobantes en Línea" de AFIP.</li>
+            <li><span class="checkbox-symbol">☐</span> Controlador fiscal físico.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.3. ¿El nuevo sistema debe emitir Factura Electrónica (Facturas A, B, C) conectándose directamente con AFIP/ARCA, o emitirá comprobantes internos no fiscales (tickets de control / presupuestos)?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>3. Cuentas Corrientes, Fiados y Señas</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Manejan ventas a Cuenta Corriente ("fiado" o pago a fin de mes) con clubes, instituciones o clientes de confianza? ¿El sistema debe llevar el saldo adeudado de cada cliente?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">3.2. Al encargar trabajos especiales (ej. indumentaria personalizada), ¿cobran señas o anticipos (ej. 50%)? ¿El sistema debe emitir un comprobante de seña y descontar el saldo restante contra entrega?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>4. Logística y Modalidades de Entrega</h3>
+    <div class="question">
+        <div class="question-text">4.1. ¿Cuáles serán las opciones de envío ofrecidas en la tienda online?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Retiro gratuito en el local (Saavedra 241).</li>
+            <li><span class="checkbox-symbol">☐</span> Cadetería local / moto-mensajería dentro de la ciudad de Formosa.</li>
+            <li><span class="checkbox-symbol">☐</span> Envíos al interior de la provincia y a todo el país (Correo Argentino, Andreani, encomiendas por micro).</li>
+        </ul>
+    </div>
+
+    <h3>5. Políticas de Postventa, Cambios y Garantías</h3>
+    <div class="question">
+        <div class="question-text">5.1. ¿Cómo gestionan hoy los cambios de talle o modelo? (¿Qué plazo se le otorga al cliente? ¿Debe presentar el ticket obligatoriamente?)</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">5.2. Si un cliente compra por la tienda web, ¿puede realizar el cambio físicamente en el local?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <div class="question">
+        <div class="question-text">5.3. Si un cliente devuelve un producto y no elige otro en el momento:</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Se le emite una Nota de Crédito / Vale de compra para usar a futuro.</li>
+            <li><span class="checkbox-symbol">☐</span> Se le reintegra el dinero por el mismo medio que pagó.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">5.4. Frente a aumentos de precios por inflación entre la fecha de compra y la fecha del cambio de talle: ¿Se le respeta el cambio mano a mano del mismo producto, o debe abonar la diferencia de precio?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== BLOQUE 5 ==================== -->
+    <h2>📱 Bloque 5: Experiencia del Usuario (UX) y Canales de Atención</h2>
+
+    <h3>1. Flujo de Compra en la Web</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿La compra requerirá registro obligatorio de usuario con contraseña, o se permitirá compra rápida como invitado (guest checkout) solicitando solo datos de contacto y envío?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <h3>2. Canales de Notificación y Asistencia</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Qué canales de comunicación prefieren para notificar al cliente sobre su compra y estado del pedido?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Correo electrónico automático.</li>
+            <li><span class="checkbox-symbol">☐</span> Mensaje directo por WhatsApp.</li>
+            <li><span class="checkbox-symbol">☐</span> Ambos canales.</li>
+        </ul>
+    </div>
+
+    <div class="question">
+        <div class="question-text">2.2. ¿Desean un botón flotante de WhatsApp en la web que incluya el enlace y nombre exacto del producto que el usuario está viendo en pantalla al iniciar la conversación?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== BLOQUE 6 ==================== -->
+    <h2>👥 Bloque 6: Roles de Usuario, Reportes y Plan de Transición</h2>
+
+    <h3>1. Permisos y Perfiles de Acceso al Sistema</h3>
+    <div class="question">
+        <div class="question-text">1.1. ¿Qué roles operarán dentro de la plataforma y qué permisos tendrán?</div>
+        <ul class="checklist">
+            <li><strong>Administrador / Dueño:</strong> Acceso total a precios de costo, márgenes de ganancia, reportes financieros y configuración general.</li>
+            <li><strong>Cajero / Vendedor de mostrador:</strong> Permisos para consultar stock, registrar ventas, cobrar y emitir tickets (sin acceso a costos del negocio).</li>
+            <li><strong>Operador de Despacho / Catálogo:</strong> Permisos para actualizar fotos/descripciones y marcar pedidos web como "empaquetados / enviados".</li>
+        </ul>
+    </div>
+
+    <h3>2. Reportes Clave y Métricas para los Dueños</h3>
+    <div class="question">
+        <div class="question-text">2.1. ¿Qué información necesitan ver en su panel de control al final del día o mes?</div>
+        <ul class="checklist">
+            <li><span class="checkbox-symbol">☐</span> Total facturado discriminado por medio de pago (Efectivo vs. Mercado Pago vs. Transferencias).</li>
+            <li><span class="checkbox-symbol">☐</span> Alertas automáticas de productos con stock bajo o agotado para reposición.</li>
+            <li><span class="checkbox-symbol">☐</span> Ranking de productos, marcas y disciplinas más vendidas.</li>
+            <li><span class="checkbox-symbol">☐</span> Rendimiento de ventas web vs. ventas físicas del local.</li>
+            <li><span class="checkbox-symbol">☐</span> Ganancia bruta estimada del período.</li>
+        </ul>
+    </div>
+
+    <h3>3. Plan de Capacitación y Marcha Blanca</h3>
+    <div class="question">
+        <div class="question-text">3.1. ¿Están de acuerdo en realizar un período de prueba («marcha blanca») de 1 a 2 semanas donde el nuevo sistema conviva con el método tradicional antes del apagado definitivo del cuaderno?</div>
+        <div class="answer-box"></div>
+    </div>
+
+    <!-- ==================== ARQUITECTURA ==================== -->
+    <h2>📐 Resumen de Arquitectura Técnica Recomendada</h2>
+    
+    <table class="architecture-table">
+        <thead>
+            <tr>
+                <th style="width: 30%;">Componente</th>
+                <th style="width: 40%;">Función Principal</th>
+                <th style="width: 30%;">Ventaja Clave</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>1. Capa Web & E-commerce (Nube)</strong></td>
+                <td>Catálogo online 24/7, pasarela de pago Mercado Pago, recepción de pedidos y panel de administración.</td>
+                <td>Disponibilidad continua sin depender de la luz ni conectividad del local físico.</td>
+            </tr>
+            <tr>
+                <td><strong>2. Capa de Mostrador / POS (Offline-First)</strong></td>
+                <td>Ventas ultra rápidas, escaneo de códigos de barra, cobro en mostrador e impresión de tickets.</td>
+                <td>Permite seguir cobrando y despachando aunque se corte internet en el local.</td>
+            </tr>
+            <tr>
+                <td><strong>3. Motor de Sincronización</strong></td>
+                <td>Sincroniza stock en tiempo real entre local y web vía Webhooks/API REST.</td>
+                <td>Evita la sobreventa de artículos únicos o de baja rotación en redes/mostrador.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer-note">
+        Documento de Relevamiento de Requerimientos • Matacos Deportes • Formosa, Argentina • 2026
+    </div>
+
+</body>
+</html>

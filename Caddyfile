@@ -1,0 +1,19 @@
+# =========================================================================
+# Caddyfile: Configuración de Proxy Inverso y SSL Automático (HTTPS)
+# =========================================================================
+
+# Reemplazar 'tudominio.com' por el dominio real de Matacos Deportes (ej. matacosdeportes.com.ar)
+# Para pruebas locales puedes usar 'localhost:80'
+http://localhost, https://localhost {
+    # Redirección de tráfico al contenedor Next.js
+    reverse_proxy app:3000
+
+    # Compresión automática de respuestas (Gzip y Zstandard)
+    encode gzip zstd
+
+    # Logs de acceso
+    log {
+        output stdout
+        format console
+    }
+}
