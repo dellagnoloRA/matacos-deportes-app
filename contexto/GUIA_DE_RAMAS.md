@@ -47,11 +47,13 @@ gitGraph
 | Tipo de Rama | Rama Origen | Rama Destino | Nomenclatura Obligatoria | Ejemplo |
 | :--- | :---: | :---: | :--- | :--- |
 | **Producción** | — | — | `main` | `main` *(Código 100% estable / Entregas a cátedra)* |
-| **Desarrollo** | `main` | `main` | `develop` | `develop` *(Integración de todo el equipo)* |
+| **Desarrollo (Base)** | `main` | — | `develop` | `develop` *(Rama activa de integración de todo el equipo)* |
 | **Feature Backend** | `develop` | `develop` | `feature/be-<rf>-<descripcion>` | `feature/be-rf01-crud-productos` |
 | **Feature Frontend** | `develop` | `develop` | `feature/fe-<rf>-<descripcion>` | `feature/fe-rf01-tabla-productos` |
 | **Corrección / Bug** | `develop` | `develop` | `fix/<descripcion>` | `fix/calculo-vuelto-negativo` |
-| **Release Mensual** | `develop` | `main` & `develop` | `release/mes-<numero>` | `release/mes-2` *(Cierre de mes y entrega)* |
+| **Documentación** | `develop` | `develop` | `docs/<descripcion>` | `docs/actualizar-guia-arquitectura` |
+| **Mantenimiento / Config** | `develop` | `develop` | `chore/<descripcion>` | `chore/actualizar-dependencias-pnpm` |
+| **Release Mensual** | `develop` | `main` & `develop` | `release/mes-<numero>` | `release/mes-2` *(Cierre de mes y entrega formal)* |
 | **Hotfix Urgente** | `main` | `main` & `develop` | `hotfix/<descripcion>` | `hotfix/error-critico-offline` |
 
 ---
