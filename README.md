@@ -45,6 +45,7 @@ matacos-deportes/
 │   └── skills/                # Skills de pair programming + 'matacos-domain'
 ├── .vscode/                   # [CONFIG] Formateo automático idéntico para el equipo
 ├── contexto/                  # [DOCUMENTACIÓN & ANÁLISIS] Informes, guías y elicitación
+│   ├── DEV_SETUP.md           # [GUÍA] Manual de instalación rápida
 │   ├── GUIA_DE_RAMAS.md       # [GIT] Flujo de trabajo colaborativo en Git Flow
 │   ├── Guia_Despliegue_*.md   # Guías de despliegue en VPS Hostinger y Caddy
 │   ├── Informe_*.md           # Informes mensuales e hitos de la cátedra
@@ -76,8 +77,7 @@ matacos-deportes/
 ├── Dockerfile                 # [BACKEND / DEVOPS] Construcción multi-stage de producción con PNPM
 ├── Caddyfile                  # [BACKEND / DEVOPS] Proxy inverso y SSL automático (HTTPS)
 ├── .env.example               # [COMPARTIDO] Variables de entorno de referencia
-├── AGENTS.md / GEMINI.md      # [AI / DIRECTIVAS] Reglas maestras del proyecto
-└── DEV_SETUP.md               # [GUÍA] Manual de instalación rápida
+└── AGENTS.md / GEMINI.md      # [AI / DIRECTIVAS] Reglas maestras del proyecto
 ```
 
 ### Guía Rápida: ¿Dónde programo según mi rol?
