@@ -25,7 +25,7 @@ async function generateExcelTemplate() {
     { header: "Talle", key: "talle", width: 12 },
     { header: "Color", key: "color", width: 16 },
     { header: "Código de Barra", key: "barcode", width: 20 },
-    { header: "SKU (Opcional)", key: "sku", width: 18 },
+    { header: "SKU (Autogenerado)", key: "sku", width: 24 },
     { header: "Stock Salón", key: "stockStore", width: 14 },
     { header: "Stock Depósito", key: "stockWarehouse", width: 16 },
     { header: "Mínimo Salón", key: "minStoreStock", width: 15 },
@@ -353,6 +353,11 @@ async function generateExcelTemplate() {
       showErrorMessage: false,
     };
 
+    // 6. Columna I (SKU): Fórmula de autogeneración dinámica si no se escribe a mano
+    ws.getCell(`I${r}`).value = {
+      formula: `IF(D${r}="","",UPPER(LEFT(C${r},3)&"-"&LEFT(A${r},3)&"-"&LEFT(D${r},3)&"-"&LEFT(F${r},4)&"-"&LEFT(G${r},3)))`,
+    };
+
     // Formato numérico y alineación para celdas de datos
     const row = ws.getRow(r);
     row.getCell("A").alignment = { vertical: "middle", horizontal: "left" };
@@ -407,7 +412,7 @@ async function generateExcelTemplate() {
     { campo: "Talle", obligatorio: "SÍ", reglas: "Talle numérico (40, 41), textil (S, M, L) o 'Único' (dispone de menú desplegable o texto libre)." },
     { campo: "Color", obligatorio: "SÍ", reglas: "Color predominante o combinación (dispone de menú desplegable o texto libre)." },
     { campo: "Código de Barra", obligatorio: "NO", reglas: "EAN-13 impreso de fábrica. Si no tiene, dejar en blanco para imprimir etiqueta interna (RF-05)." },
-    { campo: "SKU (Opcional)", obligatorio: "NO", reglas: "Código de control interno. Si se deja vacío, el sistema lo genera automáticamente." },
+    { campo: "SKU (Autogenerado)", obligatorio: "NO", reglas: "Contiene una FÓRMULA AUTOMÁTICA que genera el SKU (ej: SPE-NAT-ANT-UNI-AZU). Puede sobreescribirse si se desea un código propio." },
     { campo: "Stock Salón", obligatorio: "SÍ", reglas: "Unidades físicas exhibidas en estanterías o mostrador en Saavedra 241 (número entero >= 0)." },
     { campo: "Stock Depósito", obligatorio: "SÍ", reglas: "Unidades físicas guardadas en cajas del depósito interno (número entero >= 0)." },
     { campo: "Mínimo Salón", obligatorio: "NO", reglas: "Umbral para disparar la Alerta de Reposición Interna (Depósito -> Salón). Por defecto: 1." },

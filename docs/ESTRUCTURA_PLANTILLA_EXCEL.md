@@ -18,7 +18,7 @@ Esta guía detalla la estructura y reglas de llenado de la plantilla oficial de 
 | **6** | **Talle** | **SÍ** | Texto | `41`, `M`, `L`, `Único`, `2kg`, `5` | Talle numérico, medida o tamaño de la variante. |
 | **7** | **Color** | **SÍ** | Texto | `Negro`, `Azul`, `Amarillo/Azul`, `Flúor` | Color predominante o combinación de la variante. |
 | **8** | **Código de Barra** | NO | Numérico / Texto | `7791234567890` | Código EAN-13 impreso en la caja/etiqueta de fábrica. Si el artículo no tiene código, **se deja en blanco**. |
-| **9** | **SKU (Opcional)** | NO | Texto | `SPE-NAT-MAR-AZUL` | Código de control interno. Si se deja en blanco, el backend lo genera automáticamente con formato estándar. |
+| **9** | **SKU (Autogenerado)** | NO | Texto / Fórmula | `SPE-NAT-ANT-UNI-AZU` | **Autogenerado automáticamente mediante fórmula de Excel** `=IF(D2="","",UPPER(LEFT(C2,3)&"-"&LEFT(A2,3)&"-"&LEFT(D2,3)&"-"&LEFT(F2,4)&"-"&LEFT(G2,3)))`. Si se desea un código personalizado, se puede sobreescribir la celda libremente. |
 | **10** | **Stock Salón** | **SÍ** | Entero $\ge 0$ | `2` | Cantidad física exhibida en percheros, estanterías o mostrador del salón de ventas de Saavedra 241. |
 | **11** | **Stock Depósito** | **SÍ** | Entero $\ge 0$ | `5` | Cantidad física almacenada en cajas dentro del depósito interno. |
 | **12** | **Mínimo Salón** | NO | Entero $\ge 0$ | `1` *(por defecto: 1)* | Umbral mínimo en salón antes de disparar la **Alerta de Reposición Interna** (Depósito $\rightarrow$ Salón). |
