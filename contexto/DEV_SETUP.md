@@ -33,10 +33,11 @@ pnpm -v
 ```
 
 ### 2. Clonar el repositorio y entrar a la carpeta
-
+ 
 ```bash
 git clone <URL_DEL_REPOSITORIO>
-cd matacos-deportes
+cd matacos-deportes-app
+git checkout develop
 ```
 
 ### 3. Copiar el archivo de variables de entorno
