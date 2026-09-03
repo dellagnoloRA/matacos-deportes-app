@@ -295,10 +295,28 @@ const DISCIPLINES = [
   "Fitness",
 ];
 
-export function InventoryView() {
+interface InventoryViewProps {
+  selectedDiscipline?: string;
+  onDisciplineChange?: (discipline: string) => void;
+}
+
+export function InventoryView({
+  selectedDiscipline: controlledDiscipline,
+  onDisciplineChange,
+}: InventoryViewProps = {}) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDiscipline, setSelectedDiscipline] = useState("Todas");
+  const [internalDiscipline, setInternalDiscipline] = useState("Todas");
   const [selectedProduct, setSelectedProduct] = useState<DetailedProductItem | null>(null);
+
+  const selectedDiscipline = controlledDiscipline !== undefined ? controlledDiscipline : internalDiscipline;
+
+  const handleSelectDiscipline = (d: string) => {
+    if (onDisciplineChange) {
+      onDisciplineChange(d);
+    } else {
+      setInternalDiscipline(d);
+    }
+  };
 
   // Filter products by search and discipline
   const filteredProducts = useMemo(() => {
@@ -395,7 +413,7 @@ export function InventoryView() {
           {DISCIPLINES.map((d) => (
             <button
               key={d}
-              onClick={() => setSelectedDiscipline(d)}
+              onClick={() => handleSelectDiscipline(d)}
               className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all font-medium ${
                 selectedDiscipline === d
                   ? "bg-slate-900 text-white shadow-xs"

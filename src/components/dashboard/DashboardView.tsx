@@ -48,6 +48,7 @@ const INITIAL_KPIS: KpiData[] = [
 
 export function DashboardView() {
   const [currentTab, setCurrentTab] = useState<"inventario" | "analytics">("inventario");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [isDesktopLeftOpen, setIsDesktopLeftOpen] = useState(true);
   const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
   const [isDesktopRightOpen, setIsDesktopRightOpen] = useState(true);
@@ -96,8 +97,19 @@ export function DashboardView() {
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={currentTab}
-            onSelectItem={(id) => setCurrentTab(id as "inventario" | "analytics")}
+            activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
+            onSelectItem={(id) => {
+              if (id === "inicio" || id === "analytics") {
+                setCurrentTab("analytics");
+              } else {
+                setCurrentTab("inventario");
+              }
+            }}
+            selectedCategory={selectedCategory}
+            onSelectCategory={(cat) => {
+              setSelectedCategory(cat);
+              setCurrentTab("inventario");
+            }}
             className="transition-all duration-300 hidden md:flex"
           />
         )}
@@ -115,7 +127,10 @@ export function DashboardView() {
                 <span>Menú</span>
               </button>
             </div>
-            <InventoryView />
+            <InventoryView
+              selectedDiscipline={selectedCategory}
+              onDisciplineChange={(cat) => setSelectedCategory(cat)}
+            />
           </div>
         ) : (
           <main className="flex-1 flex flex-col min-w-0 bg-[#f4f5f7] overflow-y-auto px-3 sm:px-4 lg:px-6 py-4 space-y-4">
@@ -215,8 +230,19 @@ export function DashboardView() {
         <SidebarLeft
           className="h-full w-full bg-white"
           isMobile
-          activeItem={currentTab}
-          onSelectItem={(id) => setCurrentTab(id as "inventario" | "analytics")}
+          activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
+          onSelectItem={(id) => {
+            if (id === "inicio" || id === "analytics") {
+              setCurrentTab("analytics");
+            } else {
+              setCurrentTab("inventario");
+            }
+          }}
+          selectedCategory={selectedCategory}
+          onSelectCategory={(cat) => {
+            setSelectedCategory(cat);
+            setCurrentTab("inventario");
+          }}
           onClose={() => setIsMobileLeftOpen(false)}
         />
       </div>

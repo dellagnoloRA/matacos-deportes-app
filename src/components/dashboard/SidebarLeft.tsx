@@ -2,26 +2,15 @@
 
 import React, { useState } from "react";
 import {
-  LayoutDashboard,
   Boxes,
-  Sparkles,
   X,
   Home,
-  BarChart3,
-  Users,
-  FolderTree,
   ChevronDown,
+  Waves,
+  Volleyball,
+  Footprints,
+  Dumbbell,
   Layers,
-  Package,
-  Ruler,
-  Boxes as PacksIcon,
-  Tag,
-  MapPin,
-  CalendarCheck2,
-  Store,
-  Globe,
-  ReceiptText,
-  AppWindow,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -30,7 +19,17 @@ interface SidebarLeftProps {
   isMobile?: boolean;
   activeItem?: string;
   onSelectItem?: (id: string) => void;
+  selectedCategory?: string;
+  onSelectCategory?: (category: string) => void;
 }
+
+const INVENTORY_CATEGORIES = [
+  { id: "Todas", label: "Todos los productos", icon: Layers },
+  { id: "Natación", label: "Natación", icon: Waves },
+  { id: "Vóley", label: "Vóley", icon: Volleyball },
+  { id: "Crocs / Urbano", label: "Crocs / Urbano", icon: Footprints },
+  { id: "Fitness", label: "Fitness", icon: Dumbbell },
+];
 
 export function SidebarLeft({
   className = "",
@@ -38,12 +37,29 @@ export function SidebarLeft({
   isMobile = false,
   activeItem = "inventario",
   onSelectItem,
+  selectedCategory = "Todas",
+  onSelectCategory,
 }: SidebarLeftProps) {
-  const [catalogOpen, setCatalogOpen] = useState(true);
+  const [inventoryOpen, setInventoryOpen] = useState(true);
+
+  const handleCategoryClick = (category: string) => {
+    if (onSelectItem) {
+      onSelectItem("inventario");
+    }
+    if (onSelectCategory) {
+      onSelectCategory(category);
+    }
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
 
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
       onSelectItem(id);
+    }
+    if (id === "inventario") {
+      setInventoryOpen((prev) => !prev);
     }
     if (isMobile && onClose) {
       onClose();
@@ -82,152 +98,80 @@ export function SidebarLeft({
         </div>
 
         {/* Navigation Sections */}
-        <nav className="space-y-1 pt-1">
+        <nav className="space-y-1.5 pt-1">
           {/* Inicio / Overview */}
           <button
-            onClick={() => handleItemClick("analytics")}
+            onClick={() => handleItemClick("inicio")}
             className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all ${
-              activeItem === "inicio"
+              activeItem === "inicio" || activeItem === "analytics"
                 ? "bg-slate-900 text-white font-semibold shadow-xs"
                 : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Home className="w-4 h-4 text-slate-500" />
+              <Home className={`w-4 h-4 ${activeItem === "inicio" || activeItem === "analytics" ? "text-emerald-400" : "text-slate-500"}`} />
               <span>Inicio</span>
             </div>
           </button>
 
-          {/* Analítica */}
-          <button
-            onClick={() => handleItemClick("analytics")}
-            className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all ${
-              activeItem === "analytics"
-                ? "bg-slate-900 text-white font-semibold shadow-xs"
-                : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <BarChart3 className={`w-4 h-4 ${activeItem === "analytics" ? "text-emerald-400" : "text-slate-500"}`} />
-              <span>Analítica</span>
-            </div>
-          </button>
-
-          {/* Catálogo (Dropdown Group matching reference) */}
-          <div className="pt-1">
+          {/* Inventario (Dropdown Group with Categories) */}
+          <div className="pt-0.5">
             <button
-              onClick={() => setCatalogOpen((prev) => !prev)}
-              className="flex items-center justify-between w-full py-2 px-2.5 text-slate-700 hover:bg-slate-100/80 rounded-xl transition-all font-semibold"
+              onClick={() => {
+                if (activeItem !== "inventario") {
+                  handleItemClick("inventario");
+                  setInventoryOpen(true);
+                } else {
+                  setInventoryOpen((prev) => !prev);
+                }
+              }}
+              className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all font-semibold ${
+                activeItem === "inventario"
+                  ? "bg-indigo-50/80 text-indigo-950 border border-indigo-200/60"
+                  : "text-slate-700 hover:bg-slate-100/80"
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <FolderTree className="w-4 h-4 text-indigo-600" />
-                <span>Catálogo</span>
+                <Boxes className="w-4 h-4 text-indigo-600" />
+                <span>Inventario</span>
               </div>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                  catalogOpen ? "rotate-180" : ""
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                  inventoryOpen ? "rotate-180" : ""
                 }`}
               />
             </button>
 
-            {catalogOpen && (
-              <div className="pl-6 pr-1 py-1 space-y-0.5 border-l-2 border-indigo-100 ml-4 my-1">
-                {/* Productos (Principal) */}
-                <button
-                  onClick={() => handleItemClick("inventario")}
-                  className={`flex items-center justify-between w-full py-1.5 px-2.5 rounded-lg text-xs transition-all ${
-                    activeItem === "inventario"
-                      ? "bg-indigo-50 text-indigo-950 font-bold border border-indigo-200/80 shadow-2xs"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${activeItem === "inventario" ? "bg-indigo-600" : "bg-slate-300"}`} />
-                    <span>Productos</span>
-                  </div>
-                  {activeItem === "inventario" && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  )}
-                </button>
+            {inventoryOpen && (
+              <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-indigo-100 ml-4 my-1">
+                {INVENTORY_CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  const isSelected =
+                    activeItem === "inventario" && selectedCategory === cat.id;
 
-                {/* Variantes */}
-                <button
-                  onClick={() => handleItemClick("inventario")}
-                  className="flex items-center gap-2 w-full py-1.5 px-2.5 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                  <span>Variantes</span>
-                </button>
-
-                {/* Colecciones / Disciplinas */}
-                <button
-                  onClick={() => handleItemClick("inventario")}
-                  className="flex items-center gap-2 w-full py-1.5 px-2.5 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                  <span>Colecciones</span>
-                </button>
-
-                {/* Ubicaciones */}
-                <button
-                  onClick={() => handleItemClick("inventario")}
-                  className="flex items-center gap-2 w-full py-1.5 px-2.5 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                  <span>Ubicaciones</span>
-                </button>
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => handleCategoryClick(cat.id)}
+                      className={`flex items-center justify-between w-full py-1.5 px-2.5 rounded-lg text-xs transition-all ${
+                        isSelected
+                          ? "bg-indigo-600 text-white font-semibold shadow-xs"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-indigo-200" : "text-slate-400"}`} />
+                        <span>{cat.label}</span>
+                      </div>
+                      {isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {/* Inventario */}
-          <button
-            onClick={() => handleItemClick("inventario")}
-            className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all ${
-              activeItem === "inventario_full"
-                ? "bg-slate-900 text-white font-semibold shadow-xs"
-                : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Boxes className="w-4 h-4 text-slate-500" />
-              <span>Inventario</span>
-            </div>
-          </button>
-
-          {/* Tiendas / Mostrador Saavedra 241 */}
-          <button
-            onClick={() => handleItemClick("inventario")}
-            className="flex items-center justify-between w-full py-2 px-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 transition-all"
-          >
-            <div className="flex items-center gap-2.5">
-              <Store className="w-4 h-4 text-slate-500" />
-              <span>Tienda Local (POS)</span>
-            </div>
-            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">Saavedra</span>
-          </button>
-
-          {/* Ecommerce */}
-          <button
-            onClick={() => handleItemClick("analytics")}
-            className="flex items-center justify-between w-full py-2 px-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 transition-all"
-          >
-            <div className="flex items-center gap-2.5">
-              <Globe className="w-4 h-4 text-slate-500" />
-              <span>Ecommerce</span>
-            </div>
-          </button>
-
-          {/* Facturación */}
-          <button
-            onClick={() => handleItemClick("analytics")}
-            className="flex items-center justify-between w-full py-2 px-2.5 rounded-xl text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 transition-all"
-          >
-            <div className="flex items-center gap-2.5">
-              <ReceiptText className="w-4 h-4 text-slate-500" />
-              <span>Facturación</span>
-            </div>
-          </button>
         </nav>
       </div>
 
@@ -242,3 +186,4 @@ export function SidebarLeft({
     </aside>
   );
 }
+
