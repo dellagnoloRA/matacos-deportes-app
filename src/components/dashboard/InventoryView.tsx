@@ -17,15 +17,18 @@ import {
   Eye,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { InventoryItem, ProductDetailModal } from "./ProductDetailModal";
+import { DetailedProductItem } from "./types";
+import { ProductDetailView } from "./ProductDetailView";
 
-const INITIAL_PRODUCTS: InventoryItem[] = [
+const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
     id: "p1",
     name: "Antiparras Cobra Ultra Mirror",
+    description: "Antiparras de competición hidrodinámicas con lentes espejadas, protección UV400 y tratamiento antivaho de larga duración. Puente nasal intercambiable.",
     brand: "Arena",
     discipline: "Natación",
     category: "Accesorios Natación",
+    subcategory: "Antiparras de Competición",
     price: 68000,
     costPrice: 42000,
     sku: "NAT-ARE-001",
@@ -35,17 +38,29 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 3,
     updatedAt: "14 Abr 2026 at 8:00 PM",
     iconBg: "from-sky-500 to-blue-600",
+    receivedTotal: 1545,
+    stockTransfer: 46,
+    salesStoreTotal: 129,
+    salesWebTotal: 76,
     variants: [
-      { size: "Único", color: "Mirror Silver", stockLocal: 8, stockWeb: 5, barcode: "779123456701-1" },
-      { size: "Único", color: "Mirror Gold", stockLocal: 6, stockWeb: 3, barcode: "779123456701-2" },
+      { size: "Único", color: "Mirror Silver", stockStore: 8, stockWarehouse: 12, barcode: "779123456701-1", receivedCount: 357, soldCountStore: 48, soldCountWeb: 33 },
+      { size: "Único", color: "Mirror Gold", stockStore: 6, stockWarehouse: 10, barcode: "779123456701-2", receivedCount: 359, soldCountStore: 30, soldCountWeb: 18 },
+      { size: "Único", color: "Mirror Blue", stockStore: 5, stockWarehouse: 8, barcode: "779123456701-3", receivedCount: 350, soldCountStore: 29, soldCountWeb: 14 },
+      { size: "Único", color: "Smoke / Black", stockStore: 4, stockWarehouse: 6, barcode: "779123456701-4", receivedCount: 340, soldCountStore: 17, soldCountWeb: 8 },
+      { size: "Único", color: "Ruby Red", stockStore: 3, stockWarehouse: 4, barcode: "779123456701-5", receivedCount: 139, soldCountStore: 5, soldCountWeb: 3 },
+    ],
+    sizeConversions: [
+      { ar: "Único", us: "One Size", eu: "TU (Taille Unique)", br: "Tamanho Único", cm: "Ajustable 48-62 cm", note: "Correa doble silicona" },
     ],
   },
   {
     id: "p2",
     name: "Pelota Vóley V200W Oficial FIVB",
+    description: "Balón oficial de juego de la Federación Internacional de Voleibol (FIVB). Diseño de 18 paneles aerodinámicos en microfibra doble hoyuelo con tecnología anti-sudor.",
     brand: "Mikasa",
     discipline: "Vóley",
     category: "Balones",
+    subcategory: "Vóley Profesional Indoor",
     price: 145000,
     costPrice: 98000,
     sku: "VOL-MIK-200",
@@ -55,16 +70,25 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 2,
     updatedAt: "05 Abr 2026 at 7:00 PM",
     iconBg: "from-amber-400 to-yellow-600",
+    receivedTotal: 420,
+    stockTransfer: 12,
+    salesStoreTotal: 84,
+    salesWebTotal: 42,
     variants: [
-      { size: "N° 5", color: "Azul/Amarillo", stockLocal: 6, stockWeb: 4, barcode: "779123456702-1" },
+      { size: "N° 5", color: "Azul/Amarillo", stockStore: 6, stockWarehouse: 14, barcode: "779123456702-1", receivedCount: 420, soldCountStore: 84, soldCountWeb: 42 },
+    ],
+    sizeConversions: [
+      { ar: "N° 5", us: "Size 5", eu: "Taille 5", br: "Tamanho 5", cm: "65 - 67 cm (Circunf.)", note: "Oficial FIVB (260-280g)" },
     ],
   },
   {
     id: "p3",
     name: "Zapatillas Gel-Rocket 11 Indoor",
+    description: "Calzado multiusos para canchas de interior con tecnología GEL en el antepié para absorción de impactos, suela de goma non-marking de máxima tracción y capellada transpirable.",
     brand: "Asics",
     discipline: "Vóley / Indoor",
     category: "Calzado",
+    subcategory: "Zapatillas de Vóley / Handball",
     price: 120000,
     costPrice: 78000,
     sku: "CAL-ASI-011",
@@ -74,18 +98,33 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 2,
     updatedAt: "02 Abr 2026 at 10:00 PM",
     iconBg: "from-indigo-500 to-blue-700",
+    receivedTotal: 580,
+    stockTransfer: 24,
+    salesStoreTotal: 96,
+    salesWebTotal: 52,
     variants: [
-      { size: "40", color: "Blanco/Azul", stockLocal: 3, stockWeb: 1, barcode: "779123456703-40" },
-      { size: "41", color: "Blanco/Azul", stockLocal: 4, stockWeb: 2, barcode: "779123456703-41" },
-      { size: "42", color: "Blanco/Azul", stockLocal: 3, stockWeb: 2, barcode: "779123456703-42" },
+      { size: "39", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 4, barcode: "779123456703-39", receivedCount: 110, soldCountStore: 18, soldCountWeb: 10 },
+      { size: "40", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 6, barcode: "779123456703-40", receivedCount: 120, soldCountStore: 24, soldCountWeb: 14 },
+      { size: "41", color: "Blanco/Azul", stockStore: 4, stockWarehouse: 8, barcode: "779123456703-41", receivedCount: 130, soldCountStore: 28, soldCountWeb: 16 },
+      { size: "42", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 5, barcode: "779123456703-42", receivedCount: 115, soldCountStore: 16, soldCountWeb: 8 },
+      { size: "43", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 3, barcode: "779123456703-43", receivedCount: 105, soldCountStore: 10, soldCountWeb: 4 },
+    ],
+    sizeConversions: [
+      { ar: "39 AR", us: "7.0 US", eu: "40 EU", br: "38 BR", cm: "25.25 cm", note: "Calce justo" },
+      { ar: "40 AR", us: "7.5 US", eu: "40.5 EU", br: "39 BR", cm: "25.75 cm", note: "Estándar" },
+      { ar: "41 AR", us: "8.5 US", eu: "42 EU", br: "40 BR", cm: "26.50 cm", note: "Recomendado" },
+      { ar: "42 AR", us: "9.5 US", eu: "43.5 EU", br: "41 BR", cm: "27.50 cm", note: "Estándar" },
+      { ar: "43 AR", us: "10.5 US", eu: "44.5 EU", br: "42 BR", cm: "28.25 cm", note: "Holgado" },
     ],
   },
   {
     id: "p4",
     name: "Crocs Classic Clog Unisex",
+    description: "El zueco icónico ultraliviano y resistente al agua. Fabricado con material Croslite moldeado, puertos de ventilación para respirabilidad y correa pivotante en el talón.",
     brand: "Crocs",
     discipline: "Crocs / Urbano",
     category: "Calzado Urbano",
+    subcategory: "Zuecos Confort",
     price: 58000,
     costPrice: 34000,
     sku: "CRC-BLK-041",
@@ -95,18 +134,33 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 5,
     updatedAt: "02 Abr 2026 at 6:00 AM",
     iconBg: "from-slate-700 to-slate-900",
+    receivedTotal: 890,
+    stockTransfer: 35,
+    salesStoreTotal: 180,
+    salesWebTotal: 95,
     variants: [
-      { size: "38", color: "Negro", stockLocal: 6, stockWeb: 3, barcode: "779123456704-38" },
-      { size: "40", color: "Negro", stockLocal: 8, stockWeb: 5, barcode: "779123456704-40" },
-      { size: "42", color: "Negro", stockLocal: 8, stockWeb: 4, barcode: "779123456704-42" },
+      { size: "36", color: "Negro", stockStore: 4, stockWarehouse: 6, barcode: "779123456704-36", receivedCount: 160, soldCountStore: 32, soldCountWeb: 18 },
+      { size: "38", color: "Negro", stockStore: 6, stockWarehouse: 8, barcode: "779123456704-38", receivedCount: 180, soldCountStore: 38, soldCountWeb: 20 },
+      { size: "40", color: "Negro", stockStore: 8, stockWarehouse: 12, barcode: "779123456704-40", receivedCount: 200, soldCountStore: 45, soldCountWeb: 24 },
+      { size: "42", color: "Negro", stockStore: 8, stockWarehouse: 10, barcode: "779123456704-42", receivedCount: 190, soldCountStore: 40, soldCountWeb: 21 },
+      { size: "44", color: "Negro", stockStore: 4, stockWarehouse: 5, barcode: "779123456704-44", receivedCount: 160, soldCountStore: 25, soldCountWeb: 12 },
+    ],
+    sizeConversions: [
+      { ar: "36 AR", us: "M4/W6 US", eu: "36-37 EU", br: "35 BR", cm: "22.9 cm", note: "Roomy Fit" },
+      { ar: "38 AR", us: "M6/W8 US", eu: "38-39 EU", br: "37 BR", cm: "24.6 cm", note: "Roomy Fit" },
+      { ar: "40 AR", us: "M8/W10 US", eu: "41-42 EU", br: "39 BR", cm: "26.3 cm", note: "Roomy Fit" },
+      { ar: "42 AR", us: "M10/W12 US", eu: "43-44 EU", br: "41 BR", cm: "28.0 cm", note: "Roomy Fit" },
+      { ar: "44 AR", us: "M12 US", eu: "46-47 EU", br: "43 BR", cm: "29.7 cm", note: "Roomy Fit" },
     ],
   },
   {
     id: "p5",
     name: "Malla Competición Fastskin LZR",
+    description: "Traje de baño de competición aprobado por World Aquatics. Tejido ultracompresivo con costuras termoselladas ultrasónicas para mínima fricción hidrodinámica.",
     brand: "Speedo",
     discipline: "Natación",
     category: "Indumentaria Natación",
+    subcategory: "Trajes de Competición",
     price: 92000,
     costPrice: 59000,
     sku: "NAT-SPE-040",
@@ -116,17 +170,31 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 2,
     updatedAt: "30 Mar 2026 at 9:00 PM",
     iconBg: "from-rose-500 to-red-600",
+    receivedTotal: 260,
+    stockTransfer: 8,
+    salesStoreTotal: 54,
+    salesWebTotal: 28,
     variants: [
-      { size: "M", color: "Negro/Dorado", stockLocal: 4, stockWeb: 1, barcode: "779123456705-M" },
-      { size: "L", color: "Negro/Dorado", stockLocal: 4, stockWeb: 2, barcode: "779123456705-L" },
+      { size: "S", color: "Negro/Dorado", stockStore: 2, stockWarehouse: 3, barcode: "779123456705-S", receivedCount: 65, soldCountStore: 14, soldCountWeb: 8 },
+      { size: "M", color: "Negro/Dorado", stockStore: 4, stockWarehouse: 6, barcode: "779123456705-M", receivedCount: 95, soldCountStore: 22, soldCountWeb: 11 },
+      { size: "L", color: "Negro/Dorado", stockStore: 4, stockWarehouse: 5, barcode: "779123456705-L", receivedCount: 70, soldCountStore: 12, soldCountWeb: 7 },
+      { size: "XL", color: "Negro/Dorado", stockStore: 1, stockWarehouse: 2, barcode: "779123456705-XL", receivedCount: 30, soldCountStore: 6, soldCountWeb: 2 },
+    ],
+    sizeConversions: [
+      { ar: "S (30 AR)", us: "30 US", eu: "75 EU", br: "P (BR)", cm: "Cintura: 76-80 cm", note: "Compresión alta" },
+      { ar: "M (32 AR)", us: "32 US", eu: "80 EU", br: "M (BR)", cm: "Cintura: 81-85 cm", note: "Compresión alta" },
+      { ar: "L (34 AR)", us: "34 US", eu: "85 EU", br: "G (BR)", cm: "Cintura: 86-90 cm", note: "Compresión alta" },
+      { ar: "XL (36 AR)", us: "36 US", eu: "90 EU", br: "GG (BR)", cm: "Cintura: 91-95 cm", note: "Compresión alta" },
     ],
   },
   {
     id: "p6",
     name: "Cinturón de Levantamiento Cuero Pro",
+    description: "Cinturón lumbar de levantamiento en cuero genuino reforzado de 10mm de espesor con hebilla de acero inoxidable de doble púa. Soporte firme para sentadillas y peso muerto.",
     brand: "Matacos Fitness",
     discipline: "Fitness",
     category: "Accesorios Gym",
+    subcategory: "Soporte Lumbar Powerlifting",
     price: 34500,
     costPrice: 19000,
     sku: "FIT-BEL-002",
@@ -136,17 +204,31 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 3,
     updatedAt: "20 Mar 2026 at 9:00 PM",
     iconBg: "from-emerald-600 to-teal-700",
+    receivedTotal: 340,
+    stockTransfer: 15,
+    salesStoreTotal: 82,
+    salesWebTotal: 46,
     variants: [
-      { size: "M", color: "Negro", stockLocal: 8, stockWeb: 5, barcode: "779123456706-M" },
-      { size: "L", color: "Negro", stockLocal: 7, stockWeb: 4, barcode: "779123456706-L" },
+      { size: "S", color: "Negro", stockStore: 3, stockWarehouse: 5, barcode: "779123456706-S", receivedCount: 70, soldCountStore: 16, soldCountWeb: 9 },
+      { size: "M", color: "Negro", stockStore: 8, stockWarehouse: 10, barcode: "779123456706-M", receivedCount: 140, soldCountStore: 35, soldCountWeb: 20 },
+      { size: "L", color: "Negro", stockStore: 7, stockWarehouse: 8, barcode: "779123456706-L", receivedCount: 100, soldCountStore: 24, soldCountWeb: 14 },
+      { size: "XL", color: "Negro", stockStore: 2, stockWarehouse: 3, barcode: "779123456706-XL", receivedCount: 30, soldCountStore: 7, soldCountWeb: 3 },
+    ],
+    sizeConversions: [
+      { ar: "S", us: "Small (28-32 in)", eu: "S (70-80 cm)", br: "P (BR)", cm: "65 - 80 cm", note: "Ajuste 8 orificios" },
+      { ar: "M", us: "Medium (32-36 in)", eu: "M (80-90 cm)", br: "M (BR)", cm: "78 - 92 cm", note: "Ajuste 8 orificios" },
+      { ar: "L", us: "Large (36-40 in)", eu: "L (90-100 cm)", br: "G (BR)", cm: "88 - 104 cm", note: "Ajuste 8 orificios" },
+      { ar: "XL", us: "X-Large (40-44 in)", eu: "XL (100-112 cm)", br: "GG (BR)", cm: "98 - 116 cm", note: "Ajuste 8 orificios" },
     ],
   },
   {
     id: "p7",
     name: "Gorra Silicona 3D Molded Soft",
+    description: "Gorra ergonómica sin arrugas con moldeado 3D de alta densidad. Diseñada para competición y entrenamiento diario, ofrece mínima resistencia en el agua.",
     brand: "Arena",
     discipline: "Natación",
     category: "Accesorios Natación",
+    subcategory: "Gorras de Competición",
     price: 18500,
     costPrice: 9500,
     sku: "NAT-CAP-003",
@@ -156,17 +238,27 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 8,
     updatedAt: "24 Mar 2026 at 8:00 PM",
     iconBg: "from-cyan-500 to-blue-500",
+    receivedTotal: 1200,
+    stockTransfer: 40,
+    salesStoreTotal: 340,
+    salesWebTotal: 160,
     variants: [
-      { size: "Único", color: "Blanco", stockLocal: 20, stockWeb: 10, barcode: "779123456707-W" },
-      { size: "Único", color: "Negro", stockLocal: 15, stockWeb: 10, barcode: "779123456707-B" },
+      { size: "Único", color: "Blanco", stockStore: 20, stockWarehouse: 25, barcode: "779123456707-W", receivedCount: 600, soldCountStore: 180, soldCountWeb: 85 },
+      { size: "Único", color: "Negro", stockStore: 15, stockWarehouse: 20, barcode: "779123456707-B", receivedCount: 450, soldCountStore: 120, soldCountWeb: 60 },
+      { size: "Único", color: "Azul Royal", stockStore: 10, stockWarehouse: 15, barcode: "779123456707-BL", receivedCount: 150, soldCountStore: 40, soldCountWeb: 15 },
+    ],
+    sizeConversions: [
+      { ar: "Único Adulto", us: "Standard Adult", eu: "Taille Adulte", br: "Adulto", cm: "54 - 60 cm (Circunf.)", note: "Silicona 100% hipoalergénica" },
     ],
   },
   {
     id: "p8",
     name: "Rodilleras Vóley Tokio Errea",
+    description: "Rodilleras profesionales con relleno de espuma de poliuretano expandido y tejido elástico transpirable. Máxima protección contra impactos en saltos y caídas.",
     brand: "Errea",
     discipline: "Vóley",
     category: "Protección Vóley",
+    subcategory: "Rodilleras Acolchadas",
     price: 29000,
     costPrice: 16000,
     sku: "VOL-ERR-005",
@@ -176,9 +268,21 @@ const INITIAL_PRODUCTS: InventoryItem[] = [
     minStock: 4,
     updatedAt: "10 Mar 2026 at 7:00 AM",
     iconBg: "from-blue-600 to-slate-800",
+    receivedTotal: 500,
+    stockTransfer: 20,
+    salesStoreTotal: 120,
+    salesWebTotal: 65,
     variants: [
-      { size: "M", color: "Azul Marino", stockLocal: 9, stockWeb: 6, barcode: "779123456708-M" },
-      { size: "L", color: "Azul Marino", stockLocal: 9, stockWeb: 5, barcode: "779123456708-L" },
+      { size: "S", color: "Azul Marino", stockStore: 4, stockWarehouse: 6, barcode: "779123456708-S", receivedCount: 110, soldCountStore: 25, soldCountWeb: 12 },
+      { size: "M", color: "Azul Marino", stockStore: 9, stockWarehouse: 12, barcode: "779123456708-M", receivedCount: 220, soldCountStore: 55, soldCountWeb: 30 },
+      { size: "L", color: "Azul Marino", stockStore: 9, stockWarehouse: 10, barcode: "779123456708-L", receivedCount: 140, soldCountStore: 35, soldCountWeb: 20 },
+      { size: "XL", color: "Azul Marino", stockStore: 2, stockWarehouse: 4, barcode: "779123456708-XL", receivedCount: 30, soldCountStore: 5, soldCountWeb: 3 },
+    ],
+    sizeConversions: [
+      { ar: "S", us: "Small (13-15 in)", eu: "S (33-35.5 cm)", br: "P (BR)", cm: "33.0 - 35.5 cm", note: "Medir 10 cm arriba de rótula" },
+      { ar: "M", us: "Medium (15-17 in)", eu: "M (35.5-38 cm)", br: "M (BR)", cm: "35.5 - 38.0 cm", note: "Recomendado juveniles/adultos" },
+      { ar: "L", us: "Large (17-18.5 in)", eu: "L (38-40.5 cm)", br: "G (BR)", cm: "38.0 - 40.5 cm", note: "Ajuste firme" },
+      { ar: "XL", us: "X-Large (18.5-20 in)", eu: "XL (40.5-43 cm)", br: "GG (BR)", cm: "40.5 - 43.0 cm", note: "Calce amplio" },
     ],
   },
 ];
@@ -194,8 +298,7 @@ const DISCIPLINES = [
 export function InventoryView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDiscipline, setSelectedDiscipline] = useState("Todas");
-  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<DetailedProductItem | null>(null);
 
   // Filter products by search and discipline
   const filteredProducts = useMemo(() => {
@@ -215,18 +318,27 @@ export function InventoryView() {
     });
   }, [searchQuery, selectedDiscipline]);
 
-  const handleOpenDetail = (product: InventoryItem) => {
+  const handleOpenDetail = (product: DetailedProductItem) => {
     setSelectedProduct(product);
-    setIsDetailOpen(true);
   };
 
+  // If a product is selected, render the full detailed view with back button
+  if (selectedProduct) {
+    return (
+      <ProductDetailView
+        product={selectedProduct}
+        onBack={() => setSelectedProduct(null)}
+      />
+    );
+  }
+
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto px-4 lg:px-8 py-6 space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto px-4 lg:px-8 py-6 space-y-6 select-none">
       {/* Top Header: Title + Search Icon, Bell, User Profile */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-100">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Inventario
+            Inventario y Catálogo
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Gestión de stock local (Saavedra 241) y catálogo de e-commerce
@@ -273,7 +385,7 @@ export function InventoryView() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search anything on Inventory..."
+            placeholder="Buscar por producto, marca, SKU o disciplina..."
             className="w-full bg-slate-50 text-xs text-slate-800 placeholder-slate-400 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200/80 focus:outline-none focus:bg-white focus:border-lime-500 focus:ring-2 focus:ring-lime-400/20 transition-all shadow-2xs"
           />
         </div>
@@ -300,15 +412,15 @@ export function InventoryView() {
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            {/* Table Header matching NAME/BUSINESS, TYPE, AMOUNT, DATE, INVOICE ID, ACTION */}
+            {/* Table Header */}
             <thead className="bg-slate-50/70 border-b border-slate-200 text-slate-400 font-semibold uppercase text-[10.5px] tracking-wider">
               <tr>
-                <th className="py-3.5 px-5">NAME/BUSINESS</th>
-                <th className="py-3.5 px-4">TYPE</th>
-                <th className="py-3.5 px-4">AMOUNT</th>
-                <th className="py-3.5 px-4">DATE</th>
-                <th className="py-3.5 px-4">INVOICE ID</th>
-                <th className="py-3.5 px-5 text-right">ACTION</th>
+                <th className="py-3.5 px-5">PRODUCTO / MARCA</th>
+                <th className="py-3.5 px-4">DISCIPLINA</th>
+                <th className="py-3.5 px-4">PRECIO VENTA</th>
+                <th className="py-3.5 px-4">FECHA REGISTRO</th>
+                <th className="py-3.5 px-4">CÓD. BARRA / SKU</th>
+                <th className="py-3.5 px-5 text-right">ACCIÓN</th>
               </tr>
             </thead>
 
@@ -340,7 +452,7 @@ export function InventoryView() {
                             {item.name}
                           </span>
                           <span className="text-[11px] text-slate-400 font-medium">
-                            {item.brand}
+                            {item.brand} • {item.category}
                           </span>
                         </div>
                       </div>
@@ -348,7 +460,7 @@ export function InventoryView() {
 
                     {/* 2. Type / Discipline */}
                     <td className="py-4 px-4 whitespace-nowrap">
-                      <span className="text-slate-600 font-medium text-[11.5px]">
+                      <span className="text-slate-600 font-medium text-[11.5px] bg-slate-100 px-2 py-0.5 rounded-md">
                         {item.discipline}
                       </span>
                     </td>
@@ -365,7 +477,7 @@ export function InventoryView() {
 
                     {/* 5. Invoice ID / SKU */}
                     <td className="py-4 px-4 whitespace-nowrap font-mono text-[11px] text-slate-500">
-                      {item.sku}
+                      {item.barcode || item.sku}
                     </td>
 
                     {/* 6. Action Button (Lime green View button) */}
@@ -374,7 +486,7 @@ export function InventoryView() {
                         onClick={() => handleOpenDetail(item)}
                         className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight"
                       >
-                        View
+                        Ver Detalle
                       </button>
                     </td>
                   </tr>
@@ -393,13 +505,6 @@ export function InventoryView() {
           </div>
         </div>
       </div>
-
-      {/* Product Detail Modal */}
-      <ProductDetailModal
-        product={selectedProduct}
-        isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
-      />
     </div>
   );
 }

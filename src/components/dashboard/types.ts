@@ -55,3 +55,56 @@ export interface ProviderContact {
   avatarImg?: string;
   initials: string;
 }
+
+// ==========================================
+// Tipos para Detalle de Producto y Catálogo
+// ==========================================
+
+export interface SizeConversion {
+  ar: string;
+  us: string;
+  eu: string;
+  br: string;
+  cm: string;
+  note?: string;
+}
+
+export interface ProductVariantItem {
+  id?: string;
+  size: string;
+  color: string;
+  barcode: string;
+  sku?: string;
+  stockStore: number; // Salón Saavedra 241
+  stockWarehouse: number; // Depósito Central Formosa
+  receivedCount?: number;
+  soldCountStore?: number;
+  soldCountWeb?: number;
+}
+
+export interface DetailedProductItem {
+  id: string;
+  name: string;
+  description: string;
+  brand: string;
+  discipline: string;
+  category: string;
+  subcategory?: string;
+  sku: string;
+  barcode: string;
+  costPrice: number;
+  price: number;
+  stockLocal: number; // Suma store
+  stockWeb: number; // Suma web/warehouse
+  minStock: number;
+  updatedAt: string;
+  iconBg: string;
+  imageUrl?: string;
+  receivedTotal?: number;
+  stockTransfer?: number;
+  salesStoreTotal?: number;
+  salesWebTotal?: number;
+  variants: ProductVariantItem[];
+  sizeConversions?: SizeConversion[];
+}
+
