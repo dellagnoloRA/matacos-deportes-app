@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search,
   Bell,
@@ -15,10 +15,12 @@ import {
   Dumbbell,
   ShieldCheck,
   Eye,
+  RefreshCw,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
+import { getDetailedInventoryProducts } from "@/server/actions/productActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
@@ -307,6 +309,28 @@ export function InventoryView({
   const [searchQuery, setSearchQuery] = useState("");
   const [internalDiscipline, setInternalDiscipline] = useState("Todas");
   const [selectedProduct, setSelectedProduct] = useState<DetailedProductItem | null>(null);
+  const [productsList, setProductsList] = useState<DetailedProductItem[]>(INITIAL_PRODUCTS);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLiveFromDb, setIsLiveFromDb] = useState(false);
+
+  const loadProducts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await getDetailedInventoryProducts();
+      if (res.success && res.data && res.data.length > 0) {
+        setProductsList(res.data);
+        setIsLiveFromDb(true);
+      }
+    } catch (err) {
+      console.warn("Utilizando catálogo inicial de demostración:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   const selectedDiscipline = controlledDiscipline !== undefined ? controlledDiscipline : internalDiscipline;
 
@@ -320,7 +344,7 @@ export function InventoryView({
 
   // Filter products by search and discipline
   const filteredProducts = useMemo(() => {
-    return INITIAL_PRODUCTS.filter((item) => {
+    return productsList.filter((item) => {
       const matchesSearch =
         searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -334,7 +358,7 @@ export function InventoryView({
 
       return matchesSearch && matchesDiscipline;
     });
-  }, [searchQuery, selectedDiscipline]);
+  }, [productsList, searchQuery, selectedDiscipline]);
 
   const handleOpenDetail = (product: DetailedProductItem) => {
     setSelectedProduct(product);
@@ -358,13 +382,34 @@ export function InventoryView({
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Inventario y Catálogo
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Gestión de stock local (Saavedra 241) y catálogo de e-commerce
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-slate-500">
+              Gestión de stock local (Saavedra 241) y catálogo de e-commerce
+            </p>
+            {isLiveFromDb ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                PostgreSQL en vivo
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                Demo
+              </span>
+            )}
+          </div>
         </div>
 
         {/* User profile & quick action icons */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadProducts}
+            title="Recargar datos de base de datos"
+            disabled={isLoading}
+            className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-indigo-600" : ""}`} />
+          </button>
+
           <button
             title="Buscar"
             className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"

@@ -8,6 +8,7 @@ import {
   UpdateProductInput,
 } from "@/schemas/product";
 import { Prisma } from "@prisma/client";
+import { DetailedProductItem } from "@/components/dashboard/types";
 
 export interface ProductFilterOptions {
   search?: string;
@@ -285,3 +286,94 @@ export async function toggleProductActive(id: string) {
     return { success: false, error: "No se pudo cambiar el estado del producto" };
   }
 }
+
+function getDisciplineGradient(discipline: string): string {
+  const d = discipline.toLowerCase();
+  if (d.includes("natac")) return "from-sky-500 to-blue-600";
+  if (d.includes("voley") || d.includes("vóley")) return "from-amber-400 to-yellow-600";
+  if (d.includes("crocs") || d.includes("urban")) return "from-rose-500 to-pink-600";
+  if (d.includes("fit") || d.includes("entre")) return "from-emerald-500 to-teal-700";
+  return "from-indigo-500 to-slate-800";
+}
+
+function formatDateEs(date: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(date);
+}
+
+/**
+ * Obtener listado de productos formateado directamente para la vista de Inventario (Frontend)
+ */
+export async function getDetailedInventoryProducts(): Promise<{
+  success: boolean;
+  data: DetailedProductItem[];
+  error?: string;
+}> {
+  try {
+    const products = await prisma.product.findMany({
+      where: { active: true },
+      include: {
+        category: true,
+        brand: true,
+        discipline: true,
+        variants: {
+          orderBy: [{ size: "asc" }, { color: "asc" }],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const mapped: DetailedProductItem[] = products.map((p) => {
+      const stockStore = p.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
+      const stockWarehouse = p.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
+      const firstVariant = p.variants[0];
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description || "",
+        brand: p.brand.name,
+        discipline: p.discipline.name,
+        category: p.category.name,
+        subcategory: p.category.name,
+        sku: firstVariant?.sku || `SKU-${p.id.slice(0, 8)}`,
+        barcode: firstVariant?.barcode || "",
+        costPrice: Number(p.costPrice),
+        price: Number(p.price),
+        stockLocal: stockStore,
+        stockWeb: stockWarehouse,
+        minStock: firstVariant?.minStock || 2,
+        updatedAt: formatDateEs(p.updatedAt),
+        iconBg: getDisciplineGradient(p.discipline.name),
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          barcode: v.barcode || "",
+          sku: v.sku,
+          stockStore: v.stockStore,
+          stockWarehouse: v.stockWarehouse,
+          receivedCount: v.stockStore + v.stockWarehouse + 50,
+          soldCountStore: 0,
+          soldCountWeb: 0,
+        })),
+      };
+    });
+
+    return { success: true, data: mapped };
+  } catch (error) {
+    console.error("Error al obtener productos detallados de inventario:", error);
+    return {
+      success: false,
+      data: [],
+      error: "No se pudieron cargar los productos de la base de datos",
+    };
+  }
+}
+
