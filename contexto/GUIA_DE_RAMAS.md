@@ -58,51 +58,157 @@ gitGraph
 
 ---
 
-## 🚀 3. Flujo de Trabajo Diario Paso a Paso (Día a Día del Desarrollador)
+## 🚀 3. Ciclo de Vida Completo de una Rama (Flujo End-to-End)
 
-Cuando vayas a comenzar a trabajar en un Requerimiento Funcional de Trello:
+El ciclo de vida de cualquier funcionalidad, corrección o tarea comprende **6 fases esenciales** desde que se toma el requerimiento hasta que la rama se elimina tras integrarse a `develop`:
 
-### Paso 1: Actualizar tu rama `develop` local
-Antes de crear cualquier rama nueva, asegúrate de tener los últimos cambios del equipo:
+```mermaid
+flowchart TD
+    A["1. Sincronizar develop local<br/>(git pull origin develop)"] --> B["2. Crear rama específica<br/>(git checkout -b feature/...)"]
+    B --> C["3. Desarrollar & Commits atómicos<br/>(Conventional Commits)"]
+    C --> D["4. Validar calidad & build<br/>(pnpm lint && pnpm build)"]
+    D --> E["5. Publicar rama remota<br/>(git push -u origin ...)"]
+    E --> F["6. Abrir Pull Request (PR)<br/>hacia develop"]
+    F --> G{"7. Code Review & Feedback"}
+    G -- "Cambios requeridos" --> C
+    G -- "Aprobado (LGTM)" --> H["8. Fusión (Merge) en GitHub"]
+    H --> I["9. Borrar rama remota en GitHub<br/>('Delete branch')"]
+    I --> J["10. Sincronizar develop local<br/>& Borrar rama local (-d)"]
+```
+
+---
+
+### 🔹 Fase 1: Creación y Preparación de la Rama
+
+#### Paso 1: Actualizar tu rama `develop` local
+Antes de crear cualquier rama nueva, asegurate de tener la versión más reciente del código integrado por tus compañeros:
 ```bash
 git checkout develop
 git pull origin develop
 ```
 
-### Paso 2: Crear tu rama de funcionalidad (Feature Branch)
-Crea una rama con el prefijo de tu área (`fe-` o `be-`) y el número de requerimiento:
+#### Paso 2: Crear tu rama de funcionalidad (Feature Branch)
+Crea una rama con el prefijo correspondiente a tu área (`fe-`, `be-`, `fix/`, etc.) y el código de requerimiento funcional (RF):
 ```bash
 # Si trabajas en Frontend (Bordón / González):
 git checkout -b feature/fe-rf07-pos-mostrador
 
 # Si trabajas en Backend (Dellagnolo / Fornari):
 git checkout -b feature/be-rf07-busqueda-indexada
+
+# Si es una corrección o bug:
+git checkout -b fix/calculo-vuelto-negativo
 ```
 
-### Paso 3: Desarrollar y realizar commits atómicos
-Haz commits frecuentes y claros siguiendo el estándar *Conventional Commits*:
+---
+
+### 🔹 Fase 2: Desarrollo y Validación Local
+
+#### Paso 3: Desarrollar y realizar commits atómicos
+Trabaja de manera incremental realizando commits pequeños y coherentes, respetando el estándar *Conventional Commits*:
 ```bash
+git status
 git add .
 git commit -m "feat(fe): maquetar layout en 2 columnas para punto de venta"
 ```
 
-### Paso 4: Validar que tu código compila antes de subir
-Asegúrate de que no haya errores de TypeScript ni de compilación:
+#### Paso 4: Mantener tu rama sincronizada con `develop`
+Si otros compañeros fusionaron cambios en `develop` mientras trabajabas en tu funcionalidad, traé esos cambios a tu rama para resolver divergencias temprano:
 ```bash
-pnpm build
+git checkout feature/fe-rf07-pos-mostrador
+git fetch origin
+git merge origin/develop
 ```
 
-### Paso 5: Subir tu rama a GitHub
+#### Paso 5: Validar que el código compila y cumple linters
+Antes de subir cualquier código al repositorio remoto, valida que no existan errores de tipos ni de linting:
+```bash
+pnpm lint
+pnpm build
+```
+> [!IMPORTANT]
+> Nunca abras un Pull Request si `pnpm build` o `pnpm lint` fallan en tu máquina local.
+
+---
+
+### 🔹 Fase 3: Publicación y Creación del Pull Request (PR)
+
+#### Paso 6: Subir tu rama a GitHub
+Publica tu rama en el repositorio remoto configurando el upstream tracking:
 ```bash
 git push -u origin feature/fe-rf07-pos-mostrador
 ```
 
-### Paso 6: Crear el Pull Request (PR) en GitHub
-1. Ingresa al repositorio en GitHub.
-2. Haz clic en **"Compare & pull request"**.
-3. Asegúrate de que la rama base sea **`develop`** (NO `main`).
-4. Título del PR: `[RF-07][FE] Layout de Mostrador y Componentes de Caja`.
-5. Asigna al menos a 1 compañero del equipo como **Revisor (Reviewer)**.
+#### Paso 7: Abrir el Pull Request (PR) en GitHub
+1. Ingresa al repositorio de GitHub: `dellagnoloRA/matacos-deportes-app`.
+2. Verás el banner amarillo con el botón **"Compare & pull request"** (o ve a la pestaña *Pull requests* -> *New pull request*).
+3. **Rama base obligatoria:** Asegurate de que la rama destino sea **`develop`** (nunca `main` directamente):
+   * `base: develop`  ←  `compare: feature/fe-rf07-pos-mostrador`
+4. **Título estandarizado del PR:**
+   * Formato: `[<ID-RF>][<ÁREA>] <Descripción concisa>`
+   * Ejemplo: `[RF-07][FE] Layout de Mostrador y Componentes de Caja`
+5. **Descripción del PR:** Detalla los cambios implementados, componentes afectados y capturas de pantalla si aplica.
+6. **Asignaciones:**
+   * **Reviewers:** Asigna al menos a un compañero de equipo para la revisión.
+   * **Assignee:** Asignate a vos mismo como responsable.
+   * **Trello:** Vincula el enlace del PR a la tarjeta de Trello correspondiente y muévela a la columna *"En Code Review"*.
+
+---
+
+### 🔹 Fase 4: Revisión de Código (Code Review) e Iteraciones
+
+#### Paso 8: Atender feedback o cambios solicitados
+El revisor examinará el código, evaluará buenas prácticas y dejará comentarios o solicitará cambios:
+* **Si te solicitan correcciones:** No crees una nueva rama ni cierres el PR. Realiza las correcciones en tu rama local, commitea y vuelve a pushear:
+  ```bash
+  # En tu misma rama local:
+  git add .
+  git commit -m "fix(fe): ajustar espaciado y validacion en boton de cobro"
+  git push origin feature/fe-rf07-pos-mostrador
+  ```
+  *GitHub actualizará automáticamente el Pull Request con los nuevos commits.*
+* **Si el PR es aprobado (*Approved / LGTM*):** La rama queda habilitada para el merge.
+
+---
+
+### 🔹 Fase 5: Fusión (Merge) del Pull Request
+
+#### Paso 9: Fusión en GitHub hacia `develop`
+1. Una vez aprobado el PR y verificados los checks automáticos:
+2. Haz clic en el botón verde **"Merge pull request"** (o *"Squash and merge"* según el caso) y confirma con **"Confirm merge"**.
+3. En Trello, mueve la tarjeta a la columna *"Testing / Hecho"*.
+
+---
+
+### 🔹 Fase 6: Finalización y Limpieza de Ramas (Borrado Local y Remoto)
+
+Para mantener el repositorio limpio y prevenir acumulación de ramas huérfanas, cada rama debe ser eliminada tras su fusión exitosa:
+
+#### Paso 10: Borrar la rama remota en GitHub
+* Inmediatamente después de hacer merge, GitHub muestra el botón **"Delete branch"**. Haz clic para eliminar la rama del servidor remoto.
+* *(Alternativa por consola):*
+  ```bash
+  git push origin --delete feature/fe-rf07-pos-mostrador
+  ```
+
+#### Paso 11: Limpieza y sincronización en el entorno local
+Una vez cerrada la tarea en GitHub, vuelve a tu rama principal local y elimina la rama de trabajo que ya está integrada:
+```bash
+# 1. Regresar a develop:
+git checkout develop
+
+# 2. Traer los cambios recién fusionados en remoto:
+git pull origin develop
+
+# 3. Eliminar la rama local ya integrada (flag -d seguro):
+git branch -d feature/fe-rf07-pos-mostrador
+
+# 4. Limpiar referencias remotas eliminadas en tu copia local:
+git fetch --prune
+```
+
+> [!TIP]
+> El flag `-d` (minúscula) es seguro: Git no te permitirá borrar la rama si contiene commits que no fueron fusionados en `develop`. Si te da un aviso de no fusión, verifica haber hecho `git pull origin develop` primero. No uses `-D` a menos que quieras descartar deliberadamente el trabajo de esa rama.
 
 ---
 
@@ -144,6 +250,7 @@ Cada commit debe tener un tipo, un alcance opcional entre paréntesis y una desc
    git merge develop
    ```
 5. ✅ **Un PR por Requerimiento:** No mezcles código de Inventario (RF-01) en un PR de Punto de Venta (RF-07).
+6. 🧹 **Borrado obligatorio post-merge:** Una vez fusionada la rama en `develop`, debe borrarse tanto en GitHub (remota) como en tu entorno local (`git branch -d` y `git fetch --prune`). No se conservan ramas ya integradas.
 
 ---
 
