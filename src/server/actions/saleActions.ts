@@ -11,7 +11,8 @@ export interface SaleHistoryFilterOptions {
 }
 
 /**
- * Procesar y registrar una Venta en Mostrador de forma 100% atómica
+ * Procesar y registrar una Venta en Mostrador o Web de forma 100% atómica
+ * Descuenta prioritariamente de Salón y, si es necesario, de Depósito.
  */
 export async function processSale(input: CreateSaleInput) {
   try {
@@ -34,9 +35,10 @@ export async function processSale(input: CreateSaleInput) {
         if (!variant) {
           throw new Error(`Variante no encontrada ID: ${item.variantId}`);
         }
-        if (variant.stockLocal < item.quantity) {
+        const totalAvailable = (variant.stockStore + variant.stockWarehouse) - variant.stockReserved;
+        if (totalAvailable < item.quantity) {
           throw new Error(
-            `Stock insuficiente para "${variant.product.name}" (Talle ${variant.size}, Color ${variant.color}). Disponible: ${variant.stockLocal}, Requerido: ${item.quantity}`
+            `Stock insuficiente para "${variant.product.name}" (Talle ${variant.size}, Color ${variant.color}). Disponible: ${totalAvailable}, Requerido: ${item.quantity}`
           );
         }
       }
@@ -63,16 +65,36 @@ export async function processSale(input: CreateSaleInput) {
         },
       });
 
-      // d. Procesar cada ítem: descontar stock, registrar ítem y auditoría de movimiento
+      // d. Procesar cada ítem: descontar stock de salón/depósito y registrar auditoría
       for (const item of validated.items) {
         const variant = variantMap.get(item.variantId)!;
-        const newStockLocal = variant.stockLocal - item.quantity;
+        const qtyToDeduct = item.quantity;
+
+        let deductFromStore = 0;
+        let deductFromWarehouse = 0;
+
+        if (validated.channel === "WEB") {
+          // Venta Web: Descuenta prioritariamente de Depósito para no desabastecer exhibición
+          deductFromWarehouse = Math.min(variant.stockWarehouse, qtyToDeduct);
+          deductFromStore = qtyToDeduct - deductFromWarehouse;
+        } else {
+          // Venta Mostrador (POS): Descuenta prioritariamente de Salón
+          deductFromStore = Math.min(variant.stockStore, qtyToDeduct);
+          deductFromWarehouse = qtyToDeduct - deductFromStore;
+        }
+
+        const newStockStore = variant.stockStore - deductFromStore;
+        const newStockWarehouse = variant.stockWarehouse - deductFromWarehouse;
+        const totalStockAfter = newStockStore + newStockWarehouse;
         const itemSubtotal = item.quantity * item.price;
 
-        // Descontar stock local
+        // Actualizar stock de la variante
         await tx.productVariant.update({
           where: { id: variant.id },
-          data: { stockLocal: newStockLocal },
+          data: {
+            stockStore: newStockStore,
+            stockWarehouse: newStockWarehouse,
+          },
         });
 
         // Crear ítem de venta
@@ -86,19 +108,28 @@ export async function processSale(input: CreateSaleInput) {
           },
         });
 
+        // Determinar ubicación de extracción para auditoría
+        let location = "STORE";
+        if (deductFromWarehouse > 0 && deductFromStore === 0) {
+          location = "WAREHOUSE";
+        } else if (deductFromWarehouse > 0 && deductFromStore > 0) {
+          location = "SPLIT";
+        }
+
         // Auditoría de movimiento de inventario
         await tx.inventoryMovement.create({
           data: {
             variantId: variant.id,
-            type: "VENTA_MOSTRADOR",
+            type: validated.channel === "WEB" ? "VENTA_WEB" : "VENTA_MOSTRADOR",
             quantity: item.quantity,
-            stockAfter: newStockLocal,
-            reason: `Venta en mostrador ${invoiceNumber}`,
+            stockAfter: totalStockAfter,
+            location,
+            reason: `Venta ${validated.channel || "MOSTRADOR"} ${invoiceNumber} (Salón: -${deductFromStore}, Depósito: -${deductFromWarehouse})`,
           },
         });
       }
 
-      // e. Registrar los pagos asociados (Efectivo, Débito, Crédito, Transferencia, QR)
+      // e. Registrar los pagos asociados
       for (const payment of validated.payments) {
         await tx.salePayment.create({
           data: {

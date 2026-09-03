@@ -13,22 +13,24 @@ export interface ProductFilterOptions {
   search?: string;
   categoryId?: string;
   brandId?: string;
-  discipline?: string;
+  disciplineId?: string;
+  disciplineSlug?: string;
   activeOnly?: boolean;
 }
 
 /**
- * Obtener listado de productos con variantes, categoría y marca (soporta filtros y búsqueda)
+ * Obtener listado de productos con variantes, categoría, marca y disciplina (soporta filtros y búsqueda)
  */
 export async function getProducts(options: ProductFilterOptions = {}) {
   try {
-    const { search, categoryId, brandId, discipline, activeOnly = true } = options;
+    const { search, categoryId, brandId, disciplineId, disciplineSlug, activeOnly = true } = options;
 
     const whereClause: Prisma.ProductWhereInput = {
       ...(activeOnly ? { active: true } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(brandId ? { brandId } : {}),
-      ...(discipline ? { discipline: { equals: discipline, mode: "insensitive" } } : {}),
+      ...(disciplineId ? { disciplineId } : {}),
+      ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
       ...(search
         ? {
             OR: [
@@ -54,6 +56,7 @@ export async function getProducts(options: ProductFilterOptions = {}) {
       include: {
         category: true,
         brand: true,
+        discipline: true,
         variants: {
           orderBy: [{ size: "asc" }, { color: "asc" }],
         },
@@ -78,6 +81,7 @@ export async function getProductById(id: string) {
       include: {
         category: true,
         brand: true,
+        discipline: true,
         variants: {
           include: {
             movements: {
@@ -146,7 +150,7 @@ export async function createProduct(input: CreateProductInput) {
         data: {
           name: validated.name,
           description: validated.description ?? null,
-          discipline: validated.discipline,
+          disciplineId: validated.disciplineId,
           costPrice: new Prisma.Decimal(validated.costPrice),
           price: new Prisma.Decimal(validated.price),
           categoryId: validated.categoryId,
@@ -158,8 +162,9 @@ export async function createProduct(input: CreateProductInput) {
               color: v.color,
               sku: v.sku,
               barcode: v.barcode && v.barcode.trim() !== "" ? v.barcode : null,
-              stockLocal: v.stockLocal,
-              stockWeb: v.stockWeb,
+              stockStore: v.stockStore,
+              stockWarehouse: v.stockWarehouse,
+              minStoreStock: v.minStoreStock,
               minStock: v.minStock,
               price: v.price ? new Prisma.Decimal(v.price) : null,
             })),
@@ -169,12 +174,13 @@ export async function createProduct(input: CreateProductInput) {
           variants: true,
           category: true,
           brand: true,
+          discipline: true,
         },
       });
 
       // Crear movimientos iniciales de inventario si hay stock ingresado
       for (const variant of product.variants) {
-        const totalInitialStock = variant.stockLocal + variant.stockWeb;
+        const totalInitialStock = variant.stockStore + variant.stockWarehouse;
         if (totalInitialStock > 0) {
           await tx.inventoryMovement.create({
             data: {
@@ -182,6 +188,7 @@ export async function createProduct(input: CreateProductInput) {
               type: "INGRESO_INICIAL",
               quantity: totalInitialStock,
               stockAfter: totalInitialStock,
+              location: variant.stockWarehouse > 0 && variant.stockStore === 0 ? "WAREHOUSE" : "STORE",
               reason: "Stock inicial al dar de alta el producto",
             },
           });
@@ -202,7 +209,7 @@ export async function createProduct(input: CreateProductInput) {
 }
 
 /**
- * Actualizar un Producto existente y sus variantes
+ * Actualizar un Producto existente
  */
 export async function updateProduct(input: UpdateProductInput) {
   try {
@@ -224,7 +231,7 @@ export async function updateProduct(input: UpdateProductInput) {
         data: {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
-          ...(validated.discipline ? { discipline: validated.discipline } : {}),
+          ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
           ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
           ...(validated.categoryId ? { categoryId: validated.categoryId } : {}),
@@ -234,6 +241,7 @@ export async function updateProduct(input: UpdateProductInput) {
         include: {
           category: true,
           brand: true,
+          discipline: true,
           variants: true,
         },
       });

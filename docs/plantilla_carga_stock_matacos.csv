@@ -1,0 +1,19 @@
+﻿Disciplina,Categoria,Marca,Nombre_Producto,Descripcion,Talle,Color,Codigo_Barra,SKU,Stock_Salon,Stock_Deposito,Min_Salon,Min_Proveedor,Precio_Costo,Precio_Venta
+Natación,Antiparras,Speedo,Antiparras Mariner Pro,Lentes con protección UV y tratamiento antivaho,Único,Azul,7791234567890,,2,5,1,2,12500.00,24900.00
+Natación,Antiparras,Speedo,Antiparras Mariner Pro,Lentes con protección UV y tratamiento antivaho,Único,Negro,7791234567891,,1,4,1,2,12500.00,24900.00
+Natación,Mallas,Arena,Malla Competición Solid,Malla resistente al cloro y secado rápido,S,Negro,,,1,2,1,2,18000.00,36000.00
+Natación,Mallas,Arena,Malla Competición Solid,Malla resistente al cloro y secado rápido,M,Negro,,,2,3,1,2,18000.00,36000.00
+Natación,Mallas,Arena,Malla Competición Solid,Malla resistente al cloro y secado rápido,L,Azul Marino,,,1,1,1,2,18000.00,36000.00
+Natación,Gorras,Speedo,Gorra Silicona Plain Moulded,Silicona ergonómica sin costuras,Único,Verde Flúor,7799876543210,,3,10,2,3,4500.00,9500.00
+Vóley,Pelotas,Mikasa,Pelota Vóley V200W,Balón oficial de competición microfibra,5,Amarillo/Azul,4907225880001,,2,3,1,2,65000.00,115000.00
+Vóley,Pelotas,Wilson,Pelota Vóley Soft Play,Tacto suave para entrenamiento y playa,5,Blanco/Verde,026388456123,,3,6,1,2,22000.00,42000.00
+Vóley,Rodilleras,Topper,Rodilleras Acolchadas Pro,Protección de alto impacto con tejido elástico,M,Negro,,,2,4,1,2,9500.00,18500.00
+Vóley,Rodilleras,Topper,Rodilleras Acolchadas Pro,Protección de alto impacto con tejido elástico,L,Negro,,,2,4,1,2,9500.00,18500.00
+Crocs,Calzado,Crocs,Zueco Classic Clog,Material Croslite ligero y resistente al agua,40,Negro,191448123401,,1,3,1,2,28000.00,58000.00
+Crocs,Calzado,Crocs,Zueco Classic Clog,Material Croslite ligero y resistente al agua,41,Negro,191448123418,,2,5,1,2,28000.00,58000.00
+Crocs,Calzado,Crocs,Zueco Classic Clog,Material Croslite ligero y resistente al agua,42,Azul Marino,191448123425,,1,4,1,2,28000.00,58000.00
+Fitness,Accesorios,Matacos,Mancuernas Fundición Vinilo,Par de mancuernas engomadas de 2kg,2kg,Rojo,,,2,6,1,2,7000.00,14000.00
+Fitness,Accesorios,Matacos,Mancuernas Fundición Vinilo,Par de mancuernas engomadas de 3kg,3kg,Azul,,,2,4,1,2,9500.00,19000.00
+Fitness,Bandas,Matacos,Banda Circular Látex Extra Pesada,Banda de resistencia para glúteos y piernas,Único,Negro,,,4,12,2,3,3200.00,6800.00
+Indumentaria,Remeras,Wilson,Remera Técnica Performance,Tela poliéster transpirable secado rápido,M,Blanco,,,2,3,1,2,11000.00,22000.00
+Indumentaria,Remeras,Wilson,Remera Técnica Performance,Tela poliéster transpirable secado rápido,L,Negro,,,2,5,1,2,11000.00,22000.00

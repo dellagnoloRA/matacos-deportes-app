@@ -1,9 +1,19 @@
 import { z } from "zod";
 
 /**
+ * Esquema de validación para Disciplinas
+ */
+export const DisciplineSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(2, "El nombre de la disciplina debe tener al menos 2 caracteres"),
+  slug: z.string().min(2, "El slug es requerido").optional(),
+});
+
+/**
  * Esquema de validación para Categorías
  */
 export const CategorySchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(2, "El nombre de la categoría debe tener al menos 2 caracteres"),
   slug: z.string().min(2, "El slug es requerido").optional(),
 });
@@ -12,32 +22,39 @@ export const CategorySchema = z.object({
  * Esquema de validación para Marcas
  */
 export const BrandSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(2, "El nombre de la marca debe tener al menos 2 caracteres"),
+  slug: z.string().min(2, "El slug es requerido").optional(),
 });
 
 /**
- * Esquema de validación para una Variante de Producto (Talle, Color, SKU, Barcode, Stock)
+ * Esquema de validación para una Variante de Producto con stock dual
  */
 export const ProductVariantSchema = z.object({
   id: z.string().uuid().optional(),
-  size: z.string().min(1, "El talle es requerido (ej: 41, M, L, Único)"),
+  size: z.string().min(1, "El talle es requerido (ej: 41, M, L, Único, 2kg)"),
   color: z.string().min(1, "El color es requerido (ej: Negro, Azul, Multicolor)"),
   sku: z.string().min(3, "El SKU debe tener al menos 3 caracteres"),
   barcode: z.string().nullable().optional(),
-  stockLocal: z
-    .number({ invalid_type_error: "El stock local debe ser un número" })
+  stockStore: z
+    .number({ invalid_type_error: "El stock en salón debe ser un número" })
     .int("Debe ser un número entero")
-    .min(0, "El stock local no puede ser negativo")
+    .min(0, "El stock en salón no puede ser negativo")
     .default(0),
-  stockWeb: z
-    .number({ invalid_type_error: "El stock web debe ser un número" })
+  stockWarehouse: z
+    .number({ invalid_type_error: "El stock en depósito debe ser un número" })
     .int("Debe ser un número entero")
-    .min(0, "El stock web no puede ser negativo")
+    .min(0, "El stock en depósito no puede ser negativo")
     .default(0),
+  minStoreStock: z
+    .number({ invalid_type_error: "El stock mínimo en salón debe ser un número" })
+    .int("Debe ser un número entero")
+    .min(0, "El stock mínimo en salón no puede ser negativo")
+    .default(1),
   minStock: z
-    .number({ invalid_type_error: "El stock mínimo debe ser un número" })
+    .number({ invalid_type_error: "El stock mínimo total debe ser un número" })
     .int("Debe ser un número entero")
-    .min(0, "El stock mínimo no puede ser negativo")
+    .min(0, "El stock mínimo total no puede ser negativo")
     .default(2),
   price: z
     .number({ invalid_type_error: "El precio de la variante debe ser un número" })
@@ -52,7 +69,7 @@ export const ProductVariantSchema = z.object({
 export const CreateProductSchema = z.object({
   name: z.string().min(3, "El nombre del producto debe tener al menos 3 caracteres"),
   description: z.string().nullable().optional(),
-  discipline: z.string().min(2, "La disciplina es requerida (ej: Natación, Vóley, Crocs)"),
+  disciplineId: z.string().uuid("Debe seleccionar una disciplina válida"),
   costPrice: z
     .number({ invalid_type_error: "El precio de costo debe ser un número" })
     .min(0, "El precio de costo no puede ser negativo"),
@@ -77,6 +94,7 @@ export const UpdateProductSchema = CreateProductSchema.partial().extend({
 /**
  * Tipos TypeScript inferidos automáticamente desde Zod
  */
+export type DisciplineInput = z.infer<typeof DisciplineSchema>;
 export type CategoryInput = z.infer<typeof CategorySchema>;
 export type BrandInput = z.infer<typeof BrandSchema>;
 export type ProductVariantInput = z.infer<typeof ProductVariantSchema>;
