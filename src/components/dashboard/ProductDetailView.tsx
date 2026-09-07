@@ -24,9 +24,14 @@ import {
   Printer,
   ChevronRight,
   ExternalLink,
+  Edit3,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion } from "./types";
+import { ProductFormModal } from "./ProductFormModal";
+import { toggleProductActive } from "@/server/actions/productActions";
 
 interface ProductDetailViewProps {
   product: DetailedProductItem;
@@ -44,6 +49,29 @@ const TABS = [
 export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      const res = await toggleProductActive(product.id);
+      if (res.success) {
+        setIsDeleteModalOpen(false);
+        onBack();
+      } else {
+        setDeleteError(res.error || "No se pudo dar de baja el producto");
+      }
+    } catch (err) {
+      console.error("Error al dar de baja el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Calculations
   const totalStoreStock = product.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
@@ -101,6 +129,23 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               Sincronizado POS & Web
             </span>
+
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-lg transition-all border border-lime-400 shadow-2xs active:scale-95"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Editar</span>
+            </button>
+
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              title="Eliminar producto"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Eliminar</span>
+            </button>
 
             <button
               onClick={() => window.print()}
@@ -650,6 +695,76 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
           </div>
         )}
       </div>
+
+      {/* Modal de Editar Producto */}
+      <ProductFormModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={() => {
+          setIsEditModalOpen(false);
+          onBack();
+        }}
+        productToEdit={product}
+      />
+
+      {/* Modal de Confirmación para Dar de Baja Lógica */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div
+            className="bg-white w-full max-w-md rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-900">
+                  ¿Eliminar producto?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  El producto <strong className="text-slate-800 font-semibold">{product.name}</strong> se dará de baja del mostrador (POS) y del catálogo activo, pero <span className="font-medium text-slate-700">su historial de ventas y trazabilidad se conservarán intactos</span>.
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Producto</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

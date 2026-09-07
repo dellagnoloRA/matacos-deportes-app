@@ -16,11 +16,20 @@ import {
   ShieldCheck,
   Eye,
   RefreshCw,
+  Edit3,
+  Trash2,
+  AlertTriangle,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
-import { getDetailedInventoryProducts } from "@/server/actions/productActions";
+import { ProductFormModal } from "./ProductFormModal";
+import {
+  getDetailedInventoryProducts,
+  toggleProductActive,
+} from "@/server/actions/productActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
@@ -312,12 +321,65 @@ export function InventoryView({
   const [productsList, setProductsList] = useState<DetailedProductItem[]>(INITIAL_PRODUCTS);
   const [isLoading, setIsLoading] = useState(false);
   const [isLiveFromDb, setIsLiveFromDb] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<DetailedProductItem | null>(null);
+  const [productToDelete, setProductToDelete] = useState<DetailedProductItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: string; title: string; description?: string } | null>(null);
+
+  const showToast = (title: string, description?: string) => {
+    const id = Date.now().toString();
+    setToast({ id, title, description });
+    setTimeout(() => {
+      setToast((current) => (current?.id === id ? null : current));
+    }, 4000);
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingProduct(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (product: DetailedProductItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenDeleteModal = (product: DetailedProductItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeleteError(null);
+    setProductToDelete(product);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+    const deletedName = productToDelete.name;
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      const res = await toggleProductActive(productToDelete.id);
+      if (res.success) {
+        await loadProducts();
+        setProductToDelete(null);
+        showToast("Producto eliminado", `"${deletedName}" se dio de baja correctamente.`);
+      } else {
+        setDeleteError(res.error || "No se pudo dar de baja el producto");
+      }
+    } catch (err) {
+      console.error("Error al dar de baja el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const loadProducts = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await getDetailedInventoryProducts();
-      if (res.success && res.data && res.data.length > 0) {
+      if (res.success && Array.isArray(res.data)) {
         setProductsList(res.data);
         setIsLiveFromDb(true);
       }
@@ -384,7 +446,7 @@ export function InventoryView({
           </h1>
           <div className="flex items-center gap-2 mt-0.5">
             <p className="text-xs text-slate-500">
-              Gestión de stock local (Saavedra 241) y catálogo de e-commerce
+              Gestión de stock local y catálogo de e-commerce
             </p>
             {isLiveFromDb ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -425,18 +487,13 @@ export function InventoryView({
             <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
           </button>
 
-          <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200/80 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-900 via-slate-800 to-indigo-950 text-white flex items-center justify-center text-xs font-bold ring-2 ring-slate-200 shadow-xs">
-              RA
-            </div>
-            <div className="hidden sm:flex flex-col text-left">
-              <span className="text-xs font-semibold text-slate-800 leading-tight">
-                Matacos Admin
-              </span>
-              <span className="text-[10px] text-emerald-600 font-medium">Saavedra 241</span>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </div>
+          <button
+            onClick={handleOpenCreateModal}
+            className="bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nuevo Producto</span>
+          </button>
         </div>
       </div>
 
@@ -543,14 +600,30 @@ export function InventoryView({
                       {item.barcode || item.sku}
                     </td>
 
-                    {/* 6. Action Button (Lime green View button) */}
+                    {/* 6. Action Buttons */}
                     <td className="py-4 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => handleOpenDetail(item)}
-                        className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight"
-                      >
-                        Ver Detalle
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={(e) => handleOpenEditModal(item, e)}
+                          title="Editar producto"
+                          className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleOpenDeleteModal(item, e)}
+                          title="Eliminar producto"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDetail(item)}
+                          className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
+                        >
+                          Ver Detalle
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -561,13 +634,115 @@ export function InventoryView({
 
         {/* Table Footer info */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-[11px] text-slate-500">
-          <span>Mostrando {filteredProducts.length} de {INITIAL_PRODUCTS.length} productos</span>
+          <span>Mostrando {filteredProducts.length} de {productsList.length} productos</span>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span className="font-medium text-slate-700">Base de datos sincronizada</span>
           </div>
         </div>
       </div>
+
+      {/* Modal de Crear / Editar Producto */}
+      <ProductFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={(isEditing) => {
+          loadProducts();
+          setIsModalOpen(false);
+          showToast(
+            isEditing ? "Producto actualizado" : "Producto creado",
+            isEditing
+              ? "Los cambios en el producto y sus variantes fueron guardados."
+              : "El nuevo producto se agregó correctamente al inventario."
+          );
+        }}
+        productToEdit={editingProduct}
+      />
+
+      {/* Modal de Confirmación para Eliminar Producto */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div
+            className="bg-white w-full max-w-md rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-900">
+                  ¿Eliminar producto?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  El producto <strong className="text-slate-800 font-semibold">{productToDelete.name}</strong> se dará de baja del mostrador (POS) y catálogo activo, pero <span className="font-medium text-slate-700">su historial contable y ventas se conservarán intactos</span>.
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setProductToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Producto</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-slate-900 text-white px-4 py-3.5 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3.5 min-w-[300px] max-w-md">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-bold text-slate-100">{toast.title}</h4>
+              {toast.description && (
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-tight truncate">
+                  {toast.description}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+              title="Cerrar notificación"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

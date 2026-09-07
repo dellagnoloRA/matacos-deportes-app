@@ -10,6 +10,20 @@ export interface SaleHistoryFilterOptions {
   limit?: number;
 }
 
+function serializeData<T>(data: T): T {
+  return JSON.parse(
+    JSON.stringify(data, (key, value) => {
+      if (typeof value === "object" && value !== null && typeof value.toNumber === "function") {
+        return value.toNumber();
+      }
+      if (typeof value === "object" && value !== null && "d" in value && "e" in value && "s" in value) {
+        return Number(value);
+      }
+      return value;
+    })
+  );
+}
+
 /**
  * Procesar y registrar una Venta en Mostrador o Web de forma 100% atómica
  * Descuenta prioritariamente de Salón y, si es necesario, de Depósito.
@@ -158,7 +172,7 @@ export async function processSale(input: CreateSaleInput) {
 
     return {
       success: true,
-      data: saleResult,
+      data: serializeData(saleResult),
       message: `Venta ${saleResult?.invoiceNumber} procesada con éxito`,
     };
   } catch (error) {
@@ -202,7 +216,7 @@ export async function getSaleHistory(options: SaleHistoryFilterOptions = {}) {
       take: limit,
     });
 
-    return { success: true, data: sales };
+    return { success: true, data: serializeData(sales) };
   } catch (error) {
     console.error("Error al consultar historial de ventas:", error);
     return { success: false, error: "No se pudo obtener el historial de ventas" };
