@@ -309,18 +309,24 @@ const DISCIPLINES = [
 interface InventoryViewProps {
   selectedDiscipline?: string;
   onDisciplineChange?: (discipline: string) => void;
+  initialProducts?: DetailedProductItem[];
 }
 
 export function InventoryView({
   selectedDiscipline: controlledDiscipline,
   onDisciplineChange,
+  initialProducts,
 }: InventoryViewProps = {}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [internalDiscipline, setInternalDiscipline] = useState("Todas");
   const [selectedProduct, setSelectedProduct] = useState<DetailedProductItem | null>(null);
-  const [productsList, setProductsList] = useState<DetailedProductItem[]>(INITIAL_PRODUCTS);
+  const [productsList, setProductsList] = useState<DetailedProductItem[]>(
+    initialProducts && initialProducts.length > 0 ? initialProducts : INITIAL_PRODUCTS
+  );
   const [isLoading, setIsLoading] = useState(false);
-  const [isLiveFromDb, setIsLiveFromDb] = useState(false);
+  const [isLiveFromDb, setIsLiveFromDb] = useState(
+    Boolean(initialProducts && initialProducts.length > 0)
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<DetailedProductItem | null>(null);
   const [productToDelete, setProductToDelete] = useState<DetailedProductItem | null>(null);
@@ -391,8 +397,10 @@ export function InventoryView({
   }, []);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    if (!initialProducts || initialProducts.length === 0) {
+      loadProducts();
+    }
+  }, [loadProducts, initialProducts]);
 
   const selectedDiscipline = controlledDiscipline !== undefined ? controlledDiscipline : internalDiscipline;
 

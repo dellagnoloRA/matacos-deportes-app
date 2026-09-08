@@ -12,7 +12,7 @@ import { ProvinceTrafficChart } from "./ProvinceTrafficChart";
 import { MarketingSeoCard } from "./MarketingSeoCard";
 import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
-import { KpiData } from "./types";
+import { DetailedProductItem, KpiData } from "./types";
 
 const INITIAL_KPIS: KpiData[] = [
   {
@@ -24,18 +24,18 @@ const INITIAL_KPIS: KpiData[] = [
     isFeatured: true, // Glowing Neon Green card
   },
   {
-    id: "kpi-visits",
-    title: "Visitas",
-    value: "3,671",
-    change: "-0.03%",
-    isPositive: false,
+    id: "kpi-orders",
+    title: "Pedidos Online",
+    value: "1,523",
+    change: "+4.15%",
+    isPositive: true,
   },
   {
-    id: "kpi-users",
-    title: "Usuarios",
-    value: "156",
-    change: "+15.03%",
-    isPositive: true,
+    id: "kpi-customers",
+    title: "Clientes",
+    value: "948",
+    change: "-1.24%",
+    isPositive: false,
   },
   {
     id: "kpi-earnings",
@@ -46,7 +46,11 @@ const INITIAL_KPIS: KpiData[] = [
   },
 ];
 
-export function DashboardView() {
+interface DashboardViewProps {
+  initialProducts?: DetailedProductItem[];
+}
+
+export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const [currentTab, setCurrentTab] = useState<"inventario" | "analytics">("inventario");
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [isDesktopLeftOpen, setIsDesktopLeftOpen] = useState(true);
@@ -130,6 +134,7 @@ export function DashboardView() {
             <InventoryView
               selectedDiscipline={selectedCategory}
               onDisciplineChange={(cat) => setSelectedCategory(cat)}
+              initialProducts={initialProducts}
             />
           </div>
         ) : (
