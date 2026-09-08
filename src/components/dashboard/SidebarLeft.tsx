@@ -72,7 +72,7 @@ export function SidebarLeft({
 
   return (
     <aside
-      className={`w-64 shrink-0 flex flex-col justify-between py-5 px-4 bg-[#063a2f] text-white select-none text-[12.5px] overflow-y-auto ${className}`}
+      className={`w-64 shrink-0 flex flex-col justify-between py-5 px-4 bg-[#06241d] text-white select-none text-[12.5px] overflow-y-auto ${className}`}
     >
       {/* Top Brand Logo & Nav */}
       <div className="space-y-6">
