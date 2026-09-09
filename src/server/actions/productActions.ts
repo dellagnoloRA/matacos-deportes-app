@@ -168,6 +168,7 @@ export async function createProduct(input: CreateProductInput) {
         data: {
           name: validated.name,
           description: validated.description ?? null,
+          imageUrl: validated.imageUrl ?? null,
           disciplineId: validated.disciplineId,
           costPrice: new Prisma.Decimal(validated.costPrice),
           price: new Prisma.Decimal(validated.price),
@@ -249,6 +250,7 @@ export async function updateProduct(input: UpdateProductInput) {
         data: {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
+          ...(validated.imageUrl !== undefined ? { imageUrl: validated.imageUrl } : {}),
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
           ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
@@ -432,6 +434,7 @@ export async function getDetailedInventoryProducts(): Promise<{
         minStock: firstVariant?.minStock || 2,
         updatedAt: formatDateEs(p.updatedAt),
         iconBg: getDisciplineGradient(p.discipline.name),
+        imageUrl: p.imageUrl || undefined,
         variants: p.variants.map((v) => ({
           id: v.id,
           size: v.size,

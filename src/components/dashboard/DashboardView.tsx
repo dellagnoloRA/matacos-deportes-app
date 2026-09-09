@@ -95,9 +95,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] text-slate-800 flex flex-col font-sans antialiased select-none relative overflow-x-hidden">
-      {/* Main App Container */}
-      <div className="flex-1 flex overflow-hidden max-w-[1720px] mx-auto w-full bg-white shadow-xs">
+    <div className="h-screen w-full bg-white text-slate-800 flex font-sans antialiased select-none relative overflow-hidden">
+      {/* Main App Container (Full Width & Height) */}
+      <div className="flex-1 flex overflow-hidden w-full h-full bg-white">
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
@@ -121,15 +121,31 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {/* 2. Main Content Area */}
         {currentTab === "inventario" ? (
           <div className="flex-1 flex flex-col min-w-0 bg-white relative">
-            {/* Mobile / Responsive floating toggle button for inventory view */}
-            <div className="md:hidden px-4 pt-3 pb-1 flex items-center justify-between border-b border-slate-100">
-              <button
-                onClick={() => setIsMobileLeftOpen(true)}
-                className="flex items-center gap-2 p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 rounded-lg text-xs font-semibold"
-              >
-                <PanelLeft className="w-4 h-4" />
-                <span>Menú</span>
-              </button>
+            {/* Mobile Top App Bar for Inventory */}
+            <div className="md:hidden px-4 py-3 bg-[#06241d] text-white flex items-center justify-between border-b border-emerald-950/60 sticky top-0 z-20 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setIsMobileLeftOpen(true)}
+                  className="flex items-center justify-center p-2 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors active:scale-95"
+                  aria-label="Abrir menú"
+                >
+                  <PanelLeft className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#094d3f] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] font-black italic text-sm">
+                    M
+                  </div>
+                  <span className="font-black italic text-[#00D615] text-base tracking-tighter">
+                    MATACOS
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-emerald-300/80 bg-white/10 px-2.5 py-1 rounded-full border border-white/10">
+                  {selectedCategory === "Todas" ? "Catálogo" : selectedCategory}
+                </span>
+              </div>
             </div>
             <InventoryView
               selectedDiscipline={selectedCategory}
@@ -228,12 +244,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
       {/* Left Mobile Drawer */}
       <div
-        className={`fixed top-0 bottom-0 left-0 z-50 md:hidden w-64 max-w-[85vw] bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 md:hidden w-72 max-w-[88vw] bg-[#06241d] shadow-2xl transition-transform duration-300 ease-in-out ${
           isMobileLeftOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
       >
         <SidebarLeft
-          className="h-full w-full bg-white"
+          className="h-full w-full bg-[#06241d]"
           isMobile
           activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
           onSelectItem={(id) => {
