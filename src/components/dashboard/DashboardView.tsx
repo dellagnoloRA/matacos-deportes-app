@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ChevronDown, PanelLeft } from "lucide-react";
 import { SidebarLeft } from "./SidebarLeft";
 import { TopHeader } from "./TopHeader";
@@ -51,8 +52,81 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
-  const [currentTab, setCurrentTab] = useState<"inventario" | "analytics">("inventario");
-  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Pestaña actual sincronizada con la URL del navegador
+  const currentTab = useMemo(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "inicio" || tab === "analytics") return "analytics";
+    if (tab === "pos") return "pos";
+    if (tab === "caja") return "caja";
+    if (tab === "ecommerce") return "ecommerce";
+    if (tab === "configuracion") return "configuracion";
+    return "inventario";
+  }, [searchParams]);
+
+  // Categoría/Disciplina seleccionada sincronizada con la URL
+  const selectedCategory = useMemo(() => {
+    return searchParams.get("categoria") || "Todas";
+  }, [searchParams]);
+
+  // ID del producto para vista de detalle sincronizado con la URL
+  const selectedProductId = useMemo(() => {
+    return searchParams.get("producto") || null;
+  }, [searchParams]);
+
+  // Actualizar URL creando entradas en el historial del navegador (soporta botón Atrás y Adelante)
+  const updateUrl = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === undefined || value === "") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      }
+      const qs = params.toString();
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      router.push(url, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const handleSelectTab = useCallback(
+    (id: string) => {
+      const targetTab = id === "analytics" ? "inicio" : id;
+      updateUrl({
+        tab: targetTab,
+        producto: null,
+      });
+    },
+    [updateUrl]
+  );
+
+  const handleSelectCategory = useCallback(
+    (category: string) => {
+      updateUrl({
+        tab: "inventario",
+        categoria: category === "Todas" ? null : category,
+        producto: null,
+      });
+    },
+    [updateUrl]
+  );
+
+  const handleSelectProduct = useCallback(
+    (productId: string | null) => {
+      updateUrl({
+        tab: "inventario",
+        producto: productId,
+      });
+    },
+    [updateUrl]
+  );
+
   const [isDesktopLeftOpen, setIsDesktopLeftOpen] = useState(true);
   const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
   const [isDesktopRightOpen, setIsDesktopRightOpen] = useState(true);
@@ -101,19 +175,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
-            onSelectItem={(id) => {
-              if (id === "inicio" || id === "analytics") {
-                setCurrentTab("analytics");
-              } else {
-                setCurrentTab("inventario");
-              }
-            }}
-            selectedCategory={selectedCategory}
-            onSelectCategory={(cat) => {
-              setSelectedCategory(cat);
-              setCurrentTab("inventario");
-            }}
+            activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+            onSelectItem={handleSelectTab}
+            onSelectCategory={handleSelectCategory}
             className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
@@ -149,8 +213,10 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             </div>
             <InventoryView
               selectedDiscipline={selectedCategory}
-              onDisciplineChange={(cat) => setSelectedCategory(cat)}
+              onDisciplineChange={handleSelectCategory}
               initialProducts={initialProducts}
+              selectedProductId={selectedProductId}
+              onProductChange={handleSelectProduct}
             />
           </div>
         ) : (
@@ -251,19 +317,10 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         <SidebarLeft
           className="h-full w-full bg-[#06241d]"
           isMobile
-          activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
-          onSelectItem={(id) => {
-            if (id === "inicio" || id === "analytics") {
-              setCurrentTab("analytics");
-            } else {
-              setCurrentTab("inventario");
-            }
-          }}
+          activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+          onSelectItem={handleSelectTab}
           selectedCategory={selectedCategory}
-          onSelectCategory={(cat) => {
-            setSelectedCategory(cat);
-            setCurrentTab("inventario");
-          }}
+          onSelectCategory={handleSelectCategory}
           onClose={() => setIsMobileLeftOpen(false)}
         />
       </div>
