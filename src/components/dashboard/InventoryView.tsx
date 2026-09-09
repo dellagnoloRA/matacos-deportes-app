@@ -316,12 +316,16 @@ interface InventoryViewProps {
   selectedDiscipline?: string;
   onDisciplineChange?: (discipline: string) => void;
   initialProducts?: DetailedProductItem[];
+  selectedProductId?: string | null;
+  onProductChange?: (productId: string | null) => void;
 }
 
 export function InventoryView({
   selectedDiscipline: controlledDiscipline,
   onDisciplineChange,
   initialProducts,
+  selectedProductId,
+  onProductChange,
 }: InventoryViewProps = {}) {
   const [searchMode, setSearchMode] = useState<"barcode" | "all">("barcode");
   const [searchQuery, setSearchQuery] = useState("");
@@ -615,8 +619,21 @@ export function InventoryView({
     </div>
   );
 
+  // Sincronizar el producto seleccionado cuando cambia la URL (historial Atrás / Adelante del navegador)
+  useEffect(() => {
+    if (selectedProductId) {
+      const found = productsList.find((p) => p.id === selectedProductId);
+      if (found) {
+        setSelectedProduct(found);
+      }
+    } else {
+      setSelectedProduct(null);
+    }
+  }, [selectedProductId, productsList]);
+
   const handleOpenDetail = (product: DetailedProductItem) => {
     setSelectedProduct(product);
+    onProductChange?.(product.id);
   };
 
   // If a product is selected, render the full detailed view with back button
@@ -626,11 +643,13 @@ export function InventoryView({
         product={selectedProduct}
         onBack={() => {
           setSelectedProduct(null);
+          onProductChange?.(null);
           loadProducts();
         }}
         onDeleteSuccess={(deletedId: string) => {
           setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
           setSelectedProduct(null);
+          onProductChange?.(null);
           showToast("Producto eliminado", `"${selectedProduct.name}" se eliminó correctamente.`);
           loadProducts();
         }}
