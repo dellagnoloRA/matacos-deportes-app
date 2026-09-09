@@ -100,3 +100,6 @@ export type BrandInput = z.infer<typeof BrandSchema>;
 export type ProductVariantInput = z.infer<typeof ProductVariantSchema>;
 export type CreateProductInput = z.infer<typeof CreateProductSchema>;
 export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
+
+// Re-exportar esquemas y tipos de actualización porcentual de precios
+export * from "./priceUpdate";
