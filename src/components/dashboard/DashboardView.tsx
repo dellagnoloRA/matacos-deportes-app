@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ChevronDown, PanelLeft } from "lucide-react";
 import { SidebarLeft } from "./SidebarLeft";
 import { TopHeader } from "./TopHeader";
@@ -51,8 +52,81 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
-  const [currentTab, setCurrentTab] = useState<"inventario" | "analytics">("inventario");
-  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Pestaña actual sincronizada con la URL del navegador
+  const currentTab = useMemo(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "inicio" || tab === "analytics") return "analytics";
+    if (tab === "pos") return "pos";
+    if (tab === "caja") return "caja";
+    if (tab === "ecommerce") return "ecommerce";
+    if (tab === "configuracion") return "configuracion";
+    return "inventario";
+  }, [searchParams]);
+
+  // Categoría/Disciplina seleccionada sincronizada con la URL
+  const selectedCategory = useMemo(() => {
+    return searchParams.get("categoria") || "Todas";
+  }, [searchParams]);
+
+  // ID del producto para vista de detalle sincronizado con la URL
+  const selectedProductId = useMemo(() => {
+    return searchParams.get("producto") || null;
+  }, [searchParams]);
+
+  // Actualizar URL creando entradas en el historial del navegador (soporta botón Atrás y Adelante)
+  const updateUrl = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === undefined || value === "") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      }
+      const qs = params.toString();
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      router.push(url, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const handleSelectTab = useCallback(
+    (id: string) => {
+      const targetTab = id === "analytics" ? "inicio" : id;
+      updateUrl({
+        tab: targetTab,
+        producto: null,
+      });
+    },
+    [updateUrl]
+  );
+
+  const handleSelectCategory = useCallback(
+    (category: string) => {
+      updateUrl({
+        tab: "inventario",
+        categoria: category === "Todas" ? null : category,
+        producto: null,
+      });
+    },
+    [updateUrl]
+  );
+
+  const handleSelectProduct = useCallback(
+    (productId: string | null) => {
+      updateUrl({
+        tab: "inventario",
+        producto: productId,
+      });
+    },
+    [updateUrl]
+  );
+
   const [isDesktopLeftOpen, setIsDesktopLeftOpen] = useState(true);
   const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
   const [isDesktopRightOpen, setIsDesktopRightOpen] = useState(true);
@@ -95,46 +169,54 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] text-slate-800 flex flex-col font-sans antialiased select-none relative overflow-x-hidden">
-      {/* Main App Container */}
-      <div className="flex-1 flex overflow-hidden max-w-[1720px] mx-auto w-full bg-white shadow-xs">
+    <div className="min-h-screen w-full bg-white text-slate-800 flex font-sans antialiased select-none relative">
+      {/* Main App Container (Full Width & Height) */}
+      <div className="flex-1 flex w-full min-h-screen bg-white">
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
-            onSelectItem={(id) => {
-              if (id === "inicio" || id === "analytics") {
-                setCurrentTab("analytics");
-              } else {
-                setCurrentTab("inventario");
-              }
-            }}
-            selectedCategory={selectedCategory}
-            onSelectCategory={(cat) => {
-              setSelectedCategory(cat);
-              setCurrentTab("inventario");
-            }}
-            className="transition-all duration-300 hidden md:flex"
+            activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+            onSelectItem={handleSelectTab}
+            onSelectCategory={handleSelectCategory}
+            className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
 
         {/* 2. Main Content Area */}
         {currentTab === "inventario" ? (
-          <div className="flex-1 flex flex-col min-w-0 bg-white relative">
-            {/* Mobile / Responsive floating toggle button for inventory view */}
-            <div className="md:hidden px-4 pt-3 pb-1 flex items-center justify-between border-b border-slate-100">
-              <button
-                onClick={() => setIsMobileLeftOpen(true)}
-                className="flex items-center gap-2 p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 rounded-lg text-xs font-semibold"
-              >
-                <PanelLeft className="w-4 h-4" />
-                <span>Menú</span>
-              </button>
+          <div className="flex-1 flex flex-col min-w-0 bg-white relative min-h-screen">
+            {/* Mobile Top App Bar for Inventory */}
+            <div className="md:hidden px-4 py-3 bg-[#06241d] text-white flex items-center justify-between border-b border-emerald-950/60 sticky top-0 z-20 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setIsMobileLeftOpen(true)}
+                  className="flex items-center justify-center p-2 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors active:scale-95"
+                  aria-label="Abrir menú"
+                >
+                  <PanelLeft className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#094d3f] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] font-black italic text-sm">
+                    M
+                  </div>
+                  <span className="font-black italic text-[#00D615] text-base tracking-tighter">
+                    MATACOS
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-emerald-300/80 bg-white/10 px-2.5 py-1 rounded-full border border-white/10">
+                  {selectedCategory === "Todas" ? "Catálogo" : selectedCategory}
+                </span>
+              </div>
             </div>
             <InventoryView
               selectedDiscipline={selectedCategory}
-              onDisciplineChange={(cat) => setSelectedCategory(cat)}
+              onDisciplineChange={handleSelectCategory}
               initialProducts={initialProducts}
+              selectedProductId={selectedProductId}
+              onProductChange={handleSelectProduct}
             />
           </div>
         ) : (
@@ -210,7 +292,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
         {/* 3. Right Sidebar Panel (Desktop Mode in Analytics View) */}
         {currentTab === "analytics" && isDesktopRightOpen && (
-          <SidebarRight className="transition-all duration-300 hidden xl:flex" />
+          <SidebarRight className="transition-all duration-300 hidden xl:flex sticky top-0 h-screen overflow-y-auto shrink-0" />
         )}
       </div>
 
@@ -228,26 +310,17 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
       {/* Left Mobile Drawer */}
       <div
-        className={`fixed top-0 bottom-0 left-0 z-50 md:hidden w-64 max-w-[85vw] bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 md:hidden w-72 max-w-[88vw] bg-[#06241d] shadow-2xl transition-transform duration-300 ease-in-out ${
           isMobileLeftOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
       >
         <SidebarLeft
-          className="h-full w-full bg-white"
+          className="h-full w-full bg-[#06241d]"
           isMobile
-          activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
-          onSelectItem={(id) => {
-            if (id === "inicio" || id === "analytics") {
-              setCurrentTab("analytics");
-            } else {
-              setCurrentTab("inventario");
-            }
-          }}
+          activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+          onSelectItem={handleSelectTab}
           selectedCategory={selectedCategory}
-          onSelectCategory={(cat) => {
-            setSelectedCategory(cat);
-            setCurrentTab("inventario");
-          }}
+          onSelectCategory={handleSelectCategory}
           onClose={() => setIsMobileLeftOpen(false)}
         />
       </div>

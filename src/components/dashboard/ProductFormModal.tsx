@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Plus,
@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  Upload,
+  Image as ImageIcon,
+  Camera,
+  RefreshCw,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -64,6 +68,14 @@ export function ProductFormModal({
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
+  // Estados para imagen con Blob
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Opciones cargadas desde la BD
   const [disciplines, setDisciplines] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -87,31 +99,82 @@ export function ProductFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Cargar disciplinas, categorías y marcas de la BD
-  useEffect(() => {
-    if (!isOpen) return;
-
-    async function loadSelectOptions() {
-      setIsLoadingOptions(true);
-      try {
-        const [discRes, catRes, brandRes] = await Promise.all([
-          getDisciplines(),
-          getCategories(),
-          getBrands(),
-        ]);
-
-        if (discRes.success && discRes.data) setDisciplines(discRes.data);
-        if (catRes.success && catRes.data) setCategories(catRes.data);
-        if (brandRes.success && brandRes.data) setBrands(brandRes.data);
-      } catch (err) {
-        console.error("Error al cargar opciones:", err);
-      } finally {
-        setIsLoadingOptions(false);
-      }
+  // Procesar archivo seleccionado
+  const processSelectedFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setErrorMessage("Por favor selecciona un archivo de imagen válido (PNG, JPG, WEBP, etc.)");
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage("La imagen no debe superar los 5 MB de tamaño");
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setErrorMessage(null);
+  };
 
-    loadSelectOptions();
-  }, [isOpen]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processSelectedFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processSelectedFile(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Cargar disciplinas, categorías y marcas de la BD
+    // Cargar disciplinas, categorías y marcas de la BD
+  const loadSelectOptions = useCallback(async () => {
+    setIsLoadingOptions(true);
+    setErrorMessage(null);
+    try {
+      const [discRes, catRes, brandRes] = await Promise.all([
+        getDisciplines(),
+        getCategories(),
+        getBrands(),
+      ]);
+
+      if (discRes.success && discRes.data) setDisciplines(discRes.data);
+      if (catRes.success && catRes.data) setCategories(catRes.data);
+      if (brandRes.success && brandRes.data) setBrands(brandRes.data);
+
+      if (!discRes.success || !catRes.success || !brandRes.success) {
+        console.warn("Advertencia al cargar opciones:", { discRes, catRes, brandRes });
+      }
+    } catch (err) {
+      console.error("Error al cargar opciones:", err);
+      setErrorMessage("No se pudieron cargar las opciones desde el servidor. Compruebe la conexión o vuelva a intentar.");
+    } finally {
+      setIsLoadingOptions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSelectOptions();
+    }
+  }, [isOpen, loadSelectOptions]);
 
   // Precargar datos si se está editando
   useEffect(() => {
@@ -120,6 +183,9 @@ export function ProductFormModal({
       setDescription(productToEdit.description || "");
       setCostPrice(productToEdit.costPrice);
       setPrice(productToEdit.price);
+      setImageUrl(productToEdit.imageUrl || null);
+      setImagePreview(productToEdit.imageUrl || null);
+      setImageFile(null);
 
       // Mapear variantes existentes
       if (productToEdit.variants && productToEdit.variants.length > 0) {
@@ -145,6 +211,10 @@ export function ProductFormModal({
       setBrandId("");
       setCostPrice("");
       setPrice("");
+      setImageUrl(null);
+      setImagePreview(null);
+      setImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setVariants([
         {
           size: "Único",
@@ -261,9 +331,30 @@ export function ProductFormModal({
     }
 
     setIsSubmitting(true);
+    let finalImageUrl = imageUrl;
 
     try {
-      // Formatear variantes (conservando ID si existía)
+      // 1. Subir imagen con Blob si hay un nuevo archivo seleccionado
+      if (imageFile) {
+        setIsUploadingImage(true);
+        const uploadData = new FormData();
+        uploadData.append("file", imageFile);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json();
+          throw new Error(errData.error || "Fallo al subir la imagen con Blob");
+        }
+
+        const uploadJson = await uploadRes.json();
+        finalImageUrl = uploadJson.url;
+      }
+
+      // 2. Formatear variantes (conservando ID si existía)
       const nameClean = slugify(name).replace(/-/g, "").slice(0, 3).toUpperCase() || "MAT";
       const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
 
@@ -288,7 +379,7 @@ export function ProductFormModal({
       });
 
       if (isEditing && productToEdit) {
-        // Modo Actualización con Variantes
+        // Modo Actualización con Variantes e Imagen
         const res = await updateProduct({
           id: productToEdit.id,
           name: name.trim(),
@@ -298,16 +389,18 @@ export function ProductFormModal({
           brandId,
           costPrice: costNum,
           price: priceNum,
+          imageUrl: finalImageUrl,
           variants: formattedVariants,
         });
 
         if (!res.success) {
           setErrorMessage(res.error || "No se pudo actualizar el producto");
           setIsSubmitting(false);
+          setIsUploadingImage(false);
           return;
         }
       } else {
-        // Modo Creación
+        // Modo Creación con Variantes e Imagen
         const res = await createProduct({
           name: name.trim(),
           description: description.trim() || null,
@@ -316,6 +409,7 @@ export function ProductFormModal({
           brandId,
           costPrice: costNum,
           price: priceNum,
+          imageUrl: finalImageUrl,
           active: true,
           variants: formattedVariants,
         });
@@ -323,6 +417,7 @@ export function ProductFormModal({
         if (!res.success) {
           setErrorMessage(res.error || "No se pudo crear el producto");
           setIsSubmitting(false);
+          setIsUploadingImage(false);
           return;
         }
       }
@@ -389,6 +484,74 @@ export function ProductFormModal({
               Información General
             </h3>
 
+            {/* Imagen del Producto (Blob Storage) */}
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1.5">
+                Fotografía del Producto <span className="text-slate-400 font-normal">(Blob Storage)</span>
+              </label>
+
+              {imagePreview ? (
+                <div className="relative group w-full sm:w-64 h-44 bg-slate-50 rounded-2xl border-2 border-emerald-200 overflow-hidden flex items-center justify-center p-3 shadow-2xs">
+                  <img
+                    src={imagePreview}
+                    alt="Previsualización del producto"
+                    className="max-h-full max-w-full object-contain drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-2xs">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-900 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Cambiar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Quitar</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 select-none ${
+                    isDragging
+                      ? "border-emerald-500 bg-emerald-50/70 scale-[1.01]"
+                      : "border-slate-200 hover:border-emerald-400 hover:bg-slate-50/80"
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800">
+                      Haz clic para subir una foto
+                    </span>
+                    <span className="text-xs text-slate-500"> o arrastra la imagen aquí</span>
+                  </div>
+                  <p className="text-[10.5px] text-slate-400">
+                    Soporta PNG, JPG, WEBP o SVG (máximo 5 MB)
+                  </p>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+
             <div>
               <label className="block text-slate-700 font-semibold mb-1.5">
                 Nombre del Producto <span className="text-rose-500">*</span>
@@ -419,16 +582,26 @@ export function ProductFormModal({
             {/* Selects: Disciplina, Categoría, Marca */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1.5">
-                  Disciplina <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-slate-700 font-semibold">
+                    Disciplina <span className="text-rose-500">*</span>
+                  </label>
+                  {isLoadingOptions && (
+                    <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
+                    </span>
+                  )}
+                </div>
                 <select
                   value={disciplineId}
                   onChange={(e) => setDisciplineId(e.target.value)}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium"
+                  disabled={isLoadingOptions}
+                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
                   required
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">
+                    {isLoadingOptions ? "Cargando disciplinas..." : "Seleccionar..."}
+                  </option>
                   {disciplines.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -438,16 +611,26 @@ export function ProductFormModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1.5">
-                  Categoría <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-slate-700 font-semibold">
+                    Categoría <span className="text-rose-500">*</span>
+                  </label>
+                  {isLoadingOptions && (
+                    <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
+                    </span>
+                  )}
+                </div>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium"
+                  disabled={isLoadingOptions}
+                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
                   required
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">
+                    {isLoadingOptions ? "Cargando categorías..." : "Seleccionar..."}
+                  </option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -457,16 +640,26 @@ export function ProductFormModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1.5">
-                  Marca <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-slate-700 font-semibold">
+                    Marca <span className="text-rose-500">*</span>
+                  </label>
+                  {isLoadingOptions && (
+                    <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
+                    </span>
+                  )}
+                </div>
                 <select
                   value={brandId}
                   onChange={(e) => setBrandId(e.target.value)}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium"
+                  disabled={isLoadingOptions}
+                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
                   required
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">
+                    {isLoadingOptions ? "Cargando marcas..." : "Seleccionar..."}
+                  </option>
                   {brands.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -669,7 +862,7 @@ export function ProductFormModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Guardando...
+                  {isUploadingImage ? "Subiendo imagen con Blob..." : "Guardando..."}
                 </>
               ) : isEditing ? (
                 "Guardar Cambios"

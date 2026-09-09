@@ -31,11 +31,11 @@ export function TopHeader({
   return (
     <header className="w-full bg-[#111215] text-slate-200 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-lg shadow-black/10 border border-neutral-800">
       {/* Left side: Icons & Breadcrumbs */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={onToggleLeftSidebar}
           title="Alternar barra lateral"
-          className={`p-1.5 rounded-lg transition-colors ${
+          className={`p-1.5 rounded-lg transition-colors shrink-0 ${
             isLeftSidebarOpen
               ? "text-emerald-400 bg-neutral-800/90 shadow-2xs"
               : "text-slate-400 hover:text-white hover:bg-neutral-800/70"
@@ -44,11 +44,10 @@ export function TopHeader({
           <PanelLeft className="w-4 h-4" />
         </button>
 
-
         <button
           onClick={() => setIsStarred(!isStarred)}
           title="Marcar favorito"
-          className={`p-1.5 rounded-lg transition-colors ${
+          className={`hidden sm:flex p-1.5 rounded-lg transition-colors shrink-0 ${
             isStarred
               ? "text-yellow-400 fill-yellow-400"
               : "text-slate-400 hover:text-white hover:bg-neutral-800/70"
@@ -57,34 +56,31 @@ export function TopHeader({
           <Star className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-2 text-xs select-none">
-          <span className="text-emerald-400 font-medium">Panel de Control</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs select-none min-w-0 truncate">
+          <span className="text-emerald-400 font-medium">Panel</span>
           <span className="text-slate-600">/</span>
-          <span className="text-emerald-400 font-medium">Analíticas</span>
+          <span className="text-emerald-400 font-medium truncate">Métricas</span>
         </div>
       </div>
 
       {/* Right side: Search & Action Buttons */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Search Input Pill */}
-        <div className="relative flex items-center">
+        <div className="relative hidden md:flex items-center">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar"
-            className="w-44 lg:w-56 bg-neutral-900/90 text-xs text-slate-100 placeholder-slate-500 pl-8 pr-8 py-1.5 rounded-xl border border-neutral-700/60 focus:outline-none focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+            placeholder="Buscar..."
+            className="w-36 lg:w-52 bg-neutral-900/90 text-xs text-slate-100 placeholder-slate-500 pl-8 pr-7 py-1.5 rounded-xl border border-neutral-700/60 focus:outline-none focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/50 transition-all"
           />
-          <span className="absolute right-2.5 text-[10px] bg-neutral-800 text-slate-400 px-1.5 py-0.5 rounded border border-neutral-700/50 font-mono">
-            ⌘/
-          </span>
         </div>
 
         {/* Theme Toggle Button */}
         <button
           title="Modo de color"
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+          className="hidden lg:flex p-1.5 text-slate-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
         >
           <Sun className="w-4 h-4" />
         </button>
@@ -92,7 +88,7 @@ export function TopHeader({
         {/* History / Clock Button */}
         <button
           title="Historial de actividad"
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+          className="hidden sm:flex p-1.5 text-slate-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
         >
           <Clock className="w-4 h-4" />
         </button>

@@ -9,6 +9,7 @@ import {
 } from "@/schemas/product";
 import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
+import { revalidatePath } from "next/cache";
 
 export interface ProductFilterOptions {
   search?: string;
@@ -168,6 +169,7 @@ export async function createProduct(input: CreateProductInput) {
         data: {
           name: validated.name,
           description: validated.description ?? null,
+          imageUrl: validated.imageUrl ?? null,
           disciplineId: validated.disciplineId,
           costPrice: new Prisma.Decimal(validated.costPrice),
           price: new Prisma.Decimal(validated.price),
@@ -249,6 +251,7 @@ export async function updateProduct(input: UpdateProductInput) {
         data: {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
+          ...(validated.imageUrl !== undefined ? { imageUrl: validated.imageUrl } : {}),
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
           ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
@@ -335,6 +338,51 @@ export async function updateProduct(input: UpdateProductInput) {
   } catch (error) {
     console.error("Error al actualizar producto:", error);
     return { success: false, error: "Error al actualizar la información del producto" };
+  }
+}
+
+/**
+ * Dar de Baja un Producto (100% Baja Lógica):
+ * - Marca active: false en la base de datos.
+ * - Desaparece inmediatamente del mostrador (POS), tienda web y vista de inventario activo.
+ * - NUNCA elimina registros físicos: conserva permanentemente todas las variantes,
+ *   movimientos de stock, historial contable y trazabilidad fiscal.
+ */
+export async function deleteProduct(id: string) {
+  try {
+    if (!id || id.startsWith("p")) {
+      return { success: true, message: "Producto de demostración dado de baja" };
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true, active: true },
+    });
+
+    if (!product) {
+      return { success: true, message: "El producto ya no existe o ya fue dado de baja" };
+    }
+
+    // 100% Baja Lógica: Desactivar producto sin borrar filas
+    await prisma.product.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    try {
+      revalidatePath("/");
+      revalidatePath("/admin");
+    } catch {
+      // Silenciar fuera del ciclo de petición HTTP
+    }
+
+    return {
+      success: true,
+      message: "Producto dado de baja con éxito (historial contable y trazabilidad conservados)",
+    };
+  } catch (error) {
+    console.error("Error al dar de baja el producto:", error);
+    return { success: false, error: "No se pudo dar de baja el producto en la base de datos" };
   }
 }
 
@@ -432,6 +480,7 @@ export async function getDetailedInventoryProducts(): Promise<{
         minStock: firstVariant?.minStock || 2,
         updatedAt: formatDateEs(p.updatedAt),
         iconBg: getDisciplineGradient(p.discipline.name),
+        imageUrl: p.imageUrl || undefined,
         variants: p.variants.map((v) => ({
           id: v.id,
           size: v.size,
