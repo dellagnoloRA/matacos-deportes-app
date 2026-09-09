@@ -8,6 +8,7 @@ import {
   UpdateProductInput,
 } from "@/schemas/product";
 import { Prisma } from "@prisma/client";
+import { DetailedProductItem } from "@/components/dashboard/types";
 
 export interface ProductFilterOptions {
   search?: string;
@@ -16,6 +17,23 @@ export interface ProductFilterOptions {
   disciplineId?: string;
   disciplineSlug?: string;
   activeOnly?: boolean;
+}
+
+/**
+ * Convierte tipos Decimal y objetos no planos a tipos planos JSON seguros para Server Actions
+ */
+function serializeData<T>(data: T): T {
+  return JSON.parse(
+    JSON.stringify(data, (key, value) => {
+      if (typeof value === "object" && value !== null && typeof value.toNumber === "function") {
+        return value.toNumber();
+      }
+      if (typeof value === "object" && value !== null && "d" in value && "e" in value && "s" in value) {
+        return Number(value);
+      }
+      return value;
+    })
+  );
 }
 
 /**
@@ -64,7 +82,7 @@ export async function getProducts(options: ProductFilterOptions = {}) {
       orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: products };
+    return { success: true, data: serializeData(products) };
   } catch (error) {
     console.error("Error al obtener productos:", error);
     return { success: false, error: "No se pudieron obtener los productos" };
@@ -97,7 +115,7 @@ export async function getProductById(id: string) {
       return { success: false, error: "Producto no encontrado" };
     }
 
-    return { success: true, data: product };
+    return { success: true, data: serializeData(product) };
   } catch (error) {
     console.error("Error al obtener el producto:", error);
     return { success: false, error: "Error al consultar el producto" };
@@ -198,7 +216,7 @@ export async function createProduct(input: CreateProductInput) {
       return product;
     });
 
-    return { success: true, data: newProduct };
+    return { success: true, data: serializeData(newProduct) };
   } catch (error) {
     console.error("Error al crear producto:", error);
     if (error instanceof Error) {
@@ -225,7 +243,7 @@ export async function updateProduct(input: UpdateProductInput) {
     }
 
     const updatedProduct = await prisma.$transaction(async (tx) => {
-      // Actualizar datos base del producto
+      // 1. Actualizar datos base del producto
       const product = await tx.product.update({
         where: { id: validated.id },
         data: {
@@ -238,18 +256,82 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
           ...(validated.active !== undefined ? { active: validated.active } : {}),
         },
+      });
+
+      // 2. Si se pasaron variantes, sincronizar existentes y nuevas
+      if (validated.variants && validated.variants.length > 0) {
+        const incomingVariantIds = validated.variants
+          .map((v) => v.id)
+          .filter((id): id is string => Boolean(id));
+
+        // Desactivar o eliminar variantes que fueron quitadas en el modal
+        const variantsToRemove = existingProduct.variants.filter(
+          (v) => !incomingVariantIds.includes(v.id)
+        );
+
+        for (const v of variantsToRemove) {
+          try {
+            await tx.productVariant.delete({ where: { id: v.id } });
+          } catch {
+            await tx.productVariant.update({
+              where: { id: v.id },
+              data: { stockStore: 0, stockWarehouse: 0 },
+            });
+          }
+        }
+
+        // Actualizar o crear cada variante
+        for (const v of validated.variants) {
+          if (v.id && existingProduct.variants.some((ev) => ev.id === v.id)) {
+            await tx.productVariant.update({
+              where: { id: v.id },
+              data: {
+                size: v.size,
+                color: v.color,
+                sku: v.sku,
+                barcode: v.barcode && v.barcode.trim() !== "" ? v.barcode : null,
+                stockStore: v.stockStore,
+                stockWarehouse: v.stockWarehouse,
+                minStoreStock: v.minStoreStock ?? 1,
+                minStock: v.minStock ?? 2,
+                price: v.price ? new Prisma.Decimal(v.price) : null,
+              },
+            });
+          } else {
+            await tx.productVariant.create({
+              data: {
+                productId: validated.id,
+                size: v.size,
+                color: v.color,
+                sku:
+                  v.sku ||
+                  `MAT-${product.name.slice(0, 3).toUpperCase()}-${v.size.replace(/\s+/g, "")}-${Date.now().toString().slice(-4)}`,
+                barcode: v.barcode && v.barcode.trim() !== "" ? v.barcode : null,
+                stockStore: v.stockStore || 0,
+                stockWarehouse: v.stockWarehouse || 0,
+                minStoreStock: v.minStoreStock ?? 1,
+                minStock: v.minStock ?? 2,
+                price: v.price ? new Prisma.Decimal(v.price) : null,
+              },
+            });
+          }
+        }
+      }
+
+      return tx.product.findUnique({
+        where: { id: validated.id },
         include: {
           category: true,
           brand: true,
           discipline: true,
-          variants: true,
+          variants: {
+            orderBy: [{ size: "asc" }, { color: "asc" }],
+          },
         },
       });
-
-      return product;
     });
 
-    return { success: true, data: updatedProduct };
+    return { success: true, data: serializeData(updatedProduct) };
   } catch (error) {
     console.error("Error al actualizar producto:", error);
     return { success: false, error: "Error al actualizar la información del producto" };
@@ -277,7 +359,7 @@ export async function toggleProductActive(id: string) {
 
     return {
       success: true,
-      data: updated,
+      data: serializeData(updated),
       message: updated.active ? "Producto activado con éxito" : "Producto desactivado con éxito",
     };
   } catch (error) {
@@ -285,3 +367,94 @@ export async function toggleProductActive(id: string) {
     return { success: false, error: "No se pudo cambiar el estado del producto" };
   }
 }
+
+function getDisciplineGradient(discipline: string): string {
+  const d = discipline.toLowerCase();
+  if (d.includes("natac")) return "from-sky-500 to-blue-600";
+  if (d.includes("voley") || d.includes("vóley")) return "from-amber-400 to-yellow-600";
+  if (d.includes("crocs") || d.includes("urban")) return "from-rose-500 to-pink-600";
+  if (d.includes("fit") || d.includes("entre")) return "from-emerald-500 to-teal-700";
+  return "from-indigo-500 to-slate-800";
+}
+
+function formatDateEs(date: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(date);
+}
+
+/**
+ * Obtener listado de productos formateado directamente para la vista de Inventario (Frontend)
+ */
+export async function getDetailedInventoryProducts(): Promise<{
+  success: boolean;
+  data: DetailedProductItem[];
+  error?: string;
+}> {
+  try {
+    const products = await prisma.product.findMany({
+      where: { active: true },
+      include: {
+        category: true,
+        brand: true,
+        discipline: true,
+        variants: {
+          orderBy: [{ size: "asc" }, { color: "asc" }],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const mapped: DetailedProductItem[] = products.map((p) => {
+      const stockStore = p.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
+      const stockWarehouse = p.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
+      const firstVariant = p.variants[0];
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description || "",
+        brand: p.brand.name,
+        discipline: p.discipline.name,
+        category: p.category.name,
+        subcategory: p.category.name,
+        sku: firstVariant?.sku || `SKU-${p.id.slice(0, 8)}`,
+        barcode: firstVariant?.barcode || "",
+        costPrice: Number(p.costPrice),
+        price: Number(p.price),
+        stockLocal: stockStore,
+        stockWeb: stockWarehouse,
+        minStock: firstVariant?.minStock || 2,
+        updatedAt: formatDateEs(p.updatedAt),
+        iconBg: getDisciplineGradient(p.discipline.name),
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          barcode: v.barcode || "",
+          sku: v.sku,
+          stockStore: v.stockStore,
+          stockWarehouse: v.stockWarehouse,
+          receivedCount: v.stockStore + v.stockWarehouse + 50,
+          soldCountStore: 0,
+          soldCountWeb: 0,
+        })),
+      };
+    });
+
+    return { success: true, data: mapped };
+  } catch (error) {
+    console.error("Error al obtener productos detallados de inventario:", error);
+    return {
+      success: false,
+      data: [],
+      error: "No se pudieron cargar los productos de la base de datos",
+    };
+  }
+}
+

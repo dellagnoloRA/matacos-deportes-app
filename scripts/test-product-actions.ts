@@ -14,8 +14,9 @@ async function runBackendVerification() {
     // Si ya existe por el seed, obtenerla
     const { getDisciplines } = await import("../src/server/actions/categoryActions");
     const allDisc = await getDisciplines();
-    discRes = { success: true, data: allDisc.data?.find((d) => d.slug === "natacion") as any };
+    discRes = { success: true, data: allDisc.data?.find((d: { slug: string }) => d.slug === "natacion") as any };
   }
+
   console.log(`✅ Disciplina: ${discRes.data!.name} (ID: ${discRes.data!.id})`);
 
   // 2. Crear Categoría
