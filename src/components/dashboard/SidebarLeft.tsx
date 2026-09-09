@@ -5,6 +5,11 @@ import {
   Boxes,
   X,
   ChevronDown,
+  Tags,
+  Tag,
+  FolderTree,
+  Trophy,
+  Palette,
   Waves,
   Volleyball,
   Footprints,
@@ -17,6 +22,8 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
+export type DetailSubcategory = "marcas" | "categorias" | "disciplinas" | "colores";
+
 interface SidebarLeftProps {
   className?: string;
   onClose?: () => void;
@@ -25,7 +32,17 @@ interface SidebarLeftProps {
   onSelectItem?: (id: string) => void;
   selectedCategory?: string;
   onSelectCategory?: (category: string) => void;
+  selectedDetailSubcategory?: DetailSubcategory;
+  onSelectDetailSubcategory?: (sub: DetailSubcategory) => void;
 }
+
+
+const DETAIL_SUBCATEGORIES: { id: DetailSubcategory; label: string; icon: any }[] = [
+  { id: "marcas", label: "Marca", icon: Tag },
+  { id: "categorias", label: "Categoría", icon: FolderTree },
+  { id: "disciplinas", label: "Disciplina", icon: Trophy },
+  { id: "colores", label: "Colores", icon: Palette },
+];
 
 const INVENTORY_CATEGORIES = [
   { id: "Todas", label: "Todos los productos", icon: Layers },
@@ -43,8 +60,23 @@ export function SidebarLeft({
   onSelectItem,
   selectedCategory = "Todas",
   onSelectCategory,
+  selectedDetailSubcategory = "marcas",
+  onSelectDetailSubcategory,
 }: SidebarLeftProps) {
   const [inventoryOpen, setInventoryOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(activeItem === "detalles-producto");
+
+  const handleDetailSubcategoryClick = (sub: DetailSubcategory) => {
+    if (onSelectItem) {
+      onSelectItem("detalles-producto");
+    }
+    if (onSelectDetailSubcategory) {
+      onSelectDetailSubcategory(sub);
+    }
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
 
   const handleCategoryClick = (category: string) => {
     if (onSelectItem) {
@@ -64,6 +96,9 @@ export function SidebarLeft({
     }
     if (id === "inventario") {
       setInventoryOpen((prev) => !prev);
+    }
+    if (id === "detalles-producto") {
+      setDetailsOpen((prev) => !prev);
     }
     if (isMobile && onClose) {
       onClose();
@@ -177,6 +212,65 @@ export function SidebarLeft({
                       <div className="flex items-center gap-2">
                         <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-[#c2f25b]" : "text-emerald-400"}`} />
                         <span>{cat.label}</span>
+                      </div>
+                      {isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#c2f25b]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Detalles Producto (Subcategorías: Marca, Categoría, Disciplina, Colores) */}
+          <div>
+            <button
+              onClick={() => {
+                if (activeItem !== "detalles-producto") {
+                  handleItemClick("detalles-producto");
+                  setDetailsOpen(true);
+                } else {
+                  setDetailsOpen((prev) => !prev);
+                }
+              }}
+              className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all ${
+                activeItem === "detalles-producto"
+                  ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                  : "text-emerald-100 hover:bg-white/10 hover:text-white font-semibold"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Tags className={`w-4 h-4 ${activeItem === "detalles-producto" ? "text-slate-950" : "text-emerald-300"}`} />
+                <span>Detalles Producto</span>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  activeItem === "detalles-producto" ? "text-slate-950" : "text-emerald-300"
+                } ${detailsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {detailsOpen && (
+              <div className="pl-3 pr-1 py-1.5 space-y-1 border-l-2 border-emerald-700/60 ml-5 my-1.5">
+                {DETAIL_SUBCATEGORIES.map((sub) => {
+                  const Icon = sub.icon;
+                  const isSelected =
+                    activeItem === "detalles-producto" && selectedDetailSubcategory === sub.id;
+
+                  return (
+                    <button
+                      key={sub.id}
+                      onClick={() => handleDetailSubcategoryClick(sub.id)}
+                      className={`flex items-center justify-between w-full py-1.5 px-2.5 rounded-xl text-xs transition-all ${
+                        isSelected
+                          ? "bg-[#094d3f] text-white font-bold border border-emerald-500/40 shadow-xs"
+                          : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                        <span>{sub.label}</span>
                       </div>
                       {isSelected && (
                         <span className="w-1.5 h-1.5 rounded-full bg-[#c2f25b]" />

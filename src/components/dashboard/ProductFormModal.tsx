@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Camera,
   RefreshCw,
+  Palette,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -28,6 +29,7 @@ import {
   getDisciplines,
   getCategories,
   getBrands,
+  getColorsWithStats,
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
 import { slugify } from "@/lib/textUtils";
@@ -80,6 +82,8 @@ export function ProductFormModal({
   const [disciplines, setDisciplines] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [availableColors, setAvailableColors] = useState<{ id: string; name: string; hexCode?: string }[]>([]);
+  const [selectedColors, setSelectedColors] = useState<string[]>(["Negro"]);
 
   // Variantes
   const [variants, setVariants] = useState<FormVariant[]>([
@@ -149,15 +153,19 @@ export function ProductFormModal({
     setIsLoadingOptions(true);
     setErrorMessage(null);
     try {
-      const [discRes, catRes, brandRes] = await Promise.all([
+      const [discRes, catRes, brandRes, colorRes] = await Promise.all([
         getDisciplines(),
         getCategories(),
         getBrands(),
+        getColorsWithStats(),
       ]);
 
       if (discRes.success && discRes.data) setDisciplines(discRes.data);
       if (catRes.success && catRes.data) setCategories(catRes.data);
       if (brandRes.success && brandRes.data) setBrands(brandRes.data);
+      if (colorRes.success && colorRes.data) {
+        setAvailableColors(colorRes.data);
+      }
 
       if (!discRes.success || !catRes.success || !brandRes.success) {
         console.warn("Advertencia al cargar opciones:", { discRes, catRes, brandRes });
@@ -260,6 +268,45 @@ export function ProductFormModal({
     costNum > 0 ? ((profitMargin / costNum) * 100).toFixed(1) : "0.0";
 
   // Manejar variantes
+
+  // Manejar alternancia de colores en el checklist
+  const handleToggleColor = (colorName: string) => {
+    const isSelected = selectedColors.includes(colorName);
+
+    if (isSelected) {
+      if (selectedColors.length <= 1) {
+        // Al menos debe quedar un color
+        return;
+      }
+      const updated = selectedColors.filter((c) => c !== colorName);
+      setSelectedColors(updated);
+
+      // Eliminar variantes de ese color si quedan otras variantes
+      setVariants((currentVars) => {
+        const remaining = currentVars.filter((v) => v.color !== colorName);
+        return remaining.length > 0 ? remaining : currentVars;
+      });
+    } else {
+      const updated = [...selectedColors, colorName];
+      setSelectedColors(updated);
+
+      // Agregar automáticamente una variante con este nuevo color
+      setVariants((currentVars) => {
+        const firstSize = currentVars[0]?.size || "Único";
+        const newVar: FormVariant = {
+          size: firstSize,
+          color: colorName,
+          sku: "",
+          barcode: "",
+          stockStore: 1,
+          stockWarehouse: 0,
+          minStock: 2,
+        };
+        return [...currentVars, newVar];
+      });
+    }
+  };
+
   const handleAddVariant = () => {
     setVariants((prev) => [
       ...prev,
@@ -726,7 +773,57 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* 3. Variantes de Talle y Color (Creación y Edición) */}
+          {/* 3. Asignación de Múltiples Colores con Checklist */}
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2 text-[11px]">
+                  <Palette className="w-3.5 h-3.5 text-emerald-600" />
+                  Asignar Colores al Producto (Checklist)
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Marca las casillas de los colores disponibles. Cada color creará su variante para control de stock individual.
+                </p>
+              </div>
+
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 w-fit">
+                {selectedColors.length} {selectedColors.length === 1 ? "color asignado" : "colores asignados"}
+              </span>
+            </div>
+
+            {/* Checklist interactivo con muestras de color */}
+            <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 max-h-40 overflow-y-auto custom-scrollbar p-0.5">
+                {availableColors.map((col) => {
+                  const isChecked = selectedColors.includes(col.name);
+                  return (
+                    <label
+                      key={col.id}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all select-none active:scale-95 ${
+                        isChecked
+                          ? "bg-[#06241d] text-white border-emerald-500/60 shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleColor(col.name)}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer accent-emerald-500"
+                      />
+                      <span
+                        className="w-3 h-3 rounded-full border border-white/50 shadow-2xs shrink-0"
+                        style={{ backgroundColor: col.hexCode || "#10b981" }}
+                      />
+                      <span>{col.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Variantes de Talle, Color y Stock Resultantes */}
           <div className="space-y-3 pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <div>
@@ -770,17 +867,44 @@ export function ProductFormModal({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Color
+                    <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                      <span>Color</span>
+                      {(() => {
+                        const matchedCol = availableColors.find(
+                          (c) => c.name.toLowerCase() === variant.color.toLowerCase()
+                        );
+                        if (matchedCol?.hexCode) {
+                          return (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-slate-300 inline-block"
+                              style={{ backgroundColor: matchedCol.hexCode }}
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={variant.color}
-                      onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
-                      placeholder="Negro / Azul"
-                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800"
+                      onChange={(e) => {
+                        const newColor = e.target.value;
+                        handleVariantChange(idx, "color", newColor);
+                        if (!selectedColors.includes(newColor)) {
+                          setSelectedColors((prev) => [...prev, newColor]);
+                        }
+                      }}
+                      className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-900 cursor-pointer"
                       required
-                    />
+                    >
+                      {availableColors.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                      {!availableColors.some((c) => c.name === variant.color) && (
+                        <option value={variant.color}>{variant.color}</option>
+                      )}
+                    </select>
                   </div>
 
                   <div>

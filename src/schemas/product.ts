@@ -21,6 +21,16 @@ export const CategorySchema = z.object({
 /**
  * Esquema de validación para Marcas
  */
+
+/**
+ * Esquema de validación para Colores (Atributo de catálogo)
+ */
+export const ColorSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(2, "El nombre del color debe tener al menos 2 caracteres"),
+  hexCode: z.string().regex(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/, "Código hexadecimal inválido (ej: #000000)").optional().default("#10b981"),
+});
+
 export const BrandSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(2, "El nombre de la marca debe tener al menos 2 caracteres"),
@@ -101,3 +111,5 @@ export type BrandInput = z.infer<typeof BrandSchema>;
 export type ProductVariantInput = z.infer<typeof ProductVariantSchema>;
 export type CreateProductInput = z.infer<typeof CreateProductSchema>;
 export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
+
+export type ColorInput = z.infer<typeof ColorSchema>;

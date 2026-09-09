@@ -12,6 +12,7 @@ import { ProvinceTrafficChart } from "./ProvinceTrafficChart";
 import { MarketingSeoCard } from "./MarketingSeoCard";
 import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
+import { ProductDetailsManagerView, DetailSubcategory } from "./ProductDetailsManagerView";
 import { DetailedProductItem, KpiData } from "./types";
 
 const INITIAL_KPIS: KpiData[] = [
@@ -51,7 +52,8 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
-  const [currentTab, setCurrentTab] = useState<"inventario" | "analytics">("inventario");
+  const [currentTab, setCurrentTab] = useState<"inventario" | "analytics" | "detalles-producto">("inventario");
+  const [activeDetailSubcategory, setActiveDetailSubcategory] = useState<DetailSubcategory>("marcas");
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [isDesktopLeftOpen, setIsDesktopLeftOpen] = useState(true);
   const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
@@ -101,10 +103,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
+            activeItem={currentTab === "analytics" ? "inicio" : currentTab === "detalles-producto" ? "detalles-producto" : "inventario"}
             onSelectItem={(id) => {
               if (id === "inicio" || id === "analytics") {
                 setCurrentTab("analytics");
+              } else if (id === "detalles-producto") {
+                setCurrentTab("detalles-producto");
               } else {
                 setCurrentTab("inventario");
               }
@@ -113,6 +117,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             onSelectCategory={(cat) => {
               setSelectedCategory(cat);
               setCurrentTab("inventario");
+            }}
+            selectedDetailSubcategory={activeDetailSubcategory}
+            onSelectDetailSubcategory={(sub) => {
+              setActiveDetailSubcategory(sub);
+              setCurrentTab("detalles-producto");
             }}
             className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
@@ -151,6 +160,40 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               selectedDiscipline={selectedCategory}
               onDisciplineChange={(cat) => setSelectedCategory(cat)}
               initialProducts={initialProducts}
+            />
+          </div>
+        ) : currentTab === "detalles-producto" ? (
+          <div className="flex-1 flex flex-col min-w-0 bg-white relative min-h-screen">
+            {/* Mobile Top App Bar for Detalles */}
+            <div className="md:hidden px-4 py-3 bg-[#06241d] text-white flex items-center justify-between border-b border-emerald-950/60 sticky top-0 z-20 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setIsMobileLeftOpen(true)}
+                  className="flex items-center justify-center p-2 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors active:scale-95"
+                  aria-label="Abrir menú"
+                >
+                  <PanelLeft className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#094d3f] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] font-black italic text-sm">
+                    M
+                  </div>
+                  <span className="font-black italic text-[#00D615] text-base tracking-tighter">
+                    MATACOS
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-emerald-300/80 bg-white/10 px-2.5 py-1 rounded-full border border-white/10">
+                  Detalles Producto
+                </span>
+              </div>
+            </div>
+
+            <ProductDetailsManagerView
+              initialSubcategory={activeDetailSubcategory}
+              onSubcategoryChange={(sub) => setActiveDetailSubcategory(sub)}
             />
           </div>
         ) : (
@@ -251,10 +294,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         <SidebarLeft
           className="h-full w-full bg-[#06241d]"
           isMobile
-          activeItem={currentTab === "analytics" ? "inicio" : "inventario"}
+          activeItem={currentTab === "analytics" ? "inicio" : currentTab === "detalles-producto" ? "detalles-producto" : "inventario"}
           onSelectItem={(id) => {
             if (id === "inicio" || id === "analytics") {
               setCurrentTab("analytics");
+            } else if (id === "detalles-producto") {
+              setCurrentTab("detalles-producto");
             } else {
               setCurrentTab("inventario");
             }
@@ -263,6 +308,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           onSelectCategory={(cat) => {
             setSelectedCategory(cat);
             setCurrentTab("inventario");
+          }}
+          selectedDetailSubcategory={activeDetailSubcategory}
+          onSelectDetailSubcategory={(sub) => {
+            setActiveDetailSubcategory(sub);
+            setCurrentTab("detalles-producto");
           }}
           onClose={() => setIsMobileLeftOpen(false)}
         />
