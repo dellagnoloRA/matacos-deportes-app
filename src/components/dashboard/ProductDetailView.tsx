@@ -31,11 +31,12 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion } from "./types";
 import { ProductFormModal } from "./ProductFormModal";
-import { toggleProductActive } from "@/server/actions/productActions";
+import { toggleProductActive, deleteProduct } from "@/server/actions/productActions";
 
 interface ProductDetailViewProps {
   product: DetailedProductItem;
   onBack: () => void;
+  onDeleteSuccess?: (deletedId: string) => void;
 }
 
 const TABS = [
@@ -46,7 +47,7 @@ const TABS = [
   { id: "size_guide", label: "Guía de Talles" },
 ];
 
-export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
+export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductDetailViewProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -54,20 +55,24 @@ export function ProductDetailView({ product, onBack }: ProductDetailViewProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleConfirmDelete = async () => {
+    const handleConfirmDelete = async () => {
     try {
       setIsDeleting(true);
       setDeleteError(null);
-      const res = await toggleProductActive(product.id);
+      const res = await deleteProduct(product.id);
       if (res.success) {
         setIsDeleteModalOpen(false);
-        onBack();
+        if (onDeleteSuccess) {
+          onDeleteSuccess(product.id);
+        } else {
+          onBack();
+        }
       } else {
-        setDeleteError(res.error || "No se pudo dar de baja el producto");
+        setDeleteError(res.error || "No se pudo eliminar el producto");
       }
     } catch (err) {
-      console.error("Error al dar de baja el producto:", err);
-      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
+      console.error("Error al eliminar el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al eliminar el producto");
     } finally {
       setIsDeleting(false);
     }

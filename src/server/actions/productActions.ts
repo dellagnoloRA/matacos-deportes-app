@@ -9,6 +9,7 @@ import {
 } from "@/schemas/product";
 import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
+import { revalidatePath } from "next/cache";
 
 export interface ProductFilterOptions {
   search?: string;
@@ -337,6 +338,51 @@ export async function updateProduct(input: UpdateProductInput) {
   } catch (error) {
     console.error("Error al actualizar producto:", error);
     return { success: false, error: "Error al actualizar la información del producto" };
+  }
+}
+
+/**
+ * Dar de Baja un Producto (100% Baja Lógica):
+ * - Marca active: false en la base de datos.
+ * - Desaparece inmediatamente del mostrador (POS), tienda web y vista de inventario activo.
+ * - NUNCA elimina registros físicos: conserva permanentemente todas las variantes,
+ *   movimientos de stock, historial contable y trazabilidad fiscal.
+ */
+export async function deleteProduct(id: string) {
+  try {
+    if (!id || id.startsWith("p")) {
+      return { success: true, message: "Producto de demostración dado de baja" };
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true, active: true },
+    });
+
+    if (!product) {
+      return { success: true, message: "El producto ya no existe o ya fue dado de baja" };
+    }
+
+    // 100% Baja Lógica: Desactivar producto sin borrar filas
+    await prisma.product.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    try {
+      revalidatePath("/");
+      revalidatePath("/admin");
+    } catch {
+      // Silenciar fuera del ciclo de petición HTTP
+    }
+
+    return {
+      success: true,
+      message: "Producto dado de baja con éxito (historial contable y trazabilidad conservados)",
+    };
+  } catch (error) {
+    console.error("Error al dar de baja el producto:", error);
+    return { success: false, error: "No se pudo dar de baja el producto en la base de datos" };
   }
 }
 

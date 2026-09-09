@@ -30,6 +30,7 @@ import { ProductFormModal } from "./ProductFormModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
+  deleteProduct,
 } from "@/server/actions/productActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
@@ -362,23 +363,26 @@ export function InventoryView({
     setProductToDelete(product);
   };
 
-  const handleConfirmDelete = async () => {
+    const handleConfirmDelete = async () => {
     if (!productToDelete) return;
+    const deletedId = productToDelete.id;
     const deletedName = productToDelete.name;
     try {
       setIsDeleting(true);
       setDeleteError(null);
-      const res = await toggleProductActive(productToDelete.id);
+      const res = await deleteProduct(deletedId);
       if (res.success) {
-        await loadProducts();
+        // Actualización optimista inmediata en la interfaz
+        setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
         setProductToDelete(null);
-        showToast("Producto eliminado", `"${deletedName}" se dio de baja correctamente.`);
+        showToast("Producto eliminado", `"${deletedName}" se eliminó correctamente.`);
+        loadProducts();
       } else {
-        setDeleteError(res.error || "No se pudo dar de baja el producto");
+        setDeleteError(res.error || "No se pudo eliminar el producto");
       }
     } catch (err) {
-      console.error("Error al dar de baja el producto:", err);
-      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
+      console.error("Error al eliminar el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al eliminar el producto");
     } finally {
       setIsDeleting(false);
     }
@@ -509,7 +513,16 @@ export function InventoryView({
     return (
       <ProductDetailView
         product={selectedProduct}
-        onBack={() => setSelectedProduct(null)}
+        onBack={() => {
+          setSelectedProduct(null);
+          loadProducts();
+        }}
+        onDeleteSuccess={(deletedId: string) => {
+          setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
+          setSelectedProduct(null);
+          showToast("Producto eliminado", `"${selectedProduct.name}" se eliminó correctamente.`);
+          loadProducts();
+        }}
       />
     );
   }
