@@ -22,6 +22,10 @@ import {
   X,
   CheckCircle2,
   Barcode,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
@@ -323,6 +327,7 @@ export function InventoryView({
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [internalDiscipline, setInternalDiscipline] = useState("Todas");
+  const selectedDiscipline = controlledDiscipline !== undefined ? controlledDiscipline : internalDiscipline;
   const [selectedProduct, setSelectedProduct] = useState<DetailedProductItem | null>(null);
   const [productsList, setProductsList] = useState<DetailedProductItem[]>(
     initialProducts && initialProducts.length > 0 ? initialProducts : INITIAL_PRODUCTS
@@ -337,6 +342,31 @@ export function InventoryView({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: string; title: string; description?: string } | null>(null);
+
+  // Paginación: 5 por defecto (mínimo 5, máximo 10) para que quepa en pantalla completa con el paginador visible
+  const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [mobileViewMode, setMobileViewMode] = useState<"table" | "cards">("table");
+
+  // Adecuar inteligentemente si la pantalla es muy grande, pero manteniendo 5 por defecto en pantallas estándar
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        // En pantallas muy altas (> 1100px) puede mostrar 8 o 10; en pantallas estándar de laptop/desktop se preserva 5
+        if (window.innerHeight > 1150) {
+          setItemsPerPage((prev) => (prev === 5 ? 10 : prev));
+        }
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Reiniciar a página 1 al filtrar o cambiar items por página
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, searchMode, selectedDiscipline, itemsPerPage]);
 
   const showToast = (title: string, description?: string) => {
     const id = Date.now().toString();
@@ -409,7 +439,6 @@ export function InventoryView({
     }
   }, [loadProducts, initialProducts]);
 
-  const selectedDiscipline = controlledDiscipline !== undefined ? controlledDiscipline : internalDiscipline;
 
   const handleSelectDiscipline = (d: string) => {
     if (onDisciplineChange) {
@@ -504,6 +533,88 @@ export function InventoryView({
     });
   }, [productsList, searchQuery, searchMode, selectedDiscipline]);
 
+  // Cálculos de Paginación Adaptable
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const startIdx = (validCurrentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredProducts, validCurrentPage, itemsPerPage]);
+
+  const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(validCurrentPage * itemsPerPage, totalItems);
+
+  // Componente de pie de tabla/tarjetas adaptable
+  const renderPaginationFooter = () => (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/70 text-xs text-slate-600">
+      {/* Contador y selector adaptable de items por página (5 min, 10 max) */}
+      <div className="flex flex-wrap items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+        <span className="font-medium text-slate-600 text-xs">
+          Mostrando <strong className="text-slate-900 font-bold">{startIndex} - {endIndex}</strong> de <strong className="text-slate-900 font-bold">{totalItems}</strong> productos
+        </span>
+
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-xl shadow-2xs">
+          <span className="text-[11px] text-slate-500 font-medium">Por página:</span>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+            className="bg-transparent text-slate-900 font-bold text-xs focus:outline-none cursor-pointer"
+          >
+            <option value={5}>5 (mínimo)</option>
+            <option value={8}>8</option>
+            <option value={10}>10 (máximo)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Controles de Navegación de Páginas */}
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-center sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={validCurrentPage <= 1}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center gap-1 text-xs font-semibold shadow-2xs"
+            title="Página anterior"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Anterior</span>
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                className={`w-7 h-7 rounded-xl text-xs font-bold transition-all ${
+                  validCurrentPage === pageNum
+                    ? "bg-slate-900 text-white shadow-xs scale-105"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={validCurrentPage >= totalPages}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center gap-1 text-xs font-semibold shadow-2xs"
+            title="Página siguiente"
+          >
+            <span className="hidden sm:inline">Siguiente</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   const handleOpenDetail = (product: DetailedProductItem) => {
     setSelectedProduct(product);
   };
@@ -528,7 +639,7 @@ export function InventoryView({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 select-none">
+    <div className="flex-1 flex flex-col min-w-0 bg-white px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 select-none">
       {/* Top Header: Title + Status + Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
         <div>
@@ -701,9 +812,53 @@ export function InventoryView({
       </div>
 
       {/* ======================================================== */}
-      {/* MOBILE CARDS VIEW (Dispositivos Móviles < 768px)          */}
+      {/* VISTA DE PRODUCTOS: TABLA RESPONSIVE CON SCROLL Y TARJETAS */}
       {/* ======================================================== */}
-      <div className="block md:hidden space-y-3">
+
+      {/* Selector de modo de vista en móviles / tablet (< 768px) y aviso de scroll */}
+      <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500">
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-slate-700 text-xs">
+            {filteredProducts.length} {filteredProducts.length === 1 ? "producto" : "productos"} en catálogo
+          </span>
+          <span className="hidden sm:inline text-slate-400 text-[11.5px]">
+            • Desliza horizontalmente para ver todas las columnas ↔
+          </span>
+        </div>
+
+        {/* Switcher Móvil: Tabla vs Tarjetas */}
+        <div className="flex md:hidden items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setMobileViewMode("table")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              mobileViewMode === "table"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <TableIcon className="w-3.5 h-3.5" />
+            <span>Tabla</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileViewMode("cards")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              mobileViewMode === "cards"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Tarjetas</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 1. MOBILE CARDS VIEW (Visible cuando mobileViewMode === "cards") */}
+      {/* ======================================================== */}
+      <div className={`space-y-3 ${mobileViewMode === "cards" ? "block md:hidden" : "hidden"}`}>
         {filteredProducts.length === 0 ? (
           <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center space-y-3">
             <div className="w-10 h-10 mx-auto rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
@@ -738,13 +893,13 @@ export function InventoryView({
             )}
           </div>
         ) : (
-          filteredProducts.map((item) => (
+          paginatedProducts.map((item) => (
             <div
               key={item.id}
               onClick={() => handleOpenDetail(item)}
               className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs hover:shadow-xs transition-all active:scale-[0.99] space-y-3 cursor-pointer"
             >
-              {/* Card Header: Icon/Image + Name & Brand + Discipline */}
+              {/* Card Header */}
               <div className="flex items-start gap-3">
                 {item.imageUrl ? (
                   <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-xs p-0.5">
@@ -762,59 +917,36 @@ export function InventoryView({
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-slate-900 text-xs leading-snug truncate">
-                      {item.name}
-                    </h3>
-                    <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
-                      {item.discipline}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+                  <h4 className="font-bold text-slate-900 text-xs truncate">
+                    {item.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium">
                     {item.brand} • {item.category}
                   </p>
+                  <span className="inline-block mt-1 text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                    {item.discipline}
+                  </span>
                 </div>
               </div>
 
-              {/* Price & SKU Details */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+              {/* Price and Barcode */}
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Precio Venta</span>
-                  <span className="font-extrabold text-slate-900 text-sm">
+                  <span className="text-[10px] text-slate-400 block">Precio Venta</span>
+                  <span className="font-bold text-slate-900 text-xs">
                     {formatCurrency(item.price)}
                   </span>
                 </div>
-
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Código / SKU</span>
-                  {(() => {
-                    const matchedVar = getMatchedVariant(item, searchQuery);
-                    if (matchedVar) {
-                      return (
-                        <div className="flex flex-col items-end mt-0.5">
-                          <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            {matchedVar.barcode}
-                          </span>
-                          <span className="text-[9.5px] text-slate-400 mt-0.5">
-                            {matchedVar.size} / {matchedVar.color}
-                          </span>
-                        </div>
-                      );
-                    }
-                    return (
-                      <span className="font-mono text-[11px] text-slate-600 font-medium">
-                        {item.barcode || item.sku}
-                      </span>
-                    );
-                  })()}
+                  <span className="text-[10px] text-slate-400 block">Código / SKU</span>
+                  <span className="font-mono text-[11px] text-slate-700 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/70">
+                    {item.barcode || item.sku}
+                  </span>
                 </div>
               </div>
 
-              {/* Action Buttons Row */}
-              <div
-                className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100"
-                onClick={(e) => e.stopPropagation()}
-              >
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={(e) => handleOpenEditModal(item, e)}
@@ -825,7 +957,7 @@ export function InventoryView({
                   </button>
                   <button
                     onClick={(e) => handleOpenDeleteModal(item, e)}
-                    title="Eliminar producto"
+                    title="Dar de baja producto"
                     className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors active:scale-95"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -843,27 +975,44 @@ export function InventoryView({
           ))
         )}
 
-        {/* Mobile footer counts */}
-        <div className="text-center py-2 text-[11px] text-slate-400">
-          Mostrando {filteredProducts.length} de {productsList.length} productos
-        </div>
+        {/* Paginador para la vista de tarjetas móviles */}
+        {filteredProducts.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-3">
+            {renderPaginationFooter()}
+          </div>
+        )}
       </div>
 
       {/* ======================================================== */}
-      {/* DESKTOP & TABLET TABLE CONTAINER (>= 768px)               */}
+      {/* 2. TABLA RESPONSIVA CON SCROLL HORIZONTAL (Todas las pantallas) */}
       {/* ======================================================== */}
-      <div className="hidden md:block bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs min-w-[680px]">
-            {/* Table Header */}
-            <thead className="bg-slate-50/70 border-b border-slate-200 text-slate-400 font-semibold uppercase text-[10.5px] tracking-wider">
+      <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all ${
+        mobileViewMode === "cards" ? "hidden md:block" : "block"
+      }`}>
+        
+        {/* Barra superior de información y aviso de scroll horizontal */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50/90 border-b border-slate-200/80 text-[11.5px] text-slate-500">
+          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+            Mostrando <strong className="text-slate-900 font-bold">{paginatedProducts.length}</strong> de {filteredProducts.length} productos
+            <span className="hidden sm:inline font-normal text-slate-400">• Desliza horizontalmente para ver todas las columnas ↔</span>
+          </span>
+          <span className="text-[10.5px] font-mono text-slate-400">
+            Página {validCurrentPage} de {totalPages}
+          </span>
+        </div>
+
+        {/* Contenedor con scroll VERTICAL Y HORIZONTAL optimizado con altura máxima adaptable */}
+        <div className="overflow-x-auto custom-scrollbar touch-pan-x select-text relative border-b border-slate-200/60">
+          <table className="w-full text-left text-xs min-w-[760px] border-collapse">
+            {/* Table Header con sticky top sólido para no transparentarse en scroll vertical */}
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px] tracking-wider">
               <tr>
-                <th className="py-3.5 px-5">PRODUCTO / MARCA</th>
-                <th className="py-3.5 px-4">DISCIPLINA</th>
-                <th className="py-3.5 px-4">PRECIO VENTA</th>
-                <th className="py-3.5 px-4">FECHA REGISTRO</th>
-                <th className="py-3.5 px-4">CÓD. BARRA / SKU</th>
-                <th className="py-3.5 px-5 text-right">ACCIÓN</th>
+                <th className="py-3 px-5 min-w-[240px] bg-slate-50">PRODUCTO / MARCA</th>
+                <th className="py-3 px-4 min-w-[130px] bg-slate-50">DISCIPLINA</th>
+                <th className="py-3 px-4 min-w-[120px] bg-slate-50">PRECIO VENTA</th>
+                <th className="py-3 px-4 min-w-[130px] bg-slate-50">FECHA REGISTRO</th>
+                <th className="py-3 px-4 min-w-[150px] bg-slate-50">CÓD. BARRA / SKU</th>
+                <th className="py-3 px-5 min-w-[140px] text-right sticky right-0 bg-slate-50 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]">ACCIÓN</th>
               </tr>
             </thead>
 
@@ -907,14 +1056,14 @@ export function InventoryView({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((item) => (
+                paginatedProducts.map((item) => (
                   <tr
                     key={item.id}
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                     onClick={() => handleOpenDetail(item)}
                   >
                     {/* 1. Name / Brand */}
-                    <td className="py-4 px-5">
+                    <td className="py-4 px-5 min-w-[240px]">
                       <div className="flex items-center gap-3">
                         {item.imageUrl ? (
                           <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
@@ -942,25 +1091,25 @@ export function InventoryView({
                       </div>
                     </td>
 
-                    {/* 2. Type / Discipline */}
-                    <td className="py-4 px-4 whitespace-nowrap">
-                      <span className="text-slate-600 font-medium text-[11.5px] bg-slate-100 px-2 py-0.5 rounded-md">
+                    {/* 2. Discipline */}
+                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/70">
                         {item.discipline}
                       </span>
                     </td>
 
-                    {/* 3. Amount */}
-                    <td className="py-4 px-4 whitespace-nowrap font-bold text-slate-900 text-[12.5px]">
+                    {/* 3. Sale Price */}
+                    <td className="py-4 px-4 whitespace-nowrap font-bold text-slate-900 text-xs min-w-[120px]">
                       {formatCurrency(item.price)}
                     </td>
 
-                    {/* 4. Date */}
-                    <td className="py-4 px-4 whitespace-nowrap text-slate-500 text-[11.5px]">
+                    {/* 4. Registration Date */}
+                    <td className="py-4 px-4 whitespace-nowrap text-slate-500 text-[11.5px] min-w-[130px]">
                       {item.updatedAt}
                     </td>
 
                     {/* 5. Barcode / SKU */}
-                    <td className="py-4 px-4 whitespace-nowrap">
+                    <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
                       {(() => {
                         const matchedVar = getMatchedVariant(item, searchQuery);
                         if (matchedVar) {
@@ -990,8 +1139,8 @@ export function InventoryView({
                       })()}
                     </td>
 
-                    {/* 6. Action Buttons */}
-                    <td className="py-4 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {/* 6. Action Buttons (Sticky Right para no perderse al scrollear) */}
+                    <td className="py-4 px-5 text-right whitespace-nowrap min-w-[140px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={(e) => handleOpenEditModal(item, e)}
@@ -1002,7 +1151,7 @@ export function InventoryView({
                         </button>
                         <button
                           onClick={(e) => handleOpenDeleteModal(item, e)}
-                          title="Eliminar producto"
+                          title="Dar de baja producto"
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1022,14 +1171,8 @@ export function InventoryView({
           </table>
         </div>
 
-        {/* Table Footer info */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-[11px] text-slate-500">
-          <span>Mostrando {filteredProducts.length} de {productsList.length} productos</span>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="font-medium text-slate-700">Base de datos sincronizada</span>
-          </div>
-        </div>
+        {/* Pie de tabla con paginación integrada */}
+        {renderPaginationFooter()}
       </div>
 
       {/* Modal de Crear / Editar Producto */}

@@ -105,7 +105,7 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
         ];
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] overflow-y-auto pb-12 select-none">
+    <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] pb-12 select-none">
       {/* 1. Header Navigation Bar with Back Button & Barcode */}
       <div className="bg-white border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-20 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">

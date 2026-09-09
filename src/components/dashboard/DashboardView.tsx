@@ -95,9 +95,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   }, []);
 
   return (
-    <div className="h-screen w-full bg-white text-slate-800 flex font-sans antialiased select-none relative overflow-hidden">
+    <div className="min-h-screen w-full bg-white text-slate-800 flex font-sans antialiased select-none relative">
       {/* Main App Container (Full Width & Height) */}
-      <div className="flex-1 flex overflow-hidden w-full h-full bg-white">
+      <div className="flex-1 flex w-full min-h-screen bg-white">
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
@@ -114,13 +114,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               setSelectedCategory(cat);
               setCurrentTab("inventario");
             }}
-            className="transition-all duration-300 hidden md:flex"
+            className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
 
         {/* 2. Main Content Area */}
         {currentTab === "inventario" ? (
-          <div className="flex-1 flex flex-col min-w-0 bg-white relative">
+          <div className="flex-1 flex flex-col min-w-0 bg-white relative min-h-screen">
             {/* Mobile Top App Bar for Inventory */}
             <div className="md:hidden px-4 py-3 bg-[#06241d] text-white flex items-center justify-between border-b border-emerald-950/60 sticky top-0 z-20 shadow-xs">
               <div className="flex items-center gap-2.5">
@@ -226,7 +226,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
         {/* 3. Right Sidebar Panel (Desktop Mode in Analytics View) */}
         {currentTab === "analytics" && isDesktopRightOpen && (
-          <SidebarRight className="transition-all duration-300 hidden xl:flex" />
+          <SidebarRight className="transition-all duration-300 hidden xl:flex sticky top-0 h-screen overflow-y-auto shrink-0" />
         )}
       </div>
 
