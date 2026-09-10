@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 import {
   InventoryMovementSchema,
   InventoryMovementInput,
@@ -80,6 +81,9 @@ export async function registerStockMovement(input: InventoryMovementInput) {
       return { variant: updatedVariant, movement };
     });
 
+    revalidatePath("/admin");
+    revalidatePath("/");
+
     return {
       success: true,
       data: result,
@@ -144,6 +148,9 @@ export async function transferStockInternal(input: StockTransferInput) {
       return { variant: updatedVariant, movement };
     });
 
+    revalidatePath("/admin");
+    revalidatePath("/");
+
     return {
       success: true,
       data: result,
@@ -202,5 +209,61 @@ export async function getStockAlerts() {
   } catch (error) {
     console.error("Error al obtener alertas de stock:", error);
     return { success: false, error: "No se pudieron obtener las alertas de stock" };
+  }
+}
+
+/**
+ * Obtener historial de movimientos de inventario de un producto (para trazabilidad y auditoría)
+ */
+export async function getProductMovements(productId: string) {
+  try {
+    const movements = await prisma.inventoryMovement.findMany({
+      where: {
+        variant: {
+          productId,
+        },
+      },
+      include: {
+        variant: {
+          select: {
+            id: true,
+            size: true,
+            color: true,
+            sku: true,
+            barcode: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100,
+    });
+
+    const serialized = movements.map((m) => ({
+      id: m.id,
+      variantId: m.variantId,
+      variantSize: m.variant.size,
+      variantColor: m.variant.color,
+      variantSku: m.variant.sku,
+      variantBarcode: m.variant.barcode,
+      type: m.type,
+      quantity: m.quantity,
+      stockAfter: m.stockAfter,
+      location: m.location,
+      reason: m.reason,
+      createdAt: m.createdAt.toISOString(),
+    }));
+
+    return {
+      success: true,
+      data: serialized,
+    };
+  } catch (error) {
+    console.error("Error al obtener movimientos de inventario:", error);
+    return {
+      success: false,
+      error: "No se pudo cargar el historial de movimientos de stock",
+    };
   }
 }

@@ -489,6 +489,7 @@ export async function getDetailedInventoryProducts(): Promise<{
           sku: v.sku,
           stockStore: v.stockStore,
           stockWarehouse: v.stockWarehouse,
+          price: v.price ? Number(v.price) : null,
           receivedCount: v.stockStore + v.stockWarehouse + 50,
           soldCountStore: 0,
           soldCountWeb: 0,
