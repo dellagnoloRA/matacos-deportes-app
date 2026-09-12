@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Camera,
   RefreshCw,
+  Check,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -28,6 +29,9 @@ import {
   getDisciplines,
   getCategories,
   getBrands,
+  createDiscipline,
+  createCategory,
+  createBrand,
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
 import { slugify } from "@/lib/textUtils";
@@ -98,6 +102,61 @@ export function ProductFormModal({
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+
+  const fulfillFieldError = useCallback((fieldKey: string, messageKeyword?: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldKey]) return prev;
+      const next = { ...prev };
+      delete next[fieldKey];
+      return next;
+    });
+    if (messageKeyword) {
+      setErrorMessage((prev) => {
+        if (prev && prev.toLowerCase().includes(messageKeyword.toLowerCase())) {
+          return null;
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  // Referencia y función para mensajes de error temporales (auto-cierre a los 5s, ej. duplicados)
+  const temporaryErrorTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setTemporaryErrorMessage = useCallback((msg: string) => {
+    if (temporaryErrorTimerRef.current) {
+      clearTimeout(temporaryErrorTimerRef.current);
+    }
+    setErrorMessage(msg);
+    temporaryErrorTimerRef.current = setTimeout(() => {
+      setErrorMessage((prev) => (prev === msg ? null : prev));
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (temporaryErrorTimerRef.current) {
+        clearTimeout(temporaryErrorTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Estados para creación rápida en línea de Disciplina, Categoría y Marca
+  const [quickCreateType, setQuickCreateType] = useState<"discipline" | "category" | "brand" | null>(null);
+  const [quickCreateValue, setQuickCreateValue] = useState("");
+  const [isSavingQuickCreate, setIsSavingQuickCreate] = useState(false);
+
+  // Temporizador para auto-ocultar mensajes de éxito a los 5 segundos
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   // Procesar archivo seleccionado
   const processSelectedFile = (file: File) => {
@@ -228,6 +287,9 @@ export function ProductFormModal({
       ]);
       setErrorMessage(null);
     }
+    setFieldErrors({});
+    setQuickCreateType(null);
+    setQuickCreateValue("");
   }, [productToEdit, isOpen]);
 
   // Selección automática de IDs al editar si coinciden con los nombres
@@ -293,6 +355,123 @@ export function ProductFormModal({
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
+    if (typeof value === "string" && value.trim().length > 0) {
+      fulfillFieldError(`variant_${index}_${field}`, field === "size" ? "talle" : "color");
+    }
+  };
+
+  // Guardar nueva disciplina, categoría o marca creada de forma rápida
+  const handleSaveQuickCreate = async (type: "discipline" | "category" | "brand") => {
+    const trimmed = quickCreateValue.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setTemporaryErrorMessage("El nombre debe tener al menos 2 caracteres.");
+      return;
+    }
+
+    // 1. Verificación client-side para evitar duplicados en el listado actual
+    if (type === "discipline") {
+      const duplicate = disciplines.some(
+        (d) => d.name.trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (duplicate) {
+        setTemporaryErrorMessage(`Ya existe la disciplina "${trimmed}" en el listado.`);
+        return;
+      }
+    } else if (type === "category") {
+      const duplicate = categories.some(
+        (c) => c.name.trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (duplicate) {
+        setTemporaryErrorMessage(`Ya existe la categoría "${trimmed}" en el listado.`);
+        return;
+      }
+    } else if (type === "brand") {
+      const duplicate = brands.some(
+        (b) => b.name.trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (duplicate) {
+        setTemporaryErrorMessage(`Ya existe la marca "${trimmed}" en el listado.`);
+        return;
+      }
+    }
+
+    setIsSavingQuickCreate(true);
+    setErrorMessage(null);
+
+    try {
+      if (type === "discipline") {
+        const res = await createDiscipline({ name: trimmed });
+        if (res.success && res.data) {
+          const newItem = { id: res.data.id, name: res.data.name };
+          setDisciplines((prev) => {
+            const exists = prev.some((d) => d.id === newItem.id);
+            if (exists) return prev;
+            return [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name));
+          });
+          setDisciplineId(newItem.id);
+          setQuickCreateType(null);
+          setQuickCreateValue("");
+          setErrorMessage(null);
+          setSuccessMessage(`¡Disciplina "${newItem.name}" agregada con éxito!`);
+        } else {
+          const isDuplicate = res.error?.toLowerCase().includes("ya existe");
+          setTemporaryErrorMessage(
+            isDuplicate
+              ? `Ya existe la disciplina "${trimmed}" en el listado.`
+              : res.error || "No se pudo crear la disciplina."
+          );
+        }
+      } else if (type === "category") {
+        const res = await createCategory({ name: trimmed });
+        if (res.success && res.data) {
+          const newItem = { id: res.data.id, name: res.data.name };
+          setCategories((prev) => {
+            const exists = prev.some((c) => c.id === newItem.id);
+            if (exists) return prev;
+            return [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name));
+          });
+          setCategoryId(newItem.id);
+          setQuickCreateType(null);
+          setQuickCreateValue("");
+          setErrorMessage(null);
+          setSuccessMessage(`¡Categoría "${newItem.name}" agregada con éxito!`);
+        } else {
+          const isDuplicate = res.error?.toLowerCase().includes("ya existe");
+          setTemporaryErrorMessage(
+            isDuplicate
+              ? `Ya existe la categoría "${trimmed}" en el listado.`
+              : res.error || "No se pudo crear la categoría."
+          );
+        }
+      } else if (type === "brand") {
+        const res = await createBrand({ name: trimmed });
+        if (res.success && res.data) {
+          const newItem = { id: res.data.id, name: res.data.name };
+          setBrands((prev) => {
+            const exists = prev.some((b) => b.id === newItem.id);
+            if (exists) return prev;
+            return [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name));
+          });
+          setBrandId(newItem.id);
+          setQuickCreateType(null);
+          setQuickCreateValue("");
+          setErrorMessage(null);
+          setSuccessMessage(`¡Marca "${newItem.name}" agregada con éxito!`);
+        } else {
+          const isDuplicate = res.error?.toLowerCase().includes("ya existe");
+          setTemporaryErrorMessage(
+            isDuplicate
+              ? `Ya existe la marca "${trimmed}" en el listado.`
+              : res.error || "No se pudo crear la marca."
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Error al crear:", err);
+      setTemporaryErrorMessage("Ocurrió un error inesperado al guardar.");
+    } finally {
+      setIsSavingQuickCreate(false);
+    }
   };
 
   // Enviar formulario (Guardar o Actualizar)
@@ -300,35 +479,66 @@ export function ProductFormModal({
     e.preventDefault();
     setErrorMessage(null);
 
-    // Validaciones básicas antes de enviar
-    if (!name.trim()) {
-      setErrorMessage("Ingresa el nombre del producto.");
-      return;
+    // Validaciones de campos obligatorios
+    const errors: Record<string, boolean> = {};
+
+    if (!name.trim() || name.trim().length < 3) {
+      errors.name = true;
     }
     if (!disciplineId) {
-      setErrorMessage("Selecciona una disciplina deportiva.");
-      return;
+      errors.disciplineId = true;
     }
     if (!categoryId) {
-      setErrorMessage("Selecciona una categoría.");
-      return;
+      errors.categoryId = true;
     }
     if (!brandId) {
-      setErrorMessage("Selecciona una marca.");
-      return;
+      errors.brandId = true;
     }
     if (costNum <= 0) {
-      setErrorMessage("El precio de costo debe ser mayor a $ 0.");
-      return;
+      errors.costPrice = true;
     }
     if (priceNum <= 0) {
-      setErrorMessage("El precio de venta debe ser mayor a $ 0.");
+      errors.price = true;
+    }
+
+    // Validar talle y color en cada variante
+    variants.forEach((v, idx) => {
+      if (!v.size.trim()) errors[`variant_${idx}_size`] = true;
+      if (!v.color.trim()) errors[`variant_${idx}_color`] = true;
+    });
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      if (errors.name) {
+        setErrorMessage("Por favor, ingresa el nombre del producto (mínimo 3 caracteres).");
+      } else if (errors.disciplineId) {
+        setErrorMessage("Por favor, selecciona una disciplina deportiva.");
+      } else if (errors.categoryId) {
+        setErrorMessage("Por favor, selecciona una categoría para el producto.");
+      } else if (errors.brandId) {
+        setErrorMessage("Por favor, selecciona una marca para el producto.");
+      } else if (errors.costPrice) {
+        setErrorMessage("El precio de costo debe ser mayor a $ 0,00.");
+      } else if (errors.price) {
+        setErrorMessage("El precio de venta debe ser mayor a $ 0,00.");
+      } else {
+        const hasMissingSize = Object.keys(errors).some((k) => k.endsWith("_size"));
+        if (hasMissingSize) {
+          setErrorMessage("Debes indicar el talle en todas las variantes (ej. 41, M o Único).");
+        } else {
+          setErrorMessage("Debes indicar el color en todas las variantes (ej. Negro, Azul).");
+        }
+      }
       return;
     }
+
     if (priceNum < costNum) {
+      setFieldErrors({ price: true });
       setErrorMessage("El precio de venta no debería ser inferior al precio de costo.");
       return;
     }
+
+    setFieldErrors({});
 
     setIsSubmitting(true);
     let finalImageUrl = imageUrl;
@@ -467,16 +677,54 @@ export function ProductFormModal({
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
-          {/* Alerta de Error */}
-          {errorMessage && (
-            <div className="flex items-center gap-2 p-3.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span className="font-medium text-xs">{errorMessage}</span>
-            </div>
-          )}
+        {/* Avisos de Alerta / Éxito (con botón X y auto-cierre a los 5s) */}
+        {(errorMessage || successMessage) && (
+          <div className="px-6 pt-4 shrink-0">
+            {errorMessage && (
+              <div className="flex items-center justify-between gap-3 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-semibold text-xs leading-relaxed">{errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (temporaryErrorTimerRef.current) {
+                      clearTimeout(temporaryErrorTimerRef.current);
+                    }
+                    setErrorMessage(null);
+                    setFieldErrors({});
+                  }}
+                  className="p-1 text-rose-500 hover:text-rose-800 hover:bg-rose-100/80 rounded-lg transition-colors shrink-0"
+                  title="Cerrar aviso"
+                  aria-label="Cerrar aviso de error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            {successMessage && (
+              <div className="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold text-xs leading-relaxed">{successMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSuccessMessage(null)}
+                  className="p-1 text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100/80 rounded-lg transition-colors shrink-0"
+                  title="Cerrar aviso"
+                  aria-label="Cerrar aviso de éxito"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
+        {/* Form Body */}
+        <form noValidate onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
           {/* 1. Datos Principales */}
           <div className="space-y-4">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2 text-[11px]">
@@ -559,10 +807,19 @@ export function ProductFormModal({
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setName(val);
+                  if (val.trim().length >= 3) {
+                    fulfillFieldError("name", "nombre");
+                  }
+                }}
                 placeholder="Ej. Antiparras Cobra Ultra Mirror / Zapatilla Gel-Rocket"
-                className="w-full bg-slate-50 text-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
-                required
+                className={`w-full px-3.5 py-2.5 rounded-xl border transition-all font-medium ${
+                  fieldErrors.name
+                    ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                    : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                }`}
               />
             </div>
 
@@ -581,9 +838,10 @@ export function ProductFormModal({
 
             {/* Selects: Disciplina, Categoría, Marca */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Disciplina */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-slate-700 font-semibold">
+                  <label className="block text-slate-700 font-semibold text-xs">
                     Disciplina <span className="text-rose-500">*</span>
                   </label>
                   {isLoadingOptions && (
@@ -592,27 +850,97 @@ export function ProductFormModal({
                     </span>
                   )}
                 </div>
-                <select
-                  value={disciplineId}
-                  onChange={(e) => setDisciplineId(e.target.value)}
-                  disabled={isLoadingOptions}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
-                  required
-                >
-                  <option value="">
-                    {isLoadingOptions ? "Cargando disciplinas..." : "Seleccionar..."}
-                  </option>
-                  {disciplines.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+
+                {quickCreateType === "discipline" ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      value={quickCreateValue}
+                      onChange={(e) => setQuickCreateValue(e.target.value)}
+                      placeholder="Nueva disciplina..."
+                      autoFocus
+                      disabled={isSavingQuickCreate}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveQuickCreate("discipline");
+                        } else if (e.key === "Escape") {
+                          setQuickCreateType(null);
+                          setQuickCreateValue("");
+                        }
+                      }}
+                      className="flex-1 min-w-0 bg-white text-slate-900 px-3 py-2 text-xs rounded-xl border-2 border-emerald-500 focus:outline-none font-semibold shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveQuickCreate("discipline")}
+                      disabled={isSavingQuickCreate || !quickCreateValue.trim()}
+                      className="p-2.5 bg-[#c2f25b] hover:bg-[#b0e838] text-slate-950 rounded-xl transition-all active:scale-95 disabled:opacity-50 shrink-0 font-bold shadow-2xs"
+                      title="Guardar disciplina"
+                    >
+                      {isSavingQuickCreate ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType(null);
+                        setQuickCreateValue("");
+                      }}
+                      disabled={isSavingQuickCreate}
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={disciplineId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDisciplineId(val);
+                        if (val) fulfillFieldError("disciplineId", "disciplina");
+                      }}
+                      disabled={isLoadingOptions}
+                      className={`flex-1 min-w-0 px-3 py-2.5 rounded-xl border font-medium disabled:opacity-60 transition-all text-xs ${
+                        fieldErrors.disciplineId
+                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                          : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500"
+                      }`}
+                    >
+                      <option value="">
+                        {isLoadingOptions ? "Cargando disciplinas..." : "Seleccionar..."}
+                      </option>
+                      {disciplines.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("discipline");
+                        setQuickCreateValue("");
+                      }}
+                      className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all shrink-0 active:scale-95 shadow-2xs"
+                      title="Añadir nueva disciplina"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                    </button>
+                  </div>
+                )}
               </div>
 
+              {/* Categoría */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-slate-700 font-semibold">
+                  <label className="block text-slate-700 font-semibold text-xs">
                     Categoría <span className="text-rose-500">*</span>
                   </label>
                   {isLoadingOptions && (
@@ -621,27 +949,97 @@ export function ProductFormModal({
                     </span>
                   )}
                 </div>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  disabled={isLoadingOptions}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
-                  required
-                >
-                  <option value="">
-                    {isLoadingOptions ? "Cargando categorías..." : "Seleccionar..."}
-                  </option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+
+                {quickCreateType === "category" ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      value={quickCreateValue}
+                      onChange={(e) => setQuickCreateValue(e.target.value)}
+                      placeholder="Nueva categoría..."
+                      autoFocus
+                      disabled={isSavingQuickCreate}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveQuickCreate("category");
+                        } else if (e.key === "Escape") {
+                          setQuickCreateType(null);
+                          setQuickCreateValue("");
+                        }
+                      }}
+                      className="flex-1 min-w-0 bg-white text-slate-900 px-3 py-2 text-xs rounded-xl border-2 border-emerald-500 focus:outline-none font-semibold shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveQuickCreate("category")}
+                      disabled={isSavingQuickCreate || !quickCreateValue.trim()}
+                      className="p-2.5 bg-[#c2f25b] hover:bg-[#b0e838] text-slate-950 rounded-xl transition-all active:scale-95 disabled:opacity-50 shrink-0 font-bold shadow-2xs"
+                      title="Guardar categoría"
+                    >
+                      {isSavingQuickCreate ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType(null);
+                        setQuickCreateValue("");
+                      }}
+                      disabled={isSavingQuickCreate}
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={categoryId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCategoryId(val);
+                        if (val) fulfillFieldError("categoryId", "categoría");
+                      }}
+                      disabled={isLoadingOptions}
+                      className={`flex-1 min-w-0 px-3 py-2.5 rounded-xl border font-medium disabled:opacity-60 transition-all text-xs ${
+                        fieldErrors.categoryId
+                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                          : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500"
+                      }`}
+                    >
+                      <option value="">
+                        {isLoadingOptions ? "Cargando categorías..." : "Seleccionar..."}
+                      </option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("category");
+                        setQuickCreateValue("");
+                      }}
+                      className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all shrink-0 active:scale-95 shadow-2xs"
+                      title="Añadir nueva categoría"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                    </button>
+                  </div>
+                )}
               </div>
 
+              {/* Marca */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-slate-700 font-semibold">
+                  <label className="block text-slate-700 font-semibold text-xs">
                     Marca <span className="text-rose-500">*</span>
                   </label>
                   {isLoadingOptions && (
@@ -650,22 +1048,91 @@ export function ProductFormModal({
                     </span>
                   )}
                 </div>
-                <select
-                  value={brandId}
-                  onChange={(e) => setBrandId(e.target.value)}
-                  disabled={isLoadingOptions}
-                  className="w-full bg-slate-50 text-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-medium disabled:opacity-60 transition-opacity"
-                  required
-                >
-                  <option value="">
-                    {isLoadingOptions ? "Cargando marcas..." : "Seleccionar..."}
-                  </option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+
+                {quickCreateType === "brand" ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      value={quickCreateValue}
+                      onChange={(e) => setQuickCreateValue(e.target.value)}
+                      placeholder="Nueva marca..."
+                      autoFocus
+                      disabled={isSavingQuickCreate}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveQuickCreate("brand");
+                        } else if (e.key === "Escape") {
+                          setQuickCreateType(null);
+                          setQuickCreateValue("");
+                        }
+                      }}
+                      className="flex-1 min-w-0 bg-white text-slate-900 px-3 py-2 text-xs rounded-xl border-2 border-emerald-500 focus:outline-none font-semibold shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveQuickCreate("brand")}
+                      disabled={isSavingQuickCreate || !quickCreateValue.trim()}
+                      className="p-2.5 bg-[#c2f25b] hover:bg-[#b0e838] text-slate-950 rounded-xl transition-all active:scale-95 disabled:opacity-50 shrink-0 font-bold shadow-2xs"
+                      title="Guardar marca"
+                    >
+                      {isSavingQuickCreate ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType(null);
+                        setQuickCreateValue("");
+                      }}
+                      disabled={isSavingQuickCreate}
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors shrink-0"
+                      title="Cancelar"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={brandId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBrandId(val);
+                        if (val) fulfillFieldError("brandId", "marca");
+                      }}
+                      disabled={isLoadingOptions}
+                      className={`flex-1 min-w-0 px-3 py-2.5 rounded-xl border font-medium disabled:opacity-60 transition-all text-xs ${
+                        fieldErrors.brandId
+                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                          : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500"
+                      }`}
+                    >
+                      <option value="">
+                        {isLoadingOptions ? "Cargando marcas..." : "Seleccionar..."}
+                      </option>
+                      {brands.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("brand");
+                        setQuickCreateValue("");
+                      }}
+                      className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all shrink-0 active:scale-95 shadow-2xs"
+                      title="Añadir nueva marca"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -687,12 +1154,19 @@ export function ProductFormModal({
                   min="0"
                   step="any"
                   value={costPrice}
-                  onChange={(e) =>
-                    setCostPrice(e.target.value === "" ? "" : Number(e.target.value))
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                    setCostPrice(val);
+                    if (typeof val === "number" && val > 0) {
+                      fulfillFieldError("costPrice", "costo");
+                    }
+                  }}
                   placeholder="$ 0,00"
-                  className="w-full bg-slate-50 text-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-bold"
-                  required
+                  className={`w-full px-3.5 py-2.5 rounded-xl border font-bold transition-all ${
+                    fieldErrors.costPrice
+                      ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                      : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500"
+                  }`}
                 />
               </div>
 
@@ -705,12 +1179,19 @@ export function ProductFormModal({
                   min="0"
                   step="any"
                   value={price}
-                  onChange={(e) =>
-                    setPrice(e.target.value === "" ? "" : Number(e.target.value))
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                    setPrice(val);
+                    if (typeof val === "number" && val > 0) {
+                      fulfillFieldError("price", "venta");
+                    }
+                  }}
                   placeholder="$ 0,00"
-                  className="w-full bg-slate-50 text-emerald-700 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-bold"
-                  required
+                  className={`w-full px-3.5 py-2.5 rounded-xl border font-bold transition-all ${
+                    fieldErrors.price
+                      ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
+                      : "bg-slate-50 text-emerald-700 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500"
+                  }`}
                 />
               </div>
 
@@ -764,8 +1245,11 @@ export function ProductFormModal({
                       value={variant.size}
                       onChange={(e) => handleVariantChange(idx, "size", e.target.value)}
                       placeholder="41 / M / Único"
-                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900"
-                      required
+                      className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                        fieldErrors[`variant_${idx}_size`]
+                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                          : "bg-white border-slate-200 text-slate-900"
+                      }`}
                     />
                   </div>
 
@@ -778,8 +1262,11 @@ export function ProductFormModal({
                       value={variant.color}
                       onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
                       placeholder="Negro / Azul"
-                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800"
-                      required
+                      className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                        fieldErrors[`variant_${idx}_color`]
+                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                          : "bg-white border-slate-200 text-slate-800"
+                      }`}
                     />
                   </div>
 
