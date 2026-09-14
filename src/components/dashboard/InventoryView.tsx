@@ -33,6 +33,7 @@ import {
   MinusCircle,
   Percent,
   History,
+  FileSpreadsheet,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
@@ -41,6 +42,7 @@ import { ProductFormModal } from "./ProductFormModal";
 import { StockMovementModal, type OperationType } from "./StockMovementModal";
 import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
 import { PriceHistoryModal } from "./PriceHistoryModal";
+import { BulkImportModal } from "./BulkImportModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
@@ -378,6 +380,9 @@ export function InventoryView({
   const [isBatchPriceModalOpen, setIsBatchPriceModalOpen] = useState(false);
   const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
+  // Estado para Carga Masiva e Ingestión Excel/CSV (RF-04 / CU-INV-02)
+  const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false);
 
   const toggleSelectProduct = (productId: string, e?: React.MouseEvent | React.ChangeEvent) => {
     if (e) e.stopPropagation();
@@ -819,6 +824,16 @@ export function InventoryView({
           >
             <History className="w-4 h-4 text-slate-500" />
             <span className="hidden md:inline">Historial de Ajustes</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsBulkImportModalOpen(true)}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100/90 active:scale-95 text-emerald-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Carga Inicial Progresiva e Ingestión Excel/CSV (RF-04 / CU-INV-02)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span className="hidden sm:inline">Importar Excel/CSV</span>
           </button>
 
           <button
@@ -1729,6 +1744,19 @@ export function InventoryView({
       <PriceHistoryModal
         isOpen={isPriceHistoryModalOpen}
         onClose={() => setIsPriceHistoryModalOpen(false)}
+      />
+
+      {/* Modal de Carga Inicial Progresiva e Ingestión Excel/CSV (RF-04 / CU-INV-02) */}
+      <BulkImportModal
+        isOpen={isBulkImportModalOpen}
+        onClose={() => setIsBulkImportModalOpen(false)}
+        onSuccess={() => {
+          loadProducts();
+          showToast(
+            "Lote importado con éxito",
+            "Los productos y variantes del archivo fueron incorporados al catálogo."
+          );
+        }}
       />
 
       {/* Floating Toast Notification */}
