@@ -57,14 +57,15 @@ interface ParsedSummary {
 }
 
 /**
- * Normaliza nombres de encabezados para soportar acentos, espacios, guiones bajos o variaciones
+ * Normaliza nombres de encabezados para soportar acentos, espacios, guiones bajos o variaciones.
+ * Remueve todo carácter no alfanumérico (ej: paréntesis, signos pesos, guiones, barras).
  */
 function normalizeHeaderKey(key: string): string {
   return key
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // remover tildes
-    .replace(/[\s_-]+/g, "")
+    .replace(/[^a-z0-9]/g, "") // remover caracteres especiales, paréntesis, espacios
     .trim();
 }
 
@@ -77,6 +78,7 @@ function getRowValue(row: RawRow, possibleKeys: string[]): any {
     return acc;
   }, {});
 
+  // 1. Coincidencia exacta de clave normalizada
   for (const alias of possibleKeys) {
     const normAlias = normalizeHeaderKey(alias);
     if (normalizedRowKeys[normAlias]) {
@@ -87,7 +89,60 @@ function getRowValue(row: RawRow, possibleKeys: string[]): any {
       }
     }
   }
+
+  // 2. Coincidencia por inclusión (ej: "preciocostoars" contiene "preciocosto", "codigodebarra" contiene "codigobarra")
+  for (const alias of possibleKeys) {
+    const normAlias = normalizeHeaderKey(alias);
+    for (const [rowNormKey, actualKey] of Object.entries(normalizedRowKeys)) {
+      if (rowNormKey.includes(normAlias) || normAlias.includes(rowNormKey)) {
+        const val = row[actualKey];
+        if (val !== undefined && val !== null && String(val).trim() !== "") {
+          return val;
+        }
+      }
+    }
+  }
+
   return undefined;
+}
+
+/**
+ * Parsea importes monetarios tolerando formatos argentinos ($ 45.000,00 / 45.000 / 45000,50) y números nativos
+ */
+function parseNumericPrice(val: any): number {
+  if (val === undefined || val === null || val === "") return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : Math.max(0, val);
+
+  let str = String(val).trim().replace(/\$/g, "").trim();
+
+  // Si contiene punto y coma: "45.000,50" -> punto es miles, coma es decimal
+  if (str.includes(".") && str.includes(",")) {
+    str = str.replace(/\./g, "").replace(",", ".");
+  } else if (str.includes(",")) {
+    // Solo tiene coma: "45000,50" -> coma es decimal
+    str = str.replace(",", ".");
+  } else if (str.includes(".")) {
+    // Puede ser "45.000" (miles) o "45.50" (decimal)
+    const parts = str.split(".");
+    if (parts.length > 2) {
+      str = parts.join("");
+    } else if (parts.length === 2 && parts[1].length === 3 && parseInt(parts[0], 10) >= 1) {
+      str = parts.join("");
+    }
+  }
+
+  str = str.replace(/[^0-9.]/g, "");
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : Math.max(0, num);
+}
+
+/**
+ * Determina si una fila de la planilla está completamente vacía (sin ningún dato en ninguna celda)
+ */
+function isRowCompletelyEmpty(row: RawRow): boolean {
+  return Object.values(row).every(
+    (val) => val === undefined || val === null || String(val).trim() === ""
+  );
 }
 
 export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalProps) {
@@ -153,35 +208,48 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         throw new Error("La planilla está vacía o no contiene filas de datos.");
       }
 
+      // Filtrar filas completamente vacías (ej: cuando se eliminan productos pero Excel preserva el rango A1:O300 formateado)
+      const validRowsWithIndex = rawRows
+        .map((row, idx) => ({ row, rowNum: idx + 2 }))
+        .filter(({ row }) => !isRowCompletelyEmpty(row));
+
+      if (validRowsWithIndex.length === 0) {
+        throw new Error("La planilla no contiene filas con datos de productos.");
+      }
+
       // Procesar y agrupar filas por Producto (clave: Nombre + Marca)
       const productsMap = new Map<string, BulkProductItemInput>();
       const warnings: string[] = [];
       let totalVariantsCount = 0;
       let totalStockUnits = 0;
 
-      rawRows.forEach((row, idx) => {
-        const rowNum = idx + 2; // Considerando fila 1 como encabezado
-
-        const discipline = String(getRowValue(row, ["disciplina", "discipline", "area"]) || "").trim();
-        const category = String(getRowValue(row, ["categoria", "category", "subcategoria"]) || "").trim();
-        const brand = String(getRowValue(row, ["marca", "brand", "proveedor"]) || "").trim();
-        const productName = String(
-          getRowValue(row, ["nombreproducto", "nombre", "productname", "producto"]) || ""
+      validRowsWithIndex.forEach(({ row, rowNum }) => {
+        const discipline = String(
+          getRowValue(row, ["disciplina", "discipline", "area", "deporte"]) || ""
         ).trim();
-        const description = getRowValue(row, ["descripcion", "description", "detalle"]);
+        const category = String(
+          getRowValue(row, ["categoria", "category", "subcategoria", "rubro"]) || ""
+        ).trim();
+        const brand = String(
+          getRowValue(row, ["marca", "brand", "proveedor", "fabricante"]) || ""
+        ).trim();
+        const productName = String(
+          getRowValue(row, ["nombreproducto", "nombre", "productname", "producto", "articulo", "item"]) || ""
+        ).trim();
+        const description = getRowValue(row, ["descripcion", "description", "detalle", "observaciones"]);
 
-        const size = String(getRowValue(row, ["talle", "size", "medida", "numero"]) || "Único").trim();
-        const color = String(getRowValue(row, ["color", "variante"]) || "Único").trim();
-        const barcodeRaw = getRowValue(row, ["codigobarra", "barcode", "codigo", "ean"]);
-        const skuRaw = getRowValue(row, ["sku", "codigoarticulo"]);
+        const size = String(getRowValue(row, ["talle", "size", "medida", "numero", "dimension"]) || "Único").trim();
+        const color = String(getRowValue(row, ["color", "variante", "colour", "modelo"]) || "Único").trim();
+        const barcodeRaw = getRowValue(row, ["codigodebarra", "codigobarra", "barcode", "codigobarras", "codigo", "ean", "ean13", "upc"]);
+        const skuRaw = getRowValue(row, ["skuautogenerado", "sku", "codigoarticulo", "codigointerno", "articulocodigo"]);
 
-        const stockStoreRaw = getRowValue(row, ["stocksalon", "stocksalonars", "stocktienda", "salon"]);
-        const stockWarehouseRaw = getRowValue(row, ["stockdeposito", "stockdepositoars", "deposito"]);
-        const minStoreStockRaw = getRowValue(row, ["minsalon", "minimosalon"]);
-        const minStockRaw = getRowValue(row, ["minproveedor", "minimoproveedor", "minstock"]);
+        const stockStoreRaw = getRowValue(row, ["stocksalon", "stocksalonars", "stocktienda", "salon", "stocklocal", "tienda"]);
+        const stockWarehouseRaw = getRowValue(row, ["stockdeposito", "stockdepositoars", "deposito", "almacen"]);
+        const minStoreStockRaw = getRowValue(row, ["minimosalon", "minsalon", "stockminimosalon"]);
+        const minStockRaw = getRowValue(row, ["minimoproveedor", "minproveedor", "minstock", "stockminimo"]);
 
-        const costPriceRaw = getRowValue(row, ["preciocosto", "costo", "costprice"]);
-        const priceRaw = getRowValue(row, ["precioventa", "precio", "price", "pvp"]);
+        const costPriceRaw = getRowValue(row, ["preciocostoars", "preciocosto", "costo", "costprice", "preciocompra"]);
+        const priceRaw = getRowValue(row, ["precioventaars", "precioventa", "precio", "price", "pvp", "preciopublico"]);
 
         // Validaciones básicas de fila obligatoria
         if (!productName || !brand || !category || !discipline) {
@@ -189,13 +257,13 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
           return;
         }
 
-        const costPrice = Math.max(0, parseFloat(String(costPriceRaw).replace(/[^0-9.-]+/g, "")) || 0);
-        const price = Math.max(0, parseFloat(String(priceRaw).replace(/[^0-9.-]+/g, "")) || 0);
+        const costPrice = parseNumericPrice(costPriceRaw);
+        const price = parseNumericPrice(priceRaw);
 
-        const stockStore = Math.max(0, parseInt(String(stockStoreRaw), 10) || 0);
-        const stockWarehouse = Math.max(0, parseInt(String(stockWarehouseRaw), 10) || 0);
-        const minStoreStock = Math.max(0, parseInt(String(minStoreStockRaw), 10) || 1);
-        const minStock = Math.max(0, parseInt(String(minStockRaw), 10) || 2);
+        const stockStore = Math.max(0, parseInt(String(stockStoreRaw || 0).replace(/[^0-9]/g, ""), 10) || 0);
+        const stockWarehouse = Math.max(0, parseInt(String(stockWarehouseRaw || 0).replace(/[^0-9]/g, ""), 10) || 0);
+        const minStoreStock = Math.max(0, parseInt(String(minStoreStockRaw || 1).replace(/[^0-9]/g, ""), 10) || 1);
+        const minStock = Math.max(0, parseInt(String(minStockRaw || 2).replace(/[^0-9]/g, ""), 10) || 2);
 
         const barcode = barcodeRaw ? String(barcodeRaw).trim() : null;
         const sku = skuRaw ? String(skuRaw).trim().toUpperCase() : null;
@@ -248,7 +316,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
       }
 
       setParsedData({
-        totalRows: rawRows.length,
+        totalRows: validRowsWithIndex.length,
         uniqueProductsCount: groupedProducts.length,
         totalVariantsCount,
         totalStockUnits,
@@ -804,10 +872,9 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                       {parsedData.items.map((item, pIdx) => {
-                        const productTotalStock = item.variants.reduce(
-                          (acc, v) => acc + (v.stockStore || 0) + (v.stockWarehouse || 0),
-                          0
-                        );
+                        const storeStock = item.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
+                        const warehouseStock = item.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
+                        const productTotalStock = storeStock + warehouseStock;
 
                         return (
                           <tr key={pIdx} className="hover:bg-slate-50/60">
@@ -848,6 +915,9 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                             <td className="py-2.5 px-3 text-right">
                               <span className="inline-flex items-center gap-1 font-bold font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs">
                                 +{productTotalStock} un.
+                              </span>
+                              <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                                {storeStock} salón · {warehouseStock} dep.
                               </span>
                             </td>
                           </tr>
