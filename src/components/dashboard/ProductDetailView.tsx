@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft,
   Package,
@@ -27,35 +27,142 @@ import {
   Edit3,
   Trash2,
   RefreshCw,
+  ArrowRightLeft,
+  PackagePlus,
+  PlusCircle,
+  MinusCircle,
+  RotateCcw,
+  Clock,
+  Building2,
+  Store,
+  History,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { DetailedProductItem, SizeConversion } from "./types";
+import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
 import { ProductFormModal } from "./ProductFormModal";
-import { toggleProductActive, deleteProduct } from "@/server/actions/productActions";
+import { StockAdjustmentModal } from "./StockAdjustmentModal";
+import {
+  toggleProductActive,
+  deleteProduct,
+  getProductById,
+} from "@/server/actions/productActions";
+import { getProductMovements } from "@/server/actions/inventoryActions";
 
 interface ProductDetailViewProps {
   product: DetailedProductItem;
   onBack: () => void;
   onDeleteSuccess?: (deletedId: string) => void;
+  onProductUpdate?: (updatedProduct: DetailedProductItem) => void;
 }
 
 const TABS = [
   { id: "overview", label: "Visión general" },
   { id: "details", label: "Detalles" },
   { id: "variants", label: "Variantes" },
+  { id: "movements", label: "Movimientos & Auditoría" },
   { id: "rates", label: "Tarifas" },
   { id: "size_guide", label: "Guía de Talles" },
 ];
 
-export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductDetailViewProps) {
+export function ProductDetailView({
+  product: initialProduct,
+  onBack,
+  onDeleteSuccess,
+  onProductUpdate,
+}: ProductDetailViewProps) {
+  const [product, setProduct] = useState<DetailedProductItem>(initialProduct);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    const handleConfirmDelete = async () => {
+  // Estados para historial de movimientos
+  const [movements, setMovements] = useState<InventoryMovementItem[]>([]);
+  const [isLoadingMovements, setIsLoadingMovements] = useState(false);
+  const [movementsError, setMovementsError] = useState<string | null>(null);
+
+  // Sincronizar producto si cambia el prop inicial
+  useEffect(() => {
+    setProduct(initialProduct);
+  }, [initialProduct]);
+
+  // Cargar movimientos de inventario desde el servidor
+  const loadMovements = useCallback(async () => {
+    if (!product.id) return;
+    setIsLoadingMovements(true);
+    setMovementsError(null);
+    try {
+      const res = await getProductMovements(product.id);
+      if (res.success && res.data) {
+        setMovements(res.data);
+      } else {
+        setMovementsError(res.error || "No se pudo cargar el historial de movimientos");
+      }
+    } catch (err) {
+      console.error("Error al cargar movimientos:", err);
+      setMovementsError("Error al conectar con el servidor");
+    } finally {
+      setIsLoadingMovements(false);
+    }
+  }, [product.id]);
+
+  // Cargar movimientos al cambiar a la pestaña de auditoría o al montar
+  useEffect(() => {
+    if (activeTab === "movements" || activeTab === "overview") {
+      loadMovements();
+    }
+  }, [activeTab, loadMovements]);
+
+  // Refrescar datos del producto y movimientos tras un ajuste
+  // Refrescar datos del producto y movimientos tras un ajuste
+  const handleStockActionSuccess = async () => {
+    try {
+      const res = await getProductById(product.id);
+      if (res.success && res.data) {
+        const updatedVariants = res.data.variants.map((v: any) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          barcode: v.barcode || "",
+          sku: v.sku || "",
+          stockStore: v.stockStore,
+          stockWarehouse: v.stockWarehouse,
+          price: v.price !== null && v.price !== undefined ? Number(v.price) : null,
+          receivedCount: v.receivedCount,
+          soldCountStore: v.soldCountStore,
+          soldCountWeb: v.soldCountWeb,
+        }));
+
+        const totalStore = updatedVariants.reduce((sum: number, v: any) => sum + (v.stockStore || 0), 0);
+        const totalWarehouse = updatedVariants.reduce((sum: number, v: any) => sum + (v.stockWarehouse || 0), 0);
+
+        const updatedDetailedProduct: DetailedProductItem = {
+          ...product,
+          price: Number(res.data.price),
+          costPrice: Number(res.data.costPrice),
+          name: res.data.name,
+          description: res.data.description || "",
+          imageUrl: res.data.imageUrl || undefined,
+          variants: updatedVariants,
+          stockLocal: totalStore,
+          stockWeb: totalWarehouse,
+        };
+
+        setProduct(updatedDetailedProduct);
+        if (onProductUpdate) {
+          onProductUpdate(updatedDetailedProduct);
+        }
+      }
+    } catch (err) {
+      console.error("Error al refrescar producto tras ajuste:", err);
+    }
+    loadMovements();
+  };
+
+  const handleConfirmDelete = async () => {
     try {
       setIsDeleting(true);
       setDeleteError(null);
@@ -135,6 +242,15 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
 
           {/* Right: Quick Actions */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start lg:justify-end shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+            <button
+              onClick={() => setIsStockModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap"
+              title="Registrar ingresos, egresos, ajustes o traslados internos de stock"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+              <span>Ajustar Stock / Traslado</span>
+            </button>
+
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-xl transition-all border border-lime-400 shadow-2xs active:scale-95 whitespace-nowrap"
@@ -380,9 +496,32 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
                     </div>
                     <div className="text-right">
                       <span className="text-[10.5px] text-slate-500 font-medium">Precio de Venta</span>
-                      <div className="text-sm font-bold text-slate-900">
-                        {formatCurrency(product.price)}
-                      </div>
+                      {(() => {
+                        const variantPrices = product.variants
+                          ? product.variants.map((v) => v.price ?? product.price).filter((p) => p > 0)
+                          : [];
+                        if (variantPrices.length > 1) {
+                          const minP = Math.min(...variantPrices);
+                          const maxP = Math.max(...variantPrices);
+                          if (minP !== maxP) {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className="text-xs font-bold text-slate-900">
+                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                </span>
+                                <span className="text-[10px] text-emerald-700 font-semibold">
+                                  Varía por talle
+                                </span>
+                              </div>
+                            );
+                          }
+                        }
+                        return (
+                          <div className="text-sm font-bold text-slate-900">
+                            {formatCurrency(product.price)}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -427,6 +566,7 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
                         <th className="py-3 px-4">Color</th>
                         <th className="py-3 px-3">Talle</th>
                         <th className="py-3 px-3 font-mono">Cód. de Barra</th>
+                        <th className="py-3 px-3 text-right">Precio Venta</th>
                         <th className="py-3 px-3 text-center">Stock Tienda</th>
                         <th className="py-3 px-3 text-center">Stock Depósito</th>
                         <th className="py-3 px-3 text-center">Recibido</th>
@@ -440,6 +580,7 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
                         const isLowStore = (v.stockStore || 0) <= 2;
                         const vReceived = v.receivedCount ?? (variantTotal * 3 + 25);
                         const vSold = (v.soldCountStore || 0) + (v.soldCountWeb || 0) || Math.floor(vReceived * 0.7);
+                        const variantPrice = v.price ?? product.price;
 
                         return (
                           <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
@@ -461,6 +602,11 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
                             {/* Código de Barra */}
                             <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
                               {v.barcode || `${product.barcode}-${v.size}`}
+                            </td>
+
+                            {/* Precio Venta */}
+                            <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-900 text-xs">
+                              {formatCurrency(variantPrice)}
                             </td>
 
                             {/* Stock Tienda (Saavedra 241) */}
@@ -624,24 +770,333 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
 
         {activeTab === "variants" && (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4 animate-in fade-in-50">
-            <h2 className="text-base font-bold text-slate-900">Administrador de Variantes</h2>
-            <p className="text-xs text-slate-500">Control individual de códigos de barra por talle y color.</p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Administrador de Variantes</h2>
+                <p className="text-xs text-slate-500">Control individual de códigos de barra por talle y color.</p>
+              </div>
+              <button
+                onClick={() => setIsStockModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-xl transition-colors border border-emerald-300"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-800" />
+                <span>Ajustar Stock</span>
+              </button>
+            </div>
             <div className="space-y-2">
-              {product.variants.map((v, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-900 bg-white px-2 py-1 rounded border border-slate-200">
-                      Talle {v.size}
-                    </span>
-                    <span className="font-medium text-slate-700">{v.color}</span>
-                    <span className="font-mono text-slate-400 text-[11px]">{v.barcode}</span>
+              {product.variants.map((v, i) => {
+                const variantPrice = v.price ?? product.price;
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs flex-wrap gap-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                        Talle {v.size}
+                      </span>
+                      <span className="font-semibold text-slate-700">{v.color}</span>
+                      {v.barcode && (
+                        <span className="font-mono text-slate-400 text-[11px] bg-slate-100 px-2 py-0.5 rounded">
+                          {v.barcode}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {/* Precio de la variante */}
+                      <div className="flex items-center">
+                        <span className="font-bold text-slate-900 text-xs">
+                          {formatCurrency(variantPrice)}
+                        </span>
+                      </div>
+
+                      {/* Stocks */}
+                      <div className="flex items-center gap-3 border-l border-slate-200 pl-3">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <Store className="w-3 h-3" />
+                          Salón: {v.stockStore} un.
+                        </span>
+                        <span className="text-slate-600 font-medium">
+                          Depósito: {v.stockWarehouse} un.
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-emerald-700 font-semibold">Salón: {v.stockStore} un.</span>
-                    <span className="text-slate-600 font-medium">Depósito: {v.stockWarehouse} un.</span>
-                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* PESTAÑA: MOVIMIENTOS Y AUDITORÍA DE STOCK (RF-03) */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === "movements" && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden animate-in fade-in-50">
+            {/* Header de la sección de auditoría */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <History className="w-4 h-4 text-emerald-600" />
+                  <span>Historial y Auditoría de Movimientos</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Trazabilidad de entradas, salidas, traslados y ajustes bajo transacciones atómicas.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => loadMovements()}
+                  disabled={isLoadingMovements}
+                  className="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors disabled:opacity-50"
+                  title="Refrescar auditoría"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMovements ? "animate-spin text-emerald-600" : ""}`} />
+                </button>
+
+                <button
+                  onClick={() => setIsStockModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-xl transition-all border border-lime-400 shadow-2xs active:scale-95"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Registrar Movimiento</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Error al cargar movimientos */}
+            {movementsError && (
+              <div className="m-5 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{movementsError}</span>
+              </div>
+            )}
+
+            {/* Estado de carga */}
+            {isLoadingMovements && movements.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 space-y-2">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
+                <p className="text-xs font-medium">Cargando registros de auditoría...</p>
+              </div>
+            ) : movements.length === 0 ? (
+              /* Estado Vacío */
+              <div className="p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <History className="w-6 h-6" />
                 </div>
-              ))}
+                <h3 className="text-sm font-bold text-slate-800">
+                  No hay movimientos registrados para este producto
+                </h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Los ingresos por compras, traslados entre depósito y mostrador o ventas se auditarán automáticamente aquí.
+                </p>
+                <button
+                  onClick={() => setIsStockModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                  <span>Realizar primer ajuste / traslado</span>
+                </button>
+              </div>
+            ) : (
+              /* Tabla de Trazabilidad */
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Fecha y Hora</th>
+                      <th className="py-3 px-4">Tipo de Movimiento</th>
+                      <th className="py-3 px-3">Variante</th>
+                      <th className="py-3 px-3">Ubicación</th>
+                      <th className="py-3 px-3 text-center">Variación</th>
+                      <th className="py-3 px-3 text-center">Stock Post.</th>
+                      <th className="py-3 px-4">Motivo / Justificación</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {movements.map((m) => {
+                      const isPositive =
+                        m.type === "INGRESO_COMPRA" ||
+                        m.type === "INGRESO_INICIAL" ||
+                        m.type === "AJUSTE_INGRESO" ||
+                        m.type === "DEVOLUCION_CLIENTE" ||
+                        m.type === "ANULACION_VENTA";
+                      const isTransfer = m.type === "TRANSFERENCIA_INTERNA";
+
+                      const dateObj = new Date(m.createdAt);
+                      const formattedDate = dateObj.toLocaleDateString("es-AR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      });
+                      const formattedTime = dateObj.toLocaleTimeString("es-AR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* Fecha / Hora */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{formattedDate}</span>
+                              <span className="text-slate-400 font-normal text-[11px]">{formattedTime} hs</span>
+                            </div>
+                          </td>
+
+                          {/* Tipo de Operación con Badge */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {(() => {
+                              switch (m.type) {
+                                case "TRANSFERENCIA_INTERNA":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                      <ArrowRightLeft className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>Traslado a Salón</span>
+                                    </span>
+                                  );
+                                case "INGRESO_COMPRA":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      <PackagePlus className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>Ingreso Compra</span>
+                                    </span>
+                                  );
+                                case "INGRESO_INICIAL":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                                      <Boxes className="w-3 h-3 text-slate-600 shrink-0" />
+                                      <span>Carga Inicial</span>
+                                    </span>
+                                  );
+                                case "AJUSTE_INGRESO":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                      <PlusCircle className="w-3 h-3 text-teal-600 shrink-0" />
+                                      <span>Ajuste Conteo (+)</span>
+                                    </span>
+                                  );
+                                case "AJUSTE_EGRESO":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                                      <MinusCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Merma / Egreso (-)</span>
+                                    </span>
+                                  );
+                                case "DEVOLUCION_CLIENTE":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                      <RotateCcw className="w-3 h-3 text-amber-600 shrink-0" />
+                                      <span>Devolución Cliente</span>
+                                    </span>
+                                  );
+                                case "VENTA_MOSTRADOR":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                      <Store className="w-3 h-3 text-indigo-600 shrink-0" />
+                                      <span>Venta Mostrador</span>
+                                    </span>
+                                  );
+                                case "VENTA_WEB":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                                      <Globe className="w-3 h-3 text-purple-600 shrink-0" />
+                                      <span>Venta Web</span>
+                                    </span>
+                                  );
+                                case "ANULACION_VENTA":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-orange-50 text-orange-800 border border-orange-200">
+                                      <RotateCcw className="w-3 h-3 text-orange-600 shrink-0" />
+                                      <span>Anulación Venta</span>
+                                    </span>
+                                  );
+                                default:
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-700">
+                                      {m.type}
+                                    </span>
+                                  );
+                              }
+                            })()}
+                          </td>
+
+                          {/* Variante */}
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                              Talle {m.variantSize || "Único"}
+                            </span>
+                            {m.variantColor && (
+                              <span className="text-slate-500 text-[11px] ml-1.5">
+                                ({m.variantColor})
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Ubicación */}
+                          <td className="py-3 px-3 whitespace-nowrap text-[11px]">
+                            {m.location === "STORE" ? (
+                              <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                <Store className="w-3 h-3" />
+                                <span>Salón Saavedra</span>
+                              </span>
+                            ) : m.location === "WAREHOUSE" ? (
+                              <span className="text-slate-700 font-medium flex items-center gap-1">
+                                <Building2 className="w-3 h-3 text-slate-400" />
+                                <span>Depósito</span>
+                              </span>
+                            ) : m.location === "WAREHOUSE_TO_STORE" ? (
+                              <span className="text-blue-700 font-medium flex items-center gap-1">
+                                <ArrowRightLeft className="w-3 h-3" />
+                                <span>Depósito ➔ Salón</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">General</span>
+                            )}
+                          </td>
+
+                          {/* Variación */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <span
+                              className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
+                                isTransfer
+                                  ? "bg-blue-100 text-blue-800"
+                                  : isPositive
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {isTransfer ? `🔄 ${m.quantity}` : isPositive ? `+${m.quantity}` : `-${m.quantity}`} un.
+                            </span>
+                          </td>
+
+                          {/* Stock Posterior Resultante */}
+                          <td className="py-3 px-3 text-center font-bold text-slate-800 text-[11.5px]">
+                            {m.stockAfter} un.
+                          </td>
+
+                          {/* Motivo */}
+                          <td className="py-3 px-4 text-slate-600 text-xs max-w-xs truncate" title={m.reason || ""}>
+                            {m.reason || <span className="text-slate-300 italic">Sin observaciones</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Footer de Auditoría */}
+            <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Registros auditados en tiempo real con PostgreSQL.</span>
+              <span className="font-semibold text-slate-700">
+                Total de movimientos: {movements.length}
+              </span>
             </div>
           </div>
         )}
@@ -663,9 +1118,71 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
               <div className="p-4 rounded-xl bg-slate-900 text-white">
                 <span className="text-xs text-slate-400 font-medium">Precio Venta Público</span>
                 <div className="text-lg font-bold text-[#c2f25b] mt-1">{formatCurrency(product.price)}</div>
-                <span className="text-[10px] text-slate-300">Precio final en mostrador</span>
+                <span className="text-[10px] text-slate-300">Precio final base en mostrador</span>
               </div>
             </div>
+
+            {/* Desglose si existen precios diferenciales por variante */}
+            {product.variants.some((v) => v.price && v.price !== product.price) && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Desglose de Precios por Talle / Variante
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Variantes con tarifas diferenciadas respecto al precio base de {formatCurrency(product.price)}.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-3">Variante</th>
+                        <th className="p-3">Color</th>
+                        <th className="p-3">Precio Venta</th>
+                        <th className="p-3">Margen vs Costo</th>
+                        <th className="p-3">Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {product.variants.map((v, i) => {
+                        const effPrice = v.price ?? product.price;
+                        const vMargin = effPrice - product.costPrice;
+                        const vMarginPct =
+                          product.costPrice > 0
+                            ? ((vMargin / product.costPrice) * 100).toFixed(1)
+                            : "0.0";
+                        const isDiff = Boolean(v.price && v.price !== product.price);
+
+                        return (
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-900">Talle {v.size}</td>
+                            <td className="p-3 text-slate-600 font-medium">{v.color}</td>
+                            <td className="p-3 font-bold text-slate-900">
+                              {formatCurrency(effPrice)}
+                            </td>
+                            <td className="p-3 text-emerald-700 font-semibold">
+                              +{vMarginPct}% ({formatCurrency(vMargin)})
+                            </td>
+                            <td className="p-3">
+                              {isDiff ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Diferencial
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  Base
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -707,9 +1224,17 @@ export function ProductDetailView({ product, onBack, onDeleteSuccess }: ProductD
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={() => {
           setIsEditModalOpen(false);
-          onBack();
+          handleStockActionSuccess();
         }}
         productToEdit={product}
+      />
+
+      {/* Modal de Control y Ajustes de Stock (RF-03) */}
+      <StockAdjustmentModal
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+        product={product}
+        onSuccess={handleStockActionSuccess}
       />
 
       {/* Modal de Confirmación para Dar de Baja Lógica */}

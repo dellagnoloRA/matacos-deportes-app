@@ -26,6 +26,7 @@ import {
   ChevronRight,
   LayoutGrid,
   Table as TableIcon,
+  Store,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
@@ -156,18 +157,28 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
     salesStoreTotal: 180,
     salesWebTotal: 95,
     variants: [
-      { size: "36", color: "Negro", stockStore: 4, stockWarehouse: 6, barcode: "779123456704-36", receivedCount: 160, soldCountStore: 32, soldCountWeb: 18 },
-      { size: "38", color: "Negro", stockStore: 6, stockWarehouse: 8, barcode: "779123456704-38", receivedCount: 180, soldCountStore: 38, soldCountWeb: 20 },
-      { size: "40", color: "Negro", stockStore: 8, stockWarehouse: 12, barcode: "779123456704-40", receivedCount: 200, soldCountStore: 45, soldCountWeb: 24 },
-      { size: "42", color: "Negro", stockStore: 8, stockWarehouse: 10, barcode: "779123456704-42", receivedCount: 190, soldCountStore: 40, soldCountWeb: 21 },
-      { size: "44", color: "Negro", stockStore: 4, stockWarehouse: 5, barcode: "779123456704-44", receivedCount: 160, soldCountStore: 25, soldCountWeb: 12 },
+      { size: "4/6 (36)", color: "Negro", stockStore: 4, stockWarehouse: 6, barcode: "779123456704-36", receivedCount: 160, soldCountStore: 32, soldCountWeb: 18 },
+      { size: "5/7 (37)", color: "Negro", stockStore: 5, stockWarehouse: 7, barcode: "779123456704-37", receivedCount: 170, soldCountStore: 35, soldCountWeb: 19 },
+      { size: "6/8 (38)", color: "Negro", stockStore: 6, stockWarehouse: 8, barcode: "779123456704-38", receivedCount: 180, soldCountStore: 38, soldCountWeb: 20 },
+      { size: "7/9 (39)", color: "Negro", stockStore: 7, stockWarehouse: 9, barcode: "779123456704-39", receivedCount: 190, soldCountStore: 40, soldCountWeb: 22 },
+      { size: "8/10 (40)", color: "Negro", stockStore: 8, stockWarehouse: 12, barcode: "779123456704-40", receivedCount: 200, soldCountStore: 45, soldCountWeb: 24 },
+      { size: "9/11 (41)", color: "Negro", stockStore: 6, stockWarehouse: 9, barcode: "779123456704-41", receivedCount: 175, soldCountStore: 36, soldCountWeb: 19 },
+      { size: "10/12 (42)", color: "Negro", stockStore: 8, stockWarehouse: 10, barcode: "779123456704-42", receivedCount: 190, soldCountStore: 40, soldCountWeb: 21 },
+      { size: "M11 (43)", color: "Negro", stockStore: 5, stockWarehouse: 6, barcode: "779123456704-43", receivedCount: 165, soldCountStore: 28, soldCountWeb: 14 },
+      { size: "M12 (44)", color: "Negro", stockStore: 4, stockWarehouse: 5, barcode: "779123456704-44", receivedCount: 160, soldCountStore: 25, soldCountWeb: 12 },
+      { size: "M13 (45)", color: "Negro", stockStore: 3, stockWarehouse: 4, barcode: "779123456704-45", receivedCount: 140, soldCountStore: 20, soldCountWeb: 10 },
     ],
     sizeConversions: [
-      { ar: "36 AR", us: "M4/W6 US", eu: "36-37 EU", br: "35 BR", cm: "22.9 cm", note: "Roomy Fit" },
-      { ar: "38 AR", us: "M6/W8 US", eu: "38-39 EU", br: "37 BR", cm: "24.6 cm", note: "Roomy Fit" },
-      { ar: "40 AR", us: "M8/W10 US", eu: "41-42 EU", br: "39 BR", cm: "26.3 cm", note: "Roomy Fit" },
-      { ar: "42 AR", us: "M10/W12 US", eu: "43-44 EU", br: "41 BR", cm: "28.0 cm", note: "Roomy Fit" },
-      { ar: "44 AR", us: "M12 US", eu: "46-47 EU", br: "43 BR", cm: "29.7 cm", note: "Roomy Fit" },
+      { ar: "4/6 (36 AR)", us: "M4/W6 US", eu: "36-37 EU", br: "34-35 BR", cm: "22.5 cm", note: "Dual sizing estándar" },
+      { ar: "5/7 (37 AR)", us: "M5/W7 US", eu: "37-38 EU", br: "35-36 BR", cm: "23.5 cm", note: "Dual sizing estándar" },
+      { ar: "6/8 (38 AR)", us: "M6/W8 US", eu: "38-39 EU", br: "36-37 BR", cm: "24.5 cm", note: "Dual sizing estándar" },
+      { ar: "7/9 (39 AR)", us: "M7/W9 US", eu: "39-40 EU", br: "37-38 BR", cm: "25.5 cm", note: "Dual sizing estándar" },
+      { ar: "8/10 (40 AR)", us: "M8/W10 US", eu: "41-42 EU", br: "39-40 BR", cm: "26.5 cm", note: "Dual sizing estándar" },
+      { ar: "9/11 (41 AR)", us: "M9/W11 US", eu: "42-43 EU", br: "40-41 BR", cm: "27.5 cm", note: "Dual sizing estándar" },
+      { ar: "10/12 (42 AR)", us: "M10/W12 US", eu: "43-44 EU", br: "41-42 BR", cm: "28.0 cm", note: "Dual sizing estándar" },
+      { ar: "M11 (43 AR)", us: "M11 US", eu: "45-46 EU", br: "43 BR", cm: "29.0 cm", note: "Calce amplio" },
+      { ar: "M12 (44 AR)", us: "M12 US", eu: "46-47 EU", br: "44 BR", cm: "30.0 cm", note: "Calce amplio" },
+      { ar: "M13 (45 AR)", us: "M13 US", eu: "47-48 EU", br: "45 BR", cm: "31.0 cm", note: "Calce amplio" },
     ],
   },
   {
@@ -641,6 +652,10 @@ export function InventoryView({
     return (
       <ProductDetailView
         product={selectedProduct}
+        onProductUpdate={(updated) => {
+          setProductsList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          setSelectedProduct(updated);
+        }}
         onBack={() => {
           setSelectedProduct(null);
           onProductChange?.(null);
@@ -949,11 +964,55 @@ export function InventoryView({
               </div>
 
               {/* Price and Barcode */}
+              {/* Price, Stock and Barcode */}
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
                 <div>
                   <span className="text-[10px] text-slate-400 block">Precio Venta</span>
-                  <span className="font-bold text-slate-900 text-xs">
-                    {formatCurrency(item.price)}
+                  {(() => {
+                    const matchedVar = getMatchedVariant(item, searchQuery);
+                    if (matchedVar && matchedVar.price) {
+                      return (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900 text-xs">
+                            {formatCurrency(matchedVar.price)}
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-semibold">
+                            Talle {matchedVar.size}
+                          </span>
+                        </div>
+                      );
+                    }
+                    const variantPrices = item.variants
+                      ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
+                      : [];
+                    if (variantPrices.length > 1) {
+                      const minP = Math.min(...variantPrices);
+                      const maxP = Math.max(...variantPrices);
+                      if (minP !== maxP) {
+                        return (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 text-xs">
+                              {formatCurrency(minP)} – {formatCurrency(maxP)}
+                            </span>
+                            <span className="text-[10px] text-emerald-700 font-medium">
+                              Precios por talle
+                            </span>
+                          </div>
+                        );
+                      }
+                    }
+                    return (
+                      <span className="font-bold text-slate-900 text-xs">
+                        {formatCurrency(item.price)}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="text-center">
+                  <span className="text-[10px] text-slate-400 block">Stock Local</span>
+                  <span className={`inline-flex items-center gap-1 font-bold text-xs ${item.stockLocal > 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                    <Store className="w-3 h-3" />
+                    {item.stockLocal > 0 ? `${item.stockLocal} un.` : "Sin stock"}
                   </span>
                 </div>
                 <div className="text-right">
@@ -1029,7 +1088,7 @@ export function InventoryView({
                 <th className="py-3 px-5 min-w-[240px] bg-slate-50">PRODUCTO / MARCA</th>
                 <th className="py-3 px-4 min-w-[130px] bg-slate-50">DISCIPLINA</th>
                 <th className="py-3 px-4 min-w-[120px] bg-slate-50">PRECIO VENTA</th>
-                <th className="py-3 px-4 min-w-[130px] bg-slate-50">FECHA REGISTRO</th>
+                <th className="py-3 px-4 min-w-[140px] bg-slate-50">STOCK LOCAL</th>
                 <th className="py-3 px-4 min-w-[150px] bg-slate-50">CÓD. BARRA / SKU</th>
                 <th className="py-3 px-5 min-w-[140px] text-right sticky right-0 bg-slate-50 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]">ACCIÓN</th>
               </tr>
@@ -1118,13 +1177,91 @@ export function InventoryView({
                     </td>
 
                     {/* 3. Sale Price */}
-                    <td className="py-4 px-4 whitespace-nowrap font-bold text-slate-900 text-xs min-w-[120px]">
-                      {formatCurrency(item.price)}
+                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                      {(() => {
+                        const matchedVar = getMatchedVariant(item, searchQuery);
+                        if (matchedVar && matchedVar.price) {
+                          return (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-900 text-xs">
+                                {formatCurrency(matchedVar.price)}
+                              </span>
+                              <span className="text-[10px] text-emerald-700 font-semibold">
+                                Talle {matchedVar.size}
+                              </span>
+                            </div>
+                          );
+                        }
+                        const variantPrices = item.variants
+                          ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
+                          : [];
+                        if (variantPrices.length > 1) {
+                          const minP = Math.min(...variantPrices);
+                          const maxP = Math.max(...variantPrices);
+                          if (minP !== maxP) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                </span>
+                                <span className="text-[10px] text-emerald-700 font-medium">
+                                  Precios por talle
+                                </span>
+                              </div>
+                            );
+                          }
+                        }
+                        return (
+                          <span className="font-bold text-slate-900 text-xs">
+                            {formatCurrency(item.price)}
+                          </span>
+                        );
+                      })()}
                     </td>
 
-                    {/* 4. Registration Date */}
-                    <td className="py-4 px-4 whitespace-nowrap text-slate-500 text-[11.5px] min-w-[130px]">
-                      {item.updatedAt}
+                    {/* 4. Stock Disponible en Local (Saavedra 241) */}
+                    <td className="py-4 px-4 whitespace-nowrap min-w-[140px]">
+                      {(() => {
+                        const matchedVar = getMatchedVariant(item, searchQuery);
+                        const displayStock = matchedVar
+                          ? matchedVar.stockStore
+                          : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+
+                        if (displayStock === 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                              <span>Sin stock</span>
+                            </span>
+                          );
+                        }
+
+                        if (displayStock <= (item.minStock || 3)) {
+                          return (
+                            <div className="flex flex-col">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
+                                <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>{displayStock} un.</span>
+                              </span>
+                              <span className="text-[10px] text-amber-700 font-medium mt-0.5">Stock bajo</span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-col">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                              <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{displayStock} un.</span>
+                            </span>
+                            {matchedVar ? (
+                              <span className="text-[10px] text-slate-400 mt-0.5">Talle {matchedVar.size}</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 mt-0.5">Saavedra 241</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* 5. Barcode / SKU */}
