@@ -77,6 +77,7 @@ export interface ProductVariantItem {
   sku?: string;
   stockStore: number; // Salón Saavedra 241
   stockWarehouse: number; // Depósito Central Formosa
+  price?: number | null; // Precio específico o diferencial si difiere del precio base
   receivedCount?: number;
   soldCountStore?: number;
   soldCountWeb?: number;
@@ -106,5 +107,19 @@ export interface DetailedProductItem {
   salesWebTotal?: number;
   variants: ProductVariantItem[];
   sizeConversions?: SizeConversion[];
+}
+
+export interface InventoryMovementItem {
+  id: string;
+  variantId: string;
+  variantSize?: string;
+  variantColor?: string;
+  variantSku?: string;
+  type: string;
+  quantity: number;
+  stockAfter: number;
+  location: string | null;
+  reason: string | null;
+  createdAt: string | Date;
 }
 

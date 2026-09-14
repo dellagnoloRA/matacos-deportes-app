@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   X,
   Plus,
@@ -52,7 +52,7 @@ interface FormVariant {
   stockStore: number;
   stockWarehouse: number;
   minStock: number;
-  price?: number;
+  price?: number | "";
 }
 
 export function ProductFormModal({
@@ -95,6 +95,7 @@ export function ProductFormModal({
       stockStore: 1,
       stockWarehouse: 0,
       minStock: 2,
+      price: "",
     },
   ]);
 
@@ -157,6 +158,16 @@ export function ProductFormModal({
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  // Temporizador para auto-ocultar mensajes emergentes flotantes a los 5 segundos
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
 
   // Procesar archivo seleccionado
   const processSelectedFile = (file: File) => {
@@ -258,6 +269,7 @@ export function ProductFormModal({
             stockStore: v.stockStore,
             stockWarehouse: v.stockWarehouse,
             minStock: 2,
+            price: v.price !== null && v.price !== undefined ? Number(v.price) : "",
           }))
         );
       }
@@ -283,6 +295,7 @@ export function ProductFormModal({
           stockStore: 1,
           stockWarehouse: 0,
           minStock: 2,
+          price: "",
         },
       ]);
       setErrorMessage(null);
@@ -314,6 +327,43 @@ export function ProductFormModal({
     }
   }, [productToEdit, disciplines, categories, brands, disciplineId, categoryId, brandId]);
 
+  // Detección contextual de Calzado y Crocs según Disciplina, Categoría o Marca
+  const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name || "";
+  const selectedDisciplineName = disciplines.find((d) => d.id === disciplineId)?.name || "";
+  const selectedBrandName = brands.find((b) => b.id === brandId)?.name || "";
+
+  const isCrocsOrFootwear = useMemo(() => {
+    const b = selectedBrandName.toLowerCase();
+    const d = selectedDisciplineName.toLowerCase();
+    const c = selectedCategoryName.toLowerCase();
+    const n = name.toLowerCase();
+
+    return (
+      b.includes("crocs") ||
+      d.includes("crocs") ||
+      c.includes("crocs") ||
+      d.includes("calzado") ||
+      c.includes("calzado") ||
+      n.includes("crocs") ||
+      n.includes("zapatilla") ||
+      n.includes("botin") ||
+      n.includes("zueco")
+    );
+  }, [selectedBrandName, selectedDisciplineName, selectedCategoryName, name]);
+
+  // Si cambia a disciplina/categoría/marca Crocs o Calzado y tiene variantes con "Único", se limpian a vacío
+  useEffect(() => {
+    if (isCrocsOrFootwear) {
+      setVariants((prev) =>
+        prev.map((v) =>
+          v.size.toLowerCase() === "único" || v.size.toLowerCase() === "unico"
+            ? { ...v, size: "" }
+            : v
+        )
+      );
+    }
+  }, [isCrocsOrFootwear]);
+
   // Calcular margen en tiempo real
   const costNum = typeof costPrice === "number" ? costPrice : 0;
   const priceNum = typeof price === "number" ? price : 0;
@@ -323,16 +373,20 @@ export function ProductFormModal({
 
   // Manejar variantes
   const handleAddVariant = () => {
+    const lastColor = variants[variants.length - 1]?.color || "Negro";
+    const lastPrice = variants[variants.length - 1]?.price !== undefined ? variants[variants.length - 1]?.price : "";
+
     setVariants((prev) => [
       ...prev,
       {
-        size: "M",
-        color: "Negro",
+        size: "",
+        color: lastColor,
         sku: "",
         barcode: "",
         stockStore: 1,
         stockWarehouse: 0,
         minStock: 2,
+        price: lastPrice,
       },
     ]);
   };
@@ -474,6 +528,24 @@ export function ProductFormModal({
     }
   };
 
+  // Manejador del campo Talle: en Crocs/Calzado impide letras en tiempo real y alerta al usuario
+  const handleSizeChange = (index: number, rawValue: string) => {
+    let cleanValue = rawValue;
+
+    if (isCrocsOrFootwear) {
+      // Si el usuario intenta escribir letras
+      if (/[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/.test(rawValue)) {
+        setErrorMessage(
+          "Para la disciplina Crocs no se permiten talles en letras. Ingrese únicamente números (ej. 38, 40 o 4/6 (36))."
+        );
+        // Filtrar y eliminar cualquier letra ingresada, permitiendo números y caracteres de formato (/, (), -, espacio)
+        cleanValue = rawValue.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, "");
+      }
+    }
+
+    handleVariantChange(index, "size", cleanValue);
+  };
+
   // Enviar formulario (Guardar o Actualizar)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -538,6 +610,29 @@ export function ProductFormModal({
       return;
     }
 
+    // Validación estricta para Calzado y Crocs: no permitir 'Talle Único' ni solo letras (ej. S, M, L)
+    if (isCrocsOrFootwear) {
+      const invalidVariant = variants.find((v) => {
+        const sz = v.size.trim().toLowerCase();
+        if (!sz) return true;
+        const isUnico =
+          sz === "único" ||
+          sz === "unico" ||
+          sz === "u" ||
+          sz.includes("unico") ||
+          sz.includes("único");
+        const hasNumbers = /\d/.test(sz);
+        return isUnico || !hasNumbers;
+      });
+
+      if (invalidVariant) {
+        setErrorMessage(
+          `Para la disciplina Crocs no se permite "Talle Único" ni letras. El talle "${invalidVariant.size || "vacío"}" debe contener números (ej. 38, 40 o 4/6 (36)).`
+        );
+        return;
+      }
+    }
+
     setFieldErrors({});
 
     setIsSubmitting(true);
@@ -585,6 +680,7 @@ export function ProductFormModal({
           stockWarehouse: Number(v.stockWarehouse) || 0,
           minStoreStock: 1,
           minStock: Number(v.minStock) || 2,
+          price: v.price !== "" && v.price !== undefined && Number(v.price) > 0 ? Number(v.price) : null,
         };
       });
 
@@ -648,7 +744,7 @@ export function ProductFormModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
       <div
-        className="bg-white w-full max-w-3xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
+        className="relative bg-white w-full max-w-3xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
@@ -1213,17 +1309,14 @@ export function ProductFormModal({
               <div>
                 <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2 text-[11px]">
                   <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                  Variantes de Producto (Talles, Colores y Stock)
+                  Variantes de Producto (Talles, Colores, Precios y Stock)
                 </h3>
-                <p className="text-[11px] text-slate-400">
-                  Administra las combinaciones de talle, color, código de barra y stock en salón/depósito.
-                </p>
               </div>
 
               <button
                 type="button"
                 onClick={handleAddVariant}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors"
+                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Agregar Talle
@@ -1234,17 +1327,18 @@ export function ProductFormModal({
               {variants.map((variant, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 grid grid-cols-2 sm:grid-cols-6 gap-2.5 items-end"
+                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 grid grid-cols-2 sm:grid-cols-7 gap-2 items-end"
                 >
+                  {/* 1. Talle */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Talle
+                      Talle <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={variant.size}
-                      onChange={(e) => handleVariantChange(idx, "size", e.target.value)}
-                      placeholder="41 / M / Único"
+                      onChange={(e) => handleSizeChange(idx, e.target.value)}
+                      placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
                       className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
                         fieldErrors[`variant_${idx}_size`]
                           ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
@@ -1253,9 +1347,10 @@ export function ProductFormModal({
                     />
                   </div>
 
+                  {/* 2. Color */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Color
+                      Color <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1270,6 +1365,30 @@ export function ProductFormModal({
                     />
                   </div>
 
+                  {/* 3. Precio Variante (Opcional / Diferencial) */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between" title="Precio específico para esta variante si varía del precio base">
+                      <span>Precio</span>
+                      <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={variant.price !== undefined ? variant.price : ""}
+                      onChange={(e) =>
+                        handleVariantChange(
+                          idx,
+                          "price",
+                          e.target.value === "" ? "" : Number(e.target.value)
+                        )
+                      }
+                      placeholder={priceNum > 0 ? `$ ${priceNum}` : "Base"}
+                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 placeholder:text-slate-300 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* 4. Cód. Barra */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Cód. Barra
@@ -1283,6 +1402,7 @@ export function ProductFormModal({
                     />
                   </div>
 
+                  {/* 5. Salón */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Salón
@@ -1298,6 +1418,7 @@ export function ProductFormModal({
                     />
                   </div>
 
+                  {/* 6. Depósito */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Depósito
@@ -1313,6 +1434,7 @@ export function ProductFormModal({
                     />
                   </div>
 
+                  {/* 7. Eliminar */}
                   <div className="flex justify-end">
                     {variants.length > 1 && (
                       <button
