@@ -19,6 +19,7 @@ import {
   Camera,
   RefreshCw,
   Check,
+  Wand2,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -35,6 +36,8 @@ import {
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
 import { slugify } from "@/lib/textUtils";
+import { generateEan13FromSequence, GS1_INTERNAL_PREFIX } from "@/lib/barcodeGenerator";
+import { generateInternalBarcodes } from "@/server/actions/barcodeActions";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -105,6 +108,7 @@ export function ProductFormModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [generatingBarcodeIndex, setGeneratingBarcodeIndex] = useState<number | null>(null);
 
   const fulfillFieldError = useCallback((fieldKey: string, messageKeyword?: string) => {
     setFieldErrors((prev) => {
@@ -411,6 +415,31 @@ export function ProductFormModal({
     });
     if (typeof value === "string" && value.trim().length > 0) {
       fulfillFieldError(`variant_${index}_${field}`, field === "size" ? "talle" : "color");
+    }
+  };
+
+  // Generar código EAN-13 correlativo oficial con prefijo GS1 200 (Circulación interna)
+  const handleGenerateInternalBarcode = async (variantIndex: number) => {
+    try {
+      setGeneratingBarcodeIndex(variantIndex);
+      let codeToUse = "";
+      try {
+        const res = await generateInternalBarcodes({ count: 1, prefix: GS1_INTERNAL_PREFIX });
+        if (res.success && res.barcodes.length > 0) {
+          codeToUse = res.barcodes[0];
+        }
+      } catch (err) {
+        console.warn("Utilizando generador local offline de códigos GS1 EAN-13:", err);
+      }
+
+      if (!codeToUse) {
+        const seed = (Math.floor(Date.now() / 1000) + variantIndex) % 900000000;
+        codeToUse = generateEan13FromSequence(seed, GS1_INTERNAL_PREFIX);
+      }
+
+      handleVariantChange(variantIndex, "barcode", codeToUse);
+    } finally {
+      setGeneratingBarcodeIndex(null);
     }
   };
 
@@ -1390,16 +1419,33 @@ export function ProductFormModal({
 
                   {/* 4. Cód. Barra */}
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Cód. Barra
-                    </label>
-                    <input
-                      type="text"
-                      value={variant.barcode}
-                      onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
-                      placeholder="779..."
-                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        Cód. Barra
+                      </label>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={variant.barcode}
+                        onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
+                        placeholder="779... o 200..."
+                        className="w-full bg-white pl-2.5 pr-7 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateInternalBarcode(idx)}
+                        disabled={generatingBarcodeIndex === idx}
+                        className="absolute right-1 p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
+                        title="Generar código interno GS1 (Prefijo 200)"
+                      >
+                        <Wand2
+                          className={`w-3.5 h-3.5 ${
+                            generatingBarcodeIndex === idx ? "animate-spin text-emerald-600" : ""
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   {/* 5. Salón */}

@@ -42,6 +42,7 @@ import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
 import { ProductFormModal } from "./ProductFormModal";
 import { StockAdjustmentModal, type OperationType } from "./StockAdjustmentModal";
+import { ThermalLabelPrintModal } from "./ThermalLabelPrintModal";
 import {
   toggleProductActive,
   deleteProduct,
@@ -81,6 +82,10 @@ export function ProductDetailView({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Estados para Impresión Térmica de Etiquetas (RF-05 / CU-INV-06)
+  const [isThermalPrintModalOpen, setIsThermalPrintModalOpen] = useState(false);
+  const [thermalPrintVariantId, setThermalPrintVariantId] = useState<string | undefined>(undefined);
 
   // Helper para abrir el modal en una operación y variante específica
   const handleOpenStockModal = (operation?: OperationType, variantId?: string) => {
@@ -327,11 +332,15 @@ export function ProductDetailView({
             </button>
 
             <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors border border-slate-200 active:scale-95 whitespace-nowrap"
+              onClick={() => {
+                setThermalPrintVariantId(undefined);
+                setIsThermalPrintModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors border border-slate-200 active:scale-95 whitespace-nowrap shadow-2xs"
+              title="Imprimir etiquetas térmicas adhesivas con código de barras (RF-05 / CU-INV-06)"
             >
               <Printer className="w-3.5 h-3.5 shrink-0" />
-              <span>Etiquetas 80mm</span>
+              <span>Imprimir Etiquetas</span>
             </button>
           </div>
         </div>
@@ -745,6 +754,19 @@ export function ProductDetailView({
                                   title={`⇄ Traslado Depósito ➔ Salón (Talle ${v.size} - ${v.color})`}
                                 >
                                   <ArrowRightLeft className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Botón 🖨️: Imprimir Etiqueta Térmica de esta variante (RF-05) */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setThermalPrintVariantId(v.barcode || v.sku || v.id);
+                                    setIsThermalPrintModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-950 border border-slate-200 transition-all active:scale-95 shadow-2xs"
+                                  title={`🖨️ Imprimir Etiqueta Térmica (Talle ${v.size} - ${v.color})`}
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -1399,6 +1421,26 @@ export function ProductDetailView({
         onSuccess={handleStockActionSuccess}
         initialOperationType={stockModalOperation}
         initialVariantId={stockModalVariantId}
+      />
+
+      {/* Modal de Impresión Térmica de Etiquetas (RF-05 / CU-INV-06) */}
+      <ThermalLabelPrintModal
+        isOpen={isThermalPrintModalOpen}
+        onClose={() => {
+          setIsThermalPrintModalOpen(false);
+          setThermalPrintVariantId(undefined);
+        }}
+        product={product}
+        initialVariantId={thermalPrintVariantId}
+        onVariantBarcodeAssigned={(varIdx, newBarcode) => {
+          setProduct((prev) => {
+            const updatedVars = [...prev.variants];
+            if (updatedVars[varIdx]) {
+              updatedVars[varIdx] = { ...updatedVars[varIdx], barcode: newBarcode };
+            }
+            return { ...prev, variants: updatedVars };
+          });
+        }}
       />
 
       {/* Modal de Confirmación para Dar de Baja Lógica */}
