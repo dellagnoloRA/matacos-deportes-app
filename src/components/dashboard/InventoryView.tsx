@@ -5,6 +5,7 @@ import {
   Search,
   Bell,
   ChevronDown,
+  ChevronUp,
   Filter,
   Plus,
   Package,
@@ -27,15 +28,24 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Store,
+  ArrowRightLeft,
+  PackagePlus,
+  MinusCircle,
+  Percent,
+  History,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
 import { ProductFormModal } from "./ProductFormModal";
+import { StockMovementModal, type OperationType } from "./StockMovementModal";
+import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
+import { PriceHistoryModal } from "./PriceHistoryModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
   deleteProduct,
+  getProductById,
 } from "@/server/actions/productActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
@@ -358,6 +368,63 @@ export function InventoryView({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: string; title: string; description?: string } | null>(null);
 
+  // Estados para Modal de Movimientos Manuales de Stock (RF-03 / CU-04)
+  const [stockModalProduct, setStockModalProduct] = useState<DetailedProductItem | null>(null);
+  const [stockModalOperation, setStockModalOperation] = useState<OperationType | undefined>(undefined);
+  const [stockModalVariantId, setStockModalVariantId] = useState<string | undefined>(undefined);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+
+  // Estados para Actualización Masiva de Precios (RF-01.1 / CU-INV-05)
+  const [isBatchPriceModalOpen, setIsBatchPriceModalOpen] = useState(false);
+  const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleSelectProduct = (productId: string, e?: React.MouseEvent | React.ChangeEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedProductIds(new Set());
+  };
+
+  // Estado para expandir filas de variantes en la tabla de inventario
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandProduct = (productId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenStockModal = (
+    product: DetailedProductItem,
+    operation?: OperationType,
+    variantId?: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    setStockModalProduct(product);
+    setStockModalOperation(operation);
+    setStockModalVariantId(variantId);
+    setIsStockModalOpen(true);
+  };
+
   // Paginación: 5 por defecto (mínimo 5, máximo 10) para que quepa en pantalla completa con el paginador visible
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -558,6 +625,22 @@ export function InventoryView({
     return filteredProducts.slice(startIdx, startIdx + itemsPerPage);
   }, [filteredProducts, validCurrentPage, itemsPerPage]);
 
+  const toggleSelectAllVisible = (e?: React.MouseEvent | React.ChangeEvent) => {
+    if (e) e.stopPropagation();
+    const visibleIds = paginatedProducts.map((p) => p.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedProductIds.has(id));
+
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
   const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(validCurrentPage * itemsPerPage, totalItems);
 
@@ -717,6 +800,26 @@ export function InventoryView({
               <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsBatchPriceModalOpen(true)}
+            className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 active:scale-95 text-[#00D615] font-extrabold text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 border border-slate-800 select-none"
+            title="Actualización Masiva y Porcentual de Precios (RF-01.1 / CU-INV-05)"
+          >
+            <Percent className="w-4 h-4 stroke-[2.5]" />
+            <span>Ajuste Masivo de Precios</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPriceHistoryModalOpen(true)}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Ver Historial Global y Auditoría de Ajustes de Precios"
+          >
+            <History className="w-4 h-4 text-slate-500" />
+            <span className="hidden md:inline">Historial de Ajustes</span>
+          </button>
 
           <button
             onClick={handleOpenCreateModal}
@@ -889,6 +992,38 @@ export function InventoryView({
         </div>
       </div>
 
+      {/* Barra de Acciones de Selección Múltiple */}
+      {selectedProductIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 border border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-lg bg-[#00D615] text-slate-950 font-extrabold flex items-center justify-center text-xs shadow-xs">
+              {selectedProductIds.size}
+            </span>
+            <span className="text-xs font-semibold text-slate-200">
+              {selectedProductIds.size === 1 ? "producto seleccionado" : "productos seleccionados"} para ajuste masivo
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchPriceModalOpen(true)}
+              className="bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <Percent className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Ajustar Precios de Seleccionados</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-slate-400 hover:text-white text-xs font-semibold px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              Desmarcar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ======================================================== */}
       {/* 1. MOBILE CARDS VIEW (Visible cuando mobileViewMode === "cards") */}
       {/* ======================================================== */}
@@ -1027,6 +1162,13 @@ export function InventoryView({
               <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
+                    title="Movimientos y Traslado de Stock"
+                    className="p-2 text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors active:scale-95"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={(e) => handleOpenEditModal(item, e)}
                     title="Editar producto"
                     className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors active:scale-95"
@@ -1085,6 +1227,15 @@ export function InventoryView({
             {/* Table Header con sticky top sólido para no transparentarse en scroll vertical */}
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px] tracking-wider">
               <tr>
+                <th className="py-3 px-3 w-10 text-center bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedProductIds.has(p.id))}
+                    onChange={toggleSelectAllVisible}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4 align-middle"
+                    title="Seleccionar o deseleccionar todos los visibles"
+                  />
+                </th>
                 <th className="py-3 px-5 min-w-[240px] bg-slate-50">PRODUCTO / MARCA</th>
                 <th className="py-3 px-4 min-w-[130px] bg-slate-50">DISCIPLINA</th>
                 <th className="py-3 px-4 min-w-[120px] bg-slate-50">PRECIO VENTA</th>
@@ -1098,7 +1249,7 @@ export function InventoryView({
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 px-4">
+                  <td colSpan={7} className="text-center py-12 px-4">
                     <div className="max-w-md mx-auto space-y-3">
                       <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
                         <Barcode className="w-6 h-6 stroke-[1.8]" />
@@ -1135,192 +1286,323 @@ export function InventoryView({
                 </tr>
               ) : (
                 paginatedProducts.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
-                    onClick={() => handleOpenDetail(item)}
-                  >
-                    {/* 1. Name / Brand */}
-                    <td className="py-4 px-5 min-w-[240px]">
-                      <div className="flex items-center gap-3">
-                        {item.imageUrl ? (
-                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name}
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${item.iconBg} text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
-                          >
-                            <Package className="w-4 h-4" />
-                          </div>
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            {item.brand} • {item.category}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* 2. Discipline */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/70">
-                        {item.discipline}
-                      </span>
-                    </td>
-
-                    {/* 3. Sale Price */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        if (matchedVar && matchedVar.price) {
-                          return (
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-900 text-xs">
-                                {formatCurrency(matchedVar.price)}
-                              </span>
-                              <span className="text-[10px] text-emerald-700 font-semibold">
-                                Talle {matchedVar.size}
-                              </span>
+                  <React.Fragment key={item.id}>
+                    <tr
+                      className={`hover:bg-slate-50/80 transition-colors group cursor-pointer ${
+                        selectedProductIds.has(item.id) ? "bg-emerald-50/40" : ""
+                      }`}
+                      onClick={() => handleOpenDetail(item)}
+                    >
+                      {/* Checkbox de Selección */}
+                      <td className="py-4 px-3 text-center w-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.has(item.id)}
+                          onChange={(e) => toggleSelectProduct(item.id, e)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4 align-middle"
+                        />
+                      </td>
+                      {/* 1. Name / Brand */}
+                      <td className="py-4 px-5 min-w-[240px]">
+                        <div className="flex items-center gap-3">
+                          {item.imageUrl ? (
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="w-full h-full object-contain"
+                              />
                             </div>
-                          );
-                        }
-                        const variantPrices = item.variants
-                          ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
-                          : [];
-                        if (variantPrices.length > 1) {
-                          const minP = Math.min(...variantPrices);
-                          const maxP = Math.max(...variantPrices);
-                          if (minP !== maxP) {
+                          ) : (
+                            <div
+                              className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${item.iconBg} text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
+                            >
+                              <Package className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                              {item.name}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {item.brand} • {item.category}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Discipline */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/70">
+                          {item.discipline}
+                        </span>
+                      </td>
+
+                      {/* 3. Sale Price */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          if (matchedVar && matchedVar.price) {
                             return (
                               <div className="flex flex-col">
                                 <span className="font-bold text-slate-900 text-xs">
-                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                  {formatCurrency(matchedVar.price)}
                                 </span>
-                                <span className="text-[10px] text-emerald-700 font-medium">
-                                  Precios por talle
+                                <span className="text-[10px] text-emerald-700 font-semibold">
+                                  Talle {matchedVar.size}
                                 </span>
                               </div>
                             );
                           }
-                        }
-                        return (
-                          <span className="font-bold text-slate-900 text-xs">
-                            {formatCurrency(item.price)}
-                          </span>
-                        );
-                      })()}
-                    </td>
-
-                    {/* 4. Stock Disponible en Local (Saavedra 241) */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[140px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        const displayStock = matchedVar
-                          ? matchedVar.stockStore
-                          : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
-
-                        if (displayStock === 0) {
+                          const variantPrices = item.variants
+                            ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
+                            : [];
+                          if (variantPrices.length > 1) {
+                            const minP = Math.min(...variantPrices);
+                            const maxP = Math.max(...variantPrices);
+                            if (minP !== maxP) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-900 text-xs">
+                                    {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                  </span>
+                                  <span className="text-[10px] text-emerald-700 font-medium">
+                                    Precios por talle
+                                  </span>
+                                </div>
+                              );
+                            }
+                          }
                           return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                              <span>Sin stock</span>
+                            <span className="font-bold text-slate-900 text-xs">
+                              {formatCurrency(item.price)}
                             </span>
                           );
-                        }
+                        })()}
+                      </td>
 
-                        if (displayStock <= (item.minStock || 3)) {
+                      {/* 4. Stock Disponible en Local (Saavedra 241) */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[140px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          const displayStock = matchedVar
+                            ? matchedVar.stockStore
+                            : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+
+                          if (displayStock === 0) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                                <span>Sin stock</span>
+                              </span>
+                            );
+                          }
+
+                          if (displayStock <= (item.minStock || 3)) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
+                                  <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>{displayStock} un.</span>
+                                </span>
+                                <span className="text-[10px] text-amber-700 font-medium mt-0.5">Stock bajo</span>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div className="flex flex-col">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
-                                <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                                <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span>{displayStock} un.</span>
                               </span>
-                              <span className="text-[10px] text-amber-700 font-medium mt-0.5">Stock bajo</span>
+                              {matchedVar ? (
+                                <span className="text-[10px] text-slate-400 mt-0.5">Talle {matchedVar.size}</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 mt-0.5">Saavedra 241</span>
+                              )}
                             </div>
                           );
-                        }
+                        })()}
+                      </td>
 
-                        return (
-                          <div className="flex flex-col">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
-                              <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>{displayStock} un.</span>
-                            </span>
-                            {matchedVar ? (
-                              <span className="text-[10px] text-slate-400 mt-0.5">Talle {matchedVar.size}</span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 mt-0.5">Saavedra 241</span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* 5. Barcode / SKU */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        if (matchedVar) {
+                      {/* 5. Barcode / SKU + Selector de Variantes */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          if (matchedVar) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="font-mono font-bold text-emerald-700 text-[11.5px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block w-fit">
+                                  {matchedVar.barcode}
+                                </span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                  Variante: {matchedVar.size} • {matchedVar.color}
+                                </span>
+                              </div>
+                            );
+                          }
                           return (
                             <div className="flex flex-col">
-                              <span className="font-mono font-bold text-emerald-700 text-[11.5px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block w-fit">
-                                {matchedVar.barcode}
+                              <span className="font-mono font-medium text-slate-700 text-[11px]">
+                                {item.barcode || item.sku}
                               </span>
-                              <span className="text-[10px] text-slate-400 mt-0.5">
-                                Variante: {matchedVar.size} • {matchedVar.color}
-                              </span>
+                              {item.variants && item.variants.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleExpandProduct(item.id, e)}
+                                  className="text-[10.5px] text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 mt-0.5 w-fit hover:underline"
+                                  title="Ver fila de variantes y acciones rápidas de stock"
+                                >
+                                  <span>{item.variants.length} variantes</span>
+                                  {expandedProductIds.has(item.id) ? (
+                                    <ChevronUp className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <ChevronDown className="w-3 h-3 text-emerald-600" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           );
-                        }
-                        return (
-                          <div className="flex flex-col">
-                            <span className="font-mono font-medium text-slate-700 text-[11px]">
-                              {item.barcode || item.sku}
-                            </span>
-                            {item.variants && item.variants.length > 1 && (
-                              <span className="text-[10px] text-slate-400">
-                                {item.variants.length} variantes
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
+                        })()}
+                      </td>
 
-                    {/* 6. Action Buttons (Sticky Right para no perderse al scrollear) */}
-                    <td className="py-4 px-5 text-right whitespace-nowrap min-w-[140px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={(e) => handleOpenEditModal(item, e)}
-                          title="Editar producto"
-                          className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleOpenDeleteModal(item, e)}
-                          title="Dar de baja producto"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDetail(item)}
-                          className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
-                        >
-                          Ver Detalle
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      {/* 6. Action Buttons (Sticky Right para no perderse al scrollear) */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap min-w-[150px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Botón rápido de Movimiento de Stock */}
+                          <button
+                            onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
+                            title="Ajustar Stock / Movimientos"
+                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenEditModal(item, e)}
+                            title="Editar producto"
+                            className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenDeleteModal(item, e)}
+                            title="Dar de baja producto"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDetail(item)}
+                            className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
+                          >
+                            Ver Detalle
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Fila Desplegable de Variantes con Acciones Rápidas (RF-03 / CU-04) */}
+                    {expandedProductIds.has(item.id) && item.variants && item.variants.length > 0 && (
+                      <tr className="bg-slate-50/70 border-b border-slate-200/90 animate-in fade-in duration-200">
+                        <td colSpan={7} className="py-2.5 px-4 sm:px-6">
+                          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                            <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <Boxes className="w-3.5 h-3.5 text-slate-600" />
+                                Fila de Variantes ({item.variants.length} talles registrados)
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Operaciones directas de stock por variante
+                              </span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-50 text-slate-500 font-semibold text-[10px] uppercase border-b border-slate-200/70">
+                                  <tr>
+                                    <th className="py-2 px-3">Talle / Color</th>
+                                    <th className="py-2 px-3 font-mono">Cód. Barra</th>
+                                    <th className="py-2 px-3 text-center">Stock Tienda</th>
+                                    <th className="py-2 px-3 text-center">Stock Depósito</th>
+                                    <th className="py-2 px-3 text-center">Total</th>
+                                    <th className="py-2 px-3 text-center min-w-[130px]">Acciones de Stock</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {item.variants.map((v, vIdx) => {
+                                    const vTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
+                                    return (
+                                      <tr key={v.id || vIdx} className="hover:bg-slate-50/70 transition-colors">
+                                        <td className="py-2 px-3 font-semibold text-slate-800">
+                                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5">
+                                            {v.size}
+                                          </span>
+                                          <span className="text-slate-500 text-[11px]">{v.color}</span>
+                                        </td>
+                                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
+                                          {v.barcode || `${item.barcode || item.sku}-${v.size}`}
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                            {v.stockStore || 0} un.
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-800">
+                                            {v.stockWarehouse || 0} un.
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-bold text-slate-900">
+                                          {vTotal}
+                                        </td>
+                                        <td className="py-2 px-3 text-center whitespace-nowrap">
+                                          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                            {/* + Ingreso por Compra */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "INGRESO_COMPRA", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`+ Ingreso por Compra (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <PackagePlus className="w-3 h-3" />
+                                              <span>+ Compra</span>
+                                            </button>
+
+                                            {/* - Ajuste / Merma */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "AJUSTE_EGRESO", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`- Ajuste / Merma (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <MinusCircle className="w-3 h-3" />
+                                              <span>- Merma</span>
+                                            </button>
+
+                                            {/* ⇄ Traslado Interno */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`⇄ Traslado Depósito ➔ Salón (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <ArrowRightLeft className="w-3 h-3" />
+                                              <span>⇄ Traslado</span>
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
@@ -1406,6 +1688,48 @@ export function InventoryView({
           </div>
         </div>
       )}
+
+      {/* Modal de Movimientos Manuales de Stock (RF-03 / CU-04) */}
+      {stockModalProduct && (
+        <StockMovementModal
+          isOpen={isStockModalOpen}
+          onClose={() => {
+            setIsStockModalOpen(false);
+            setStockModalProduct(null);
+            setStockModalOperation(undefined);
+            setStockModalVariantId(undefined);
+          }}
+          product={stockModalProduct}
+          onSuccess={() => {
+            loadProducts();
+            showToast("Stock actualizado", "El movimiento de stock se registró correctamente en el sistema.");
+          }}
+          initialOperationType={stockModalOperation}
+          initialVariantId={stockModalVariantId}
+        />
+      )}
+
+      {/* Modal de Actualización Masiva y Porcentual de Precios (RF-01.1 / CU-INV-05) */}
+      <BatchPriceUpdateModal
+        isOpen={isBatchPriceModalOpen}
+        onClose={() => setIsBatchPriceModalOpen(false)}
+        onSuccess={() => {
+          loadProducts();
+          clearSelection();
+          showToast(
+            "Precios actualizados",
+            "La actualización masiva de precios se aplicó exitosamente en el catálogo."
+          );
+        }}
+        selectedProductIds={Array.from(selectedProductIds)}
+        totalCatalogProductsCount={productsList.length}
+      />
+
+      {/* Modal de Historial Global de Ajustes de Precios */}
+      <PriceHistoryModal
+        isOpen={isPriceHistoryModalOpen}
+        onClose={() => setIsPriceHistoryModalOpen(false)}
+      />
 
       {/* Floating Toast Notification */}
       {toast && (

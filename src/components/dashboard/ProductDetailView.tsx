@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ArrowLeft,
   Package,
@@ -36,17 +36,18 @@ import {
   Building2,
   Store,
   History,
+  Filter,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
 import { ProductFormModal } from "./ProductFormModal";
-import { StockAdjustmentModal } from "./StockAdjustmentModal";
+import { StockAdjustmentModal, type OperationType } from "./StockAdjustmentModal";
 import {
   toggleProductActive,
   deleteProduct,
   getProductById,
 } from "@/server/actions/productActions";
-import { getProductMovements } from "@/server/actions/inventoryActions";
+import { getProductMovements, getVariantMovementHistory } from "@/server/actions/inventoryActions";
 
 interface ProductDetailViewProps {
   product: DetailedProductItem;
@@ -75,27 +76,44 @@ export function ProductDetailView({
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [stockModalOperation, setStockModalOperation] = useState<OperationType | undefined>(undefined);
+  const [stockModalVariantId, setStockModalVariantId] = useState<string | undefined>(undefined);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Estados para historial de movimientos
+  // Helper para abrir el modal en una operación y variante específica
+  const handleOpenStockModal = (operation?: OperationType, variantId?: string) => {
+    setStockModalOperation(operation);
+    setStockModalVariantId(variantId);
+    setIsStockModalOpen(true);
+  };
+
+  // Estados para historial de movimientos y trazabilidad por variante (RF-03 / CU-INV-07)
   const [movements, setMovements] = useState<InventoryMovementItem[]>([]);
   const [isLoadingMovements, setIsLoadingMovements] = useState(false);
   const [movementsError, setMovementsError] = useState<string | null>(null);
+  const [selectedMovementVariantId, setSelectedMovementVariantId] = useState<string>("ALL");
 
   // Sincronizar producto si cambia el prop inicial
   useEffect(() => {
     setProduct(initialProduct);
   }, [initialProduct]);
 
-  // Cargar movimientos de inventario desde el servidor
-  const loadMovements = useCallback(async () => {
+  // Cargar movimientos de inventario desde el servidor (por producto completo o por variante específica)
+  const loadMovements = useCallback(async (variantIdFilter?: string) => {
     if (!product.id) return;
     setIsLoadingMovements(true);
     setMovementsError(null);
     try {
-      const res = await getProductMovements(product.id);
+      const targetVariantId = variantIdFilter !== undefined ? variantIdFilter : selectedMovementVariantId;
+      let res;
+      if (targetVariantId && targetVariantId !== "ALL") {
+        res = await getVariantMovementHistory(targetVariantId);
+      } else {
+        res = await getProductMovements(product.id);
+      }
+
       if (res.success && res.data) {
         setMovements(res.data);
       } else {
@@ -107,7 +125,13 @@ export function ProductDetailView({
     } finally {
       setIsLoadingMovements(false);
     }
-  }, [product.id]);
+  }, [product.id, selectedMovementVariantId]);
+
+  // Manejar cambio de filtro de variante en la pestaña de auditoría
+  const handleVariantFilterChange = (variantId: string) => {
+    setSelectedMovementVariantId(variantId);
+    loadMovements(variantId);
+  };
 
   // Cargar movimientos al cambiar a la pestaña de auditoría o al montar
   useEffect(() => {
@@ -185,15 +209,49 @@ export function ProductDetailView({
     }
   };
 
-  // Calculations
+  // Métricas Fidedignas basadas en sumatoria real de movimientos y ventas asociadas (sin estimaciones fijas)
   const totalStoreStock = product.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
   const totalWarehouseStock = product.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
   const totalStock = totalStoreStock + totalWarehouseStock;
-  const receivedTotal = product.receivedTotal ?? (totalStock * 2 + 140);
-  const salesStore = product.salesStoreTotal ?? Math.floor(receivedTotal * 0.45);
-  const salesWeb = product.salesWebTotal ?? Math.floor(receivedTotal * 0.25);
+
+  // 1. Total Recibido: sumatoria real de movimientos INGRESO_COMPRA / INGRESO_INICIAL o receivedCount de variantes
+  const receivedFromMovements = useMemo(() => {
+    return movements
+      .filter((m) => m.type === "INGRESO_COMPRA" || m.type === "INGRESO_INICIAL")
+      .reduce((acc, m) => acc + m.quantity, 0);
+  }, [movements]);
+  const receivedFromVariants = useMemo(() => {
+    return product.variants.reduce((acc, v) => acc + (v.receivedCount || 0), 0);
+  }, [product.variants]);
+  const receivedTotal = Math.max(receivedFromMovements, receivedFromVariants, product.receivedTotal || 0);
+
+  // 2. Ventas Mostrador (Saavedra 241)
+  const salesStoreFromMovements = useMemo(() => {
+    return movements
+      .filter((m) => m.type === "VENTA_MOSTRADOR")
+      .reduce((acc, m) => acc + m.quantity, 0);
+  }, [movements]);
+  const salesStoreFromVariants = useMemo(() => {
+    return product.variants.reduce((acc, v) => acc + (v.soldCountStore || 0), 0);
+  }, [product.variants]);
+  const salesStore = Math.max(salesStoreFromMovements, salesStoreFromVariants, product.salesStoreTotal || 0);
+
+  // 3. Ventas Web
+  const salesWebFromMovements = useMemo(() => {
+    return movements
+      .filter((m) => m.type === "VENTA_WEB")
+      .reduce((acc, m) => acc + m.quantity, 0);
+  }, [movements]);
+  const salesWebFromVariants = useMemo(() => {
+    return product.variants.reduce((acc, v) => acc + (v.soldCountWeb || 0), 0);
+  }, [product.variants]);
+  const salesWeb = Math.max(salesWebFromMovements, salesWebFromVariants, product.salesWebTotal || 0);
+
+  // 4. Ventas Totales
   const salesTotal = salesStore + salesWeb;
-  const stockInTransfer = product.stockTransfer ?? 46;
+
+  // 5. Stock en Traslado Real
+  const stockInTransfer = product.stockTransfer || 0;
 
   // Margin calculation
   const profitMargin = product.price - product.costPrice;
@@ -243,7 +301,7 @@ export function ProductDetailView({
           {/* Right: Quick Actions */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start lg:justify-end shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
             <button
-              onClick={() => setIsStockModalOpen(true)}
+              onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA")}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap"
               title="Registrar ingresos, egresos, ajustes o traslados internos de stock"
             >
@@ -572,14 +630,24 @@ export function ProductDetailView({
                         <th className="py-3 px-3 text-center">Recibido</th>
                         <th className="py-3 px-3 text-center">Vendido</th>
                         <th className="py-3 px-4 text-center">Existencias</th>
+                        <th className="py-3 px-4 text-center min-w-[120px]">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                       {product.variants.map((v, idx) => {
                         const variantTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
                         const isLowStore = (v.stockStore || 0) <= 2;
-                        const vReceived = v.receivedCount ?? (variantTotal * 3 + 25);
-                        const vSold = (v.soldCountStore || 0) + (v.soldCountWeb || 0) || Math.floor(vReceived * 0.7);
+                        const vMovementReceived = movements
+                          .filter((m) => m.variantId === v.id && (m.type === "INGRESO_COMPRA" || m.type === "INGRESO_INICIAL"))
+                          .reduce((acc, m) => acc + m.quantity, 0);
+                        const vReceived = v.receivedCount !== undefined && v.receivedCount > 0 ? v.receivedCount : vMovementReceived;
+
+                        const vMovementSold = movements
+                          .filter((m) => m.variantId === v.id && (m.type === "VENTA_MOSTRADOR" || m.type === "VENTA_WEB"))
+                          .reduce((acc, m) => acc + m.quantity, 0);
+                        const vSold = ((v.soldCountStore || 0) + (v.soldCountWeb || 0)) > 0
+                          ? (v.soldCountStore || 0) + (v.soldCountWeb || 0)
+                          : vMovementSold;
                         const variantPrice = v.price ?? product.price;
 
                         return (
@@ -644,6 +712,41 @@ export function ProductDetailView({
                               <span className="inline-flex items-center justify-center font-bold px-2.5 py-0.5 rounded-full text-[11.5px] bg-[#c2f25b]/40 text-slate-900 border border-[#c2f25b]">
                                 {variantTotal}
                               </span>
+                            </td>
+
+                            {/* Botones de Acción Rápida por Variante (RF-03 / CU-04) */}
+                            <td className="py-3 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {/* Botón +: Ingreso por Compra */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStockModal("INGRESO_COMPRA", v.id)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-all active:scale-95 shadow-2xs"
+                                  title={`+ Ingreso por Compra (Talle ${v.size} - ${v.color})`}
+                                >
+                                  <PackagePlus className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Botón -: Ajuste / Merma */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStockModal("AJUSTE_EGRESO", v.id)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-900 border border-rose-200 transition-all active:scale-95 shadow-2xs"
+                                  title={`- Ajuste / Merma (Talle ${v.size} - ${v.color})`}
+                                >
+                                  <MinusCircle className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Botón ⇄: Traslado Interno */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA", v.id)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 border border-emerald-200 transition-all active:scale-95 shadow-2xs"
+                                  title={`⇄ Traslado Depósito ➔ Salón (Talle ${v.size} - ${v.color})`}
+                                >
+                                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -831,7 +934,7 @@ export function ProductDetailView({
         )}
 
         {/* ---------------------------------------------------- */}
-        {/* PESTAÑA: MOVIMIENTOS Y AUDITORÍA DE STOCK (RF-03) */}
+        {/* PESTAÑA: MOVIMIENTOS Y AUDITORÍA DE STOCK (RF-03 / CU-INV-07) */}
         {/* ---------------------------------------------------- */}
         {activeTab === "movements" && (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden animate-in fade-in-50">
@@ -843,11 +946,29 @@ export function ProductDetailView({
                   <span>Historial y Auditoría de Movimientos</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Trazabilidad de entradas, salidas, traslados y ajustes bajo transacciones atómicas.
+                  Trazabilidad cronológica de compras, mermas, traslados y ventas con PostgreSQL.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Selector de Trazabilidad por Variante (RF-03 / CU-INV-07) */}
+                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-xs">
+                  <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-slate-500 font-medium text-[11.5px]">Trazabilidad:</span>
+                  <select
+                    value={selectedMovementVariantId}
+                    onChange={(e) => handleVariantFilterChange(e.target.value)}
+                    className="bg-transparent font-bold text-slate-800 text-xs focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="ALL">Todo el producto ({product.variants.length} variantes)</option>
+                    {product.variants.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        Talle {v.size} {v.color ? `(${v.color})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   onClick={() => loadMovements()}
                   disabled={isLoadingMovements}
@@ -865,6 +986,37 @@ export function ProductDetailView({
                   <span>Registrar Movimiento</span>
                 </button>
               </div>
+            </div>
+
+            {/* Barra de Referencia y Leyenda de Badges Normalizados (RF-03 / CU-INV-07) */}
+            <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center gap-2 flex-wrap text-xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                Badges por Tipo:
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <PackagePlus className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span>Ingreso Compra / Carga</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <ArrowRightLeft className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>Traslado Interno</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                <MinusCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                <span>Merma / Egreso (-)</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                <Store className="w-3 h-3 text-indigo-600 shrink-0" />
+                <span>Venta Mostrador / Web</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                <PlusCircle className="w-3 h-3 text-teal-600 shrink-0" />
+                <span>Ajuste Conteo (+)</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
+                <RotateCcw className="w-3 h-3 text-cyan-600 shrink-0" />
+                <span>Devolución Cliente</span>
+              </span>
             </div>
 
             {/* Error al cargar movimientos */}
@@ -888,10 +1040,12 @@ export function ProductDetailView({
                   <History className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-800">
-                  No hay movimientos registrados para este producto
+                  {selectedMovementVariantId !== "ALL"
+                    ? "No hay movimientos registrados para esta variante específica"
+                    : "No hay movimientos registrados para este producto"}
                 </h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  Los ingresos por compras, traslados entre depósito y mostrador o ventas se auditarán automáticamente aquí.
+                  Los ingresos por compras, mermas, traslados entre depósito y mostrador o ventas se auditarán automáticamente aquí.
                 </p>
                 <button
                   onClick={() => setIsStockModalOpen(true)}
@@ -948,17 +1102,19 @@ export function ProductDetailView({
                             </div>
                           </td>
 
-                          {/* Tipo de Operación con Badge */}
+                          {/* Tipo de Operación con Badges Normalizados (RF-03 / CU-INV-07) */}
                           <td className="py-3 px-4 whitespace-nowrap">
                             {(() => {
                               switch (m.type) {
+                                // 1. TRANSFERENCIA_INTERNA: Ámbar
                                 case "TRANSFERENCIA_INTERNA":
                                   return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                      <ArrowRightLeft className="w-3 h-3 text-blue-600 shrink-0" />
-                                      <span>Traslado a Salón</span>
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                      <ArrowRightLeft className="w-3 h-3 text-amber-600 shrink-0" />
+                                      <span>Traslado Interno</span>
                                     </span>
                                   );
+                                // 2. INGRESO_COMPRA / INGRESO_INICIAL: Verde esmeralda
                                 case "INGRESO_COMPRA":
                                   return (
                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -968,32 +1124,12 @@ export function ProductDetailView({
                                   );
                                 case "INGRESO_INICIAL":
                                   return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                                      <Boxes className="w-3 h-3 text-slate-600 shrink-0" />
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      <Boxes className="w-3 h-3 text-emerald-600 shrink-0" />
                                       <span>Carga Inicial</span>
                                     </span>
                                   );
-                                case "AJUSTE_INGRESO":
-                                  return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                                      <PlusCircle className="w-3 h-3 text-teal-600 shrink-0" />
-                                      <span>Ajuste Conteo (+)</span>
-                                    </span>
-                                  );
-                                case "AJUSTE_EGRESO":
-                                  return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                                      <MinusCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                                      <span>Merma / Egreso (-)</span>
-                                    </span>
-                                  );
-                                case "DEVOLUCION_CLIENTE":
-                                  return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                      <RotateCcw className="w-3 h-3 text-amber-600 shrink-0" />
-                                      <span>Devolución Cliente</span>
-                                    </span>
-                                  );
+                                // 3. VENTA_MOSTRADOR / VENTA_WEB: Azul índigo
                                 case "VENTA_MOSTRADOR":
                                   return (
                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
@@ -1003,9 +1139,31 @@ export function ProductDetailView({
                                   );
                                 case "VENTA_WEB":
                                   return (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                                      <Globe className="w-3 h-3 text-purple-600 shrink-0" />
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                      <Globe className="w-3 h-3 text-indigo-600 shrink-0" />
                                       <span>Venta Web</span>
+                                    </span>
+                                  );
+                                // 4. AJUSTE_EGRESO: Rojo / Rosa
+                                case "AJUSTE_EGRESO":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                                      <MinusCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Merma / Egreso (-)</span>
+                                    </span>
+                                  );
+                                case "AJUSTE_INGRESO":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                      <PlusCircle className="w-3 h-3 text-teal-600 shrink-0" />
+                                      <span>Ajuste Conteo (+)</span>
+                                    </span>
+                                  );
+                                case "DEVOLUCION_CLIENTE":
+                                  return (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10.5px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
+                                      <RotateCcw className="w-3 h-3 text-cyan-600 shrink-0" />
+                                      <span>Devolución Cliente</span>
                                     </span>
                                   );
                                 case "ANULACION_VENTA":
@@ -1229,12 +1387,18 @@ export function ProductDetailView({
         productToEdit={product}
       />
 
-      {/* Modal de Control y Ajustes de Stock (RF-03) */}
+      {/* Modal de Control y Ajustes de Stock (RF-03 / CU-04) */}
       <StockAdjustmentModal
         isOpen={isStockModalOpen}
-        onClose={() => setIsStockModalOpen(false)}
+        onClose={() => {
+          setIsStockModalOpen(false);
+          setStockModalOperation(undefined);
+          setStockModalVariantId(undefined);
+        }}
         product={product}
         onSuccess={handleStockActionSuccess}
+        initialOperationType={stockModalOperation}
+        initialVariantId={stockModalVariantId}
       />
 
       {/* Modal de Confirmación para Dar de Baja Lógica */}

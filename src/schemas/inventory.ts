@@ -73,6 +73,29 @@ export const StockTransferSchema = z.object({
   reason: z.string().nullable().optional(),
 });
 
+/**
+ * Esquema para registrar un cambio de talle (Intercambio simultáneo de dos variantes)
+ */
+export const SizeExchangeSchema = z
+  .object({
+    returnVariantId: z.string().uuid("ID de variante devuelta inválido"),
+    exchangeVariantId: z.string().uuid("ID de variante a entregar inválido"),
+    quantity: z
+      .number({ invalid_type_error: "La cantidad debe ser un número" })
+      .int("La cantidad debe ser un número entero")
+      .positive("La cantidad a intercambiar debe ser mayor a 0"),
+    targetLocation: z.enum(["STORE", "WAREHOUSE"]).default("STORE"),
+    reason: z
+      .string({ required_error: "Debe especificar el motivo o ticket para el cambio de talle" })
+      .min(1, "Debe especificar el motivo o ticket para el cambio de talle"),
+  })
+  .refine((data) => data.returnVariantId !== data.exchangeVariantId, {
+    message: "El talle a entregar no puede ser el mismo que el devuelto",
+    path: ["exchangeVariantId"],
+  });
+
 export type MovementType = z.infer<typeof MovementTypeEnum>;
 export type InventoryMovementInput = z.infer<typeof InventoryMovementSchema>;
 export type StockTransferInput = z.infer<typeof StockTransferSchema>;
+export type SizeExchangeInput = z.infer<typeof SizeExchangeSchema>;
+

@@ -18,10 +18,10 @@ export const TargetPriceFieldEnum = z.enum(["PRICE", "COST_PRICE", "BOTH"]);
  * Filtros dinámicos para seleccionar el universo de productos a actualizar
  */
 export const PriceUpdateFiltersSchema = z.object({
-  productIds: z.array(z.string().uuid("ID de producto inválido")).optional(),
-  categoryId: z.string().uuid("ID de categoría inválido").optional(),
-  brandId: z.string().uuid("ID de marca inválido").optional(),
-  disciplineId: z.string().uuid("ID de disciplina inválido").optional(),
+  productIds: z.array(z.string().min(1, "ID de producto inválido")).optional(),
+  categoryId: z.string().min(1, "ID de categoría inválido").optional(),
+  brandId: z.string().min(1, "ID de marca inválido").optional(),
+  disciplineId: z.string().min(1, "ID de disciplina inválido").optional(),
   search: z.string().optional(),
   activeOnly: z.boolean().default(true),
 });
