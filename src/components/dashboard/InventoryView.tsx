@@ -35,7 +35,10 @@ import {
   History,
   FileSpreadsheet,
   AlertOctagon,
+  Layers,
+  Tag,
 } from "lucide-react";
+import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
@@ -51,6 +54,7 @@ import {
   deleteProduct,
   getProductById,
 } from "@/server/actions/productActions";
+import { getDisciplines } from "@/server/actions/categoryActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
@@ -356,6 +360,37 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
       { ar: "Único", us: "One Size", eu: "TU", br: "Tamanho Único", cm: "Ajustable 48-62 cm", note: "Escala graduada de tensión" },
     ],
   },
+  {
+    id: "p10",
+    name: "Short Entrenamiento Microfibra Classic (Descontinuado)",
+    description: "Modelo de temporada anterior dado de baja del catálogo activo (baja lógica).",
+    brand: "Matacos Fitness",
+    discipline: "Fitness",
+    category: "Indumentaria",
+    subcategory: "Shorts de Entrenamiento",
+    price: 32000,
+    costPrice: 18000,
+    sku: "FIT-MAT-010",
+    barcode: "779123456710",
+    stockLocal: 0,
+    stockWeb: 0,
+    minStock: 2,
+    active: false,
+    updatedAt: "10 Mar 2026 at 11:00 AM",
+    iconBg: "from-slate-500 to-slate-700",
+    receivedTotal: 120,
+    stockTransfer: 0,
+    salesStoreTotal: 100,
+    salesWebTotal: 20,
+    variants: [
+      { size: "M", color: "Negro", stockStore: 0, stockWarehouse: 0, barcode: "779123456710-M", receivedCount: 60, soldCountStore: 50, soldCountWeb: 10 },
+      { size: "L", color: "Negro", stockStore: 0, stockWarehouse: 0, barcode: "779123456710-L", receivedCount: 60, soldCountStore: 50, soldCountWeb: 10 },
+    ],
+    sizeConversions: [
+      { ar: "M", us: "32 US", eu: "48 EU", br: "M", cm: "Cintura 80-86 cm", note: "Corte estándar" },
+      { ar: "L", us: "34 US", eu: "50 EU", br: "G", cm: "Cintura 86-92 cm", note: "Corte estándar" },
+    ],
+  },
 ];
 
 const DISCIPLINES = [
@@ -367,6 +402,7 @@ const DISCIPLINES = [
 ];
 
 export type StockAlertFilterMode = "ALL" | "IN_ALERT" | "OUT_OF_STOCK" | "STORE_REPLENISHMENT";
+export type ActiveFilterMode = "ACTIVE" | "INACTIVE" | "ALL";
 
 export function evaluateProductStockStatus(product: DetailedProductItem) {
   const minStock = product.minStock || 2;
@@ -482,7 +518,64 @@ export function InventoryView({
     else setInternalAlertsDrawerOpen(open);
   };
 
-  // Resumen calculado en tiempo real de alertas de stock
+  // Estados para Filtro de Estado de Actividad / Baja Lógica (RF-01)
+  const [activeFilterMode, setActiveFilterMode] = useState<ActiveFilterMode>("ACTIVE");
+  const [isReactivatingId, setIsReactivatingId] = useState<string | null>(null);
+
+  // Conteo dinámico de productos activos e inactivos
+  const activeStatusSummary = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    for (const p of productsList) {
+      if (p.active === false) {
+        inactive++;
+      } else {
+        active++;
+      }
+    }
+    return { activeCount: active, inactiveCount: inactive, totalCount: productsList.length };
+  }, [productsList]);
+
+  // Estados para Carga Dinámica de Disciplinas desde BD (RF-01 / RF-01.2)
+  const [dbDisciplines, setDbDisciplines] = useState<string[]>([]);
+
+  // Lista consolidada de todas las disciplinas (BD + catálogo de productos)
+  const allDisciplines = useMemo(() => {
+    const set = new Set<string>();
+    dbDisciplines.forEach((d) => {
+      if (d && d.trim()) set.add(d.trim());
+    });
+    productsList.forEach((p) => {
+      if (p.discipline && p.discipline.trim()) {
+        set.add(p.discipline.trim());
+      }
+    });
+    if (set.size === 0) {
+      DISCIPLINES.filter((d) => d !== "Todas").forEach((d) => set.add(d));
+    }
+    const sorted = Array.from(set).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" })
+    );
+    return ["Todas", ...sorted];
+  }, [dbDisciplines, productsList]);
+
+  // Conteo dinámico de productos por disciplina considerando el estado activo/inactivo
+  const disciplineCounts = useMemo(() => {
+    const counts: Record<string, number> = { Todas: 0 };
+    for (const p of productsList) {
+      if (activeFilterMode === "ACTIVE" && p.active === false) continue;
+      if (activeFilterMode === "INACTIVE" && p.active !== false) continue;
+
+      counts.Todas = (counts.Todas || 0) + 1;
+      const d = p.discipline?.trim();
+      if (d) {
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [productsList, activeFilterMode]);
+
+  // Resumen calculado en tiempo real de alertas de stock (excluyendo productos inactivos)
   const stockAlertsSummary = useMemo(() => {
     let outOfStockCount = 0;
     let storeEmptyCount = 0;
@@ -490,6 +583,9 @@ export function InventoryView({
     let totalAlertVariants = 0;
 
     for (const p of productsList) {
+      // Regla de Negocio: No alertar sobre artículos dados de baja / inactivos
+      if (p.active === false) continue;
+
       const status = evaluateProductStockStatus(p);
       outOfStockCount += status.outOfStockVariants;
       storeEmptyCount += status.storeEmptyVariants;
@@ -539,6 +635,9 @@ export function InventoryView({
   const clearSelection = () => {
     setSelectedProductIds(new Set());
   };
+
+  // Pestaña activa del módulo de inventario y clasificadores (RF-01.2 / CU-INV-09)
+  const [catalogViewTab, setCatalogViewTab] = useState<"products" | MasterTabType>("products");
 
   // Estado para expandir filas de variantes en la tabla de inventario
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
@@ -592,7 +691,7 @@ export function InventoryView({
   // Reiniciar a página 1 al filtrar o cambiar items por página
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, searchMode, selectedDiscipline, itemsPerPage]);
+  }, [searchQuery, searchMode, selectedDiscipline, itemsPerPage, activeFilterMode, stockAlertFilter]);
 
   const showToast = (title: string, description?: string) => {
     const id = Date.now().toString();
@@ -619,7 +718,7 @@ export function InventoryView({
     setProductToDelete(product);
   };
 
-    const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async () => {
     if (!productToDelete) return;
     const deletedId = productToDelete.id;
     const deletedName = productToDelete.name;
@@ -628,28 +727,76 @@ export function InventoryView({
       setDeleteError(null);
       const res = await deleteProduct(deletedId);
       if (res.success) {
-        // Actualización optimista inmediata en la interfaz
-        setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
+        // Actualización optimista inmediata en la interfaz:
+        // Marcamos el producto como inactivo (100% baja lógica)
+        setProductsList((prev) =>
+          prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
+        );
         setProductToDelete(null);
-        showToast("Producto eliminado", `"${deletedName}" se eliminó correctamente.`);
+        showToast(
+          "Producto dado de baja",
+          `"${deletedName}" fue dado de baja del catálogo activo (baja lógica). Podés consultarlo o reactivarlo en "Inactivos".`
+        );
         loadProducts();
       } else {
-        setDeleteError(res.error || "No se pudo eliminar el producto");
+        setDeleteError(res.error || "No se pudo dar de baja el producto");
       }
     } catch (err) {
-      console.error("Error al eliminar el producto:", err);
-      setDeleteError("Ocurrió un error inesperado al eliminar el producto");
+      console.error("Error al dar de baja el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
     } finally {
       setIsDeleting(false);
     }
   };
 
+  const handleReactivateProduct = async (product: DetailedProductItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      setIsReactivatingId(product.id);
+      const res = await toggleProductActive(product.id);
+      if (res.success) {
+        // Actualización optimista inmediata en la interfaz:
+        // Marcamos el producto nuevamente como activo
+        setProductsList((prev) =>
+          prev.map((p) => (p.id === product.id ? { ...p, active: true } : p))
+        );
+        showToast(
+          "Producto reactivado",
+          `"${product.name}" ha sido reactivado y devuelto al mostrador (POS) y catálogo activo.`
+        );
+        loadProducts();
+      } else {
+        showToast("Error", res.error || "No se pudo reactivar el producto");
+      }
+    } catch (err) {
+      console.error("Error al reactivar el producto:", err);
+      showToast("Error", "Ocurrió un error inesperado al reactivar el producto");
+    } finally {
+      setIsReactivatingId(null);
+    }
+  };
+
+  const loadDisciplines = useCallback(async () => {
+    try {
+      const res = await getDisciplines();
+      if (res.success && Array.isArray(res.data)) {
+        const names = res.data.map((d: any) => d.name).filter(Boolean);
+        setDbDisciplines(names);
+      }
+    } catch (err) {
+      console.warn("No se pudieron cargar las disciplinas desde la BD:", err);
+    }
+  }, []);
+
   const loadProducts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await getDetailedInventoryProducts();
-      if (res.success && Array.isArray(res.data)) {
-        setProductsList(res.data);
+      const [productsRes] = await Promise.all([
+        getDetailedInventoryProducts({ includeInactive: true }),
+        loadDisciplines(),
+      ]);
+      if (productsRes.success && Array.isArray(productsRes.data)) {
+        setProductsList(productsRes.data);
         setIsLiveFromDb(true);
       }
     } catch (err) {
@@ -657,13 +804,14 @@ export function InventoryView({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadDisciplines]);
 
   useEffect(() => {
+    loadDisciplines();
     if (!initialProducts || initialProducts.length === 0) {
       loadProducts();
     }
-  }, [loadProducts, initialProducts]);
+  }, [loadProducts, loadDisciplines, initialProducts]);
 
 
   const handleSelectDiscipline = (d: string) => {
@@ -768,7 +916,9 @@ export function InventoryView({
 
       const matchesDiscipline =
         selectedDiscipline === "Todas" ||
-        item.discipline.toLowerCase().includes(selectedDiscipline.toLowerCase().split(" ")[0]);
+        item.discipline.trim().toLowerCase() === selectedDiscipline.trim().toLowerCase() ||
+        item.discipline.toLowerCase().includes(selectedDiscipline.toLowerCase()) ||
+        selectedDiscipline.toLowerCase().includes(item.discipline.toLowerCase());
 
       let matchesAlertFilter = true;
       if (stockAlertFilter === "IN_ALERT") {
@@ -784,7 +934,16 @@ export function InventoryView({
           (status.totalStore === 0 && status.totalWarehouse > 0);
       }
 
-      return matchesSearch && matchesDiscipline && matchesAlertFilter;
+      let matchesActive = true;
+      if (activeFilterMode === "ACTIVE") {
+        matchesActive = item.active !== false;
+      } else if (activeFilterMode === "INACTIVE") {
+        matchesActive = item.active === false;
+      } else if (activeFilterMode === "ALL") {
+        matchesActive = true;
+      }
+
+      return matchesSearch && matchesDiscipline && matchesAlertFilter && matchesActive;
     });
 
     // Ordenamiento jerárquico por severidad de alerta:
@@ -808,12 +967,12 @@ export function InventoryView({
     }
 
     return filtered;
-  }, [productsList, searchQuery, searchMode, selectedDiscipline, stockAlertFilter]);
+  }, [productsList, searchQuery, searchMode, selectedDiscipline, stockAlertFilter, activeFilterMode]);
 
   // Resetear página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [stockAlertFilter, searchQuery, selectedDiscipline]);
+  }, [stockAlertFilter, activeFilterMode, searchQuery, selectedDiscipline]);
 
   // Cálculos de Paginación Adaptable
   const totalItems = filteredProducts.length;
@@ -945,10 +1104,15 @@ export function InventoryView({
           loadProducts();
         }}
         onDeleteSuccess={(deletedId: string) => {
-          setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
+          setProductsList((prev) =>
+            prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
+          );
           setSelectedProduct(null);
           onProductChange?.(null);
-          showToast("Producto eliminado", `"${selectedProduct.name}" se eliminó correctamente.`);
+          showToast(
+            "Producto dado de baja",
+            `"${selectedProduct.name}" fue dado de baja (baja lógica). Podés consultarlo o reactivarlo en "Inactivos".`
+          );
           loadProducts();
         }}
       />
@@ -957,7 +1121,21 @@ export function InventoryView({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 select-none">
-      {/* Top Header: Title + Status + Actions */}
+      {catalogViewTab !== "products" ? (
+        <MasterCategoriesManager
+          initialTab={catalogViewTab}
+          onTabChange={(tab) => setCatalogViewTab(tab)}
+          onBackToInventory={() => {
+            setCatalogViewTab("products");
+            loadProducts();
+          }}
+          onDataModified={() => {
+            loadProducts();
+          }}
+        />
+      ) : (
+        <>
+          {/* Top Header: Title + Status + Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
@@ -1016,10 +1194,10 @@ export function InventoryView({
           <button
             type="button"
             onClick={() => setIsBatchPriceModalOpen(true)}
-            className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 active:scale-95 text-[#00D615] font-extrabold text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 border border-slate-800 select-none"
+            className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 active:scale-95 text-emerald-300 font-medium text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 border border-slate-800 select-none"
             title="Actualización Masiva y Porcentual de Precios (RF-01.1 / CU-INV-05)"
           >
-            <Percent className="w-4 h-4 stroke-[2.5]" />
+            <Percent className="w-4 h-4 text-emerald-300" />
             <span>Ajuste Masivo de Precios</span>
           </button>
 
@@ -1044,11 +1222,26 @@ export function InventoryView({
           </button>
 
           <button
-            onClick={handleOpenCreateModal}
-            className="flex-1 sm:flex-initial bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-extrabold text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+            type="button"
+            onClick={() => setCatalogViewTab("brands")}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Gestión de Tablas Maestras (Marcas, Disciplinas y Categorías - RF-01.2 / CU-INV-09)"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nuevo Producto</span>
+            <Layers className="w-4 h-4 text-indigo-500" />
+            <span className="hidden lg:inline">Tablas Maestras</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="flex-1 sm:flex-initial bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-4 sm:px-5 py-2 rounded-2xl border border-emerald-400/40 shadow-[0_2px_4px_rgba(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-3 select-none"
+            title="Registrar Nuevo Producto en el Inventario"
+          >
+            <Plus className="w-5 h-5 text-white stroke-[2.2] shrink-0" />
+            <div className="flex flex-col items-center justify-center text-center leading-tight">
+              <span className="text-white font-bold text-xs sm:text-[13px] tracking-tight">Nuevo</span>
+              <span className="text-white font-bold text-xs sm:text-[13px] tracking-tight">Producto</span>
+            </div>
           </button>
         </div>
       </div>
@@ -1131,21 +1324,61 @@ export function InventoryView({
             </div>
           </div>
 
-          {/* Discipline filter tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 text-xs select-none -mx-1 px-1">
-            {DISCIPLINES.map((d) => (
-              <button
-                key={d}
-                onClick={() => handleSelectDiscipline(d)}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all font-medium text-xs active:scale-95 ${
-                  selectedDiscipline === d
-                    ? "bg-slate-900 text-white shadow-xs font-semibold"
-                    : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+          {/* Selector Dinámico de Disciplinas (RF-01 / RF-01.2) */}
+          <div className="flex items-center gap-1.5 shrink-0 select-none">
+            <div
+              className={`inline-flex items-center gap-1.5 p-1 rounded-xl border transition-all ${
+                selectedDiscipline !== "Todas"
+                  ? "bg-slate-900 border-slate-800 text-white shadow-xs"
+                  : "bg-slate-100/90 border-slate-200/80 text-slate-700"
+              }`}
+            >
+              <Layers
+                className={`w-3.5 h-3.5 ml-1.5 shrink-0 ${
+                  selectedDiscipline !== "Todas" ? "text-[#00D615]" : "text-slate-500"
+                }`}
+              />
+              <span
+                className={`text-[10.5px] font-bold uppercase tracking-wider hidden sm:inline ${
+                  selectedDiscipline !== "Todas" ? "text-slate-300" : "text-slate-500"
                 }`}
               >
-                {d}
+                Disciplina:
+              </span>
+              <select
+                value={selectedDiscipline}
+                onChange={(e) => handleSelectDiscipline(e.target.value)}
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border shadow-2xs transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-emerald-400/20 max-w-[180px] sm:max-w-[220px] truncate ${
+                  selectedDiscipline !== "Todas"
+                    ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-750"
+                    : "bg-white text-slate-800 border-slate-200 hover:border-slate-300"
+                }`}
+                title="Filtrar catálogo por disciplina deportiva (cargadas y futuras)"
+              >
+                {allDisciplines.map((d) => {
+                  const count =
+                    disciplineCounts[d] ?? (d === "Todas" ? disciplineCounts.Todas ?? 0 : 0);
+                  return (
+                    <option key={d} value={d} className="bg-white text-slate-900 font-medium">
+                      {d === "Todas" ? `Todas las disciplinas (${count})` : `${d} (${count})`}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Botón rápido para limpiar filtro de disciplina si no es 'Todas' */}
+            {selectedDiscipline !== "Todas" && (
+              <button
+                type="button"
+                onClick={() => handleSelectDiscipline("Todas")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors active:scale-95 shadow-2xs"
+                title="Restablecer a todas las disciplinas"
+              >
+                <X className="w-3 h-3 text-slate-400" />
+                <span className="hidden sm:inline">Todas</span>
               </button>
-            ))}
+            )}
           </div>
         </div>
 
@@ -1256,19 +1489,64 @@ export function InventoryView({
             )}
           </div>
 
-          {/* Botón directo para abrir Drawer de Alertas */}
-          <button
-            type="button"
-            onClick={() => handleToggleAlertsDrawer(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 shadow-2xs shrink-0"
-          >
-            <Bell className="w-3.5 h-3.5 text-rose-400" />
-            <span>Ver Panel de Alertas</span>
-            {stockAlertsSummary.totalAlertVariants > 0 && (
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            )}
-          </button>
+          {/* Selector de Estado (RF-01) y Botón de Drawer */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Selector de Estado en Filtros: Activos, Inactivos / Dados de Baja, Todos */}
+            <div className="inline-flex items-center gap-1.5 bg-slate-100/90 p-0.5 sm:p-1 rounded-xl border border-slate-200/80 select-none">
+              <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider px-1.5 hidden md:inline">
+                Estado:
+              </span>
+              <select
+                value={activeFilterMode}
+                onChange={(e) => setActiveFilterMode(e.target.value as ActiveFilterMode)}
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border shadow-2xs transition-colors cursor-pointer ${
+                  activeFilterMode === "INACTIVE"
+                    ? "bg-slate-800 text-amber-300 border-slate-700"
+                    : activeFilterMode === "ALL"
+                    ? "bg-slate-100 text-slate-900 border-slate-300"
+                    : "bg-white text-slate-800 border-slate-200"
+                }`}
+                title="Filtrar por estado del producto: Activos, Inactivos / Dados de Baja, o Todos"
+              >
+                <option value="ACTIVE">Activos ({activeStatusSummary.activeCount})</option>
+                <option value="INACTIVE">Inactivos / Dados de Baja ({activeStatusSummary.inactiveCount})</option>
+                <option value="ALL">Todos ({activeStatusSummary.totalCount})</option>
+              </select>
+            </div>
+
+            {/* Botón directo para abrir Drawer de Alertas */}
+            <button
+              type="button"
+              onClick={() => handleToggleAlertsDrawer(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 shadow-2xs shrink-0"
+            >
+              <Bell className="w-3.5 h-3.5 text-rose-400" />
+              <span>Ver Panel de Alertas</span>
+              {stockAlertsSummary.totalAlertVariants > 0 && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Banner Informativo al consultar Inactivos */}
+        {activeFilterMode === "INACTIVE" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-100/90 rounded-xl border border-slate-200 text-slate-700 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+              <span className="font-medium">
+                Mostrando <strong className="font-bold text-slate-900">artículos dados de baja lógica</strong>. Están ocultos del mostrador (POS) y catálogo de ventas. Podés reactivarlos con el botón <strong>Reactivar</strong>.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveFilterMode("ACTIVE")}
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0 cursor-pointer"
+            >
+              Volver a productos activos
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ======================================================== */}
@@ -1319,7 +1597,7 @@ export function InventoryView({
       {selectedProductIds.size > 0 && (
         <div className="flex items-center justify-between gap-3 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 border border-slate-800">
           <div className="flex items-center gap-2.5">
-            <span className="w-6 h-6 rounded-lg bg-[#00D615] text-slate-950 font-extrabold flex items-center justify-center text-xs shadow-xs">
+            <span className="w-6 h-6 rounded-lg bg-gradient-to-b from-[#16a34a] to-[#0f6f36] text-white font-bold flex items-center justify-center text-xs shadow-xs border border-emerald-400/30">
               {selectedProductIds.size}
             </span>
             <span className="text-xs font-semibold text-slate-200">
@@ -1331,9 +1609,9 @@ export function InventoryView({
             <button
               type="button"
               onClick={() => setIsBatchPriceModalOpen(true)}
-              className="bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+              className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs border border-emerald-400/40 transition-all flex items-center gap-1.5"
             >
-              <Percent className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Percent className="w-3.5 h-3.5 text-white" />
               <span>Ajustar Precios de Seleccionados</span>
             </button>
             <button
@@ -1367,6 +1645,8 @@ export function InventoryView({
                   ? searchMode === "barcode"
                     ? `No existe ningún producto con el código "${searchQuery}". Verifique que el código esté asignado.`
                     : `No hay coincidencias para "${searchQuery}".`
+                  : activeFilterMode === "INACTIVE"
+                  ? "No hay productos inactivos o dados de baja en el sistema."
                   : stockAlertFilter !== "ALL"
                   ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la categoría "${selectedDiscipline}".`
                   : "No hay productos registrados en esta disciplina."}
@@ -1384,6 +1664,15 @@ export function InventoryView({
                 >
                   <X className="w-3 h-3" />
                   Limpiar búsqueda
+                </button>
+              )}
+              {activeFilterMode === "INACTIVE" && (
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterMode("ACTIVE")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  Volver a productos activos
                 </button>
               )}
               {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
@@ -1412,7 +1701,9 @@ export function InventoryView({
             <div
               key={item.id}
               onClick={() => handleOpenDetail(item)}
-              className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs hover:shadow-xs transition-all active:scale-[0.99] space-y-3 cursor-pointer"
+              className={`bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs hover:shadow-xs transition-all active:scale-[0.99] space-y-3 cursor-pointer ${
+                item.active === false ? "opacity-60 hover:opacity-100 bg-slate-50/60" : ""
+              }`}
             >
               {/* Card Header */}
               <div className="flex items-start gap-3">
@@ -1442,6 +1733,11 @@ export function InventoryView({
                     <span className="text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                       {item.discipline}
                     </span>
+                    {item.active === false && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                        Inactivo
+                      </span>
+                    )}
                     {(() => {
                       const status = evaluateProductStockStatus(item);
                       if (status.highestAlert === "OUT_OF_STOCK") {
@@ -1587,13 +1883,25 @@ export function InventoryView({
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
-                  <button
-                    onClick={(e) => handleOpenDeleteModal(item, e)}
-                    title="Dar de baja producto"
-                    className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors active:scale-95"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {item.active === false ? (
+                    <button
+                      onClick={(e) => handleReactivateProduct(item, e)}
+                      disabled={isReactivatingId === item.id}
+                      title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all active:scale-95"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isReactivatingId === item.id ? "animate-spin" : ""}`} />
+                      <span>Reactivar</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => handleOpenDeleteModal(item, e)}
+                      title="Dar de baja producto"
+                      className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -1677,6 +1985,8 @@ export function InventoryView({
                             ? searchMode === "barcode"
                               ? `No existe ningún producto con el código "${searchQuery}". Asegúrese de que el código esté asignado en el producto o variantes.`
                               : `No hay productos que coincidan con "${searchQuery}".`
+                            : activeFilterMode === "INACTIVE"
+                            ? "No hay productos inactivos o dados de baja en el sistema."
                             : stockAlertFilter !== "ALL"
                             ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la disciplina "${selectedDiscipline}".`
                             : "No hay productos registrados bajo esta categoría o disciplina."}
@@ -1694,6 +2004,15 @@ export function InventoryView({
                           >
                             <X className="w-3.5 h-3.5" />
                             Limpiar búsqueda y volver a escanear
+                          </button>
+                        )}
+                        {activeFilterMode === "INACTIVE" && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveFilterMode("ACTIVE")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            Volver a productos activos
                           </button>
                         )}
                         {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
@@ -1725,7 +2044,7 @@ export function InventoryView({
                     <tr
                       className={`hover:bg-slate-50/80 transition-colors group cursor-pointer ${
                         selectedProductIds.has(item.id) ? "bg-emerald-50/40" : ""
-                      }`}
+                      } ${item.active === false ? "opacity-60 hover:opacity-100 bg-slate-50/60" : ""}`}
                       onClick={() => handleOpenDetail(item)}
                     >
                       {/* Checkbox de Selección */}
@@ -1756,9 +2075,16 @@ export function InventoryView({
                             </div>
                           )}
                           <div className="flex flex-col min-w-0">
-                            <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
-                              {item.name}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                                {item.name}
+                              </span>
+                              {item.active === false && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                                  Inactivo
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-slate-400 font-medium">
                               {item.brand} • {item.category}
                             </span>
@@ -1950,13 +2276,25 @@ export function InventoryView({
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={(e) => handleOpenDeleteModal(item, e)}
-                            title="Dar de baja producto"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {item.active === false ? (
+                            <button
+                              onClick={(e) => handleReactivateProduct(item, e)}
+                              disabled={isReactivatingId === item.id}
+                              title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold transition-all active:scale-95 shadow-2xs"
+                            >
+                              <RefreshCw className={`w-3 h-3 text-emerald-600 ${isReactivatingId === item.id ? "animate-spin" : ""}`} />
+                              <span>Reactivar</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleOpenDeleteModal(item, e)}
+                              title="Dar de baja producto"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenDetail(item)}
                             className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
@@ -2100,6 +2438,8 @@ export function InventoryView({
         {/* Pie de tabla con paginación integrada */}
         {renderPaginationFooter()}
       </div>
+      </>
+    )}
 
       {/* Modal de Crear / Editar Producto */}
       <ProductFormModal
@@ -2131,10 +2471,10 @@ export function InventoryView({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900">
-                  ¿Eliminar producto?
+                  ¿Dar de baja producto?
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  El producto <strong className="text-slate-800 font-semibold">{productToDelete.name}</strong> se dará de baja del mostrador (POS) y catálogo activo, pero <span className="font-medium text-slate-700">su historial contable y ventas se conservarán intactos</span>.
+                  El producto <strong className="text-slate-800 font-semibold">{productToDelete.name}</strong> se dará de baja del mostrador (POS) y catálogo activo. <span className="font-medium text-slate-700">Su historial contable y trazabilidad se conservan intactos, y podés reactivarlo en cualquier momento filtrando por &quot;Inactivos / Dados de Baja&quot;</span>.
                 </p>
               </div>
             </div>
@@ -2163,12 +2503,12 @@ export function InventoryView({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Eliminando...</span>
+                    <span>Dando de baja...</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar Producto</span>
+                    <span>Confirmar Baja Lógica</span>
                   </>
                 )}
               </button>

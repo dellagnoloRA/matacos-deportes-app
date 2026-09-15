@@ -37,6 +37,9 @@ import {
   Store,
   History,
   Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
@@ -66,6 +69,49 @@ const TABS = [
   { id: "size_guide", label: "Guía de Talles" },
 ];
 
+type VariantSortOption =
+  | "price_desc"
+  | "price_asc"
+  | "alpha_color"
+  | "color_desc"
+  | "alpha_size"
+  | "size_desc"
+  | "stock_desc"
+  | "stock_asc";
+
+const SIZE_ORDER_MAP: Record<string, number> = {
+  xxs: 1,
+  xs: 2,
+  s: 3,
+  m: 4,
+  l: 5,
+  xl: 6,
+  xxl: 7,
+  "2xl": 7,
+  xxxl: 8,
+  "3xl": 8,
+  "4xl": 9,
+  único: 99,
+  unico: 99,
+};
+
+const compareVariantSizes = (a: string, b: string) => {
+  const cleanA = a.trim().toLowerCase();
+  const cleanB = b.trim().toLowerCase();
+
+  if (SIZE_ORDER_MAP[cleanA] !== undefined && SIZE_ORDER_MAP[cleanB] !== undefined) {
+    return SIZE_ORDER_MAP[cleanA] - SIZE_ORDER_MAP[cleanB];
+  }
+
+  const numA = parseFloat(cleanA.replace(/,/g, ".").replace(/[^\d.]/g, ""));
+  const numB = parseFloat(cleanB.replace(/,/g, ".").replace(/[^\d.]/g, ""));
+  if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+    return numA - numB;
+  }
+
+  return cleanA.localeCompare(cleanB);
+};
+
 export function ProductDetailView({
   product: initialProduct,
   onBack,
@@ -73,6 +119,80 @@ export function ProductDetailView({
   onProductUpdate,
 }: ProductDetailViewProps) {
   const [product, setProduct] = useState<DetailedProductItem>(initialProduct);
+  const [variantSort, setVariantSort] = useState<VariantSortOption>("price_desc");
+
+  // Lista ordenada de variantes según criterio seleccionado (por defecto: precio más alto a más bajo con desempate alfabético)
+  const sortedVariants = useMemo(() => {
+    if (!product.variants || product.variants.length <= 1) {
+      return product.variants || [];
+    }
+
+    const list = [...product.variants];
+
+    return list.sort((a, b) => {
+      const priceA = a.price ?? product.price;
+      const priceB = b.price ?? product.price;
+      const stockA = (a.stockStore || 0) + (a.stockWarehouse || 0);
+      const stockB = (b.stockStore || 0) + (b.stockWarehouse || 0);
+
+      switch (variantSort) {
+        case "price_desc": {
+          const diff = priceB - priceA;
+          if (diff !== 0) return diff;
+          const colorComp = a.color.localeCompare(b.color);
+          if (colorComp !== 0) return colorComp;
+          return compareVariantSizes(a.size, b.size);
+        }
+        case "price_asc": {
+          const diff = priceA - priceB;
+          if (diff !== 0) return diff;
+          const colorComp = a.color.localeCompare(b.color);
+          if (colorComp !== 0) return colorComp;
+          return compareVariantSizes(a.size, b.size);
+        }
+        case "alpha_color": {
+          const colorComp = a.color.localeCompare(b.color);
+          if (colorComp !== 0) return colorComp;
+          const sizeComp = compareVariantSizes(a.size, b.size);
+          if (sizeComp !== 0) return sizeComp;
+          return priceB - priceA;
+        }
+        case "color_desc": {
+          const colorComp = b.color.localeCompare(a.color);
+          if (colorComp !== 0) return colorComp;
+          const sizeComp = compareVariantSizes(a.size, b.size);
+          if (sizeComp !== 0) return sizeComp;
+          return priceB - priceA;
+        }
+        case "alpha_size": {
+          const sizeComp = compareVariantSizes(a.size, b.size);
+          if (sizeComp !== 0) return sizeComp;
+          const colorComp = a.color.localeCompare(b.color);
+          if (colorComp !== 0) return colorComp;
+          return priceB - priceA;
+        }
+        case "size_desc": {
+          const sizeComp = compareVariantSizes(b.size, a.size);
+          if (sizeComp !== 0) return sizeComp;
+          const colorComp = a.color.localeCompare(b.color);
+          if (colorComp !== 0) return colorComp;
+          return priceB - priceA;
+        }
+        case "stock_desc": {
+          const stockDiff = stockB - stockA;
+          if (stockDiff !== 0) return stockDiff;
+          return priceB - priceA;
+        }
+        case "stock_asc": {
+          const stockDiff = stockA - stockB;
+          if (stockDiff !== 0) return stockDiff;
+          return priceA - priceB;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [product.variants, product.price, variantSort]);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -214,6 +334,24 @@ export function ProductDetailView({
     }
   };
 
+  const [isReactivating, setIsReactivating] = useState(false);
+
+  const handleReactivate = async () => {
+    try {
+      setIsReactivating(true);
+      const res = await toggleProductActive(product.id);
+      if (res.success) {
+        if (onProductUpdate) {
+          onProductUpdate({ ...product, active: true });
+        }
+      }
+    } catch (err) {
+      console.error("Error al reactivar producto:", err);
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
   // Métricas Fidedignas basadas en sumatoria real de movimientos y ventas asociadas (sin estimaciones fijas)
   const totalStoreStock = product.variants.reduce((acc, v) => acc + (v.stockStore || 0), 0);
   const totalWarehouseStock = product.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
@@ -296,10 +434,16 @@ export function ProductDetailView({
               <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0">
                 {product.barcode || product.sku}
               </span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 whitespace-nowrap shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Sincronizado POS & Web</span>
-              </span>
+              {product.active === false ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-300 whitespace-nowrap shrink-0">
+                  <span>Inactivo (Dado de baja)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 whitespace-nowrap shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Sincronizado POS & Web</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -322,14 +466,26 @@ export function ProductDetailView({
               <span>Editar</span>
             </button>
 
-            <button
-              onClick={() => setIsDeleteModalOpen(true)}
-              title="Eliminar producto"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 active:scale-95 whitespace-nowrap"
-            >
-              <Trash2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Eliminar</span>
-            </button>
+            {product.active === false ? (
+              <button
+                onClick={handleReactivate}
+                disabled={isReactivating}
+                title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-300 active:scale-95 whitespace-nowrap shadow-2xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${isReactivating ? "animate-spin" : ""}`} />
+                <span>Reactivar Producto</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                title="Dar de baja producto"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 active:scale-95 whitespace-nowrap"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Dar de Baja</span>
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -621,29 +777,104 @@ export function ProductDetailView({
                       Variantes, Talles y Stock
                     </h3>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-0.5 rounded-full border border-slate-200">
-                    {product.variants.length} variante(s) registradas
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {/* Selector de Criterio de Orden */}
+                    <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                      <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-[10.5px] font-semibold text-slate-500 hidden sm:inline">
+                        Orden:
+                      </span>
+                      <select
+                        value={variantSort}
+                        onChange={(e) => setVariantSort(e.target.value as VariantSortOption)}
+                        className="bg-transparent text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                        aria-label="Criterio de orden de variantes"
+                      >
+                        <option value="price_desc">Precio (Más alto al más bajo)</option>
+                        <option value="price_asc">Precio (Más bajo al más alto)</option>
+                        <option value="alpha_color">Color (Orden alfabético A-Z)</option>
+                        <option value="alpha_size">Talle (Orden menor a mayor)</option>
+                        <option value="stock_desc">Mayor stock disponible</option>
+                      </select>
+                    </div>
+
+                    <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                      {product.variants.length} variante(s) registradas
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3 px-4">Color</th>
-                        <th className="py-3 px-3">Talle</th>
+                        <th
+                          onClick={() => setVariantSort(variantSort === "alpha_color" ? "color_desc" : "alpha_color")}
+                          className="py-3 px-4 cursor-pointer select-none hover:text-slate-900 transition-colors group/th"
+                          title="Ordenar por color"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Color</span>
+                            {variantSort === "alpha_color" && <ArrowUp className="w-3 h-3 text-emerald-600" />}
+                            {variantSort === "color_desc" && <ArrowDown className="w-3 h-3 text-emerald-600" />}
+                            {variantSort !== "alpha_color" && variantSort !== "color_desc" && (
+                              <ArrowUpDown className="w-3 h-3 opacity-0 group-hover/th:opacity-40 text-slate-400" />
+                            )}
+                          </div>
+                        </th>
+                        <th
+                          onClick={() => setVariantSort(variantSort === "alpha_size" ? "size_desc" : "alpha_size")}
+                          className="py-3 px-3 cursor-pointer select-none hover:text-slate-900 transition-colors group/th"
+                          title="Ordenar por talle"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Talle</span>
+                            {variantSort === "alpha_size" && <ArrowUp className="w-3 h-3 text-emerald-600" />}
+                            {variantSort === "size_desc" && <ArrowDown className="w-3 h-3 text-emerald-600" />}
+                            {variantSort !== "alpha_size" && variantSort !== "size_desc" && (
+                              <ArrowUpDown className="w-3 h-3 opacity-0 group-hover/th:opacity-40 text-slate-400" />
+                            )}
+                          </div>
+                        </th>
                         <th className="py-3 px-3 font-mono">Cód. de Barra</th>
-                        <th className="py-3 px-3 text-right">Precio Venta</th>
+                        <th
+                          onClick={() => setVariantSort(variantSort === "price_desc" ? "price_asc" : "price_desc")}
+                          className="py-3 px-3 text-right cursor-pointer select-none hover:text-slate-900 transition-colors group/th"
+                          title="Ordenar por precio de venta"
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Precio Venta</span>
+                            {variantSort === "price_desc" && <ArrowDown className="w-3 h-3 text-emerald-600" />}
+                            {variantSort === "price_asc" && <ArrowUp className="w-3 h-3 text-emerald-600" />}
+                            {variantSort !== "price_desc" && variantSort !== "price_asc" && (
+                              <ArrowUpDown className="w-3 h-3 opacity-0 group-hover/th:opacity-40 text-slate-400" />
+                            )}
+                          </div>
+                        </th>
                         <th className="py-3 px-3 text-center">Stock Tienda</th>
                         <th className="py-3 px-3 text-center">Stock Depósito</th>
                         <th className="py-3 px-3 text-center">Recibido</th>
                         <th className="py-3 px-3 text-center">Vendido</th>
-                        <th className="py-3 px-4 text-center">Existencias</th>
+                        <th
+                          onClick={() => setVariantSort(variantSort === "stock_desc" ? "stock_asc" : "stock_desc")}
+                          className="py-3 px-4 text-center cursor-pointer select-none hover:text-slate-900 transition-colors group/th"
+                          title="Ordenar por existencias totales"
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            <span>Existencias</span>
+                            {variantSort === "stock_desc" && <ArrowDown className="w-3 h-3 text-emerald-600" />}
+                            {variantSort === "stock_asc" && <ArrowUp className="w-3 h-3 text-emerald-600" />}
+                            {variantSort !== "stock_desc" && variantSort !== "stock_asc" && (
+                              <ArrowUpDown className="w-3 h-3 opacity-0 group-hover/th:opacity-40 text-slate-400" />
+                            )}
+                          </div>
+                        </th>
                         <th className="py-3 px-4 text-center min-w-[120px]">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {product.variants.map((v, idx) => {
+                      {sortedVariants.map((v, idx) => {
                         const variantTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
                         const isLowStore = (v.stockStore || 0) <= 2;
                         const vMovementReceived = movements
@@ -683,7 +914,12 @@ export function ProductDetailView({
 
                             {/* Precio Venta */}
                             <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-900 text-xs">
-                              {formatCurrency(variantPrice)}
+                              <div>{formatCurrency(variantPrice)}</div>
+                              {v.price !== null && v.price !== undefined && v.price !== product.price && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  Diferencial
+                                </span>
+                              )}
                             </td>
 
                             {/* Stock Tienda (Saavedra 241) */}
@@ -909,7 +1145,7 @@ export function ProductDetailView({
               </button>
             </div>
             <div className="space-y-2">
-              {product.variants.map((v, i) => {
+              {sortedVariants.map((v, i) => {
                 const variantPrice = v.price ?? product.price;
 
                 return (
@@ -1325,7 +1561,7 @@ export function ProductDetailView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {product.variants.map((v, i) => {
+                      {sortedVariants.map((v, i) => {
                         const effPrice = v.price ?? product.price;
                         const vMargin = effPrice - product.costPrice;
                         const vMarginPct =
@@ -1456,10 +1692,10 @@ export function ProductDetailView({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900">
-                  ¿Eliminar producto?
+                  ¿Dar de baja producto?
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  El producto <strong className="text-slate-800 font-semibold">{product.name}</strong> se dará de baja del mostrador (POS) y del catálogo activo, pero <span className="font-medium text-slate-700">su historial de ventas y trazabilidad se conservarán intactos</span>.
+                  El producto <strong className="text-slate-800 font-semibold">{product.name}</strong> se dará de baja del mostrador (POS) y del catálogo activo. <span className="font-medium text-slate-700">Su historial contable y trazabilidad se conservan intactos, y podrá ser reactivado en cualquier momento desde el inventario</span>.
                 </p>
               </div>
             </div>
@@ -1488,12 +1724,12 @@ export function ProductDetailView({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Eliminando...</span>
+                    <span>Dando de baja...</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar Producto</span>
+                    <span>Confirmar Baja Lógica</span>
                   </>
                 )}
               </button>

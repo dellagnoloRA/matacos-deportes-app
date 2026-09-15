@@ -378,7 +378,6 @@ export function ProductFormModal({
   // Manejar variantes
   const handleAddVariant = () => {
     const lastColor = variants[variants.length - 1]?.color || "Negro";
-    const lastPrice = variants[variants.length - 1]?.price !== undefined ? variants[variants.length - 1]?.price : "";
 
     setVariants((prev) => [
       ...prev,
@@ -390,7 +389,7 @@ export function ProductFormModal({
         stockStore: 1,
         stockWarehouse: 0,
         minStock: 2,
-        price: lastPrice,
+        price: "", // Por defecto hereda el precio base general configurado arriba
       },
     ]);
   };
@@ -635,7 +634,24 @@ export function ProductFormModal({
 
     if (priceNum < costNum) {
       setFieldErrors({ price: true });
-      setErrorMessage("El precio de venta no debería ser inferior al precio de costo.");
+      setErrorMessage("El precio de venta base no debería ser inferior al precio de costo.");
+      return;
+    }
+
+    // Validación preventiva: advertir si alguna variante tiene un precio diferencial menor al costo
+    const variantBelowCost = variants.find(
+      (v) =>
+        v.price !== "" &&
+        v.price !== undefined &&
+        Number(v.price) > 0 &&
+        Number(v.price) < costNum
+    );
+    if (variantBelowCost) {
+      setErrorMessage(
+        `El precio diferencial del talle "${variantBelowCost.size || "seleccionado"}" (${formatCurrency(
+          Number(variantBelowCost.price)
+        )}) no debería ser inferior al precio de costo (${formatCurrency(costNum)}).`
+      );
       return;
     }
 
@@ -969,10 +985,22 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Disciplina <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions && (
+                  {isLoadingOptions ? (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("discipline");
+                        setQuickCreateValue("");
+                      }}
+                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <span>Nueva...</span>
+                    </button>
                   )}
                 </div>
 
@@ -1068,10 +1096,22 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Categoría <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions && (
+                  {isLoadingOptions ? (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("category");
+                        setQuickCreateValue("");
+                      }}
+                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <span>Nueva...</span>
+                    </button>
                   )}
                 </div>
 
@@ -1167,10 +1207,22 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Marca <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions && (
+                  {isLoadingOptions ? (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCreateType("brand");
+                        setQuickCreateValue("");
+                      }}
+                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <span>Nueva...</span>
+                    </button>
                   )}
                 </div>
 
@@ -1334,12 +1386,32 @@ export function ProductFormModal({
 
           {/* 3. Variantes de Talle y Color (Creación y Edición) */}
           <div className="space-y-3 pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2 text-[11px]">
                   <Layers className="w-3.5 h-3.5 text-emerald-600" />
                   Variantes de Producto (Talles, Colores, Precios y Stock)
                 </h3>
+                {variants.some(
+                  (v) =>
+                    v.price !== "" &&
+                    v.price !== undefined &&
+                    Number(v.price) > 0 &&
+                    Number(v.price) !== priceNum
+                ) && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    {
+                      variants.filter(
+                        (v) =>
+                          v.price !== "" &&
+                          v.price !== undefined &&
+                          Number(v.price) > 0 &&
+                          Number(v.price) !== priceNum
+                      ).length
+                    }{" "}
+                    con precio diferencial
+                  </span>
+                )}
               </div>
 
               <button
@@ -1352,14 +1424,29 @@ export function ProductFormModal({
               </button>
             </div>
 
+            {/* Banner Informativo: Precios Diferenciales por Variante (RF-02) */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-start gap-2.5 text-xs text-emerald-950">
+              <Tag className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-900 text-xs">
+                    Precios Diferenciales por Variante (RF-02):
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                  Todos los talles adoptan por defecto el <strong>Precio de Venta Base ({priceNum > 0 ? formatCurrency(priceNum) : "$ 0,00"})</strong>. Si dejás vacío el campo <strong>Precio Dif.</strong>, heredará ese precio base. Si un talle o medida tiene un costo o precio específico (ej. talle XXL, 2kg, etc.), ingresalo en esta columna.
+                </p>
+              </div>
+            </div>
+
             <div className="space-y-2.5">
               {variants.map((variant, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 grid grid-cols-2 sm:grid-cols-7 gap-2 items-end"
+                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start"
                 >
                   {/* 1. Talle */}
-                  <div>
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Talle <span className="text-rose-500">*</span>
                     </label>
@@ -1377,7 +1464,7 @@ export function ProductFormModal({
                   </div>
 
                   {/* 2. Color */}
-                  <div>
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Color <span className="text-rose-500">*</span>
                     </label>
@@ -1395,30 +1482,73 @@ export function ProductFormModal({
                   </div>
 
                   {/* 3. Precio Variante (Opcional / Diferencial) */}
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between" title="Precio específico para esta variante si varía del precio base">
-                      <span>Precio</span>
+                  <div className="col-span-2 sm:col-span-2">
+                    <label
+                      className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between"
+                      title="Precio diferencial para este talle. Dejar vacío para usar el precio base."
+                    >
+                      <span className="flex items-center gap-1 text-emerald-800">
+                        <Tag className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                        <span>Precio Dif.</span>
+                      </span>
                       <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={variant.price !== undefined ? variant.price : ""}
-                      onChange={(e) =>
-                        handleVariantChange(
-                          idx,
-                          "price",
-                          e.target.value === "" ? "" : Number(e.target.value)
-                        )
-                      }
-                      placeholder={priceNum > 0 ? `$ ${priceNum}` : "Base"}
-                      className="w-full bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 placeholder:text-slate-300 focus:border-emerald-500 focus:outline-none"
-                    />
+                    <div className="relative flex items-center">
+                      <span className="absolute left-2 text-[11px] font-bold text-slate-400 select-none">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={variant.price !== undefined && variant.price !== null ? variant.price : ""}
+                        onChange={(e) =>
+                          handleVariantChange(
+                            idx,
+                            "price",
+                            e.target.value === "" ? "" : Number(e.target.value)
+                          )
+                        }
+                        placeholder={priceNum > 0 ? `${priceNum}` : "Base"}
+                        className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none ${
+                          variant.price !== "" &&
+                          variant.price !== undefined &&
+                          Number(variant.price) > 0
+                            ? "bg-emerald-50/40 border-emerald-400 text-emerald-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20"
+                            : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-300 focus:border-emerald-500"
+                        }`}
+                      />
+                    </div>
+                    {/* Micro-indicador de estado del precio */}
+                    <div className="min-h-[14px] mt-0.5">
+                      {variant.price !== "" &&
+                      variant.price !== undefined &&
+                      Number(variant.price) > 0 ? (
+                        <span
+                          className="text-[9px] font-bold text-emerald-700 truncate block"
+                          title={`Precio específico para este talle: ${formatCurrency(
+                            Number(variant.price)
+                          )}`}
+                        >
+                          {Number(variant.price) === priceNum
+                            ? "Igual al base"
+                            : Number(variant.price) > priceNum
+                            ? `+${formatCurrency(Number(variant.price) - priceNum)} vs base`
+                            : `-${formatCurrency(priceNum - Number(variant.price))} vs base`}
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[9px] text-slate-400 truncate block"
+                          title="Hereda el precio de venta base configurado arriba"
+                        >
+                          Hereda base ({priceNum > 0 ? formatCurrency(priceNum) : "—"})
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* 4. Cód. Barra */}
-                  <div>
+                  <div className="col-span-2 sm:col-span-3">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">
                         Cód. Barra
@@ -1449,7 +1579,7 @@ export function ProductFormModal({
                   </div>
 
                   {/* 5. Salón */}
-                  <div>
+                  <div className="col-span-1 sm:col-span-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Salón
                     </label>
@@ -1465,7 +1595,7 @@ export function ProductFormModal({
                   </div>
 
                   {/* 6. Depósito */}
-                  <div>
+                  <div className="col-span-1 sm:col-span-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Depósito
                     </label>
@@ -1481,12 +1611,12 @@ export function ProductFormModal({
                   </div>
 
                   {/* 7. Eliminar */}
-                  <div className="flex justify-end">
+                  <div className="col-span-2 sm:col-span-1 flex justify-end pt-5">
                     {variants.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveVariant(idx)}
-                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Eliminar este talle"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1512,7 +1642,7 @@ export function ProductFormModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-2"
+              className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-6 py-2.5 rounded-2xl border border-emerald-400/40 shadow-[0_2px_4px_rgba(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center gap-2 select-none"
             >
               {isSubmitting ? (
                 <>
