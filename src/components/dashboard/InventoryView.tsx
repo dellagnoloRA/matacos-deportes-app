@@ -476,6 +476,8 @@ interface InventoryViewProps {
   isAlertsDrawerOpen?: boolean;
   onToggleAlertsDrawer?: (open: boolean) => void;
   onAlertsCountChange?: (count: number) => void;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function InventoryView({
@@ -487,6 +489,8 @@ export function InventoryView({
   isAlertsDrawerOpen: controlledAlertsDrawerOpen,
   onToggleAlertsDrawer,
   onAlertsCountChange,
+  isSidebarOpen,
+  onToggleSidebar,
 }: InventoryViewProps = {}) {
   const [searchMode, setSearchMode] = useState<"barcode" | "all">("barcode");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1139,6 +1143,15 @@ export function InventoryView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
+            {!isSidebarOpen && onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="hidden md:flex p-1.5 mr-1 bg-slate-900 text-emerald-400 rounded-lg hover:bg-slate-800 transition-colors shadow-xs"
+                title="Mostrar menú lateral"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               Inventario y Catálogo
             </h1>

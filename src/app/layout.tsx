@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Back Office & Dashboard — Matacos Deportes",
+  title: "Sistema Matacos — Gestión y POS",
   description: "Sistema Integral de Gestión, POS Offline y E-commerce para Matacos Deportes (Saavedra 241, Formosa)",
 };
 

@@ -9,6 +9,7 @@ import {
   Globe,
   Settings,
   LayoutDashboard,
+  PanelLeft,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -67,36 +68,42 @@ export function SidebarLeft({
             </span>
           </div>
 
-          {/* Close button on mobile */}
+          {/* Close buttons (Mobile X and Desktop Collapse) */}
           {onClose && (
-            <button
-              onClick={onClose}
-              className="md:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="Cerrar menú"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onClose}
+                className="md:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="Cerrar menú"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className="hidden md:flex p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="Ocultar menú lateral"
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
 
         {/* Main Navigation Menu */}
         <nav className="space-y-1.5 pt-1">
-          {/* 1. Inicio / Dashboard Overview (Lourdes's Analytics) */}
+          {/* 1. Inicio / Dashboard Overview (Bloqueado) */}
           <button
-            onClick={() => handleItemClick("inicio")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "inicio" || activeItem === "analytics"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
+            disabled
+            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
           >
             <div className="flex items-center gap-3">
-              <LayoutDashboard className={`w-4 h-4 ${activeItem === "inicio" || activeItem === "analytics" ? "text-slate-950" : "text-emerald-300"}`} />
+              <LayoutDashboard className="w-4 h-4 text-emerald-300" />
               <span>Inicio / Métricas</span>
             </div>
+            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 2. Inventario */}
+          {/* 2. Inventario (Activo) */}
           <button
             onClick={() => handleItemClick("inventario")}
             className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
@@ -111,75 +118,69 @@ export function SidebarLeft({
             </div>
           </button>
 
-          {/* 3. Ventas POS */}
+          {/* 3. Ventas POS (Bloqueado) */}
           <button
-            onClick={() => handleItemClick("pos")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "pos"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
+            disabled
+            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
           >
             <div className="flex items-center gap-3">
-              <ShoppingBag className={`w-4 h-4 ${activeItem === "pos" ? "text-slate-950" : "text-emerald-300"}`} />
+              <ShoppingBag className="w-4 h-4 text-emerald-300" />
               <span>Ventas POS</span>
             </div>
+            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 4. Caja */}
+          {/* 4. Caja (Bloqueado) */}
           <button
-            onClick={() => handleItemClick("caja")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "caja"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
+            disabled
+            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
           >
             <div className="flex items-center gap-3">
-              <CircleDollarSign className={`w-4 h-4 ${activeItem === "caja" ? "text-slate-950" : "text-emerald-300"}`} />
+              <CircleDollarSign className="w-4 h-4 text-emerald-300" />
               <span>Caja</span>
             </div>
+            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 5. E-commerce */}
+          {/* 5. E-commerce (Bloqueado) */}
           <button
-            onClick={() => handleItemClick("ecommerce")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "ecommerce"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
+            disabled
+            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
           >
             <div className="flex items-center gap-3">
-              <Globe className={`w-4 h-4 ${activeItem === "ecommerce" ? "text-slate-950" : "text-emerald-300"}`} />
+              <Globe className="w-4 h-4 text-emerald-300" />
               <span>E-commerce</span>
             </div>
+            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
         </nav>
       </div>
 
       {/* Bottom Section: Configuración + User Profile Card */}
       <div className="space-y-3 pt-4 border-t border-emerald-800/60">
-        {/* Configuración */}
+        {/* Configuración (Bloqueado) */}
         <button
-          onClick={() => handleItemClick("configuracion")}
-          className="flex items-center gap-3 w-full py-2 px-2.5 text-emerald-200/90 hover:text-white hover:bg-white/10 rounded-xl transition-colors font-medium text-xs"
+          disabled
+          className="flex items-center justify-between w-full py-2 px-2.5 text-emerald-200/50 cursor-not-allowed rounded-xl transition-colors font-medium text-xs"
         >
-          <Settings className="w-4 h-4 text-emerald-300" />
-          <span>Configuración</span>
+          <div className="flex items-center gap-3">
+            <Settings className="w-4 h-4 text-emerald-300/50" />
+            <span>Configuración general</span>
+          </div>
+          <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
         </button>
 
-        {/* User Profile Card (Inferior Izquierda como en Canva) */}
+        {/* User Profile Card (Cambiado a perfil de mostrador) */}
         <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center gap-3 shadow-inner">
-          <div className="w-9 h-9 rounded-full bg-white text-[#063a2f] font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-600/30">
-            MS
+          <div className="w-9 h-9 rounded-full bg-slate-800 text-emerald-400 font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-900/50">
+            LOC
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-bold text-white leading-tight truncate">
-              Martina Suárez
+              Sesión Local
             </span>
             <span className="text-[10px] text-emerald-300 font-medium tracking-wide">
-              Administración
+              Mostrador
             </span>
           </div>
         </div>

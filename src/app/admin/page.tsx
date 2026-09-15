@@ -6,7 +6,7 @@ import { getDetailedInventoryProducts } from "@/server/actions/productActions";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Back Office & Analíticas — Matacos Deportes",
+  title: "Sistema Matacos — Analíticas y Control",
   description: "Panel de control general y analíticas de ventas y rendimiento para Matacos Deportes",
 };
 

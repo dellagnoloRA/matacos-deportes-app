@@ -183,6 +183,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             activeItem={currentTab === "analytics" ? "inicio" : currentTab}
             onSelectItem={handleSelectTab}
             onSelectCategory={handleSelectCategory}
+            onClose={handleToggleLeft}
             className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
@@ -216,6 +217,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 </span>
               </div>
             </div>
+
             <InventoryView
               selectedDiscipline={selectedCategory}
               onDisciplineChange={handleSelectCategory}
@@ -225,6 +227,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               isAlertsDrawerOpen={isGlobalAlertsDrawerOpen}
               onToggleAlertsDrawer={setIsGlobalAlertsDrawerOpen}
               onAlertsCountChange={setGlobalAlertsCount}
+              isSidebarOpen={isDesktopLeftOpen}
+              onToggleSidebar={handleToggleLeft}
             />
           </div>
         ) : (
