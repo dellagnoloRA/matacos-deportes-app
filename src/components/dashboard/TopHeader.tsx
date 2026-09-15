@@ -17,6 +17,8 @@ interface TopHeaderProps {
   onToggleRightSidebar?: () => void;
   isLeftSidebarOpen?: boolean;
   isRightSidebarOpen?: boolean;
+  alertCount?: number;
+  onOpenAlerts?: () => void;
 }
 
 export function TopHeader({
@@ -24,6 +26,8 @@ export function TopHeader({
   onToggleRightSidebar,
   isLeftSidebarOpen = true,
   isRightSidebarOpen = true,
+  alertCount = 0,
+  onOpenAlerts,
 }: TopHeaderProps) {
   const [isStarred, setIsStarred] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,11 +99,18 @@ export function TopHeader({
 
         {/* Notifications Bell Button */}
         <button
-          title="Notificaciones"
+          onClick={onOpenAlerts}
+          title={alertCount > 0 ? `${alertCount} alertas de stock crítico` : "Centro de Alertas de Stock"}
           className="p-1.5 text-slate-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors relative"
         >
           <Bell className="w-4 h-4" />
-          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full absolute top-1.5 right-1.5 ring-2 ring-neutral-950" />
+          {alertCount > 0 ? (
+            <span className="min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[10px] font-black rounded-full absolute -top-1 -right-1 flex items-center justify-center ring-2 ring-[#111215] animate-pulse">
+              {alertCount > 99 ? "99+" : alertCount}
+            </span>
+          ) : (
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full absolute top-1.5 right-1.5 ring-2 ring-neutral-950" />
+          )}
         </button>
 
         {/* Right Sidebar Toggle */}

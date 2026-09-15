@@ -13,6 +13,7 @@ import { ProvinceTrafficChart } from "./ProvinceTrafficChart";
 import { MarketingSeoCard } from "./MarketingSeoCard";
 import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
+import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { DetailedProductItem, KpiData } from "./types";
 
 const INITIAL_KPIS: KpiData[] = [
@@ -132,6 +133,10 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const [isDesktopRightOpen, setIsDesktopRightOpen] = useState(true);
   const [isMobileRightOpen, setIsMobileRightOpen] = useState(false);
 
+  // Estados de Alertas de Stock Crítico Globales (RF-06 / CU-INV-08)
+  const [isGlobalAlertsDrawerOpen, setIsGlobalAlertsDrawerOpen] = useState(false);
+  const [globalAlertsCount, setGlobalAlertsCount] = useState(0);
+
   const [timeFilter, setTimeFilter] = useState("Hoy");
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
 
@@ -217,6 +222,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               initialProducts={initialProducts}
               selectedProductId={selectedProductId}
               onProductChange={handleSelectProduct}
+              isAlertsDrawerOpen={isGlobalAlertsDrawerOpen}
+              onToggleAlertsDrawer={setIsGlobalAlertsDrawerOpen}
+              onAlertsCountChange={setGlobalAlertsCount}
             />
           </div>
         ) : (
@@ -227,6 +235,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               onToggleRightSidebar={handleToggleRight}
               isLeftSidebarOpen={isDesktopLeftOpen || isMobileLeftOpen}
               isRightSidebarOpen={isDesktopRightOpen || isMobileRightOpen}
+              alertCount={globalAlertsCount}
+              onOpenAlerts={() => setIsGlobalAlertsDrawerOpen(true)}
             />
 
             {/* Section Header: Overview + Time Filter */}
@@ -346,6 +356,29 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             onClose={() => setIsMobileRightOpen(false)}
           />
         </div>
+      )}
+
+      {/* Drawer Global de Alertas de Stock Crítico (para vistas no-inventario) */}
+      {currentTab !== "inventario" && (
+        <StockAlertsDrawer
+          isOpen={isGlobalAlertsDrawerOpen}
+          onClose={() => setIsGlobalAlertsDrawerOpen(false)}
+          products={initialProducts || []}
+          onSelectProduct={(productId) => {
+            setIsGlobalAlertsDrawerOpen(false);
+            updateUrl({
+              tab: "inventario",
+              producto: productId,
+            });
+          }}
+          onOpenStockMovement={(product) => {
+            setIsGlobalAlertsDrawerOpen(false);
+            updateUrl({
+              tab: "inventario",
+              producto: product.id,
+            });
+          }}
+        />
       )}
     </div>
   );

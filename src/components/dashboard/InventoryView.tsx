@@ -34,12 +34,14 @@ import {
   Percent,
   History,
   FileSpreadsheet,
+  AlertOctagon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
 import { ProductFormModal } from "./ProductFormModal";
 import { StockMovementModal, type OperationType } from "./StockMovementModal";
+import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
 import { PriceHistoryModal } from "./PriceHistoryModal";
 import { BulkImportModal } from "./BulkImportModal";
@@ -133,11 +135,11 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
     salesStoreTotal: 96,
     salesWebTotal: 52,
     variants: [
-      { size: "39", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 4, barcode: "779123456703-39", receivedCount: 110, soldCountStore: 18, soldCountWeb: 10 },
+      { size: "39", color: "Blanco/Azul", stockStore: 0, stockWarehouse: 4, barcode: "779123456703-39", receivedCount: 110, soldCountStore: 18, soldCountWeb: 10 },
       { size: "40", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 6, barcode: "779123456703-40", receivedCount: 120, soldCountStore: 24, soldCountWeb: 14 },
       { size: "41", color: "Blanco/Azul", stockStore: 4, stockWarehouse: 8, barcode: "779123456703-41", receivedCount: 130, soldCountStore: 28, soldCountWeb: 16 },
       { size: "42", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 5, barcode: "779123456703-42", receivedCount: 115, soldCountStore: 16, soldCountWeb: 8 },
-      { size: "43", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 3, barcode: "779123456703-43", receivedCount: 105, soldCountStore: 10, soldCountWeb: 4 },
+      { size: "43", color: "Blanco/Azul", stockStore: 0, stockWarehouse: 0, barcode: "779123456703-43", receivedCount: 105, soldCountStore: 10, soldCountWeb: 4 },
     ],
     sizeConversions: [
       { ar: "39 AR", us: "7.0 US", eu: "40 EU", br: "38 BR", cm: "25.25 cm", note: "Calce justo" },
@@ -325,6 +327,35 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
       { ar: "XL", us: "X-Large (18.5-20 in)", eu: "XL (40.5-43 cm)", br: "GG (BR)", cm: "40.5 - 43.0 cm", note: "Calce amplio" },
     ],
   },
+  {
+    id: "p9",
+    name: "Antiparras Fastskin Elite Mirror",
+    description: "Antiparras de perfil ultrabajo diseñadas para nadadores de élite. Sellado IQfit 3D ergonómico a prueba de filtraciones.",
+    brand: "Speedo",
+    discipline: "Natación",
+    category: "Accesorios Natación",
+    subcategory: "Antiparras de Competición",
+    price: 89000,
+    costPrice: 52000,
+    sku: "NAT-SPE-999",
+    barcode: "779123456709",
+    stockLocal: 0,
+    stockWeb: 0,
+    minStock: 3,
+    updatedAt: "14 Abr 2026 at 9:00 PM",
+    iconBg: "from-rose-600 to-red-800",
+    receivedTotal: 150,
+    stockTransfer: 0,
+    salesStoreTotal: 95,
+    salesWebTotal: 55,
+    variants: [
+      { size: "Único", color: "Mirror Red", stockStore: 0, stockWarehouse: 0, barcode: "779123456709-1", receivedCount: 75, soldCountStore: 48, soldCountWeb: 27 },
+      { size: "Único", color: "Mirror Black", stockStore: 0, stockWarehouse: 0, barcode: "779123456709-2", receivedCount: 75, soldCountStore: 47, soldCountWeb: 28 },
+    ],
+    sizeConversions: [
+      { ar: "Único", us: "One Size", eu: "TU", br: "Tamanho Único", cm: "Ajustable 48-62 cm", note: "Escala graduada de tensión" },
+    ],
+  },
 ];
 
 const DISCIPLINES = [
@@ -335,12 +366,80 @@ const DISCIPLINES = [
   "Fitness",
 ];
 
+export type StockAlertFilterMode = "ALL" | "IN_ALERT" | "OUT_OF_STOCK" | "STORE_REPLENISHMENT";
+
+export function evaluateProductStockStatus(product: DetailedProductItem) {
+  const minStock = product.minStock || 2;
+  const variants = product.variants || [];
+
+  let totalStore = 0;
+  let totalWarehouse = 0;
+  let outOfStockVariants = 0;
+  let storeEmptyVariants = 0;
+  let criticalLowVariants = 0;
+
+  if (variants.length === 0) {
+    totalStore = product.stockLocal ?? 0;
+    totalWarehouse = product.stockWeb ?? 0;
+    const total = totalStore + totalWarehouse;
+
+    if (total === 0) outOfStockVariants = 1;
+    else if (totalStore === 0 && totalWarehouse > 0) storeEmptyVariants = 1;
+    else if (total <= minStock) criticalLowVariants = 1;
+  } else {
+    for (const v of variants) {
+      const vStore = v.stockStore ?? 0;
+      const vWarehouse = v.stockWarehouse ?? 0;
+      const vTotal = vStore + vWarehouse;
+
+      totalStore += vStore;
+      totalWarehouse += vWarehouse;
+
+      if (vTotal === 0) {
+        outOfStockVariants++;
+      } else if (vStore === 0 && vWarehouse > 0) {
+        storeEmptyVariants++;
+      } else if (vTotal <= minStock || (vStore <= 1 && vWarehouse > 0)) {
+        criticalLowVariants++;
+      }
+    }
+  }
+
+  const totalStock = totalStore + totalWarehouse;
+  const totalAlerts = outOfStockVariants + storeEmptyVariants + criticalLowVariants;
+
+  let highestAlert: "OUT_OF_STOCK" | "STORE_EMPTY_WAREHOUSE_AVAIL" | "CRITICAL_LOW" | "NORMAL" = "NORMAL";
+
+  if (outOfStockVariants > 0 || totalStock === 0) {
+    highestAlert = "OUT_OF_STOCK";
+  } else if (storeEmptyVariants > 0 || (totalStore === 0 && totalWarehouse > 0)) {
+    highestAlert = "STORE_EMPTY_WAREHOUSE_AVAIL";
+  } else if (criticalLowVariants > 0 || totalStock <= minStock) {
+    highestAlert = "CRITICAL_LOW";
+  }
+
+  return {
+    totalStore,
+    totalWarehouse,
+    totalStock,
+    minStock,
+    outOfStockVariants,
+    storeEmptyVariants,
+    criticalLowVariants,
+    totalAlerts,
+    highestAlert,
+  };
+}
+
 interface InventoryViewProps {
   selectedDiscipline?: string;
   onDisciplineChange?: (discipline: string) => void;
   initialProducts?: DetailedProductItem[];
   selectedProductId?: string | null;
   onProductChange?: (productId: string | null) => void;
+  isAlertsDrawerOpen?: boolean;
+  onToggleAlertsDrawer?: (open: boolean) => void;
+  onAlertsCountChange?: (count: number) => void;
 }
 
 export function InventoryView({
@@ -349,6 +448,9 @@ export function InventoryView({
   initialProducts,
   selectedProductId,
   onProductChange,
+  isAlertsDrawerOpen: controlledAlertsDrawerOpen,
+  onToggleAlertsDrawer,
+  onAlertsCountChange,
 }: InventoryViewProps = {}) {
   const [searchMode, setSearchMode] = useState<"barcode" | "all">("barcode");
   const [searchQuery, setSearchQuery] = useState("");
@@ -369,6 +471,43 @@ export function InventoryView({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: string; title: string; description?: string } | null>(null);
+
+  // Estados para Alertas de Stock Crítico y Drawer (RF-06 / CU-INV-08)
+  const [stockAlertFilter, setStockAlertFilter] = useState<StockAlertFilterMode>("ALL");
+  const [internalAlertsDrawerOpen, setInternalAlertsDrawerOpen] = useState(false);
+  const isStockAlertsDrawerOpen =
+    controlledAlertsDrawerOpen !== undefined ? controlledAlertsDrawerOpen : internalAlertsDrawerOpen;
+  const handleToggleAlertsDrawer = (open: boolean) => {
+    if (onToggleAlertsDrawer) onToggleAlertsDrawer(open);
+    else setInternalAlertsDrawerOpen(open);
+  };
+
+  // Resumen calculado en tiempo real de alertas de stock
+  const stockAlertsSummary = useMemo(() => {
+    let outOfStockCount = 0;
+    let storeEmptyCount = 0;
+    let criticalLowCount = 0;
+    let totalAlertVariants = 0;
+
+    for (const p of productsList) {
+      const status = evaluateProductStockStatus(p);
+      outOfStockCount += status.outOfStockVariants;
+      storeEmptyCount += status.storeEmptyVariants;
+      criticalLowCount += status.criticalLowVariants;
+      totalAlertVariants += status.totalAlerts;
+    }
+
+    return {
+      totalAlertVariants,
+      outOfStockCount,
+      storeEmptyCount,
+      criticalLowCount,
+    };
+  }, [productsList]);
+
+  useEffect(() => {
+    onAlertsCountChange?.(stockAlertsSummary.totalAlertVariants);
+  }, [stockAlertsSummary.totalAlertVariants, onAlertsCountChange]);
 
   // Estados para Modal de Movimientos Manuales de Stock (RF-03 / CU-04)
   const [stockModalProduct, setStockModalProduct] = useState<DetailedProductItem | null>(null);
@@ -535,6 +674,21 @@ export function InventoryView({
     }
   };
 
+  // Alternar filtro de alertas de stock con reseteo de disciplina si estaba acotada
+  const handleToggleStockAlertFilter = (filter: StockAlertFilterMode) => {
+    if (stockAlertFilter === filter) {
+      // Si ya estaba activo, se desactiva (toggle off) y vuelve al catálogo completo
+      setStockAlertFilter("ALL");
+    } else {
+      // Si se activa un filtro de alerta y la disciplina estaba acotada (ej. Natación),
+      // la pasamos a "Todas" para que el usuario no se pierda productos en alerta de otras categorías
+      if (selectedDiscipline !== "Todas") {
+        handleSelectDiscipline("Todas");
+      }
+      setStockAlertFilter(filter);
+    }
+  };
+
   // Identificar qué variante coincide con el código de barra buscado
   const getMatchedVariant = useCallback((item: DetailedProductItem, query: string) => {
     if (!query) return null;
@@ -573,11 +727,11 @@ export function InventoryView({
     }
   };
 
-  // Filtrar productos según el modo de búsqueda (Código de Barra / Todos) y disciplina
+  // Filtrar productos según el modo de búsqueda (Código de Barra / Todos), disciplina y estado de alerta
   const filteredProducts = useMemo(() => {
     const term = searchQuery.trim().toLowerCase();
 
-    return productsList.filter((item) => {
+    const filtered = productsList.filter((item) => {
       let matchesSearch = true;
 
       if (term !== "") {
@@ -616,9 +770,50 @@ export function InventoryView({
         selectedDiscipline === "Todas" ||
         item.discipline.toLowerCase().includes(selectedDiscipline.toLowerCase().split(" ")[0]);
 
-      return matchesSearch && matchesDiscipline;
+      let matchesAlertFilter = true;
+      if (stockAlertFilter === "IN_ALERT") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter = status.totalAlerts > 0;
+      } else if (stockAlertFilter === "OUT_OF_STOCK") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter = status.outOfStockVariants > 0 || status.totalStock === 0;
+      } else if (stockAlertFilter === "STORE_REPLENISHMENT") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter =
+          status.storeEmptyVariants > 0 ||
+          (status.totalStore === 0 && status.totalWarehouse > 0);
+      }
+
+      return matchesSearch && matchesDiscipline && matchesAlertFilter;
     });
-  }, [productsList, searchQuery, searchMode, selectedDiscipline]);
+
+    // Ordenamiento jerárquico por severidad de alerta:
+    // 1. Agotados (0 un.) -> 2. Salón vacío (depósito disponible) -> 3. Stock crítico -> 4. Reposición preventiva
+    if (stockAlertFilter !== "ALL") {
+      const alertPriorityMap: Record<string, number> = {
+        OUT_OF_STOCK: 1,
+        STORE_EMPTY_WAREHOUSE_AVAIL: 2,
+        CRITICAL_LOW: 3,
+        STORE_REPLENISHMENT: 4,
+        NORMAL: 5,
+      };
+
+      filtered.sort((a, b) => {
+        const statusA = evaluateProductStockStatus(a);
+        const statusB = evaluateProductStockStatus(b);
+        const prioA = alertPriorityMap[statusA.highestAlert] ?? 5;
+        const prioB = alertPriorityMap[statusB.highestAlert] ?? 5;
+        return prioA - prioB;
+      });
+    }
+
+    return filtered;
+  }, [productsList, searchQuery, searchMode, selectedDiscipline, stockAlertFilter]);
+
+  // Resetear página al cambiar filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stockAlertFilter, searchQuery, selectedDiscipline]);
 
   // Cálculos de Paginación Adaptable
   const totalItems = filteredProducts.length;
@@ -798,11 +993,23 @@ export function InventoryView({
             </button>
 
             <button
-              title="Notificaciones"
-              className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors relative"
+              type="button"
+              onClick={() => handleToggleAlertsDrawer(true)}
+              title={
+                stockAlertsSummary.totalAlertVariants > 0
+                  ? `${stockAlertsSummary.totalAlertVariants} alertas de stock crítico`
+                  : "Centro de Alertas de Stock"
+              }
+              className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors active:scale-95 relative"
             >
               <Bell className="w-4 h-4" />
-              <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
+              {stockAlertsSummary.totalAlertVariants > 0 ? (
+                <span className="min-w-[17px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-black absolute top-0.5 right-0.5 flex items-center justify-center ring-2 ring-white animate-pulse">
+                  {stockAlertsSummary.totalAlertVariants > 99 ? "99+" : stockAlertsSummary.totalAlertVariants}
+                </span>
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
+              )}
             </button>
           </div>
 
@@ -961,6 +1168,107 @@ export function InventoryView({
             )}
           </div>
         )}
+
+        {/* Quick Filter Chips: Alertas de Stock Crítico y Agotados (RF-06 / CU-INV-08) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5 select-none -mx-1 px-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline mr-1">
+              Filtro de Stock:
+            </span>
+
+            {/* Chip: En Alerta */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("IN_ALERT")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "IN_ALERT"
+                  ? "bg-rose-600 text-white shadow-xs ring-2 ring-rose-400/40"
+                  : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
+              }`}
+              title="Filtrar artículos en alerta (ordenados por criticidad de stock)"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>En Alerta</span>
+              {stockAlertsSummary.totalAlertVariants > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "IN_ALERT" ? "bg-white text-rose-700" : "bg-rose-500 text-white"
+                }`}>
+                  {stockAlertsSummary.totalAlertVariants}
+                </span>
+              )}
+            </button>
+
+            {/* Chip: Agotados (0 un.) */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("OUT_OF_STOCK")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "OUT_OF_STOCK"
+                  ? "bg-rose-700 text-white shadow-xs ring-2 ring-rose-400/40"
+                  : "bg-rose-50/70 text-rose-900 hover:bg-rose-100 border border-rose-300"
+              }`}
+              title="Filtrar únicamente artículos con quiebre de stock total"
+            >
+              <AlertOctagon className="w-3.5 h-3.5" />
+              <span>Agotados (0 un.)</span>
+              {stockAlertsSummary.outOfStockCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "OUT_OF_STOCK" ? "bg-white text-rose-800" : "bg-rose-600 text-white"
+                }`}>
+                  {stockAlertsSummary.outOfStockCount}
+                </span>
+              )}
+            </button>
+
+            {/* Chip: Reponer Mostrador */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("STORE_REPLENISHMENT")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "STORE_REPLENISHMENT"
+                  ? "bg-orange-600 text-white shadow-xs ring-2 ring-orange-400/40"
+                  : "bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-300"
+              }`}
+              title="Filtrar artículos con salón en 0 y existencia en depósito para reponer"
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>Reponer Mostrador</span>
+              {stockAlertsSummary.storeEmptyCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "STORE_REPLENISHMENT" ? "bg-white text-orange-800" : "bg-orange-600 text-white"
+                }`}>
+                  {stockAlertsSummary.storeEmptyCount}
+                </span>
+              )}
+            </button>
+
+            {/* Botón para quitar filtro cuando hay alguno activo */}
+            {stockAlertFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setStockAlertFilter("ALL")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl transition-colors active:scale-95 ml-1 border border-slate-200 shadow-2xs"
+                title="Quitar filtro de alerta de stock"
+              >
+                <X className="w-3 h-3 text-slate-400" />
+                <span>Quitar filtro</span>
+              </button>
+            )}
+          </div>
+
+          {/* Botón directo para abrir Drawer de Alertas */}
+          <button
+            type="button"
+            onClick={() => handleToggleAlertsDrawer(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 shadow-2xs shrink-0"
+          >
+            <Bell className="w-3.5 h-3.5 text-rose-400" />
+            <span>Ver Panel de Alertas</span>
+            {stockAlertsSummary.totalAlertVariants > 0 && (
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ======================================================== */}
@@ -1059,22 +1367,45 @@ export function InventoryView({
                   ? searchMode === "barcode"
                     ? `No existe ningún producto con el código "${searchQuery}". Verifique que el código esté asignado.`
                     : `No hay coincidencias para "${searchQuery}".`
+                  : stockAlertFilter !== "ALL"
+                  ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la categoría "${selectedDiscipline}".`
                   : "No hay productos registrados en esta disciplina."}
               </p>
             </div>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  searchInputRef.current?.focus();
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
-              >
-                <X className="w-3 h-3" />
-                Limpiar búsqueda
-              </button>
-            )}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Limpiar búsqueda
+                </button>
+              )}
+              {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDiscipline("Todas")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  Ver alertas en todas las disciplinas
+                </button>
+              )}
+              {stockAlertFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setStockAlertFilter("ALL")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Quitar filtro de stock
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           paginatedProducts.map((item) => (
@@ -1107,13 +1438,42 @@ export function InventoryView({
                   <p className="text-[11px] text-slate-500 font-medium">
                     {item.brand} • {item.category}
                   </p>
-                  <span className="inline-block mt-1 text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {item.discipline}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                      {item.discipline}
+                    </span>
+                    {(() => {
+                      const status = evaluateProductStockStatus(item);
+                      if (status.highestAlert === "OUT_OF_STOCK") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                            <AlertOctagon className="w-2.5 h-2.5 text-rose-600" />
+                            <span>Agotado</span>
+                          </span>
+                        );
+                      }
+                      if (status.highestAlert === "STORE_EMPTY_WAREHOUSE_AVAIL") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                            <Store className="w-2.5 h-2.5 text-orange-600" />
+                            <span>Salón Vacío</span>
+                          </span>
+                        );
+                      }
+                      if (status.highestAlert === "CRITICAL_LOW") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                            <span>Stock Crítico</span>
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
               </div>
 
-              {/* Price and Barcode */}
               {/* Price, Stock and Barcode */}
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
                 <div>
@@ -1160,10 +1520,47 @@ export function InventoryView({
                 </div>
                 <div className="text-center">
                   <span className="text-[10px] text-slate-400 block">Stock Local</span>
-                  <span className={`inline-flex items-center gap-1 font-bold text-xs ${item.stockLocal > 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                    <Store className="w-3 h-3" />
-                    {item.stockLocal > 0 ? `${item.stockLocal} un.` : "Sin stock"}
-                  </span>
+                  {(() => {
+                    const matchedVar = getMatchedVariant(item, searchQuery);
+                    const store = matchedVar
+                      ? matchedVar.stockStore
+                      : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+                    const warehouse = matchedVar
+                      ? matchedVar.stockWarehouse
+                      : item.stockWeb ?? item.variants?.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0) ?? 0;
+                    const total = store + warehouse;
+
+                    if (total === 0) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-black text-xs text-rose-600">
+                          <AlertOctagon className="w-3 h-3" />
+                          Agotado
+                        </span>
+                      );
+                    }
+                    if (store === 0 && warehouse > 0) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-black text-xs text-orange-600">
+                          <Store className="w-3 h-3" />
+                          Salón 0 (Dep: {warehouse})
+                        </span>
+                      );
+                    }
+                    if (total <= (item.minStock || 2)) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-bold text-xs text-amber-600">
+                          <AlertTriangle className="w-3 h-3" />
+                          {store} un.
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1 font-bold text-xs text-emerald-700">
+                        <Store className="w-3 h-3" />
+                        {store} un.
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block">Código / SKU</span>
@@ -1280,22 +1677,45 @@ export function InventoryView({
                             ? searchMode === "barcode"
                               ? `No existe ningún producto con el código "${searchQuery}". Asegúrese de que el código esté asignado en el producto o variantes.`
                               : `No hay productos que coincidan con "${searchQuery}".`
+                            : stockAlertFilter !== "ALL"
+                            ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la disciplina "${selectedDiscipline}".`
                             : "No hay productos registrados bajo esta categoría o disciplina."}
                         </p>
                       </div>
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSearchQuery("");
-                            searchInputRef.current?.focus();
-                          }}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Limpiar búsqueda y volver a escanear
-                        </button>
-                      )}
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery("");
+                              searchInputRef.current?.focus();
+                            }}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Limpiar búsqueda y volver a escanear
+                          </button>
+                        )}
+                        {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
+                          <button
+                            type="button"
+                            onClick={() => handleSelectDiscipline("Todas")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            Ver alertas en todas las disciplinas
+                          </button>
+                        )}
+                        {stockAlertFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setStockAlertFilter("ALL")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl border border-slate-200 transition-colors shadow-2xs"
+                          >
+                            <X className="w-3.5 h-3.5 text-slate-400" />
+                            Quitar filtro de stock
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -1397,34 +1817,64 @@ export function InventoryView({
                       </td>
 
                       {/* 4. Stock Disponible en Local (Saavedra 241) */}
-                      <td className="py-4 px-4 whitespace-nowrap min-w-[140px]">
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
                         {(() => {
                           const matchedVar = getMatchedVariant(item, searchQuery);
                           const displayStock = matchedVar
                             ? matchedVar.stockStore
                             : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+                          const warehouseStock = matchedVar
+                            ? matchedVar.stockWarehouse
+                            : item.stockWeb ?? item.variants?.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0) ?? 0;
+                          const totalStock = displayStock + warehouseStock;
+                          const minStock = item.minStock || 2;
 
-                          if (displayStock === 0) {
-                            return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                                <span>Sin stock</span>
-                              </span>
-                            );
-                          }
-
-                          if (displayStock <= (item.minStock || 3)) {
+                          // 1. Totalmente agotado
+                          if (totalStock === 0) {
                             return (
                               <div className="flex flex-col">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
-                                  <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>{displayStock} un.</span>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-800 border border-rose-300 w-fit">
+                                  <AlertOctagon className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  <span>Agotado Total</span>
                                 </span>
-                                <span className="text-[10px] text-amber-700 font-medium mt-0.5">Stock bajo</span>
+                                <span className="text-[10px] text-rose-600 font-medium mt-0.5">
+                                  0 local • 0 depósito
+                                </span>
                               </div>
                             );
                           }
 
+                          // 2. Salón vacío pero con existencia en depósito (Urgente Mostrador)
+                          if (displayStock === 0 && warehouseStock > 0) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-orange-100 text-orange-800 border border-orange-300 w-fit">
+                                  <Store className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                                  <span>Salón Vacío</span>
+                                </span>
+                                <span className="text-[10px] text-orange-700 font-semibold mt-0.5">
+                                  Hay {warehouseStock} un. en depósito
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // 3. Stock crítico o stock de salón bajo
+                          if (totalStock <= minStock || displayStock <= 1) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>{displayStock} un. (Bajo)</span>
+                                </span>
+                                <span className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                  Depósito: {warehouseStock} un.
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // 4. Stock saludable / óptimo
                           return (
                             <div className="flex flex-col">
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
@@ -1541,6 +1991,7 @@ export function InventoryView({
                                     <th className="py-2 px-3 text-center">Stock Tienda</th>
                                     <th className="py-2 px-3 text-center">Stock Depósito</th>
                                     <th className="py-2 px-3 text-center">Total</th>
+                                    <th className="py-2 px-3 text-center">Estado</th>
                                     <th className="py-2 px-3 text-center min-w-[130px]">Acciones de Stock</th>
                                   </tr>
                                 </thead>
@@ -1570,6 +2021,28 @@ export function InventoryView({
                                         </td>
                                         <td className="py-2 px-3 text-center font-bold text-slate-900">
                                           {vTotal}
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          {vTotal === 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                              <AlertOctagon className="w-2.5 h-2.5 text-rose-600" />
+                                              <span>Agotado</span>
+                                            </span>
+                                          ) : (v.stockStore || 0) === 0 && (v.stockWarehouse || 0) > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                                              <Store className="w-2.5 h-2.5 text-orange-600" />
+                                              <span>Salón 0</span>
+                                            </span>
+                                          ) : vTotal <= (item.minStock || 2) ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                              <span>Crítico</span>
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                                              <span>Óptimo</span>
+                                            </span>
+                                          )}
                                         </td>
                                         <td className="py-2 px-3 text-center whitespace-nowrap">
                                           <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1757,6 +2230,23 @@ export function InventoryView({
             "Los productos y variantes del archivo fueron incorporados al catálogo."
           );
         }}
+      />
+
+      {/* Drawer de Alertas de Stock Crítico y Productos Agotados (RF-06 / CU-INV-08) */}
+      <StockAlertsDrawer
+        isOpen={isStockAlertsDrawerOpen}
+        onClose={() => handleToggleAlertsDrawer(false)}
+        products={productsList}
+        onSelectProduct={(productId) => {
+          const prod = productsList.find((p) => p.id === productId);
+          if (prod) {
+            handleOpenDetail(prod);
+          }
+        }}
+        onOpenStockMovement={(product, operation, variantId) => {
+          handleOpenStockModal(product, operation, variantId);
+        }}
+        onRefresh={loadProducts}
       />
 
       {/* Floating Toast Notification */}
