@@ -515,7 +515,7 @@ export function PriceHistoryModal({ isOpen, onClose }: PriceHistoryModalProps) {
         {/* Modal Footer */}
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/80">
           <span className="text-[11px] text-slate-400">
-            Historial persistido localmente en el mostrador (Modo Offline-First)
+            Historial de auditoría y ajustes de precios
           </span>
           <button
             type="button"

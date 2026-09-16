@@ -342,7 +342,7 @@ export function BatchPriceUpdateModal({
                 Ajuste Masivo y Porcentual de Precios
               </h2>
               <p className="text-xs text-slate-500">
-                Aumentos o descuentos por lote con previsualización en vivo y redondeo comercial
+                Aumentos o descuentos por lote con simulación previa y redondeo comercial
               </p>
             </div>
           </div>
@@ -789,7 +789,7 @@ export function BatchPriceUpdateModal({
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Previsualizar Impacto en Vivo</span>
+                      <span>Previsualizar Cambios</span>
                     </>
                   )}
                 </button>

@@ -74,9 +74,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   }, [searchParams]);
 
   // ID del producto para vista de detalle sincronizado con la URL
-  const selectedProductId = useMemo(() => {
-    return searchParams.get("producto") || null;
-  }, [searchParams]);
+  const urlProductId = searchParams.get("producto") || null;
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(urlProductId);
+
+  // Sincronizar estado local cuando la URL cambia externamente (ej. botones Atrás/Adelante del navegador)
+  useEffect(() => {
+    setSelectedProductId(urlProductId);
+  }, [urlProductId]);
 
   // Actualizar URL creando entradas en el historial del navegador (soporta botón Atrás y Adelante)
   const updateUrl = useCallback(
@@ -98,6 +102,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectTab = useCallback(
     (id: string) => {
+      setSelectedProductId(null);
       const targetTab = id === "analytics" ? "inicio" : id;
       updateUrl({
         tab: targetTab,
@@ -109,6 +114,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectCategory = useCallback(
     (category: string) => {
+      setSelectedProductId(null);
       updateUrl({
         tab: "inventario",
         categoria: category === "Todas" ? null : category,
@@ -120,6 +126,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectProduct = useCallback(
     (productId: string | null) => {
+      setSelectedProductId(productId);
       updateUrl({
         tab: "inventario",
         producto: productId,
