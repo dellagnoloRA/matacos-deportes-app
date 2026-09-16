@@ -50,6 +50,10 @@ matacos-deportes/
 │   ├── Guia_Despliegue_*.md   # Guías de despliegue en VPS Hostinger y Caddy
 │   ├── Informe_*.md           # Informes mensuales e hitos de la cátedra
 │   └── Elicitacion_*.md       # Requerimientos funcionales y respuestas de negocio
+├── docs/                      # [DOCUMENTACIÓN OPERATIVA Y USUARIO]
+│   ├── MANUAL_DE_USUARIO.md   # [MANUAL] Guía práctica y paso a paso para el local
+│   ├── ESTRUCTURA_PLANTILLA_EXCEL.md # Guía para armado de planillas Excel/CSV
+│   └── GUIA_DESPLIEGUE_LOCAL_MULTI_TERMINAL.md # Configuración de red en Saavedra 241
 ├── prisma/                    # [BACKEND]
 │   ├── schema.prisma          # Modelado relacional PostgreSQL (Tablas, variantes, relaciones)
 │   └── seed.ts                # Semilla de datos de prueba para alimentar el sistema
