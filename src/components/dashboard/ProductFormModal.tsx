@@ -828,7 +828,7 @@ export function ProductFormModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
       <div
-        className="relative bg-white w-full max-w-3xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
+        className="relative bg-white w-full max-w-4xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
@@ -1482,210 +1482,213 @@ export function ProductFormModal({
               {variants.map((variant, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start"
+                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-start gap-2.5"
                 >
-                  {/* 1. Talle */}
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Talle <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={variant.size}
-                      onChange={(e) => handleSizeChange(idx, e.target.value)}
-                      placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
-                      className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
-                        fieldErrors[`variant_${idx}_size`]
-                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
-                          : "bg-white border-slate-200 text-slate-900"
-                      }`}
-                    />
-                  </div>
-
-                  {/* 2. Color */}
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Color <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={variant.color}
-                      onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
-                      placeholder="Negro / Azul"
-                      className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                        fieldErrors[`variant_${idx}_color`]
-                          ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
-                          : "bg-white border-slate-200 text-slate-800"
-                      }`}
-                    />
-                  </div>
-
-                  {/* 3. Precio Variante (Opcional / Diferencial) */}
-                  <div className="col-span-2 sm:col-span-2">
-                    <label
-                      className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between"
-                      title="Precio diferencial para este talle. Dejar vacío para usar el precio base."
-                    >
-                      <span className="flex items-center gap-1 text-emerald-800">
-                        <Tag className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                        <span>Precio Dif.</span>
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
-                    </label>
-                    <div className="relative flex items-center">
-                      <span className="absolute left-2 text-[11px] font-bold text-slate-400 select-none">
-                        $
-                      </span>
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start">
+                    {/* 1. Talle */}
+                    <div className="col-span-1 sm:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        Talle <span className="text-rose-500">*</span>
+                      </label>
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={variant.price !== undefined && variant.price !== null ? variant.price : ""}
-                        onChange={(e) =>
-                          handleVariantChange(
-                            idx,
-                            "price",
-                            e.target.value === "" ? "" : Number(e.target.value)
-                          )
-                        }
-                        placeholder={priceNum > 0 ? `${priceNum}` : "Base"}
-                        className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none ${
-                          variant.price !== "" &&
-                          variant.price !== undefined &&
-                          Number(variant.price) > 0
-                            ? "bg-emerald-50/40 border-emerald-400 text-emerald-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20"
-                            : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-300 focus:border-emerald-500"
+                        type="text"
+                        value={variant.size}
+                        onChange={(e) => handleSizeChange(idx, e.target.value)}
+                        placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
+                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                          fieldErrors[`variant_${idx}_size`]
+                            ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                            : "bg-white border-slate-200 text-slate-900"
                         }`}
                       />
                     </div>
-                    {/* Micro-indicador de estado del precio */}
-                    <div className="min-h-[14px] mt-0.5">
-                      {variant.price !== "" &&
-                      variant.price !== undefined &&
-                      Number(variant.price) > 0 ? (
-                        <span
-                          className="text-[9px] font-bold text-emerald-700 truncate block"
-                          title={`Precio específico para este talle: ${formatCurrency(
-                            Number(variant.price)
-                          )}`}
-                        >
-                          {Number(variant.price) === priceNum
-                            ? "Igual al base"
-                            : Number(variant.price) > priceNum
-                            ? `+${formatCurrency(Number(variant.price) - priceNum)} vs base`
-                            : `-${formatCurrency(priceNum - Number(variant.price))} vs base`}
-                        </span>
-                      ) : (
-                        <span
-                          className="text-[9px] text-slate-400 truncate block"
-                          title="Hereda el precio de venta base configurado arriba"
-                        >
-                          Hereda base ({priceNum > 0 ? formatCurrency(priceNum) : "—"})
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* 4. Cód. Barra */}
-                  <div className="col-span-2 sm:col-span-2">
-                    <div className="flex items-center justify-between">
+                    {/* 2. Color */}
+                    <div className="col-span-1 sm:col-span-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">
-                        Cód. Barra
+                        Color <span className="text-rose-500">*</span>
                       </label>
-                    </div>
-                    <div className="relative flex items-center">
                       <input
                         type="text"
-                        value={variant.barcode}
-                        onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
-                        placeholder="779... / 200..."
-                        className="w-full bg-white pl-2 pr-6 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
+                        value={variant.color}
+                        onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
+                        placeholder="Negro / Azul"
+                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                          fieldErrors[`variant_${idx}_color`]
+                            ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                            : "bg-white border-slate-200 text-slate-800"
+                        }`}
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateInternalBarcode(idx)}
-                        disabled={generatingBarcodeIndex === idx}
-                        className="absolute right-1 p-0.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
-                        title="Generar código interno GS1 (Prefijo 200)"
+                    </div>
+
+                    {/* 3. Precio Variante (Opcional / Diferencial) */}
+                    <div className="col-span-2 sm:col-span-2">
+                      <label
+                        className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between"
+                        title="Precio diferencial para este talle. Dejar vacío para usar el precio base."
                       >
-                        <Wand2
-                          className={`w-3.5 h-3.5 ${
-                            generatingBarcodeIndex === idx ? "animate-spin text-emerald-600" : ""
+                        <span className="flex items-center gap-1 text-emerald-800">
+                          <Tag className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                          <span>Precio Dif.</span>
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute left-2 text-[11px] font-bold text-slate-400 select-none">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={variant.price !== undefined && variant.price !== null ? variant.price : ""}
+                          onChange={(e) =>
+                            handleVariantChange(
+                              idx,
+                              "price",
+                              e.target.value === "" ? "" : Number(e.target.value)
+                            )
+                          }
+                          placeholder={priceNum > 0 ? `${priceNum}` : "Base"}
+                          className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none ${
+                            variant.price !== "" &&
+                            variant.price !== undefined &&
+                            Number(variant.price) > 0
+                              ? "bg-emerald-50/40 border-emerald-400 text-emerald-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20"
+                              : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-300 focus:border-emerald-500"
                           }`}
                         />
-                      </button>
+                      </div>
+                      {/* Micro-indicador de estado del precio */}
+                      <div className="min-h-[14px] mt-0.5">
+                        {variant.price !== "" &&
+                        variant.price !== undefined &&
+                        Number(variant.price) > 0 ? (
+                          <span
+                            className="text-[9px] font-bold text-emerald-700 truncate block"
+                            title={`Precio específico para este talle: ${formatCurrency(
+                              Number(variant.price)
+                            )}`}
+                          >
+                            {Number(variant.price) === priceNum
+                              ? "Igual al base"
+                              : Number(variant.price) > priceNum
+                              ? `+${formatCurrency(Number(variant.price) - priceNum)} vs base`
+                              : `-${formatCurrency(priceNum - Number(variant.price))} vs base`}
+                          </span>
+                        ) : (
+                          <span
+                            className="text-[9px] text-slate-400 truncate block"
+                            title="Hereda el precio de venta base configurado arriba"
+                          >
+                            Hereda base ({priceNum > 0 ? formatCurrency(priceNum) : "—"})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 4. Cód. Barra */}
+                    <div className="col-span-2 sm:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">
+                          Cód. Barra
+                        </label>
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={variant.barcode}
+                          onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
+                          placeholder="779... / 200..."
+                          className="w-full bg-white pl-2 pr-6 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateInternalBarcode(idx)}
+                          disabled={generatingBarcodeIndex === idx}
+                          className="absolute right-1 p-0.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
+                          title="Generar código interno GS1 (Prefijo 200)"
+                        >
+                          <Wand2
+                            className={`w-3.5 h-3.5 ${
+                              generatingBarcodeIndex === idx ? "animate-spin text-emerald-600" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 5. Salón */}
+                    <div className="col-span-1 sm:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5">
+                        Salón
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.stockStore}
+                        onChange={(e) =>
+                          handleVariantChange(idx, "stockStore", Number(e.target.value))
+                        }
+                        className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center"
+                      />
+                    </div>
+
+                    {/* 6. Depósito */}
+                    <div className="col-span-1 sm:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5">
+                        Depósito
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.stockWarehouse}
+                        onChange={(e) =>
+                          handleVariantChange(idx, "stockWarehouse", Number(e.target.value))
+                        }
+                        className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center"
+                      />
+                    </div>
+
+                    {/* 7. Mín. Stock (Umbral Alerta) - Espacio amplio y legible */}
+                    <div className="col-span-2 sm:col-span-2">
+                      <label
+                        className="text-[10.5px] font-bold text-amber-900 uppercase flex items-center justify-center gap-1 mb-0.5 whitespace-nowrap"
+                        title="Stock mínimo total (Salón + Depósito) para disparar alerta de compra a proveedor"
+                      >
+                        <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span>Mín. Alerta</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.minStock !== undefined && variant.minStock !== null ? variant.minStock : 2}
+                        onChange={(e) =>
+                          handleVariantChange(
+                            idx,
+                            "minStock",
+                            e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
+                          )
+                        }
+                        title="Alerta de Stock Crítico: si existencias totales <= este valor"
+                        className="w-full bg-amber-50/70 px-3 py-1.5 rounded-lg border border-amber-300 text-xs font-extrabold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
+                      />
                     </div>
                   </div>
 
-                  {/* 5. Salón */}
-                  <div className="col-span-1 sm:col-span-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Salón
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={variant.stockStore}
-                      onChange={(e) =>
-                        handleVariantChange(idx, "stockStore", Number(e.target.value))
-                      }
-                      className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center"
-                    />
-                  </div>
-
-                  {/* 6. Depósito */}
-                  <div className="col-span-1 sm:col-span-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Depósito
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={variant.stockWarehouse}
-                      onChange={(e) =>
-                        handleVariantChange(idx, "stockWarehouse", Number(e.target.value))
-                      }
-                      className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center"
-                    />
-                  </div>
-
-                  {/* 7. Mín. Stock (Umbral Alerta) */}
-                  <div className="col-span-1 sm:col-span-1">
-                    <label
-                      className="text-[10px] font-bold text-amber-800 uppercase flex items-center justify-center truncate"
-                      title="Stock mínimo total (Salón + Depósito) para disparar alerta de compra a proveedor"
-                    >
-                      <span>Mín. Alerta</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={variant.minStock !== undefined && variant.minStock !== null ? variant.minStock : 2}
-                      onChange={(e) =>
-                        handleVariantChange(
-                          idx,
-                          "minStock",
-                          e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
-                        )
-                      }
-                      title="Alerta de Stock Crítico: si existencias totales <= este valor"
-                      className="w-full bg-amber-50/70 px-2 py-1.5 rounded-lg border border-amber-300 text-xs font-bold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
-                    />
-                  </div>
-
-                  {/* 8. Eliminar */}
-                  <div className="col-span-1 sm:col-span-1 flex justify-end pt-5">
-                    {variants.length > 1 && (
+                  {/* 8. Botón Eliminar Talle al extremo derecho */}
+                  {variants.length > 1 && (
+                    <div className="pt-4 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleRemoveVariant(idx)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        className="p-1.5 text-rose-500 hover:bg-rose-100/70 hover:text-rose-700 rounded-lg transition-colors"
                         title="Eliminar este talle"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
