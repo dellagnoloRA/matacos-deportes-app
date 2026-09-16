@@ -421,22 +421,55 @@ export function ProductFormModal({
   const handleGenerateInternalBarcode = async (variantIndex: number) => {
     try {
       setGeneratingBarcodeIndex(variantIndex);
-      let codeToUse = "";
+
+      // 1. Analizar códigos internos que ya existen en el formulario (React state) para evitar colisiones
+      let maxFormSequence = 0;
+      const assignedBarcodesInForm = new Set<string>();
+
+      variants.forEach((v, idx) => {
+        const b = v.barcode ? v.barcode.trim() : "";
+        if (b) {
+          if (idx !== variantIndex) {
+            assignedBarcodesInForm.add(b);
+          }
+          if (b.startsWith(GS1_INTERNAL_PREFIX) && b.length === 13 && /^\d{13}$/.test(b)) {
+            const seq = parseInt(b.slice(3, 12), 10);
+            if (!isNaN(seq) && seq > maxFormSequence) {
+              maxFormSequence = seq;
+            }
+          }
+        }
+      });
+
+      // 2. Consultar el próximo número correlativo en la base de datos
+      let nextSeq = 1;
       try {
         const res = await generateInternalBarcodes({ count: 1, prefix: GS1_INTERNAL_PREFIX });
-        if (res.success && res.barcodes.length > 0) {
-          codeToUse = res.barcodes[0];
+        if (res.success && typeof res.startSequence === "number") {
+          nextSeq = res.startSequence;
         }
       } catch (err) {
-        console.warn("Utilizando generador local offline de códigos GS1 EAN-13:", err);
+        console.warn("Utilizando generador local de códigos GS1 EAN-13:", err);
+        const fallbackSeed = (Math.floor(Date.now() / 1000) + variantIndex) % 900000000;
+        nextSeq = Math.max(1, fallbackSeed);
       }
 
-      if (!codeToUse) {
-        const seed = (Math.floor(Date.now() / 1000) + variantIndex) % 900000000;
-        codeToUse = generateEan13FromSequence(seed, GS1_INTERNAL_PREFIX);
+      // 3. Si en el formulario en pantalla ya usamos una secuencia igual o mayor, avanzar correlativamente
+      if (maxFormSequence >= nextSeq) {
+        nextSeq = maxFormSequence + 1;
+      }
+
+      // 4. Generar el código con el dígito verificador y garantizar unicidad
+      let codeToUse = generateEan13FromSequence(nextSeq, GS1_INTERNAL_PREFIX);
+      while (assignedBarcodesInForm.has(codeToUse)) {
+        nextSeq++;
+        codeToUse = generateEan13FromSequence(nextSeq, GS1_INTERNAL_PREFIX);
       }
 
       handleVariantChange(variantIndex, "barcode", codeToUse);
+    } catch (err) {
+      console.error("Error al generar código de barra:", err);
+      setErrorMessage("No se pudo generar el código de barra correlativo.");
     } finally {
       setGeneratingBarcodeIndex(null);
     }
@@ -1430,7 +1463,7 @@ export function ProductFormModal({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-900 text-xs">
-                    Precios Diferenciales por Variante (RF-02):
+                    Precios Diferenciales por Variante:
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">

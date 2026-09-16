@@ -101,14 +101,11 @@ export function BarcodeSvg({
 }: BarcodeSvgProps) {
   const cleanVal = (value || "").trim();
 
-  // Determinar si califica para estándar EAN-13 numérico
-  const isEan13Candidate = /^\d{12,13}$/.test(cleanVal);
+  // Determinar si califica para estándar EAN-13 numérico (exactamente 13 dígitos)
+  const isEan13Candidate = /^\d{13}$/.test(cleanVal);
 
   const ean13FullCode = useMemo(() => {
     if (!isEan13Candidate) return null;
-    if (cleanVal.length === 12) {
-      return `${cleanVal}${calculateEan13CheckDigit(cleanVal)}`;
-    }
     if (cleanVal.length === 13) {
       return validateEan13(cleanVal)
         ? cleanVal
