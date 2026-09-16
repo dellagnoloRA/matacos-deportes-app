@@ -1577,8 +1577,8 @@ export function InventoryView({
           </span>
         </div>
 
-        {/* Switcher Móvil: Tabla vs Tarjetas */}
-        <div className="flex md:hidden items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+        {/* Switcher: Tabla vs Tarjetas */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
           <button
             type="button"
             onClick={() => setMobileViewMode("table")}
@@ -1639,11 +1639,11 @@ export function InventoryView({
       )}
 
       {/* ======================================================== */}
-      {/* 1. MOBILE CARDS VIEW (Visible cuando mobileViewMode === "cards") */}
+      {/* 1. CARDS VIEW (Visible cuando mobileViewMode === "cards") */}
       {/* ======================================================== */}
-      <div className={`space-y-3 ${mobileViewMode === "cards" ? "block md:hidden" : "hidden"}`}>
+      <div className={`${mobileViewMode === "cards" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5" : "hidden"}`}>
         {filteredProducts.length === 0 ? (
-          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+          <div className="col-span-full bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center space-y-3">
             <div className="w-10 h-10 mx-auto rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
               <Barcode className="w-5 h-5 stroke-[1.8]" />
             </div>
@@ -1928,9 +1928,9 @@ export function InventoryView({
           ))
         )}
 
-        {/* Paginador para la vista de tarjetas móviles */}
+        {/* Paginador para la vista de tarjetas */}
         {filteredProducts.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-3">
+          <div className="col-span-full bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-3">
             {renderPaginationFooter()}
           </div>
         )}
@@ -1940,7 +1940,7 @@ export function InventoryView({
       {/* 2. TABLA RESPONSIVA CON SCROLL HORIZONTAL (Todas las pantallas) */}
       {/* ======================================================== */}
       <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all ${
-        mobileViewMode === "cards" ? "hidden md:block" : "block"
+        mobileViewMode === "cards" ? "hidden" : "block"
       }`}>
         
         {/* Barra superior de información y aviso de scroll horizontal */}

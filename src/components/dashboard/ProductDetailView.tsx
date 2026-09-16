@@ -401,6 +401,28 @@ export function ProductDetailView({
   const profitMargin = product.price - product.costPrice;
   const marginPercentage = product.costPrice > 0 ? ((profitMargin / product.costPrice) * 100).toFixed(1) : "0";
 
+  // Determinar si el producto pertenece a la categoría de calzado / zapatillas
+  const isFootwear = useMemo(() => {
+    const text = `${product.category || ""} ${product.subcategory || ""}`
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    return text.includes("calzado") || text.includes("zapatilla");
+  }, [product.category, product.subcategory]);
+
+  // Si no es calzado y el usuario estaba en la pestaña de guía de talles, redirigir a visión general
+  useEffect(() => {
+    if (!isFootwear && activeTab === "size_guide") {
+      setActiveTab("overview");
+    }
+  }, [isFootwear, activeTab]);
+
+  // Pestañas visibles (se oculta "Guía de Talles" si no es calzado)
+  const visibleTabs = useMemo(() => {
+    if (isFootwear) return TABS;
+    return TABS.filter((tab) => tab.id !== "size_guide");
+  }, [isFootwear]);
+
   // Default size conversions if none provided
   const sizeConversions: SizeConversion[] =
     product.sizeConversions && product.sizeConversions.length > 0
@@ -509,7 +531,7 @@ export function ProductDetailView({
 
         {/* 2. Top Navigation Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-3 mt-2 border-t border-slate-100 no-scrollbar text-xs">
-          {TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -1044,78 +1066,80 @@ export function ProductDetailView({
               {/* ----------------------------------------------------------------- */}
               {/* TABLA 2: GUÍA DE TALLAS Y CONVERSIÓN (AR, USA, EUROPA, BRASIL, CM) */}
               {/* ----------------------------------------------------------------- */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <Ruler className="w-4 h-4 text-indigo-600" />
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Tabla de Tallas y Conversión Internacional
-                    </h3>
+              {isFootwear && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Ruler className="w-4 h-4 text-indigo-600" />
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Tabla de Tallas y Conversión Internacional
+                      </h3>
+                    </div>
+                    <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                      Estándar Matacos Deportes
+                    </span>
                   </div>
-                  <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                    Estándar Matacos Deportes
-                  </span>
-                </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
-                      <tr>
-                        <th className="py-3 px-4">Talle AR (Local)</th>
-                        <th className="py-3 px-4">Talle USA (US)</th>
-                        <th className="py-3 px-4">Talle Europa (EU)</th>
-                        <th className="py-3 px-4">Talle Brasil (BR)</th>
-                        <th className="py-3 px-4">Medida (CM)</th>
-                        <th className="py-3 px-4 text-right">Equivalencia / Calce</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {sizeConversions.map((conv, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                          {/* AR */}
-                          <td className="py-3 px-4 font-bold text-slate-900">
-                            <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[11px]">
-                              {conv.ar}
-                            </span>
-                          </td>
-
-                          {/* US */}
-                          <td className="py-3 px-4 font-semibold text-slate-700">
-                            {conv.us}
-                          </td>
-
-                          {/* EU */}
-                          <td className="py-3 px-4 font-semibold text-slate-700">
-                            {conv.eu}
-                          </td>
-
-                          {/* BR */}
-                          <td className="py-3 px-4 font-semibold text-slate-700">
-                            {conv.br}
-                          </td>
-
-                          {/* CM */}
-                          <td className="py-3 px-4 font-mono font-bold text-indigo-700">
-                            {conv.cm}
-                          </td>
-
-                          {/* Nota */}
-                          <td className="py-3 px-4 text-right">
-                            <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
-                              {conv.note || "Ajuste estándar"}
-                            </span>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Talle AR (Local)</th>
+                          <th className="py-3 px-4">Talle USA (US)</th>
+                          <th className="py-3 px-4">Talle Europa (EU)</th>
+                          <th className="py-3 px-4">Talle Brasil (BR)</th>
+                          <th className="py-3 px-4">Medida (CM)</th>
+                          <th className="py-3 px-4 text-right">Equivalencia / Calce</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {sizeConversions.map((conv, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                            {/* AR */}
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[11px]">
+                                {conv.ar}
+                              </span>
+                            </td>
 
-                <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/40 text-[11px] text-slate-500 flex items-center justify-between">
-                  <span>Valores de referencia para calzado e indumentaria de alta competencia.</span>
-                  <span className="text-emerald-700 font-semibold">Formosa, Saavedra 241</span>
+                            {/* US */}
+                            <td className="py-3 px-4 font-semibold text-slate-700">
+                              {conv.us}
+                            </td>
+
+                            {/* EU */}
+                            <td className="py-3 px-4 font-semibold text-slate-700">
+                              {conv.eu}
+                            </td>
+
+                            {/* BR */}
+                            <td className="py-3 px-4 font-semibold text-slate-700">
+                              {conv.br}
+                            </td>
+
+                            {/* CM */}
+                            <td className="py-3 px-4 font-mono font-bold text-indigo-700">
+                              {conv.cm}
+                            </td>
+
+                            {/* Nota */}
+                            <td className="py-3 px-4 text-right">
+                              <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
+                                {conv.note || "Ajuste estándar"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/40 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>Valores de referencia para calzado e indumentaria de alta competencia.</span>
+                    <span className="text-emerald-700 font-semibold">Formosa, Saavedra 241</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -1618,7 +1642,7 @@ export function ProductDetailView({
           </div>
         )}
 
-        {activeTab === "size_guide" && (
+        {activeTab === "size_guide" && isFootwear && (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4 animate-in fade-in-50">
             <h2 className="text-base font-bold text-slate-900">Guía Completa de Medidas y Calce</h2>
             <p className="text-xs text-slate-500">Tabla de equivalencias internacionales recomendada para clientes de Matacos Deportes.</p>
