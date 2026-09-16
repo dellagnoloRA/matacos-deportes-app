@@ -51,8 +51,14 @@ flowchart LR
      ```powershell
      npm install -g pnpm
      ```
-5. **[Docker Desktop](https://www.docker.com/products/docker-desktop/):** Necesario para correr el contenedor de PostgreSQL 16.
-6. **Google Chrome o Microsoft Edge:** Para el uso de la interfaz web.
+5. **WSL 2 (Windows Subsystem for Linux 2):** Motor esencial que utiliza Docker Desktop para ejecutar contenedores Linux en Windows.
+   * Abrir PowerShell como Administrador y ejecutar:
+     ```powershell
+     wsl --install
+     ```
+   * *(Si ya está instalado, asegurarse de actualizarlo con `wsl --update`). Requiere reiniciar la PC si se instala por primera vez.*
+6. **[Docker Desktop](https://www.docker.com/products/docker-desktop/):** Necesario para correr el contenedor de PostgreSQL 16 (asegurarse de marcar la casilla *"Use WSL 2 instead of Hyper-V"* durante la instalación).
+7. **Google Chrome o Microsoft Edge:** Para el uso de la interfaz web.
 
 ### En Terminal 2 (Cliente Secundario):
 1. **[Tailscale para Windows](https://tailscale.com/download/windows):** Mismo software para conectarse a la red privada.
