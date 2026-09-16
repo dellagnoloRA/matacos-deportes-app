@@ -104,6 +104,7 @@ export interface DetailedProductItem {
   updatedAt: string;
   iconBg: string;
   imageUrl?: string;
+  images?: ProductImageItem[];
   receivedTotal?: number;
   stockTransfer?: number;
   salesStoreTotal?: number;
@@ -111,6 +112,14 @@ export interface DetailedProductItem {
   variants: ProductVariantItem[];
   sizeConversions?: SizeConversion[];
   active?: boolean;
+}
+
+export interface ProductImageItem {
+  id?: string;
+  url: string;
+  color?: string | null;
+  isPrimary?: boolean;
+  order?: number;
 }
 
 export interface InventoryMovementItem {

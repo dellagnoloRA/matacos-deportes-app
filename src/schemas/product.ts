@@ -64,7 +64,18 @@ export const ProductVariantSchema = z.object({
 });
 
 /**
- * Esquema para CREAR un Producto completo con sus variantes
+ * Esquema de validación para una Imagen de Producto (asociada opcionalmente a un Color)
+ */
+export const ProductImageSchema = z.object({
+  id: z.string().uuid().optional(),
+  url: z.string().min(1, "La URL de la imagen es requerida"),
+  color: z.string().nullable().optional(),
+  isPrimary: z.boolean().default(false),
+  order: z.number().int().default(0),
+});
+
+/**
+ * Esquema para CREAR un Producto completo con sus variantes e imágenes
  */
 export const CreateProductSchema = z.object({
   name: z.string().min(3, "El nombre del producto debe tener al menos 3 caracteres"),
@@ -83,6 +94,7 @@ export const CreateProductSchema = z.object({
   variants: z
     .array(ProductVariantSchema)
     .min(1, "El producto debe tener al menos una variante de talle/color"),
+  images: z.array(ProductImageSchema).optional(),
 });
 
 /**
@@ -98,9 +110,10 @@ export const UpdateProductSchema = CreateProductSchema.partial().extend({
 export type DisciplineInput = z.infer<typeof DisciplineSchema>;
 export type CategoryInput = z.infer<typeof CategorySchema>;
 export type BrandInput = z.infer<typeof BrandSchema>;
+export type ProductImageInput = z.infer<typeof ProductImageSchema>;
 export type ProductVariantInput = z.infer<typeof ProductVariantSchema>;
-export type CreateProductInput = z.infer<typeof CreateProductSchema>;
-export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
+export type CreateProductInput = z.input<typeof CreateProductSchema>;
+export type UpdateProductInput = z.input<typeof UpdateProductSchema>;
 
 // Re-exportar esquemas y tipos de actualización porcentual de precios
 export * from "./priceUpdate";

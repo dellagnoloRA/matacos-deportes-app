@@ -23,6 +23,8 @@ import {
   FileText,
   Printer,
   ChevronRight,
+  ChevronLeft,
+  Camera,
   ExternalLink,
   Edit3,
   Trash2,
@@ -121,6 +123,45 @@ export function ProductDetailView({
 }: ProductDetailViewProps) {
   const [product, setProduct] = useState<DetailedProductItem>(initialProduct);
   const [variantSort, setVariantSort] = useState<VariantSortOption>("price_desc");
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Sincronizar estado si initialProduct cambia desde el componente padre
+  useEffect(() => {
+    setProduct(initialProduct);
+  }, [initialProduct]);
+
+  // Lista unificada de fotos para la galería y carrusel
+  const productImagesList = useMemo(() => {
+    if (product.images && product.images.length > 0) {
+      return product.images;
+    }
+    if (product.imageUrl) {
+      return [{ url: product.imageUrl, color: null, isPrimary: true, order: 0 }];
+    }
+    return [];
+  }, [product.images, product.imageUrl]);
+
+  // Asegurar que activeImageIndex sea válido si cambia la lista
+  useEffect(() => {
+    if (activeImageIndex >= productImagesList.length) {
+      setActiveImageIndex(0);
+    }
+  }, [productImagesList.length, activeImageIndex]);
+
+  // Sincronizar imagen automáticamente al interactuar con un color
+  const selectImageByColor = useCallback(
+    (colorName: string) => {
+      if (!colorName || productImagesList.length === 0) return;
+      const clean = colorName.trim().toLowerCase();
+      const foundIdx = productImagesList.findIndex(
+        (img) => img.color && img.color.trim().toLowerCase() === clean
+      );
+      if (foundIdx !== -1) {
+        setActiveImageIndex(foundIdx);
+      }
+    },
+    [productImagesList]
+  );
 
   // Lista ordenada de variantes según criterio seleccionado (por defecto: precio más alto a más bajo con desempate alfabético)
   const sortedVariants = useMemo(() => {
@@ -298,6 +339,7 @@ export function ProductDetailView({
           name: res.data.name,
           description: res.data.description || "",
           imageUrl: res.data.imageUrl || undefined,
+          images: res.data.images || [],
           variants: updatedVariants,
           minStock: updatedVariants[0]?.minStock ?? 2,
           minStoreStock: updatedVariants[0]?.minStoreStock ?? 1,
@@ -624,27 +666,61 @@ export function ProductDetailView({
             {/* COLUMNA IZQUIERDA: FOTOGRAFÍA + FICHA TÉCNICA DEL PRODUCTO */}
             {/* ======================================================== */}
             <div className="lg:col-span-4 space-y-4">
-              {/* Card de Imagen del Producto */}
+              {/* Card de Imagen del Producto con Carrusel por Color */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden group">
                 <div className="relative aspect-4/3 sm:aspect-square bg-gradient-to-b from-slate-100 to-slate-200/60 flex items-center justify-center p-6 overflow-hidden">
-                  {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="w-full h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div
-                      className={`w-32 h-32 rounded-3xl bg-gradient-to-tr ${product.iconBg} text-white flex flex-col items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300`}
-                    >
-                      <Package className="w-16 h-16 stroke-[1.5]" />
-                      <span className="text-xs font-bold uppercase tracking-wider mt-2">
-                        {product.brand}
-                      </span>
-                    </div>
+                  {(() => {
+                    const currentImg = productImagesList[activeImageIndex] || productImagesList[0];
+                    if (currentImg?.url) {
+                      return (
+                        <img
+                          src={currentImg.url}
+                          alt={product.name}
+                          className="w-full h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                        />
+                      );
+                    }
+                    return (
+                      <div
+                        className={`w-32 h-32 rounded-3xl bg-gradient-to-tr ${product.iconBg} text-white flex flex-col items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300`}
+                      >
+                        <Package className="w-16 h-16 stroke-[1.5]" />
+                        <span className="text-xs font-bold uppercase tracking-wider mt-2">
+                          {product.brand}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Flechas de navegación en Carrusel */}
+                  {productImagesList.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : productImagesList.length - 1));
+                        }}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-all opacity-80 hover:opacity-100 active:scale-95"
+                        title="Foto anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageIndex((prev) => (prev < productImagesList.length - 1 ? prev + 1 : 0));
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-all opacity-80 hover:opacity-100 active:scale-95"
+                        title="Foto siguiente"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
 
-                  {/* Discipline Badge floating */}
+                  {/* Badge de Disciplina flotante */}
                   <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs text-slate-900 font-bold text-[11px] px-2.5 py-1 rounded-lg shadow-xs border border-slate-200/60">
                     {product.discipline}
                   </div>
@@ -661,7 +737,64 @@ export function ProductDetailView({
                       </span>
                     )}
                   </div>
+
+                  {/* Badge de Color de la Foto activa */}
+                  {(() => {
+                    const currentImg = productImagesList[activeImageIndex] || productImagesList[0];
+                    if (currentImg?.color) {
+                      return (
+                        <div className="absolute bottom-3 left-3 bg-slate-950/85 backdrop-blur-xs text-white font-bold text-[10.5px] px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1.5 border border-white/10">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <span>Color: {currentImg.color}</span>
+                        </div>
+                      );
+                    } else if (currentImg?.url) {
+                      return (
+                        <div className="absolute bottom-3 left-3 bg-slate-950/70 backdrop-blur-xs text-white font-medium text-[10px] px-2 py-0.5 rounded-lg shadow-sm">
+                          Portada General
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Contador de fotos */}
+                  {productImagesList.length > 1 && (
+                    <div className="absolute bottom-3 right-3 bg-slate-950/75 backdrop-blur-xs text-white font-mono text-[10px] px-2 py-0.5 rounded-md shadow-xs">
+                      {activeImageIndex + 1} / {productImagesList.length}
+                    </div>
+                  )}
                 </div>
+
+                {/* Tira de Miniaturas (Ribbon de Carrusel) */}
+                {productImagesList.length > 1 && (
+                  <div className="p-2.5 bg-slate-50 border-t border-slate-200/80 flex items-center gap-2 overflow-x-auto">
+                    {productImagesList.map((img, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveImageIndex(idx)}
+                        className={`relative w-12 h-12 rounded-lg bg-white border flex items-center justify-center p-1 shrink-0 transition-all ${
+                          activeImageIndex === idx
+                            ? "border-emerald-500 ring-2 ring-emerald-500/30 scale-105 shadow-xs"
+                            : "border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100"
+                        }`}
+                        title={img.color ? `Color: ${img.color}` : "Foto General"}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.color || `Foto ${idx + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                        {img.color && (
+                          <span className="absolute bottom-0 inset-x-0 bg-slate-900/85 text-white text-[7.5px] truncate px-0.5 text-center rounded-b">
+                            {img.color}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Quick Identification footer in Image Card */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/50">
@@ -935,12 +1068,17 @@ export function ProductDetailView({
                         const variantPrice = v.price ?? product.price;
 
                         return (
-                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <tr
+                            key={idx}
+                            onClick={() => selectImageByColor(v.color)}
+                            className="hover:bg-emerald-50/40 transition-colors cursor-pointer group/row"
+                            title={`Haz clic para ver la fotografía del color ${v.color}`}
+                          >
                             {/* Color */}
                             <td className="py-3 px-4 font-semibold text-slate-900">
                               <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-slate-800 inline-block" />
-                                <span>{v.color}</span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-800 inline-block group-hover/row:scale-125 transition-transform" />
+                                <span className="group-hover/row:text-emerald-700 transition-colors">{v.color}</span>
                               </div>
                             </td>
 

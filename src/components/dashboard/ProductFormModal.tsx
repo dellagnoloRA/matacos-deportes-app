@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Check,
   Wand2,
+  Star,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -59,6 +60,15 @@ interface FormVariant {
   price?: number | "";
 }
 
+export interface FormProductImage {
+  id?: string;
+  url: string;
+  file?: File;
+  previewUrl: string;
+  color: string;
+  isPrimary: boolean;
+}
+
 export function ProductFormModal({
   isOpen,
   onClose,
@@ -76,10 +86,9 @@ export function ProductFormModal({
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
-  // Estados para imagen con Blob
+  // Estados para galería de imágenes por color con Blob
+  const [productImages, setProductImages] = useState<FormProductImage[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -175,24 +184,54 @@ export function ProductFormModal({
     }
   }, [errorMessage]);
 
-  // Procesar archivo seleccionado
-  const processSelectedFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("Por favor selecciona un archivo de imagen válido (PNG, JPG, WEBP, etc.)");
-      return;
+  // Lista dinámica de colores presentes en las variantes para asignar a las fotos
+  const availableColors = useMemo(() => {
+    const set = new Set<string>();
+    variants.forEach((v) => {
+      const c = v.color?.trim();
+      if (c && c.toLowerCase() !== "único" && c.toLowerCase() !== "unico") {
+        set.add(c);
+      }
+    });
+    return Array.from(set);
+  }, [variants]);
+
+  // Procesar archivos seleccionados (soporta selección múltiple)
+  const processSelectedFiles = (files: FileList | File[]) => {
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) {
+        setErrorMessage("Por favor selecciona archivos de imagen válidos (PNG, JPG, WEBP, etc.)");
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage("Cada imagen no debe superar los 5 MB de tamaño");
+        continue;
+      }
+      validFiles.push(file);
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage("La imagen no debe superar los 5 MB de tamaño");
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+
+    if (validFiles.length === 0) return;
+
+    setProductImages((prev) => {
+      const newItems: FormProductImage[] = validFiles.map((file, idx) => ({
+        url: "",
+        file,
+        previewUrl: URL.createObjectURL(file),
+        color: availableColors[0] || "General",
+        isPrimary: prev.length === 0 && idx === 0,
+      }));
+      return [...prev, ...newItems];
+    });
+
     setErrorMessage(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processSelectedFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      processSelectedFiles(e.target.files);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -208,19 +247,37 @@ export function ProductFormModal({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processSelectedFile(file);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processSelectedFiles(e.dataTransfer.files);
+    }
   };
 
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    setImageUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const handleRemoveImage = (indexToRemove: number) => {
+    setProductImages((prev) => {
+      const filtered = prev.filter((_, idx) => idx !== indexToRemove);
+      if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
+        filtered[0].isPrimary = true;
+      }
+      return filtered;
+    });
+  };
+
+  const handleSetPrimaryImage = (indexToPrimary: number) => {
+    setProductImages((prev) =>
+      prev.map((img, idx) => ({
+        ...img,
+        isPrimary: idx === indexToPrimary,
+      }))
+    );
+  };
+
+  const handleImageColorChange = (index: number, newColor: string) => {
+    setProductImages((prev) =>
+      prev.map((img, idx) => (idx === index ? { ...img, color: newColor } : img))
+    );
   };
 
   // Cargar disciplinas, categorías y marcas de la BD
-    // Cargar disciplinas, categorías y marcas de la BD
   const loadSelectOptions = useCallback(async () => {
     setIsLoadingOptions(true);
     setErrorMessage(null);
@@ -260,8 +317,29 @@ export function ProductFormModal({
       setCostPrice(productToEdit.costPrice);
       setPrice(productToEdit.price);
       setImageUrl(productToEdit.imageUrl || null);
-      setImagePreview(productToEdit.imageUrl || null);
-      setImageFile(null);
+
+      if (productToEdit.images && productToEdit.images.length > 0) {
+        setProductImages(
+          productToEdit.images.map((img, idx) => ({
+            id: img.id,
+            url: img.url,
+            previewUrl: img.url,
+            color: img.color || "General",
+            isPrimary: img.isPrimary ?? (idx === 0),
+          }))
+        );
+      } else if (productToEdit.imageUrl) {
+        setProductImages([
+          {
+            url: productToEdit.imageUrl,
+            previewUrl: productToEdit.imageUrl,
+            color: "General",
+            isPrimary: true,
+          },
+        ]);
+      } else {
+        setProductImages([]);
+      }
 
       // Mapear variantes existentes
       if (productToEdit.variants && productToEdit.variants.length > 0) {
@@ -296,8 +374,7 @@ export function ProductFormModal({
       setCostPrice("");
       setPrice("");
       setImageUrl(null);
-      setImagePreview(null);
-      setImageFile(null);
+      setProductImages([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setVariants([
         {
@@ -745,28 +822,57 @@ export function ProductFormModal({
     setFieldErrors({});
 
     setIsSubmitting(true);
-    let finalImageUrl = imageUrl;
 
     try {
-      // 1. Subir imagen con Blob si hay un nuevo archivo seleccionado
-      if (imageFile) {
-        setIsUploadingImage(true);
-        const uploadData = new FormData();
-        uploadData.append("file", imageFile);
+      // 1. Subir imágenes nuevas con Blob si tienen un archivo pendiente
+      setIsUploadingImage(true);
+      const finalImagesList: {
+        id?: string;
+        url: string;
+        color?: string | null;
+        isPrimary: boolean;
+        order: number;
+      }[] = [];
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: uploadData,
-        });
+      for (let idx = 0; idx < productImages.length; idx++) {
+        const item = productImages[idx];
+        let finalUrl = item.url;
 
-        if (!uploadRes.ok) {
-          const errData = await uploadRes.json();
-          throw new Error(errData.error || "Fallo al subir la imagen con Blob");
+        if (item.file) {
+          const uploadData = new FormData();
+          uploadData.append("file", item.file);
+
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            body: uploadData,
+          });
+
+          if (!uploadRes.ok) {
+            const errData = await uploadRes.json();
+            throw new Error(errData.error || "Fallo al subir una de las imágenes con Blob");
+          }
+
+          const uploadJson = await uploadRes.json();
+          finalUrl = uploadJson.url;
         }
 
-        const uploadJson = await uploadRes.json();
-        finalImageUrl = uploadJson.url;
+        if (finalUrl) {
+          finalImagesList.push({
+            id: item.id,
+            url: finalUrl,
+            color: item.color === "General" ? null : item.color,
+            isPrimary: item.isPrimary,
+            order: idx,
+          });
+        }
       }
+      setIsUploadingImage(false);
+
+      const coverImageUrl =
+        finalImagesList.find((img) => img.isPrimary)?.url ||
+        finalImagesList[0]?.url ||
+        imageUrl ||
+        null;
 
       // 2. Formatear variantes (conservando ID si existía)
       const nameClean = slugify(name).replace(/-/g, "").slice(0, 3).toUpperCase() || "MAT";
@@ -800,7 +906,7 @@ export function ProductFormModal({
       });
 
       if (isEditing && productToEdit) {
-        // Modo Actualización con Variantes e Imagen
+        // Modo Actualización con Variantes e Imágenes por Color
         const res = await updateProduct({
           id: productToEdit.id,
           name: name.trim(),
@@ -810,7 +916,8 @@ export function ProductFormModal({
           brandId,
           costPrice: costNum,
           price: priceNum,
-          imageUrl: finalImageUrl,
+          imageUrl: coverImageUrl,
+          images: finalImagesList,
           variants: formattedVariants,
         });
 
@@ -821,7 +928,7 @@ export function ProductFormModal({
           return;
         }
       } else {
-        // Modo Creación con Variantes e Imagen
+        // Modo Creación con Variantes e Imágenes por Color
         const res = await createProduct({
           name: name.trim(),
           description: description.trim() || null,
@@ -830,7 +937,8 @@ export function ProductFormModal({
           brandId,
           costPrice: costNum,
           price: priceNum,
-          imageUrl: finalImageUrl,
+          imageUrl: coverImageUrl,
+          images: finalImagesList,
           active: true,
           variants: formattedVariants,
         });
@@ -943,68 +1051,113 @@ export function ProductFormModal({
               Información General
             </h3>
 
-            {/* Imagen del Producto (Blob Storage) */}
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1.5">
-                Fotografía del Producto <span className="text-slate-400 font-normal">(Blob Storage)</span>
-              </label>
+            {/* Galería de Fotografías del Producto (Blob Storage) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-slate-700 font-semibold text-xs">
+                  Fotografías y Galería por Color <span className="text-slate-400 font-normal">(Blob Storage)</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {productImages.length} foto(s) cargada(s)
+                </span>
+              </div>
 
-              {imagePreview ? (
-                <div className="relative group w-full sm:w-64 h-44 bg-slate-50 rounded-2xl border-2 border-emerald-200 overflow-hidden flex items-center justify-center p-3 shadow-2xs">
-                  <img
-                    src={imagePreview}
-                    alt="Previsualización del producto"
-                    className="max-h-full max-w-full object-contain drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-2xs">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-900 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+              {/* Grid de miniaturas cargadas */}
+              {productImages.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80">
+                  {productImages.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className={`relative bg-white rounded-xl border p-2 flex flex-col justify-between transition-all group shadow-2xs ${
+                        img.isPrimary
+                          ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
                     >
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>Cambiar</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 active:scale-95"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Quitar</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-full border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 select-none ${
-                    isDragging
-                      ? "border-emerald-500 bg-emerald-50/70 scale-[1.01]"
-                      : "border-slate-200 hover:border-emerald-400 hover:bg-slate-50/80"
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-800">
-                      Haz clic para subir una foto
-                    </span>
-                    <span className="text-xs text-slate-500"> o arrastra la imagen aquí</span>
-                  </div>
-                  <p className="text-[10.5px] text-slate-400">
-                    Soporta PNG, JPG, WEBP o SVG (máximo 5 MB)
-                  </p>
+                      {/* Imagen Preview */}
+                      <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center p-1.5">
+                        <img
+                          src={img.previewUrl}
+                          alt={`Foto ${idx + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                        {/* Botón Borrar Flotante */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(idx)}
+                          className="absolute top-1 right-1 p-1 bg-rose-600/90 hover:bg-rose-700 text-white rounded-md shadow-xs opacity-90 hover:opacity-100 transition-opacity"
+                          title="Eliminar foto"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Selector de Color y Portada */}
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={img.color}
+                            onChange={(e) => handleImageColorChange(idx, e.target.value)}
+                            className="w-full text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1 text-slate-800 font-semibold focus:outline-none focus:border-emerald-500"
+                            title="Asignar a un color de variante"
+                          >
+                            <option value="General">Portada General</option>
+                            {availableColors.map((c) => (
+                              <option key={c} value={c}>
+                                Color: {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryImage(idx)}
+                          className={`w-full py-1 px-1.5 rounded-lg text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all ${
+                            img.isPrimary
+                              ? "bg-emerald-600 text-white shadow-2xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <Star className={`w-3 h-3 ${img.isPrimary ? "fill-white" : ""}`} />
+                          <span>{img.isPrimary ? "Principal" : "Hacer Principal"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+
+              {/* Zona de Dropzone para subir / agregar más */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 select-none ${
+                  isDragging
+                    ? "border-emerald-500 bg-emerald-50/70 scale-[1.01]"
+                    : "border-slate-200 hover:border-emerald-400 hover:bg-slate-50/80"
+                }`}
+              >
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-800">
+                    {productImages.length > 0 ? "Agregar más fotos" : "Haz clic para subir fotos"}
+                  </span>
+                  <span className="text-xs text-slate-500"> o arrastra archivos aquí</span>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Selección múltiple permitida • PNG, JPG, WEBP o SVG (máx. 5 MB c/u)
+                </p>
+              </div>
 
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
                 onChange={handleFileChange}
                 className="hidden"

@@ -76,6 +76,9 @@ export async function getProducts(options: ProductFilterOptions = {}) {
         category: true,
         brand: true,
         discipline: true,
+        images: {
+          orderBy: { order: "asc" },
+        },
         variants: {
           orderBy: [{ size: "asc" }, { color: "asc" }],
         },
@@ -101,6 +104,9 @@ export async function getProductById(id: string) {
         category: true,
         brand: true,
         discipline: true,
+        images: {
+          orderBy: { order: "asc" },
+        },
         variants: {
           include: {
             movements: {
@@ -165,11 +171,17 @@ export async function createProduct(input: CreateProductInput) {
 
     // 3. Ejecutar Transacción Atómica en PostgreSQL
     const newProduct = await prisma.$transaction(async (tx) => {
+      const primaryImage =
+        validated.images?.find((img) => img.isPrimary)?.url ||
+        validated.images?.[0]?.url ||
+        validated.imageUrl ||
+        null;
+
       const product = await tx.product.create({
         data: {
           name: validated.name,
           description: validated.description ?? null,
-          imageUrl: validated.imageUrl ?? null,
+          imageUrl: primaryImage,
           disciplineId: validated.disciplineId,
           costPrice: new Prisma.Decimal(validated.costPrice),
           price: new Prisma.Decimal(validated.price),
@@ -189,9 +201,18 @@ export async function createProduct(input: CreateProductInput) {
               price: v.price ? new Prisma.Decimal(v.price) : null,
             })),
           },
+          images: {
+            create: (validated.images || []).map((img, idx) => ({
+              url: img.url,
+              color: img.color?.trim() || null,
+              isPrimary: img.isPrimary ?? (idx === 0),
+              order: img.order ?? idx,
+            })),
+          },
         },
         include: {
           variants: true,
+          images: { orderBy: { order: "asc" } },
           category: true,
           brand: true,
           discipline: true,
@@ -245,13 +266,20 @@ export async function updateProduct(input: UpdateProductInput) {
     }
 
     const updatedProduct = await prisma.$transaction(async (tx) => {
-      // 1. Actualizar datos base del producto
+      // Determinar imagen principal
+      const primaryImage =
+        validated.images && validated.images.length > 0
+          ? validated.images.find((img) => img.isPrimary)?.url || validated.images[0]?.url
+          : validated.imageUrl !== undefined
+          ? validated.imageUrl
+          : existingProduct.imageUrl;
+
       const product = await tx.product.update({
         where: { id: validated.id },
         data: {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
-          ...(validated.imageUrl !== undefined ? { imageUrl: validated.imageUrl } : {}),
+          imageUrl: primaryImage,
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
           ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
@@ -260,6 +288,22 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.active !== undefined ? { active: validated.active } : {}),
         },
       });
+
+      // Sincronizar imágenes asociadas si se proveyeron
+      if (validated.images !== undefined) {
+        await tx.productImage.deleteMany({ where: { productId: validated.id } });
+        if (validated.images.length > 0) {
+          await tx.productImage.createMany({
+            data: validated.images.map((img, idx) => ({
+              productId: validated.id,
+              url: img.url,
+              color: img.color?.trim() || null,
+              isPrimary: img.isPrimary ?? (idx === 0),
+              order: img.order ?? idx,
+            })),
+          });
+        }
+      }
 
       // 2. Si se pasaron variantes, sincronizar existentes y nuevas
       if (validated.variants && validated.variants.length > 0) {
@@ -327,6 +371,9 @@ export async function updateProduct(input: UpdateProductInput) {
           category: true,
           brand: true,
           discipline: true,
+          images: {
+            orderBy: { order: "asc" },
+          },
           variants: {
             orderBy: [{ size: "asc" }, { color: "asc" }],
           },
@@ -471,6 +518,9 @@ export async function getDetailedInventoryProducts(options?: {
         category: true,
         brand: true,
         discipline: true,
+        images: {
+          orderBy: { order: "asc" },
+        },
         variants: {
           orderBy: [{ size: "asc" }, { color: "asc" }],
         },
@@ -502,7 +552,14 @@ export async function getDetailedInventoryProducts(options?: {
         active: p.active,
         updatedAt: formatDateEs(p.updatedAt),
         iconBg: getDisciplineGradient(p.discipline.name),
-        imageUrl: p.imageUrl || undefined,
+        imageUrl: p.imageUrl || p.images?.[0]?.url || undefined,
+        images: (p.images || []).map((img) => ({
+          id: img.id,
+          url: img.url,
+          color: img.color,
+          isPrimary: img.isPrimary,
+          order: img.order,
+        })),
         variants: p.variants.map((v) => ({
           id: v.id,
           size: v.size,
