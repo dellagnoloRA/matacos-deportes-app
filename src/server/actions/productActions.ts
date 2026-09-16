@@ -510,6 +510,8 @@ export async function getDetailedInventoryProducts(options?: {
           sku: v.sku,
           stockStore: v.stockStore,
           stockWarehouse: v.stockWarehouse,
+          minStock: v.minStock ?? 2,
+          minStoreStock: v.minStoreStock ?? 1,
           price: v.price ? Number(v.price) : null,
           receivedCount: v.stockStore + v.stockWarehouse + 50,
           soldCountStore: 0,

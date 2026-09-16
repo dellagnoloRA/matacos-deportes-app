@@ -25,6 +25,7 @@ export interface InventoryItem {
     stockLocal: number;
     stockWeb: number;
     barcode: string;
+    minStock?: number;
   }[];
 }
 
@@ -137,34 +138,53 @@ export function ProductDetailModal({
                     <th className="py-2.5 px-3">Cód. Barras</th>
                     <th className="py-2.5 px-3 text-center">Local (Formosa)</th>
                     <th className="py-2.5 px-3 text-center">Web</th>
+                    <th className="py-2.5 px-3 text-center">Mín. Alerta</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {product.variants.map((v, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-3 font-semibold text-slate-900">{v.size}</td>
-                      <td className="py-2.5 px-3">{v.color}</td>
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">
-                        {v.barcode}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span
-                          className={`font-semibold px-2 py-0.5 rounded-full text-[11px] ${
-                            v.stockLocal <= product.minStock
-                              ? "bg-rose-100 text-rose-700 font-bold"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {v.stockLocal} un.
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full text-[11px]">
-                          {v.stockWeb} un.
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {product.variants.map((v, idx) => {
+                    const minThreshold = v.minStock ?? product.minStock ?? 2;
+                    const total = (v.stockLocal || 0) + (v.stockWeb || 0);
+                    const isCritical = total <= minThreshold;
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 font-semibold text-slate-900">{v.size}</td>
+                        <td className="py-2.5 px-3">{v.color}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">
+                          {v.barcode}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span
+                            className={`font-semibold px-2 py-0.5 rounded-full text-[11px] ${
+                              v.stockLocal <= 1
+                                ? "bg-amber-100 text-amber-800 font-bold"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {v.stockLocal} un.
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full text-[11px]">
+                            {v.stockWeb} un.
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span
+                            className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
+                              isCritical
+                                ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                            title={`Umbral de alerta: ${minThreshold} un.`}
+                          >
+                            {minThreshold} un.
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

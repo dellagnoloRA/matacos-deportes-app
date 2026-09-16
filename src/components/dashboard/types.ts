@@ -77,6 +77,8 @@ export interface ProductVariantItem {
   sku?: string;
   stockStore: number; // Salón Saavedra 241
   stockWarehouse: number; // Depósito Central Formosa
+  minStock?: number; // Umbral de compra a proveedor (alerta stock total <= minStock)
+  minStoreStock?: number; // Umbral de reposición en salón (alerta salón <= minStoreStock)
   price?: number | null; // Precio específico o diferencial si difiere del precio base
   receivedCount?: number;
   soldCountStore?: number;
