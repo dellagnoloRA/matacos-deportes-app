@@ -15,6 +15,7 @@ import {
   Loader2,
   Layers,
   HelpCircle,
+  ShoppingBag,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -33,6 +34,7 @@ export interface StockAdjustmentModalProps {
 }
 
 export type OperationType =
+  | "VENTA_MOSTRADOR"
   | "TRANSFERENCIA_INTERNA"
   | "INGRESO_COMPRA"
   | "AJUSTE_INGRESO"
@@ -192,7 +194,7 @@ export function StockAdjustmentModal({
     } else {
       simWarehouse = currentWarehouseStock + numQty;
     }
-  } else if (operationType === "AJUSTE_EGRESO") {
+  } else if (operationType === "AJUSTE_EGRESO" || operationType === "VENTA_MOSTRADOR") {
     if (targetLocation === "STORE") {
       simStore = Math.max(0, currentStoreStock - numQty);
     } else {
@@ -291,12 +293,13 @@ export function StockAdjustmentModal({
       }
     }
 
-    if (operationType === "AJUSTE_EGRESO") {
+    if (operationType === "AJUSTE_EGRESO" || operationType === "VENTA_MOSTRADOR") {
       const available = targetLocation === "STORE" ? currentStoreStock : currentWarehouseStock;
       const locationName = targetLocation === "STORE" ? "Salón Saavedra 241" : "Depósito Central";
+      const actionLabel = operationType === "VENTA_MOSTRADOR" ? "la venta" : "el egreso";
       if (available < numQty) {
         setErrorMessage(
-          `No se puede egresar más de lo disponible en ${locationName}. Disponible: ${available} un., Solicitado: ${numQty} un.`
+          `No se puede realizar ${actionLabel}: stock insuficiente en ${locationName}. Disponible: ${available} un., Solicitado: ${numQty} un.`
         );
         return;
       }
@@ -333,12 +336,17 @@ export function StockAdjustmentModal({
 
         setSuccessMessage(res.message || "Traslado completado con éxito.");
       } else {
+        const defaultReason =
+          operationType === "VENTA_MOSTRADOR"
+            ? `Venta mostrador Saavedra 241 (${numQty} un.)`
+            : `Movimiento manual: ${operationType}`;
+
         const res = await registerStockMovement({
           variantId: selectedVariantId,
           type: operationType,
           quantity: numQty,
           targetLocation,
-          reason: reason.trim() || `Movimiento manual: ${operationType}`,
+          reason: reason.trim() || defaultReason,
         });
 
         if (!res.success) {
@@ -435,12 +443,31 @@ export function StockAdjustmentModal({
         {/* Header Modal */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-900 to-emerald-950 text-[#c2f25b] flex items-center justify-center shadow-xs">
-              <ArrowRightLeft className="w-5 h-5" />
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs transition-all ${
+                operationType === "VENTA_MOSTRADOR"
+                  ? "bg-indigo-700 text-white shadow-indigo-100"
+                  : "bg-gradient-to-tr from-slate-900 to-emerald-950 text-[#c2f25b]"
+              }`}
+            >
+              {operationType === "VENTA_MOSTRADOR" ? (
+                <ShoppingBag className="w-5 h-5" />
+              ) : (
+                <ArrowRightLeft className="w-5 h-5" />
+              )}
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                Control y Movimientos de Stock
+              <h2 className="text-base font-bold text-slate-900 leading-tight flex items-center gap-2">
+                <span>
+                  {operationType === "VENTA_MOSTRADOR"
+                    ? "Registrar Venta en Mostrador"
+                    : "Control y Movimientos de Stock"}
+                </span>
+                {operationType === "VENTA_MOSTRADOR" && (
+                  <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                    Baja Rápida
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-500 truncate max-w-xs sm:max-w-md">
                 {product.name} ({product.brand})
@@ -510,7 +537,33 @@ export function StockAdjustmentModal({
             </label>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Opción 1: Traslado Interno (Depósito -> Salón) - Ámbar */}
+              {/* Opción 1: Venta en Mostrador - Índigo */}
+              <button
+                type="button"
+                onClick={() => setOperationType("VENTA_MOSTRADOR")}
+                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-2.5 ${
+                  operationType === "VENTA_MOSTRADOR"
+                    ? "bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className="p-2 rounded-lg bg-indigo-100 text-indigo-800 shrink-0 mt-0.5">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <span>Venta Mostrador</span>
+                    <span className="text-[9px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.2 rounded font-bold">
+                      - Stock
+                    </span>
+                  </div>
+                  <div className="text-[10.5px] text-slate-500 mt-0.5">
+                    Egreso directo por venta física en Saavedra 241
+                  </div>
+                </div>
+              </button>
+
+              {/* Opción 2: Traslado Interno (Depósito -> Salón) - Ámbar */}
               <button
                 type="button"
                 onClick={() => setOperationType("TRANSFERENCIA_INTERNA")}
@@ -536,7 +589,7 @@ export function StockAdjustmentModal({
                 </div>
               </button>
 
-              {/* Opción 2: Ingreso por Compra - Verde esmeralda */}
+              {/* Opción 3: Ingreso por Compra - Verde esmeralda */}
               <button
                 type="button"
                 onClick={() => setOperationType("INGRESO_COMPRA")}
@@ -559,7 +612,7 @@ export function StockAdjustmentModal({
                 </div>
               </button>
 
-              {/* Opción 3: Ajuste Positivo - Teal */}
+              {/* Opción 4: Ajuste Positivo - Teal */}
               <button
                 type="button"
                 onClick={() => setOperationType("AJUSTE_INGRESO")}
@@ -582,7 +635,7 @@ export function StockAdjustmentModal({
                 </div>
               </button>
 
-              {/* Opción 4: Ajuste Negativo / Merma - Rosa / Rojo */}
+              {/* Opción 5: Ajuste Negativo / Merma - Rosa / Rojo */}
               <button
                 type="button"
                 onClick={() => setOperationType("AJUSTE_EGRESO")}
@@ -605,11 +658,11 @@ export function StockAdjustmentModal({
                 </div>
               </button>
 
-              {/* Opción 5: Devolución de Cliente - Cian */}
+              {/* Opción 6: Devolución de Cliente - Cian */}
               <button
                 type="button"
                 onClick={() => setOperationType("DEVOLUCION_CLIENTE")}
-                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-2.5 sm:col-span-2 ${
+                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-2.5 ${
                   operationType === "DEVOLUCION_CLIENTE"
                     ? "bg-cyan-50 border-cyan-500 ring-2 ring-cyan-500/20"
                     : "bg-white border-slate-200 hover:border-slate-300"
@@ -626,7 +679,7 @@ export function StockAdjustmentModal({
                     </span>
                   </div>
                   <div className="text-[10.5px] text-slate-500 mt-0.5">
-                    Reintegro por talle incorrecto o falla de fabricación
+                    Reintegro por talle incorrecto o falla
                   </div>
                 </div>
               </button>
@@ -854,6 +907,8 @@ export function StockAdjustmentModal({
               placeholder={
                 isExchangeActive
                   ? "Ej: Cambio de talle M por L, Ticket #48291..."
+                  : operationType === "VENTA_MOSTRADOR"
+                  ? "Ej: Venta en mostrador Saavedra 241, Ticket o cuaderno #1024..."
                   : operationType === "TRANSFERENCIA_INTERNA"
                   ? "Ej: Reposición de fin de semana para vidriera Saavedra 241..."
                   : operationType === "DEVOLUCION_CLIENTE"
@@ -956,10 +1011,24 @@ export function StockAdjustmentModal({
               </div>
             </div>
           ) : (
-            <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50/60 rounded-xl border border-emerald-200/80 flex items-center justify-between text-xs">
+            <div
+              className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-colors ${
+                operationType === "VENTA_MOSTRADOR"
+                  ? "bg-gradient-to-r from-indigo-50 via-blue-50/50 to-slate-50 border-indigo-200/90"
+                  : "bg-gradient-to-r from-emerald-50 to-teal-50/60 border-emerald-200/80"
+              }`}
+            >
               <div>
-                <span className="text-[10.5px] font-bold text-emerald-800 uppercase tracking-wider block">
-                  Simulación Stock Posterior
+                <span
+                  className={`text-[10.5px] font-bold uppercase tracking-wider block ${
+                    operationType === "VENTA_MOSTRADOR"
+                      ? "text-indigo-900"
+                      : "text-emerald-800"
+                  }`}
+                >
+                  {operationType === "VENTA_MOSTRADOR"
+                    ? "Stock Resultante tras la Venta"
+                    : "Simulación Stock Posterior"}
                 </span>
                 <span className="text-slate-500 text-[11px]">
                   {product.name} (Talle {currentVariant?.size || "-"})
@@ -968,12 +1037,28 @@ export function StockAdjustmentModal({
               <div className="flex items-center gap-3 text-right">
                 <div>
                   <span className="text-[10px] text-slate-500 block">Salón</span>
-                  <span className="font-bold text-emerald-800 text-xs">{simStore} un.</span>
+                  <span
+                    className={`font-bold text-xs ${
+                      targetLocation === "STORE" && operationType === "VENTA_MOSTRADOR"
+                        ? "text-indigo-700 font-black"
+                        : "text-emerald-800"
+                    }`}
+                  >
+                    {simStore} un.
+                  </span>
                 </div>
-                <div className="h-6 w-px bg-emerald-200" />
+                <div className="h-6 w-px bg-slate-200" />
                 <div>
                   <span className="text-[10px] text-slate-500 block">Depósito</span>
-                  <span className="font-bold text-slate-700 text-xs">{simWarehouse} un.</span>
+                  <span
+                    className={`font-bold text-xs ${
+                      targetLocation === "WAREHOUSE" && operationType === "VENTA_MOSTRADOR"
+                        ? "text-indigo-700 font-black"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    {simWarehouse} un.
+                  </span>
                 </div>
               </div>
             </div>
@@ -996,6 +1081,8 @@ export function StockAdjustmentModal({
               className={`font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-2 ${
                 isExchangeActive && hasInsufficientExchangeStock
                   ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  : operationType === "VENTA_MOSTRADOR"
+                  ? "bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-indigo-200"
                   : "bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950"
               }`}
             >
@@ -1008,11 +1095,17 @@ export function StockAdjustmentModal({
                 <>
                   {isExchangeActive ? (
                     <ArrowRightLeft className="w-4 h-4" />
+                  ) : operationType === "VENTA_MOSTRADOR" ? (
+                    <ShoppingBag className="w-4 h-4" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
                   <span>
-                    {isExchangeActive ? "Confirmar Cambio de Talle" : "Confirmar Movimiento"}
+                    {isExchangeActive
+                      ? "Confirmar Cambio de Talle"
+                      : operationType === "VENTA_MOSTRADOR"
+                      ? `Registrar Venta (-${numQty || 1} un.)`
+                      : "Confirmar Movimiento"}
                   </span>
                 </>
               )}

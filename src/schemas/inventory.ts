@@ -25,6 +25,7 @@ export const LocationEnum = z.enum(["STORE", "WAREHOUSE", "WAREHOUSE_TO_STORE"])
 export const InventoryMovementSchema = z.object({
   variantId: z.string().uuid("ID de variante inválido"),
   type: z.enum([
+    "VENTA_MOSTRADOR",
     "INGRESO_COMPRA",
     "AJUSTE_INGRESO",
     "AJUSTE_EGRESO",

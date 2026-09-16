@@ -37,6 +37,7 @@ import {
   AlertOctagon,
   Layers,
   Tag,
+  ShoppingBag,
 } from "lucide-react";
 import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
 import { formatCurrency } from "@/lib/utils";
@@ -502,9 +503,6 @@ export function InventoryView({
     initialProducts && initialProducts.length > 0 ? initialProducts : INITIAL_PRODUCTS
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [isLiveFromDb, setIsLiveFromDb] = useState(
-    Boolean(initialProducts && initialProducts.length > 0)
-  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<DetailedProductItem | null>(null);
   const [productToDelete, setProductToDelete] = useState<DetailedProductItem | null>(null);
@@ -801,7 +799,6 @@ export function InventoryView({
       ]);
       if (productsRes.success && Array.isArray(productsRes.data)) {
         setProductsList(productsRes.data);
-        setIsLiveFromDb(true);
       }
     } catch (err) {
       console.warn("Utilizando catálogo inicial de demostración:", err);
@@ -1076,19 +1073,28 @@ export function InventoryView({
     </div>
   );
 
+  // Referencia para evitar que actualizaciones asíncronas de la lista de productos
+  // resuciten el detalle del producto mientras la transición de URL de Next.js se completa
+  const closedProductIdRef = React.useRef<string | null>(null);
+
   // Sincronizar el producto seleccionado cuando cambia la URL (historial Atrás / Adelante del navegador)
   useEffect(() => {
     if (selectedProductId) {
+      if (closedProductIdRef.current === selectedProductId) {
+        return;
+      }
       const found = productsList.find((p) => p.id === selectedProductId);
       if (found) {
         setSelectedProduct(found);
       }
     } else {
+      closedProductIdRef.current = null;
       setSelectedProduct(null);
     }
   }, [selectedProductId, productsList]);
 
   const handleOpenDetail = (product: DetailedProductItem) => {
+    closedProductIdRef.current = null;
     setSelectedProduct(product);
     onProductChange?.(product.id);
   };
@@ -1103,11 +1109,15 @@ export function InventoryView({
           setSelectedProduct(updated);
         }}
         onBack={() => {
+          if (selectedProduct) {
+            closedProductIdRef.current = selectedProduct.id;
+          }
           setSelectedProduct(null);
           onProductChange?.(null);
           loadProducts();
         }}
         onDeleteSuccess={(deletedId: string) => {
+          closedProductIdRef.current = deletedId;
           setProductsList((prev) =>
             prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
           );
@@ -1155,16 +1165,6 @@ export function InventoryView({
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               Inventario y Catálogo
             </h1>
-            {isLiveFromDb ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                En vivo
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                Demo
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Gestión de stock local y catálogo de e-commerce
@@ -1208,7 +1208,7 @@ export function InventoryView({
             type="button"
             onClick={() => setIsBatchPriceModalOpen(true)}
             className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 active:scale-95 text-emerald-300 font-medium text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 border border-slate-800 select-none"
-            title="Actualización Masiva y Porcentual de Precios (RF-01.1 / CU-INV-05)"
+            title="Actualización masiva y porcentual de precios"
           >
             <Percent className="w-4 h-4 text-emerald-300" />
             <span>Ajuste Masivo de Precios</span>
@@ -1228,7 +1228,7 @@ export function InventoryView({
             type="button"
             onClick={() => setIsBulkImportModalOpen(true)}
             className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100/90 active:scale-95 text-emerald-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
-            title="Carga Inicial Progresiva e Ingestión Excel/CSV (RF-04 / CU-INV-02)"
+            title="Importar catálogo e inventario desde Excel o CSV"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
             <span className="hidden sm:inline">Importar Excel/CSV</span>
@@ -1238,7 +1238,7 @@ export function InventoryView({
             type="button"
             onClick={() => setCatalogViewTab("brands")}
             className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
-            title="Gestión de Tablas Maestras (Marcas, Disciplinas y Categorías - RF-01.2 / CU-INV-09)"
+            title="Gestión de tablas maestras (marcas, disciplinas y categorías)"
           >
             <Layers className="w-4 h-4 text-indigo-500" />
             <span className="hidden lg:inline">Tablas Maestras</span>
@@ -2397,6 +2397,17 @@ export function InventoryView({
                                         </td>
                                         <td className="py-2 px-3 text-center whitespace-nowrap">
                                           <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                            {/* - Venta Mostrador (RF-POS / CU-04) */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "VENTA_MOSTRADOR", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`- Registrar Venta en Mostrador (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <ShoppingBag className="w-3 h-3" />
+                                              <span>- Venta</span>
+                                            </button>
+
                                             {/* + Ingreso por Compra */}
                                             <button
                                               type="button"

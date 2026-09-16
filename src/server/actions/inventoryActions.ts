@@ -49,12 +49,16 @@ export async function registerStockMovement(input: InventoryMovementInput) {
     const isStore = validated.targetLocation === "STORE";
     const currentTargetStock = isStore ? variant.stockStore : variant.stockWarehouse;
 
-    // 3. Comprobar que no haya stock negativo en egresos
-    if (validated.type === "AJUSTE_EGRESO" && currentTargetStock < validated.quantity) {
+    // 3. Comprobar que no haya stock negativo en egresos (mermas o ventas)
+    if (
+      (validated.type === "AJUSTE_EGRESO" || validated.type === "VENTA_MOSTRADOR") &&
+      currentTargetStock < validated.quantity
+    ) {
       const locationLabel = isStore ? "Salón de Ventas" : "Depósito";
+      const actionLabel = validated.type === "VENTA_MOSTRADOR" ? "la venta" : "el egreso";
       return {
         success: false,
-        error: `No hay suficiente stock en ${locationLabel} para realizar el egreso. Disponible: ${currentTargetStock}, Solicitado: ${validated.quantity}`,
+        error: `No hay suficiente stock en ${locationLabel} para realizar ${actionLabel}. Disponible: ${currentTargetStock}, Solicitado: ${validated.quantity}`,
       };
     }
 
@@ -68,7 +72,7 @@ export async function registerStockMovement(input: InventoryMovementInput) {
         validated.type === "ANULACION_VENTA"
       ) {
         delta = validated.quantity;
-      } else if (validated.type === "AJUSTE_EGRESO") {
+      } else if (validated.type === "AJUSTE_EGRESO" || validated.type === "VENTA_MOSTRADOR") {
         delta = -validated.quantity;
       }
 
@@ -93,7 +97,11 @@ export async function registerStockMovement(input: InventoryMovementInput) {
           quantity: validated.quantity,
           stockAfter: totalStockAfter,
           location: validated.targetLocation,
-          reason: validated.reason ?? `Movimiento manual: ${validated.type}`,
+          reason:
+            validated.reason?.trim() ||
+            (validated.type === "VENTA_MOSTRADOR"
+              ? "Venta directa en mostrador Saavedra 241"
+              : `Movimiento manual: ${validated.type}`),
         },
       });
 
@@ -103,10 +111,15 @@ export async function registerStockMovement(input: InventoryMovementInput) {
     revalidatePath("/admin");
     revalidatePath("/");
 
+    const successMsg =
+      validated.type === "VENTA_MOSTRADOR"
+        ? `Venta registrada con éxito (-${validated.quantity} un.). Salón: ${result.variant.stockStore}, Depósito: ${result.variant.stockWarehouse}`
+        : `Stock actualizado con éxito. Salón: ${result.variant.stockStore}, Depósito: ${result.variant.stockWarehouse}`;
+
     return {
       success: true,
       data: serializeData(result),
-      message: `Stock actualizado con éxito. Salón: ${result.variant.stockStore}, Depósito: ${result.variant.stockWarehouse}`,
+      message: successMsg,
     };
   } catch (error) {
     console.error("Error al registrar movimiento de inventario:", error);
