@@ -92,7 +92,7 @@ Abrir PowerShell en la Terminal 1 (por ejemplo en `C:\Proyectos` o `C:\Users\<Tu
 ```powershell
 git clone https://github.com/dellagnoloRA/matacos-deportes-app.git
 cd matacos-deportes-app
-git checkout feature/fe-quick-disciplina-categoria-marca
+git checkout main
 ```
 
 ### Paso 4.2: Configurar Variables de Entorno (`.env`)
@@ -122,15 +122,13 @@ pnpm install
    ```powershell
    pnpm db:up
    ```
-3. Generar el cliente de Prisma y aplicar las migraciones:
+3. Generar el cliente de Prisma y crear la estructura de tablas:
    ```powershell
    pnpm prisma generate
    pnpm prisma migrate deploy
    ```
-4. *(Opcional)* Cargar datos de prueba o catálogo inicial:
-   ```powershell
-   pnpm db:seed
-   ```
+> [!NOTE]
+> **Base de Datos Limpia (Sin Datos Dummy):** **NO ejecutar `pnpm db:seed`**. La base de datos debe permanecer con su esquema limpio, ya que la carga inicial del catálogo y las cantidades de stock se realizará de manera oficial mediante la importación masiva del archivo Excel preparado por el comercio (`plantilla_carga_stock_matacos.xlsx`).
 
 ### Paso 4.5: Poner en Marcha la Aplicación
 
