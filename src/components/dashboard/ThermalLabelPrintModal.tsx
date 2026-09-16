@@ -46,6 +46,7 @@ export function ThermalLabelPrintModal({
 }: ThermalLabelPrintModalProps) {
   // Formato de bobina térmica seleccionado (por defecto 50x30 mm para rollo adhesivo)
   const [format, setFormat] = useState<LabelPaperFormat>("50x30");
+  const [showPrice, setShowPrice] = useState(true);
 
   // Configuración de impresión por variante (selección y copias)
   const [variantConfigs, setVariantConfigs] = useState<VariantPrintConfig[]>([]);
@@ -209,7 +210,7 @@ export function ThermalLabelPrintModal({
     },
   }[format];
 
-  // Componente que dibuja una etiqueta individual
+  // Componente que dibuja una etiqueta individual adaptada al formato de bobina
   const renderSingleLabelContent = (
     config: VariantPrintConfig,
     isForPrint = false
@@ -226,22 +227,171 @@ export function ThermalLabelPrintModal({
         ? config.barcode.trim()
         : config.variant.sku || product.sku || "2000000000017";
 
-    const isCompact = format === "40x25";
+    // -------------------------------------------------------------
+    // FORMATO 1: 40 × 25 mm (Compacto para Accesorios / Natación)
+    // -------------------------------------------------------------
+    if (format === "40x25") {
+      return (
+        <div
+          className={`bg-white text-black font-sans select-none flex flex-col justify-between ${
+            isForPrint ? "thermal-label-page" : "rounded-2xl shadow-md p-2.5 border border-slate-300"
+          }`}
+          style={
+            isForPrint
+              ? {
+                  width: `${formatDimensions.widthMm}mm`,
+                  height: `${formatDimensions.heightMm}mm`,
+                  padding: "1mm 1.5mm",
+                  boxSizing: "border-box",
+                }
+              : {
+                  width: `${formatDimensions.previewWidthPx}px`,
+                  height: `${formatDimensions.previewHeightPx}px`,
+                }
+          }
+        >
+          {/* Cabecera compacta: Marca & MATACOS */}
+          <div className="flex items-center justify-between border-b border-black pb-0.5 leading-none">
+            <span className="font-black text-[8px] uppercase tracking-wider text-black">
+              MATACOS
+            </span>
+            <span className="font-bold text-[8px] uppercase text-black truncate max-w-[90px]">
+              {product.brand}
+            </span>
+          </div>
 
+          {/* Nombre producto (1 sola línea para no desbordar en 25mm) */}
+          <div className="font-bold text-[9px] leading-tight text-black truncate my-0.5">
+            {product.name}
+          </div>
+
+          {/* Fila Talle & Precio */}
+          <div className="flex items-center justify-between gap-1 py-0.5 border-y border-dashed border-black">
+            <div className="flex items-center gap-1">
+              <span className="border border-black px-1 py-0.2 rounded font-black text-[9px] leading-none text-black bg-white">
+                T: {config.variant.size || "Único"}
+              </span>
+              <span className="text-[8px] font-bold text-black truncate max-w-[65px]">
+                {config.variant.color || ""}
+              </span>
+            </div>
+
+            {showPrice && (
+              <span className="font-black text-[11px] tracking-tight text-black leading-none">
+                {formatCurrency(effectivePrice)}
+              </span>
+            )}
+          </div>
+
+          {/* Código de barras compacto: altura segura sin recorte */}
+          <div className="pt-0.5 flex flex-col items-center justify-center w-full">
+            <BarcodeSvg
+              value={barcodeVal}
+              width="96%"
+              height={isForPrint ? 24 : 26}
+              fontSize={7.5}
+              showText={true}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // -------------------------------------------------------------
+    // FORMATO 2: 50 × 30 mm (Estándar Textil / Calzado)
+    // -------------------------------------------------------------
+    if (format === "50x30") {
+      return (
+        <div
+          className={`bg-white text-black font-sans select-none flex flex-col justify-between ${
+            isForPrint ? "thermal-label-page" : "rounded-2xl shadow-md p-3 border border-slate-300"
+          }`}
+          style={
+            isForPrint
+              ? {
+                  width: `${formatDimensions.widthMm}mm`,
+                  height: `${formatDimensions.heightMm}mm`,
+                  padding: "1.5mm 2.2mm",
+                  boxSizing: "border-box",
+                }
+              : {
+                  width: `${formatDimensions.previewWidthPx}px`,
+                  height: `${formatDimensions.previewHeightPx}px`,
+                }
+          }
+        >
+          {/* Cabecera: Marca y Tienda */}
+          <div className="flex items-center justify-between border-b border-black pb-0.5 leading-none">
+            <span className="font-black text-[9px] tracking-wider uppercase text-black">
+              MATACOS DEPORTES
+            </span>
+            <span className="font-bold text-[8.5px] uppercase text-black truncate max-w-[110px]">
+              {product.brand}
+            </span>
+          </div>
+
+          {/* Nombre del Producto */}
+          <div className="my-auto py-0.5">
+            <div className="font-bold text-[10px] leading-snug text-black line-clamp-2">
+              {product.name}
+            </div>
+            <div className="text-[8px] text-black font-medium flex items-center gap-1 mt-0.5">
+              <span>{product.discipline}</span>
+              <span>•</span>
+              <span className="truncate">{product.category}</span>
+            </div>
+          </div>
+
+          {/* Fila Central: Talle, Color y Precio Prominente */}
+          <div className="flex items-center justify-between gap-1 py-0.5 border-y border-dashed border-black">
+            <div className="flex items-center gap-1.5">
+              <span className="border-[1.5px] border-black text-black px-1.5 py-0.5 rounded text-[10px] font-black leading-none bg-white">
+                T: {config.variant.size || "Único"}
+              </span>
+              <span className="font-bold text-[9px] leading-tight text-black truncate max-w-[90px]">
+                {config.variant.color || "Único"}
+              </span>
+            </div>
+
+            {showPrice && (
+              <div className="text-right">
+                <span className="font-black text-[12.5px] tracking-tight leading-none text-black">
+                  {formatCurrency(effectivePrice)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Código de barras Vectorial SVG */}
+          <div className="pt-0.5 flex flex-col items-center justify-center w-full">
+            <BarcodeSvg
+              value={barcodeVal}
+              width="95%"
+              height={isForPrint ? 30 : 34}
+              fontSize={8.5}
+              showText={true}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // -------------------------------------------------------------
+    // FORMATO 3: 80 mm (Tira de Comandera continua)
+    // -------------------------------------------------------------
     return (
       <div
-        className={`bg-white text-black font-sans select-none flex flex-col justify-between border border-black/30 ${
-          isForPrint ? "thermal-label-page" : "rounded-xl shadow-md p-3"
+        className={`bg-white text-black font-sans select-none flex flex-col justify-between ${
+          isForPrint ? "thermal-label-page" : "rounded-2xl shadow-md p-4 border border-slate-300"
         }`}
         style={
           isForPrint
             ? {
                 width: `${formatDimensions.widthMm}mm`,
                 height: `${formatDimensions.heightMm}mm`,
-                padding: isCompact ? "1.5mm 2mm" : "2mm 2.5mm",
+                padding: "2mm 4mm",
                 boxSizing: "border-box",
-                pageBreakAfter: "always",
-                breakAfter: "page",
+                borderBottom: "1px dashed #000000",
               }
             : {
                 width: `${formatDimensions.previewWidthPx}px`,
@@ -249,53 +399,55 @@ export function ThermalLabelPrintModal({
               }
         }
       >
-        {/* Cabecera: Marca y Tienda */}
-        <div className="flex items-center justify-between border-b border-black/30 pb-0.5 leading-none">
-          <span className="font-extrabold text-[9.5px] tracking-wider uppercase text-black">
-            MATACOS DEPORTES
+        {/* Cabecera Comandera */}
+        <div className="flex items-center justify-between border-b border-black pb-1 leading-none">
+          <span className="font-black text-[11px] tracking-wider uppercase text-black">
+            MATACOS DEPORTES • FORMOSA
           </span>
-          <span className="font-bold text-[8.5px] uppercase text-black/80 truncate max-w-[110px]">
+          <span className="font-bold text-[10px] uppercase text-black truncate max-w-[140px]">
             {product.brand}
           </span>
         </div>
 
-        {/* Nombre del Producto */}
-        <div className="my-auto py-0.5">
-          <div className="font-bold text-[10.5px] leading-tight text-black line-clamp-2">
+        {/* Nombre del Producto y Disciplina */}
+        <div className="my-auto py-1">
+          <div className="font-extrabold text-[12px] leading-tight text-black">
             {product.name}
           </div>
-          <div className="text-[8.5px] text-black/70 flex items-center gap-1.5 mt-0.5">
+          <div className="text-[9.5px] text-black font-semibold flex items-center gap-2 mt-0.5">
             <span>{product.discipline}</span>
-            <span>•</span>
-            <span className="truncate">{product.category}</span>
+            <span>—</span>
+            <span>{product.category}</span>
           </div>
         </div>
 
-        {/* Fila Central: Talle, Color y Precio Prominente */}
-        <div className="flex items-end justify-between gap-1 py-0.5 border-y border-dashed border-black/40">
-          <div className="flex items-center gap-1.5">
-            <div className="bg-black text-white px-1.5 py-0.5 rounded text-[10.5px] font-black leading-none">
-              T: {config.variant.size || "Único"}
-            </div>
-            <div className="font-bold text-[9.5px] leading-tight text-black truncate max-w-[85px]">
+        {/* Fila Talle, Color y Precio */}
+        <div className="flex items-center justify-between gap-2 py-1 border-y border-dashed border-black">
+          <div className="flex items-center gap-2">
+            <span className="border-2 border-black text-black px-2 py-0.5 rounded text-[11.5px] font-black leading-none bg-white">
+              TALLE: {config.variant.size || "Único"}
+            </span>
+            <span className="font-bold text-[10.5px] text-black truncate max-w-[120px]">
               {config.variant.color || "Único"}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <span className="font-black text-[12.5px] tracking-tight leading-none text-black">
-              {formatCurrency(effectivePrice)}
             </span>
           </div>
+
+          {showPrice && (
+            <div className="text-right">
+              <span className="font-black text-[15px] tracking-tight leading-none text-black">
+                {formatCurrency(effectivePrice)}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Código de barras Vectorial SVG */}
-        <div className="pt-0.5 flex flex-col items-center justify-center">
+        {/* Código de barras Comandera */}
+        <div className="pt-1 flex flex-col items-center justify-center w-full">
           <BarcodeSvg
             value={barcodeVal}
-            width="96%"
-            height={isCompact ? 28 : 36}
-            fontSize={isCompact ? 8 : 9}
+            width="92%"
+            height={isForPrint ? 38 : 42}
+            fontSize={9.5}
             showText={true}
           />
         </div>
@@ -573,12 +725,41 @@ export function ThermalLabelPrintModal({
                 )}
               </div>
 
+              {/* Opciones adicionales de etiqueta */}
+              <div className="w-full bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-medium">Imprimir precio de venta:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPrice((prev) => !prev)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    showPrice
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                >
+                  {showPrice ? "Precio Visible" : "Ocultar Precio"}
+                </button>
+              </div>
+
               {/* Resumen numérico */}
               <div className="w-full bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-semibold">
                 <span className="text-slate-600">Total a Imprimir:</span>
                 <span className="font-extrabold font-mono text-sm bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded-lg border border-emerald-200">
                   {totalLabelsCount} etiqueta{totalLabelsCount === 1 ? "" : "s"}
                 </span>
+              </div>
+
+              {/* Guía para X-Printer 410B */}
+              <div className="w-full bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-2.5 text-[11px] text-emerald-950 leading-snug flex items-start gap-2">
+                <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Para tu X-Printer 410B (Rollo adhesivo):</span>
+                  <ul className="list-disc list-inside mt-0.5 text-emerald-900 text-[10.5px] space-y-0.5">
+                    <li><strong>Destino:</strong> Elegir tu <em>X-Printer 410B</em>.</li>
+                    <li><strong>Márgenes:</strong> Seleccionar <em>"Ninguno"</em>.</li>
+                    <li><strong>Escala:</strong> Seleccionar <em>"100%"</em> o <em>"Ajustar al papel"</em>.</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -616,10 +797,9 @@ export function ThermalLabelPrintModal({
               key={`${cIdx}-${copyIdx}`}
               className="thermal-single-print-wrapper"
               style={{
-                pageBreakAfter: "always",
-                breakAfter: "page",
                 width: `${formatDimensions.widthMm}mm`,
                 height: `${formatDimensions.heightMm}mm`,
+                boxSizing: "border-box",
                 overflow: "hidden",
               }}
             >
@@ -632,12 +812,24 @@ export function ThermalLabelPrintModal({
       {/* Estilos CSS Inyectados para la Impresora Térmica */}
       <style jsx global>{`
         @media print {
-          /* Ocultar toda la interfaz del navegador y modales */
+          /* 1. Reset estricto para asegurar fidelidad térmica */
+          html, body {
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          /* 2. Ocultar la pantalla del sistema y cualquier elemento fuera del contenedor */
           body * {
             visibility: hidden !important;
           }
 
-          /* Hacer visible únicamente el contenedor térmico */
+          /* 3. Hacer visible únicamente las etiquetas térmicas */
           #thermal-print-container,
           #thermal-print-container * {
             visibility: visible !important;
@@ -645,7 +837,7 @@ export function ThermalLabelPrintModal({
 
           #thermal-print-container {
             display: block !important;
-            position: absolute !important;
+            position: static !important;
             left: 0 !important;
             top: 0 !important;
             margin: 0 !important;
@@ -654,16 +846,33 @@ export function ThermalLabelPrintModal({
             background: #ffffff !important;
           }
 
+          /* 4. Forzar tamaño exacto de la bobina al spooler de la X-Printer */
           @page {
-            margin: 0 !important;
-            size: auto !important;
+            size: ${formatDimensions.widthMm}mm ${formatDimensions.heightMm}mm !important;
+            margin: 0mm !important;
           }
 
+          /* 5. Cada etiqueta ocupa exactamente 1 sticker físico alineado con el sensor gap */
           .thermal-single-print-wrapper {
-            page-break-after: always !important;
-            break-after: page !important;
+            width: ${formatDimensions.widthMm}mm !important;
+            height: ${formatDimensions.heightMm}mm !important;
+            max-width: ${formatDimensions.widthMm}mm !important;
+            max-height: ${formatDimensions.heightMm}mm !important;
             margin: 0 !important;
             padding: 0 !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+
+          /* Evitar que la última etiqueta expulse un sticker en blanco */
+          .thermal-single-print-wrapper:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
         }
       `}</style>

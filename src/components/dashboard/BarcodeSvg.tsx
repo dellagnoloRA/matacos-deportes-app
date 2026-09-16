@@ -179,26 +179,24 @@ export function BarcodeSvg({
 
   // RENDER EAN-13
   if (ean13Data) {
-    const quietZoneLeft = 10; // Espacio para el primer dígito a la izquierda
-    const quietZoneRight = 6;
+    const quietZoneLeft = 8;
+    const quietZoneRight = 8;
     const totalModules = quietZoneLeft + 95 + quietZoneRight;
-    const barHeight = showText ? height - fontSize - 4 : height;
-    const guardExtraHeight = showText ? 5 : 0;
+    const barHeight = showText ? Math.max(16, height - fontSize - 5) : height;
 
     return (
-      <div className={`flex flex-col items-center select-none ${className}`}>
+      <div className={`flex flex-col items-center select-none w-full ${className}`}>
+        {/* Barras Vectoriales Puras (Escalado uniforme que preserva la legibilidad del escáner) */}
         <svg
-          viewBox={`0 0 ${totalModules} ${height}`}
-          style={{ width, height }}
+          viewBox={`0 0 ${totalModules} ${barHeight}`}
+          style={{ width, height: `${barHeight}px` }}
           className="overflow-visible"
+          preserveAspectRatio="none"
           shapeRendering="crispEdges"
         >
-          {/* Barras verticales */}
           {ean13Data.bits.split("").map((bit, idx) => {
             if (bit !== "1") return null;
-            const isGuard = ean13Data.guardSet.has(idx);
             const x = quietZoneLeft + idx;
-            const h = isGuard ? barHeight + guardExtraHeight : barHeight;
 
             return (
               <rect
@@ -206,74 +204,40 @@ export function BarcodeSvg({
                 x={x}
                 y={0}
                 width={1}
-                height={h}
-                fill="black"
+                height={barHeight}
+                fill="#000000"
               />
             );
           })}
-
-          {/* Dígitos EAN-13 en formato estándar GS1 */}
-          {showText && (
-            <>
-              {/* Primer dígito (a la izquierda de la primera guarda) */}
-              <text
-                x={quietZoneLeft - 2}
-                y={height - 1}
-                textAnchor="end"
-                fontSize={fontSize}
-                fontFamily="monospace, ui-monospace, sans-serif"
-                fontWeight="bold"
-                fill="black"
-              >
-                {ean13Data.firstDigit}
-              </text>
-
-              {/* 6 dígitos izquierdos */}
-              <text
-                x={quietZoneLeft + 24}
-                y={height - 1}
-                textAnchor="middle"
-                fontSize={fontSize}
-                letterSpacing="0.8"
-                fontFamily="monospace, ui-monospace, sans-serif"
-                fontWeight="bold"
-                fill="black"
-              >
-                {ean13Data.leftDigits}
-              </text>
-
-              {/* 6 dígitos derechos */}
-              <text
-                x={quietZoneLeft + 71}
-                y={height - 1}
-                textAnchor="middle"
-                fontSize={fontSize}
-                letterSpacing="0.8"
-                fontFamily="monospace, ui-monospace, sans-serif"
-                fontWeight="bold"
-                fill="black"
-              >
-                {ean13Data.rightDigits}
-              </text>
-            </>
-          )}
         </svg>
+
+        {/* Dígitos EAN-13 nítidos en tipografía monoespaciada nativa (No se deforma en impresión) */}
+        {showText && (
+          <div
+            className="font-mono font-extrabold text-black text-center select-none leading-none tracking-widest mt-1 w-full"
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {`${ean13Data.firstDigit} ${ean13Data.leftDigits} ${ean13Data.rightDigits}`}
+          </div>
+        )}
       </div>
     );
   }
 
-  // RENDER CODE 128 (Fallback alfanumérico)
+  // RENDER CODE 128 (Fallback alfanumérico para SKUs)
   if (code128Bits) {
     const quietZone = 10;
     const totalModules = quietZone * 2 + code128Bits.length;
-    const barHeight = showText ? height - fontSize - 3 : height;
+    const barHeight = showText ? Math.max(16, height - fontSize - 5) : height;
 
     return (
-      <div className={`flex flex-col items-center select-none ${className}`}>
+      <div className={`flex flex-col items-center select-none w-full ${className}`}>
+        {/* Barras Code 128 */}
         <svg
-          viewBox={`0 0 ${totalModules} ${height}`}
-          style={{ width, height }}
+          viewBox={`0 0 ${totalModules} ${barHeight}`}
+          style={{ width, height: `${barHeight}px` }}
           className="overflow-visible"
+          preserveAspectRatio="none"
           shapeRendering="crispEdges"
         >
           {code128Bits.split("").map((bit, idx) => {
@@ -285,26 +249,21 @@ export function BarcodeSvg({
                 y={0}
                 width={1}
                 height={barHeight}
-                fill="black"
+                fill="#000000"
               />
             );
           })}
-
-          {showText && (
-            <text
-              x={totalModules / 2}
-              y={height - 1}
-              textAnchor="middle"
-              fontSize={fontSize}
-              letterSpacing="0.5"
-              fontFamily="monospace, ui-monospace, sans-serif"
-              fontWeight="bold"
-              fill="black"
-            >
-              {cleanVal}
-            </text>
-          )}
         </svg>
+
+        {/* Texto legible alfanumérico */}
+        {showText && (
+          <div
+            className="font-mono font-bold text-black text-center select-none leading-none tracking-wider mt-1 truncate max-w-full px-1"
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {cleanVal}
+          </div>
+        )}
       </div>
     );
   }
