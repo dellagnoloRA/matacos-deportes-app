@@ -16,6 +16,7 @@ import {
   Layers,
   HelpCircle,
   ShoppingBag,
+  ChevronDown,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -60,7 +61,23 @@ export function StockAdjustmentModal({
   );
   const [targetLocation, setTargetLocation] = useState<"STORE" | "WAREHOUSE">("STORE");
   const [quantity, setQuantity] = useState<number | "">(1);
+  const [isQuantityDropdownOpen, setIsQuantityDropdownOpen] = useState(false);
+  const quantityContainerRef = useRef<HTMLDivElement>(null);
   const [reason, setReason] = useState("");
+
+  // Cerrar el dropdown de cantidad al hacer clic afuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        quantityContainerRef.current &&
+        !quantityContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsQuantityDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Referencia al textarea de motivo para enfocar en caso de error
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
@@ -842,38 +859,94 @@ export function StockAdjustmentModal({
             </div>
           )}
 
-          {/* 4. Cantidad & Quick Buttons */}
+          {/* 4. Cantidad (Combobox integrado: sale del mismo input) */}
           <div>
             <label className="block text-slate-700 font-semibold mb-1.5">
               Cantidad de Unidades <span className="text-rose-500">*</span>
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={quantity}
-                onChange={(e) =>
-                  setQuantity(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value) || 1))
-                }
-                className="w-32 bg-slate-50 text-slate-900 px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-bold text-sm text-center"
-                required
-              />
+            <div ref={quantityContainerRef} className="relative w-full sm:w-64">
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={quantity}
+                  onFocus={() => setIsQuantityDropdownOpen(true)}
+                  onClick={() => setIsQuantityDropdownOpen(true)}
+                  onKeyDown={(e) => {
+                    // Prevenir puntos, comas, signos negativos o exponentes para permitir exclusivamente enteros
+                    if (e.key === "." || e.key === "," || e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") {
+                      e.preventDefault();
+                    }
+                    if (e.key === "Escape") {
+                      setIsQuantityDropdownOpen(false);
+                    }
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setQuantity("");
+                      return;
+                    }
+                    // Filtrar exclusivamente dígitos
+                    const cleaned = val.replace(/\D/g, "");
+                    if (!cleaned) {
+                      setQuantity("");
+                      return;
+                    }
+                    const parsed = parseInt(cleaned, 10);
+                    setQuantity(Math.max(1, parsed));
+                  }}
+                  placeholder="1"
+                  className="w-full bg-slate-50 text-slate-900 pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-bold text-sm shadow-2xs transition-all"
+                  required
+                />
 
-              {/* Botones de incremento rápido */}
-              <div className="flex items-center gap-1.5">
-                {[1, 2, 5, 10, 20].map((inc) => (
-                  <button
-                    key={inc}
-                    type="button"
-                    onClick={() => setQuantity(inc)}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
-                  >
-                    {inc}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setIsQuantityDropdownOpen((prev) => !prev)}
+                  className="absolute right-2 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition-colors cursor-pointer"
+                  title="Desplegar opciones de 5 en 5"
+                >
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isQuantityDropdownOpen ? "rotate-180 text-emerald-600" : ""
+                    }`}
+                  />
+                </button>
               </div>
+
+              {/* Menú desplegable que sale del mismo input con opciones de 5 en 5 */}
+              {isQuantityDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto z-50 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-3 sticky top-0 border-b border-slate-100">
+                    Opciones de 5 en 5
+                  </div>
+                  {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        setQuantity(num);
+                        setIsQuantityDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold flex items-center justify-between hover:bg-emerald-50 hover:text-emerald-900 transition-colors cursor-pointer ${
+                        quantity === num ? "bg-emerald-50 text-emerald-800 font-bold" : "text-slate-700"
+                      }`}
+                    >
+                      <span>{num} unidades</span>
+                      {quantity === num && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Despliega la lista de 5 en 5 o escribe directamente un número entero exacto.
+            </p>
           </div>
 
           {/* 5. Motivo / Justificación */}

@@ -485,79 +485,80 @@ export function ProductDetailView({
     <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] pb-12 select-none">
       {/* 1. Header Navigation Bar with Back Button & Barcode */}
       <div className="bg-white border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-20 shadow-2xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center justify-between gap-3">
           {/* Left: Back button + Title + Badges */}
-          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={onBack}
-              className="p-2 -ml-1 text-slate-500 hover:text-slate-950 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1 group active:scale-95 shrink-0 mt-0.5 sm:mt-0"
+              className="p-2 -ml-1 text-slate-500 hover:text-slate-950 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1 group active:scale-95 shrink-0"
               title="Volver a la lista de productos"
             >
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             </button>
 
-            <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-slate-900 leading-tight">
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-base sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900 leading-tight truncate">
                 {product.name}
               </h1>
-              <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0">
+              <span className="font-mono text-[11px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0">
                 {product.barcode || product.sku}
               </span>
               {product.active === false && (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-300 whitespace-nowrap shrink-0">
-                  <span>Inactivo (Dado de baja)</span>
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-300 whitespace-nowrap shrink-0">
+                  <span>Inactivo</span>
                 </span>
               )}
             </div>
           </div>
 
-          {/* Right: Quick Actions */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start lg:justify-end shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+          {/* Right: Quick Actions - Solo iconos en resoluciones pequeñas/medianas, con texto en pantallas grandes */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Registrar Venta Mostrador (Baja Rápida) */}
             <button
               onClick={() => handleOpenStockModal("VENTA_MOSTRADOR")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-indigo-950 bg-indigo-100 hover:bg-indigo-200/90 rounded-xl transition-all border border-indigo-300 shadow-2xs active:scale-95 whitespace-nowrap"
-              title="Registrar egreso por venta física en mostrador Saavedra 241"
+              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-indigo-950 bg-indigo-100 hover:bg-indigo-200/90 rounded-xl transition-all border border-indigo-300 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
+              title="Registrar Venta en Mostrador (Saavedra 241)"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-              <span>Registrar Venta</span>
+              <ShoppingBag className="w-4 h-4 text-indigo-700 shrink-0" />
+              <span className="hidden xl:inline">Registrar Venta</span>
             </button>
 
             <button
               onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap"
-              title="Registrar ingresos, egresos, ajustes o traslados internos de stock"
+              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
+              title="Ajustar Stock / Traslado Interno"
             >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
-              <span>Ajustar Stock / Traslado</span>
+              <ArrowRightLeft className="w-4 h-4 text-emerald-800 shrink-0" />
+              <span className="hidden xl:inline">Ajustar Stock / Traslado</span>
             </button>
 
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-xl transition-all border border-lime-400 shadow-2xs active:scale-95 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-xl transition-all border border-lime-400 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
+              title="Editar datos del producto"
             >
-              <Edit3 className="w-3.5 h-3.5 shrink-0" />
-              <span>Editar</span>
+              <Edit3 className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline">Editar</span>
             </button>
 
             {product.active === false ? (
               <button
                 onClick={handleReactivate}
                 disabled={isReactivating}
-                title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-300 active:scale-95 whitespace-nowrap shadow-2xs"
+                title="Reactivar producto y devolver al mostrador (POS)"
+                className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-300 active:scale-95 whitespace-nowrap shadow-2xs shrink-0"
               >
-                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${isReactivating ? "animate-spin" : ""}`} />
-                <span>Reactivar Producto</span>
+                <RefreshCw className={`w-4 h-4 text-emerald-600 shrink-0 ${isReactivating ? "animate-spin" : ""}`} />
+                <span className="hidden xl:inline">Reactivar</span>
               </button>
             ) : (
               <button
                 onClick={() => setIsDeleteModalOpen(true)}
                 title="Dar de baja producto"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 active:scale-95 whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 active:scale-95 whitespace-nowrap shadow-2xs shrink-0"
               >
-                <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Dar de Baja</span>
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span className="hidden xl:inline">Dar de Baja</span>
               </button>
             )}
 
@@ -566,11 +567,11 @@ export function ProductDetailView({
                 setThermalPrintVariantId(undefined);
                 setIsThermalPrintModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors border border-slate-200 active:scale-95 whitespace-nowrap shadow-2xs"
+              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors border border-slate-200 active:scale-95 whitespace-nowrap shadow-2xs shrink-0"
               title="Imprimir etiquetas térmicas adhesivas con código de barras"
             >
-              <Printer className="w-3.5 h-3.5 shrink-0" />
-              <span>Imprimir Etiquetas</span>
+              <Printer className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline">Imprimir Etiquetas</span>
             </button>
           </div>
         </div>
@@ -597,71 +598,63 @@ export function ProductDetailView({
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 2xl:px-12 py-5 space-y-5 w-full">
-        {/* 3. 5 KPI Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          {/* Card 1: Recibido */}
-          <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <span className="text-[11.5px] font-medium text-slate-500 tracking-tight">Recibido</span>
-            <div className="text-2xl lg:text-3xl font-bold text-[#4f46e5] mt-1 tracking-tight">
-              {receivedTotal}
-            </div>
-            <span className="text-[10px] text-slate-400">Total ingresos a depósito</span>
-          </div>
-
-          {/* Card 2: Stock Tienda (Saavedra 241) */}
-          <div className="p-4 bg-white rounded-2xl border border-emerald-100 shadow-2xs hover:shadow-xs transition-shadow bg-gradient-to-br from-white to-emerald-50/30">
-            <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-semibold text-emerald-800">Stock Tienda</span>
-              <span className="text-[9.5px] font-medium text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
-                Saavedra 241
-              </span>
-            </div>
-            <div className="text-2xl lg:text-3xl font-bold text-emerald-700 mt-1 tracking-tight">
-              {totalStoreStock}
-            </div>
-            <span className="text-[10px] text-emerald-600 font-medium">Mostrador local</span>
-          </div>
-
-          {/* Card 3: Stock Depósito */}
-          <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-medium text-slate-500">Stock Depósito</span>
-              <span title="Almacén central para reposición" className="cursor-help inline-flex items-center">
-                <Info className="w-3.5 h-3.5 text-slate-400" />
-              </span>
-            </div>
-            <div className="text-2xl lg:text-3xl font-bold text-slate-800 mt-1 tracking-tight">
-              {totalWarehouseStock}
-            </div>
-            <span className="text-[10px] text-slate-400">Almacén Central Formosa</span>
-          </div>
-
-          {/* Card 4: Existencias Disponibles Totales */}
-          <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-2xs hover:shadow-xs transition-shadow bg-gradient-to-br from-white to-blue-50/40">
-            <span className="text-[11.5px] font-semibold text-blue-900">Existencias Disponibles</span>
-            <div className="text-2xl lg:text-3xl font-bold text-blue-600 mt-1 tracking-tight">
-              {totalStock}
-            </div>
-            <span className="text-[10px] text-blue-600 font-medium">Tienda + Depósito</span>
-          </div>
-
-          {/* Card 5: Ventas Totales */}
-          <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow col-span-2 sm:col-span-1">
-            <span className="text-[11.5px] font-medium text-slate-500">Ventas Totales</span>
-            <div className="text-2xl lg:text-3xl font-bold text-indigo-900 mt-1 tracking-tight">
-              {salesTotal}
-            </div>
-            <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
-              <span>Local: {salesStore}</span>
-              <span>•</span>
-              <span>Web: {salesWeb}</span>
-            </div>
-          </div>
-        </div>
-
         {/* 4. Tab Content: Visión General (Active view matching reference) */}
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="space-y-5 animate-in fade-in-50">
+            {/* 3. 4 KPI Summary Cards (Solo visibles en Visión General) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+              {/* Card 1: Stock Tienda (Saavedra 241) */}
+              <div className="p-3.5 sm:p-4 bg-white rounded-2xl border border-emerald-100 shadow-2xs hover:shadow-xs transition-shadow bg-gradient-to-br from-white to-emerald-50/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11.5px] font-semibold text-emerald-800">Stock Tienda</span>
+                  <span className="text-[9.5px] font-medium text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                    Saavedra 241
+                  </span>
+                </div>
+                <div className="text-2xl lg:text-3xl font-bold text-emerald-700 mt-1 tracking-tight">
+                  {totalStoreStock}
+                </div>
+                <span className="text-[10px] text-emerald-600 font-medium">Mostrador local</span>
+              </div>
+
+              {/* Card 2: Stock Depósito */}
+              <div className="p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11.5px] font-medium text-slate-500">Stock Depósito</span>
+                  <span title="Almacén central para reposición" className="cursor-help inline-flex items-center">
+                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                  </span>
+                </div>
+                <div className="text-2xl lg:text-3xl font-bold text-slate-800 mt-1 tracking-tight">
+                  {totalWarehouseStock}
+                </div>
+                <span className="text-[10px] text-slate-400">Almacén Central Formosa</span>
+              </div>
+
+              {/* Card 3: Existencias Disponibles Totales */}
+              <div className="p-3.5 sm:p-4 bg-white rounded-2xl border border-blue-100 shadow-2xs hover:shadow-xs transition-shadow bg-gradient-to-br from-white to-blue-50/40">
+                <span className="text-[11.5px] font-semibold text-blue-900">Existencias Disponibles</span>
+                <div className="text-2xl lg:text-3xl font-bold text-blue-600 mt-1 tracking-tight">
+                  {totalStock}
+                </div>
+                <span className="text-[10px] text-blue-600 font-medium">Tienda + Depósito</span>
+              </div>
+
+              {/* Card 4: Ventas Totales */}
+              <div className="p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow">
+                <span className="text-[11.5px] font-medium text-slate-500">Ventas Totales</span>
+                <div className="text-2xl lg:text-3xl font-bold text-indigo-900 mt-1 tracking-tight">
+                  {salesTotal}
+                </div>
+                <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
+                  <span>Local: {salesStore}</span>
+                  <span>•</span>
+                  <span>Web: {salesWeb}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* ======================================================== */}
             {/* COLUMNA IZQUIERDA: FOTOGRAFÍA + FICHA TÉCNICA DEL PRODUCTO */}
             {/* ======================================================== */}
@@ -813,118 +806,7 @@ export function ProductDetailView({
                 </div>
               </div>
 
-              {/* Ficha Técnica y Económica Completa */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-5 space-y-4">
-                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                    Ficha Técnica y Económica
-                  </h3>
-                  <span className="text-[11px] font-semibold text-slate-500">{product.brand}</span>
-                </div>
 
-                {/* Descripción */}
-                <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Descripción
-                  </span>
-                  <p className="text-xs text-slate-700 mt-1 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    {product.description || "Sin descripción adicional registrada en catálogo."}
-                  </p>
-                </div>
-
-                {/* Categoría y Subcategoría */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
-                      Categoría
-                    </span>
-                    <div className="text-xs font-semibold text-slate-800 mt-0.5 truncate">
-                      {product.category}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
-                      Subcategoría
-                    </span>
-                    <div className="text-xs font-semibold text-slate-800 mt-0.5 truncate">
-                      {product.subcategory || "General"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Disciplina y Marca */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
-                      Disciplina
-                    </span>
-                    <div className="text-xs font-semibold text-emerald-700 mt-0.5">
-                      {product.discipline}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
-                      Marca
-                    </span>
-                    <div className="text-xs font-semibold text-slate-800 mt-0.5">
-                      {product.brand}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Precios: Costo de Compra y Precio de Venta */}
-                <div className="pt-3 border-t border-slate-100 space-y-2.5">
-                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                    <div>
-                      <span className="text-[10.5px] text-slate-500 font-medium">Costo de Compra</span>
-                      <div className="text-xs font-semibold text-slate-700">
-                        {formatCurrency(product.costPrice)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10.5px] text-slate-500 font-medium">Precio de Venta</span>
-                      {(() => {
-                        const variantPrices = product.variants
-                          ? product.variants.map((v) => v.price ?? product.price).filter((p) => p > 0)
-                          : [];
-                        if (variantPrices.length > 1) {
-                          const minP = Math.min(...variantPrices);
-                          const maxP = Math.max(...variantPrices);
-                          if (minP !== maxP) {
-                            return (
-                              <div className="flex flex-col items-end">
-                                <span className="text-xs font-bold text-slate-900">
-                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
-                                </span>
-                                <span className="text-[10px] text-emerald-700 font-semibold">
-                                  Varía por talle
-                                </span>
-                              </div>
-                            );
-                          }
-                        }
-                        return (
-                          <div className="text-sm font-bold text-slate-900">
-                            {formatCurrency(product.price)}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Margen de Utilidad */}
-                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50/80 rounded-lg border border-emerald-100 text-xs">
-                    <span className="text-emerald-800 font-medium flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                      Margen Bruto
-                    </span>
-                    <span className="font-bold text-emerald-900">
-                      +{marginPercentage}% ({formatCurrency(profitMargin)})
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* ======================================================== */}
@@ -971,7 +853,7 @@ export function ProductDetailView({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full min-w-[620px] text-left text-xs">
                     <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                       <tr>
                         <th
@@ -1019,10 +901,6 @@ export function ProductDetailView({
                         </th>
                         <th className="py-3 px-3 text-center">Stock Tienda</th>
                         <th className="py-3 px-3 text-center">Stock Depósito</th>
-                        <th className="py-3 px-3 text-center" title="Umbrales de stock mínimo: Salón (reposición) y Depósito (compra proveedor)">
-                          Mín. Alerta (Local / Dep.)
-                        </th>
-                        <th className="py-3 px-3 text-center">Recibido</th>
                         <th className="py-3 px-3 text-center">Vendido</th>
                         <th
                           onClick={() => setVariantSort(variantSort === "stock_desc" ? "stock_asc" : "stock_desc")}
@@ -1038,7 +916,7 @@ export function ProductDetailView({
                             )}
                           </div>
                         </th>
-                        <th className="py-3 px-4 text-center min-w-[120px]">Acciones</th>
+                        <th className="py-3 px-4 text-center min-w-[90px]">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1054,10 +932,6 @@ export function ProductDetailView({
                             : product.minStoreStock || 1;
                         const isCritical = variantTotal <= minThreshold;
                         const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
-                        const vMovementReceived = movements
-                          .filter((m) => m.variantId === v.id && (m.type === "INGRESO_COMPRA" || m.type === "INGRESO_INICIAL"))
-                          .reduce((acc, m) => acc + m.quantity, 0);
-                        const vReceived = v.receivedCount !== undefined && v.receivedCount > 0 ? v.receivedCount : vMovementReceived;
 
                         const vMovementSold = movements
                           .filter((m) => m.variantId === v.id && (m.type === "VENTA_MOSTRADOR" || m.type === "VENTA_WEB"))
@@ -1124,47 +998,6 @@ export function ProductDetailView({
                               </span>
                             </td>
 
-                            {/* Stock Mínimo / Umbrales de Alerta (Local y Depósito) */}
-                            <td className="py-3 px-3 text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                <span
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold ${
-                                    isLowStore
-                                      ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                      : "bg-slate-100 text-slate-700"
-                                  }`}
-                                  title={
-                                    isLowStore
-                                      ? `¡Alerta Salón! Stock salón (${v.stockStore} un.) <= Mínimo (${minStoreThreshold} un.)`
-                                      : `Umbral de reposición salón: ${minStoreThreshold} un.`
-                                  }
-                                >
-                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Salón:</span>
-                                  <span>{minStoreThreshold}</span>
-                                </span>
-                                <span
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold ${
-                                    isCritical
-                                      ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                      : "bg-slate-100 text-slate-700"
-                                  }`}
-                                  title={
-                                    isCritical
-                                      ? `¡Alerta Proveedor! Stock total (${variantTotal} un.) <= Mínimo (${minThreshold} un.)`
-                                      : `Umbral de compra a proveedor: ${minThreshold} un.`
-                                  }
-                                >
-                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Dep.:</span>
-                                  <span>{minThreshold}</span>
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* Recibido */}
-                            <td className="py-3 px-3 text-center font-medium text-slate-600">
-                              {vReceived}
-                            </td>
-
                             {/* Vendido */}
                             <td className="py-3 px-3 text-center font-medium text-slate-600">
                               {vSold}
@@ -1185,62 +1018,16 @@ export function ProductDetailView({
                               </span>
                             </td>
 
-                            {/* Botones de Acción Rápida por Variante (RF-03 / CU-04) */}
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {/* Botón 🛍️: Registrar Venta Mostrador */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStockModal("VENTA_MOSTRADOR", v.id)}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200 transition-all active:scale-95 shadow-2xs"
-                                  title={`- Registrar Venta Mostrador (Talle ${v.size} - ${v.color})`}
-                                >
-                                  <ShoppingBag className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Botón +: Ingreso por Compra */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStockModal("INGRESO_COMPRA", v.id)}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-all active:scale-95 shadow-2xs"
-                                  title={`+ Ingreso por Compra (Talle ${v.size} - ${v.color})`}
-                                >
-                                  <PackagePlus className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Botón -: Ajuste / Merma */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStockModal("AJUSTE_EGRESO", v.id)}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-900 border border-rose-200 transition-all active:scale-95 shadow-2xs"
-                                  title={`- Ajuste / Merma (Talle ${v.size} - ${v.color})`}
-                                >
-                                  <MinusCircle className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Botón ⇄: Traslado Interno */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA", v.id)}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 border border-emerald-200 transition-all active:scale-95 shadow-2xs"
-                                  title={`⇄ Traslado Depósito ➔ Salón (Talle ${v.size} - ${v.color})`}
-                                >
-                                  <ArrowRightLeft className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Botón 🖨️: Imprimir Etiqueta Térmica de esta variante (RF-05) */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setThermalPrintVariantId(v.barcode || v.sku || v.id);
-                                    setIsThermalPrintModalOpen(true);
-                                  }}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-950 border border-slate-200 transition-all active:scale-95 shadow-2xs"
-                                  title={`🖨️ Imprimir Etiqueta Térmica (Talle ${v.size} - ${v.color})`}
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                            {/* Botón de Acción Modificar (solo texto) */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStockModal(undefined, v.id)}
+                                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+                                title={`Modificar stock (Talle ${v.size} - ${v.color})`}
+                              >
+                                Modificar
+                              </button>
                             </td>
                           </tr>
                         );
@@ -1250,13 +1037,129 @@ export function ProductDetailView({
                 </div>
 
                 {/* Subfooter summary */}
-                <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between text-[11px] text-slate-500">
+                <div className="px-4 sm:px-5 py-2.5 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span>Control de existencias por variante</span>
                   </div>
                   <div className="font-semibold text-slate-700">
                     Total Físico: {totalStock} unidades disponibles
+                  </div>
+                </div>
+              </div>
+
+              {/* ---------------------------------------------------- */}
+              {/* FICHA TÉCNICA Y ECONÓMICA (Ubicada debajo de Variantes) */}
+              {/* ---------------------------------------------------- */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Ficha Técnica y Económica</span>
+                  </h3>
+                  <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-lg border border-slate-200/60">
+                    {product.brand}
+                  </span>
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
+                    Descripción
+                  </span>
+                  <p className="text-xs text-slate-700 mt-1 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    {product.description || "Sin descripción adicional registrada en catálogo."}
+                  </p>
+                </div>
+
+                {/* Categoría, Subcategoría, Disciplina y Marca en cuadrícula de 4 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Categoría
+                    </span>
+                    <div className="text-xs font-semibold text-slate-800 mt-0.5 truncate">
+                      {product.category}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Subcategoría
+                    </span>
+                    <div className="text-xs font-semibold text-slate-800 mt-0.5 truncate">
+                      {product.subcategory || "General"}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Disciplina
+                    </span>
+                    <div className="text-xs font-semibold text-emerald-700 mt-0.5">
+                      {product.discipline}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Marca
+                    </span>
+                    <div className="text-xs font-semibold text-slate-800 mt-0.5">
+                      {product.brand}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Precios y Rentabilidad */}
+                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-[10.5px] text-slate-500 font-medium">Costo de Compra</span>
+                      <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                        {formatCurrency(product.costPrice)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10.5px] text-slate-500 font-medium">Precio de Venta</span>
+                      {(() => {
+                        const variantPrices = product.variants
+                          ? product.variants.map((v) => v.price ?? product.price).filter((p) => p > 0)
+                          : [];
+                        if (variantPrices.length > 1) {
+                          const minP = Math.min(...variantPrices);
+                          const maxP = Math.max(...variantPrices);
+                          if (minP !== maxP) {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className="text-xs font-bold text-slate-900">
+                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                </span>
+                                <span className="text-[9.5px] text-emerald-700 font-semibold">
+                                  Varía por talle
+                                </span>
+                              </div>
+                            );
+                          }
+                        }
+                        return (
+                          <div className="text-sm font-bold text-slate-900 mt-0.5">
+                            {formatCurrency(product.price)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Margen de Utilidad */}
+                  <div className="flex items-center justify-between p-3 bg-emerald-50/80 rounded-xl border border-emerald-100 text-xs">
+                    <div>
+                      <span className="text-emerald-800 font-medium flex items-center gap-1">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                        Margen Bruto
+                      </span>
+                      <span className="text-[10px] text-emerald-600">Rentabilidad comercial</span>
+                    </div>
+                    <span className="font-bold text-emerald-900 text-sm">
+                      +{marginPercentage}% ({formatCurrency(profitMargin)})
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1279,7 +1182,7 @@ export function ProductDetailView({
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[540px] text-left text-xs">
                       <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                         <tr>
                           <th className="py-3 px-4">Talle AR (Local)</th>
@@ -1340,7 +1243,8 @@ export function ProductDetailView({
               )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* 5. Sub-views for other tabs */}
         {activeTab === "details" && (
@@ -1594,7 +1498,7 @@ export function ProductDetailView({
             ) : (
               /* Tabla de Trazabilidad */
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[680px] text-left text-xs">
                   <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Fecha y Hora</th>
@@ -1828,7 +1732,7 @@ export function ProductDetailView({
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full min-w-[500px] text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
                       <tr>
                         <th className="p-3">Variante</th>
