@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matacos_secure_password_2026}
       POSTGRES_DB: ${POSTGRES_DB:-matacos_db}
     ports:
-      - "5432:5432" # Accesible localmente para Prisma Studio / DBeaver
+      - "5434:5432" # Mapeo al puerto 5434 del host para evitar conflicto con servicios PostgreSQL locales de Windows
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d # Opcional: scripts SQL de inicio
