@@ -13,6 +13,7 @@ import { ProvinceTrafficChart } from "./ProvinceTrafficChart";
 import { MarketingSeoCard } from "./MarketingSeoCard";
 import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
+import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { DetailedProductItem, KpiData } from "./types";
 
 const INITIAL_KPIS: KpiData[] = [
@@ -73,9 +74,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   }, [searchParams]);
 
   // ID del producto para vista de detalle sincronizado con la URL
-  const selectedProductId = useMemo(() => {
-    return searchParams.get("producto") || null;
-  }, [searchParams]);
+  const urlProductId = searchParams.get("producto") || null;
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(urlProductId);
+
+  // Sincronizar estado local cuando la URL cambia externamente (ej. botones Atrás/Adelante del navegador)
+  useEffect(() => {
+    setSelectedProductId(urlProductId);
+  }, [urlProductId]);
 
   // Actualizar URL creando entradas en el historial del navegador (soporta botón Atrás y Adelante)
   const updateUrl = useCallback(
@@ -97,6 +102,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectTab = useCallback(
     (id: string) => {
+      setSelectedProductId(null);
       const targetTab = id === "analytics" ? "inicio" : id;
       updateUrl({
         tab: targetTab,
@@ -108,6 +114,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectCategory = useCallback(
     (category: string) => {
+      setSelectedProductId(null);
       updateUrl({
         tab: "inventario",
         categoria: category === "Todas" ? null : category,
@@ -119,6 +126,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const handleSelectProduct = useCallback(
     (productId: string | null) => {
+      setSelectedProductId(productId);
       updateUrl({
         tab: "inventario",
         producto: productId,
@@ -131,6 +139,10 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
   const [isDesktopRightOpen, setIsDesktopRightOpen] = useState(true);
   const [isMobileRightOpen, setIsMobileRightOpen] = useState(false);
+
+  // Estados de Alertas de Stock Crítico Globales (RF-06 / CU-INV-08)
+  const [isGlobalAlertsDrawerOpen, setIsGlobalAlertsDrawerOpen] = useState(false);
+  const [globalAlertsCount, setGlobalAlertsCount] = useState(0);
 
   const [timeFilter, setTimeFilter] = useState("Hoy");
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
@@ -178,6 +190,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             activeItem={currentTab === "analytics" ? "inicio" : currentTab}
             onSelectItem={handleSelectTab}
             onSelectCategory={handleSelectCategory}
+            onClose={handleToggleLeft}
             className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
@@ -211,12 +224,18 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 </span>
               </div>
             </div>
+
             <InventoryView
               selectedDiscipline={selectedCategory}
               onDisciplineChange={handleSelectCategory}
               initialProducts={initialProducts}
               selectedProductId={selectedProductId}
               onProductChange={handleSelectProduct}
+              isAlertsDrawerOpen={isGlobalAlertsDrawerOpen}
+              onToggleAlertsDrawer={setIsGlobalAlertsDrawerOpen}
+              onAlertsCountChange={setGlobalAlertsCount}
+              isSidebarOpen={isDesktopLeftOpen}
+              onToggleSidebar={handleToggleLeft}
             />
           </div>
         ) : (
@@ -227,6 +246,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               onToggleRightSidebar={handleToggleRight}
               isLeftSidebarOpen={isDesktopLeftOpen || isMobileLeftOpen}
               isRightSidebarOpen={isDesktopRightOpen || isMobileRightOpen}
+              alertCount={globalAlertsCount}
+              onOpenAlerts={() => setIsGlobalAlertsDrawerOpen(true)}
             />
 
             {/* Section Header: Overview + Time Filter */}
@@ -346,6 +367,29 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             onClose={() => setIsMobileRightOpen(false)}
           />
         </div>
+      )}
+
+      {/* Drawer Global de Alertas de Stock Crítico (para vistas no-inventario) */}
+      {currentTab !== "inventario" && (
+        <StockAlertsDrawer
+          isOpen={isGlobalAlertsDrawerOpen}
+          onClose={() => setIsGlobalAlertsDrawerOpen(false)}
+          products={initialProducts || []}
+          onSelectProduct={(productId) => {
+            setIsGlobalAlertsDrawerOpen(false);
+            updateUrl({
+              tab: "inventario",
+              producto: productId,
+            });
+          }}
+          onOpenStockMovement={(product) => {
+            setIsGlobalAlertsDrawerOpen(false);
+            updateUrl({
+              tab: "inventario",
+              producto: product.id,
+            });
+          }}
+        />
       )}
     </div>
   );

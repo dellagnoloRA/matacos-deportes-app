@@ -175,7 +175,7 @@ export function ProductDetailModal({
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Sincronizado con PostgreSQL y POS Offline (Dexie.js)</span>
+            <span>Inventario sincronizado</span>
           </div>
 
           <button

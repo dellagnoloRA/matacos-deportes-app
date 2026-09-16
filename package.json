@@ -4,14 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:lan": "next dev -H 0.0.0.0 --turbopack",
     "build": "next build",
     "start": "next start",
+    "start:lan": "next start -H 0.0.0.0",
     "lint": "next lint",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:backend": "tsx scripts/run-all-backend-tests.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

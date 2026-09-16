@@ -5,6 +5,7 @@ import {
   Search,
   Bell,
   ChevronDown,
+  ChevronUp,
   Filter,
   Plus,
   Package,
@@ -27,16 +28,34 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Store,
+  ArrowRightLeft,
+  PackagePlus,
+  MinusCircle,
+  Percent,
+  History,
+  FileSpreadsheet,
+  AlertOctagon,
+  Layers,
+  Tag,
+  ShoppingBag,
 } from "lucide-react";
+import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
 import { ProductFormModal } from "./ProductFormModal";
+import { StockMovementModal, type OperationType } from "./StockMovementModal";
+import { StockAlertsDrawer } from "./StockAlertsDrawer";
+import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
+import { PriceHistoryModal } from "./PriceHistoryModal";
+import { BulkImportModal } from "./BulkImportModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
   deleteProduct,
+  getProductById,
 } from "@/server/actions/productActions";
+import { getDisciplines } from "@/server/actions/categoryActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
@@ -121,11 +140,11 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
     salesStoreTotal: 96,
     salesWebTotal: 52,
     variants: [
-      { size: "39", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 4, barcode: "779123456703-39", receivedCount: 110, soldCountStore: 18, soldCountWeb: 10 },
+      { size: "39", color: "Blanco/Azul", stockStore: 0, stockWarehouse: 4, barcode: "779123456703-39", receivedCount: 110, soldCountStore: 18, soldCountWeb: 10 },
       { size: "40", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 6, barcode: "779123456703-40", receivedCount: 120, soldCountStore: 24, soldCountWeb: 14 },
       { size: "41", color: "Blanco/Azul", stockStore: 4, stockWarehouse: 8, barcode: "779123456703-41", receivedCount: 130, soldCountStore: 28, soldCountWeb: 16 },
       { size: "42", color: "Blanco/Azul", stockStore: 3, stockWarehouse: 5, barcode: "779123456703-42", receivedCount: 115, soldCountStore: 16, soldCountWeb: 8 },
-      { size: "43", color: "Blanco/Azul", stockStore: 2, stockWarehouse: 3, barcode: "779123456703-43", receivedCount: 105, soldCountStore: 10, soldCountWeb: 4 },
+      { size: "43", color: "Blanco/Azul", stockStore: 0, stockWarehouse: 0, barcode: "779123456703-43", receivedCount: 105, soldCountStore: 10, soldCountWeb: 4 },
     ],
     sizeConversions: [
       { ar: "39 AR", us: "7.0 US", eu: "40 EU", br: "38 BR", cm: "25.25 cm", note: "Calce justo" },
@@ -313,6 +332,66 @@ const INITIAL_PRODUCTS: DetailedProductItem[] = [
       { ar: "XL", us: "X-Large (18.5-20 in)", eu: "XL (40.5-43 cm)", br: "GG (BR)", cm: "40.5 - 43.0 cm", note: "Calce amplio" },
     ],
   },
+  {
+    id: "p9",
+    name: "Antiparras Fastskin Elite Mirror",
+    description: "Antiparras de perfil ultrabajo diseñadas para nadadores de élite. Sellado IQfit 3D ergonómico a prueba de filtraciones.",
+    brand: "Speedo",
+    discipline: "Natación",
+    category: "Accesorios Natación",
+    subcategory: "Antiparras de Competición",
+    price: 89000,
+    costPrice: 52000,
+    sku: "NAT-SPE-999",
+    barcode: "779123456709",
+    stockLocal: 0,
+    stockWeb: 0,
+    minStock: 3,
+    updatedAt: "14 Abr 2026 at 9:00 PM",
+    iconBg: "from-rose-600 to-red-800",
+    receivedTotal: 150,
+    stockTransfer: 0,
+    salesStoreTotal: 95,
+    salesWebTotal: 55,
+    variants: [
+      { size: "Único", color: "Mirror Red", stockStore: 0, stockWarehouse: 0, barcode: "779123456709-1", receivedCount: 75, soldCountStore: 48, soldCountWeb: 27 },
+      { size: "Único", color: "Mirror Black", stockStore: 0, stockWarehouse: 0, barcode: "779123456709-2", receivedCount: 75, soldCountStore: 47, soldCountWeb: 28 },
+    ],
+    sizeConversions: [
+      { ar: "Único", us: "One Size", eu: "TU", br: "Tamanho Único", cm: "Ajustable 48-62 cm", note: "Escala graduada de tensión" },
+    ],
+  },
+  {
+    id: "p10",
+    name: "Short Entrenamiento Microfibra Classic (Descontinuado)",
+    description: "Modelo de temporada anterior dado de baja del catálogo activo (baja lógica).",
+    brand: "Matacos Fitness",
+    discipline: "Fitness",
+    category: "Indumentaria",
+    subcategory: "Shorts de Entrenamiento",
+    price: 32000,
+    costPrice: 18000,
+    sku: "FIT-MAT-010",
+    barcode: "779123456710",
+    stockLocal: 0,
+    stockWeb: 0,
+    minStock: 2,
+    active: false,
+    updatedAt: "10 Mar 2026 at 11:00 AM",
+    iconBg: "from-slate-500 to-slate-700",
+    receivedTotal: 120,
+    stockTransfer: 0,
+    salesStoreTotal: 100,
+    salesWebTotal: 20,
+    variants: [
+      { size: "M", color: "Negro", stockStore: 0, stockWarehouse: 0, barcode: "779123456710-M", receivedCount: 60, soldCountStore: 50, soldCountWeb: 10 },
+      { size: "L", color: "Negro", stockStore: 0, stockWarehouse: 0, barcode: "779123456710-L", receivedCount: 60, soldCountStore: 50, soldCountWeb: 10 },
+    ],
+    sizeConversions: [
+      { ar: "M", us: "32 US", eu: "48 EU", br: "M", cm: "Cintura 80-86 cm", note: "Corte estándar" },
+      { ar: "L", us: "34 US", eu: "50 EU", br: "G", cm: "Cintura 86-92 cm", note: "Corte estándar" },
+    ],
+  },
 ];
 
 const DISCIPLINES = [
@@ -323,12 +402,83 @@ const DISCIPLINES = [
   "Fitness",
 ];
 
+export type StockAlertFilterMode = "ALL" | "IN_ALERT" | "OUT_OF_STOCK" | "STORE_REPLENISHMENT";
+export type ActiveFilterMode = "ACTIVE" | "INACTIVE" | "ALL";
+
+export function evaluateProductStockStatus(product: DetailedProductItem) {
+  const minStock = product.minStock || 2;
+  const variants = product.variants || [];
+
+  let totalStore = 0;
+  let totalWarehouse = 0;
+  let outOfStockVariants = 0;
+  let storeEmptyVariants = 0;
+  let criticalLowVariants = 0;
+
+  if (variants.length === 0) {
+    totalStore = product.stockLocal ?? 0;
+    totalWarehouse = product.stockWeb ?? 0;
+    const total = totalStore + totalWarehouse;
+
+    if (total === 0) outOfStockVariants = 1;
+    else if (totalStore === 0 && totalWarehouse > 0) storeEmptyVariants = 1;
+    else if (total <= minStock) criticalLowVariants = 1;
+  } else {
+    for (const v of variants) {
+      const vStore = v.stockStore ?? 0;
+      const vWarehouse = v.stockWarehouse ?? 0;
+      const vTotal = vStore + vWarehouse;
+
+      totalStore += vStore;
+      totalWarehouse += vWarehouse;
+
+      if (vTotal === 0) {
+        outOfStockVariants++;
+      } else if (vStore === 0 && vWarehouse > 0) {
+        storeEmptyVariants++;
+      } else if (vTotal <= minStock || (vStore <= 1 && vWarehouse > 0)) {
+        criticalLowVariants++;
+      }
+    }
+  }
+
+  const totalStock = totalStore + totalWarehouse;
+  const totalAlerts = outOfStockVariants + storeEmptyVariants + criticalLowVariants;
+
+  let highestAlert: "OUT_OF_STOCK" | "STORE_EMPTY_WAREHOUSE_AVAIL" | "CRITICAL_LOW" | "NORMAL" = "NORMAL";
+
+  if (outOfStockVariants > 0 || totalStock === 0) {
+    highestAlert = "OUT_OF_STOCK";
+  } else if (storeEmptyVariants > 0 || (totalStore === 0 && totalWarehouse > 0)) {
+    highestAlert = "STORE_EMPTY_WAREHOUSE_AVAIL";
+  } else if (criticalLowVariants > 0 || totalStock <= minStock) {
+    highestAlert = "CRITICAL_LOW";
+  }
+
+  return {
+    totalStore,
+    totalWarehouse,
+    totalStock,
+    minStock,
+    outOfStockVariants,
+    storeEmptyVariants,
+    criticalLowVariants,
+    totalAlerts,
+    highestAlert,
+  };
+}
+
 interface InventoryViewProps {
   selectedDiscipline?: string;
   onDisciplineChange?: (discipline: string) => void;
   initialProducts?: DetailedProductItem[];
   selectedProductId?: string | null;
   onProductChange?: (productId: string | null) => void;
+  isAlertsDrawerOpen?: boolean;
+  onToggleAlertsDrawer?: (open: boolean) => void;
+  onAlertsCountChange?: (count: number) => void;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function InventoryView({
@@ -337,6 +487,11 @@ export function InventoryView({
   initialProducts,
   selectedProductId,
   onProductChange,
+  isAlertsDrawerOpen: controlledAlertsDrawerOpen,
+  onToggleAlertsDrawer,
+  onAlertsCountChange,
+  isSidebarOpen,
+  onToggleSidebar,
 }: InventoryViewProps = {}) {
   const [searchMode, setSearchMode] = useState<"barcode" | "all">("barcode");
   const [searchQuery, setSearchQuery] = useState("");
@@ -348,15 +503,172 @@ export function InventoryView({
     initialProducts && initialProducts.length > 0 ? initialProducts : INITIAL_PRODUCTS
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [isLiveFromDb, setIsLiveFromDb] = useState(
-    Boolean(initialProducts && initialProducts.length > 0)
-  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<DetailedProductItem | null>(null);
   const [productToDelete, setProductToDelete] = useState<DetailedProductItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: string; title: string; description?: string } | null>(null);
+
+  // Estados para Alertas de Stock Crítico y Drawer (RF-06 / CU-INV-08)
+  const [stockAlertFilter, setStockAlertFilter] = useState<StockAlertFilterMode>("ALL");
+  const [internalAlertsDrawerOpen, setInternalAlertsDrawerOpen] = useState(false);
+  const isStockAlertsDrawerOpen =
+    controlledAlertsDrawerOpen !== undefined ? controlledAlertsDrawerOpen : internalAlertsDrawerOpen;
+  const handleToggleAlertsDrawer = (open: boolean) => {
+    if (onToggleAlertsDrawer) onToggleAlertsDrawer(open);
+    else setInternalAlertsDrawerOpen(open);
+  };
+
+  // Estados para Filtro de Estado de Actividad / Baja Lógica (RF-01)
+  const [activeFilterMode, setActiveFilterMode] = useState<ActiveFilterMode>("ACTIVE");
+  const [isReactivatingId, setIsReactivatingId] = useState<string | null>(null);
+
+  // Conteo dinámico de productos activos e inactivos
+  const activeStatusSummary = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    for (const p of productsList) {
+      if (p.active === false) {
+        inactive++;
+      } else {
+        active++;
+      }
+    }
+    return { activeCount: active, inactiveCount: inactive, totalCount: productsList.length };
+  }, [productsList]);
+
+  // Estados para Carga Dinámica de Disciplinas desde BD (RF-01 / RF-01.2)
+  const [dbDisciplines, setDbDisciplines] = useState<string[]>([]);
+
+  // Lista consolidada de todas las disciplinas (BD + catálogo de productos)
+  const allDisciplines = useMemo(() => {
+    const set = new Set<string>();
+    dbDisciplines.forEach((d) => {
+      if (d && d.trim()) set.add(d.trim());
+    });
+    productsList.forEach((p) => {
+      if (p.discipline && p.discipline.trim()) {
+        set.add(p.discipline.trim());
+      }
+    });
+    if (set.size === 0) {
+      DISCIPLINES.filter((d) => d !== "Todas").forEach((d) => set.add(d));
+    }
+    const sorted = Array.from(set).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" })
+    );
+    return ["Todas", ...sorted];
+  }, [dbDisciplines, productsList]);
+
+  // Conteo dinámico de productos por disciplina considerando el estado activo/inactivo
+  const disciplineCounts = useMemo(() => {
+    const counts: Record<string, number> = { Todas: 0 };
+    for (const p of productsList) {
+      if (activeFilterMode === "ACTIVE" && p.active === false) continue;
+      if (activeFilterMode === "INACTIVE" && p.active !== false) continue;
+
+      counts.Todas = (counts.Todas || 0) + 1;
+      const d = p.discipline?.trim();
+      if (d) {
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [productsList, activeFilterMode]);
+
+  // Resumen calculado en tiempo real de alertas de stock (excluyendo productos inactivos)
+  const stockAlertsSummary = useMemo(() => {
+    let outOfStockCount = 0;
+    let storeEmptyCount = 0;
+    let criticalLowCount = 0;
+    let totalAlertVariants = 0;
+
+    for (const p of productsList) {
+      // Regla de Negocio: No alertar sobre artículos dados de baja / inactivos
+      if (p.active === false) continue;
+
+      const status = evaluateProductStockStatus(p);
+      outOfStockCount += status.outOfStockVariants;
+      storeEmptyCount += status.storeEmptyVariants;
+      criticalLowCount += status.criticalLowVariants;
+      totalAlertVariants += status.totalAlerts;
+    }
+
+    return {
+      totalAlertVariants,
+      outOfStockCount,
+      storeEmptyCount,
+      criticalLowCount,
+    };
+  }, [productsList]);
+
+  useEffect(() => {
+    onAlertsCountChange?.(stockAlertsSummary.totalAlertVariants);
+  }, [stockAlertsSummary.totalAlertVariants, onAlertsCountChange]);
+
+  // Estados para Modal de Movimientos Manuales de Stock (RF-03 / CU-04)
+  const [stockModalProduct, setStockModalProduct] = useState<DetailedProductItem | null>(null);
+  const [stockModalOperation, setStockModalOperation] = useState<OperationType | undefined>(undefined);
+  const [stockModalVariantId, setStockModalVariantId] = useState<string | undefined>(undefined);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+
+  // Estados para Actualización Masiva de Precios (RF-01.1 / CU-INV-05)
+  const [isBatchPriceModalOpen, setIsBatchPriceModalOpen] = useState(false);
+  const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
+  // Estado para Carga Masiva e Ingestión Excel/CSV (RF-04 / CU-INV-02)
+  const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false);
+
+  const toggleSelectProduct = (productId: string, e?: React.MouseEvent | React.ChangeEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedProductIds(new Set());
+  };
+
+  // Pestaña activa del módulo de inventario y clasificadores (RF-01.2 / CU-INV-09)
+  const [catalogViewTab, setCatalogViewTab] = useState<"products" | MasterTabType>("products");
+
+  // Estado para expandir filas de variantes en la tabla de inventario
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandProduct = (productId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenStockModal = (
+    product: DetailedProductItem,
+    operation?: OperationType,
+    variantId?: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    setStockModalProduct(product);
+    setStockModalOperation(operation);
+    setStockModalVariantId(variantId);
+    setIsStockModalOpen(true);
+  };
 
   // Paginación: 5 por defecto (mínimo 5, máximo 10) para que quepa en pantalla completa con el paginador visible
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
@@ -381,7 +693,7 @@ export function InventoryView({
   // Reiniciar a página 1 al filtrar o cambiar items por página
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, searchMode, selectedDiscipline, itemsPerPage]);
+  }, [searchQuery, searchMode, selectedDiscipline, itemsPerPage, activeFilterMode, stockAlertFilter]);
 
   const showToast = (title: string, description?: string) => {
     const id = Date.now().toString();
@@ -408,7 +720,7 @@ export function InventoryView({
     setProductToDelete(product);
   };
 
-    const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async () => {
     if (!productToDelete) return;
     const deletedId = productToDelete.id;
     const deletedName = productToDelete.name;
@@ -417,42 +729,90 @@ export function InventoryView({
       setDeleteError(null);
       const res = await deleteProduct(deletedId);
       if (res.success) {
-        // Actualización optimista inmediata en la interfaz
-        setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
+        // Actualización optimista inmediata en la interfaz:
+        // Marcamos el producto como inactivo (100% baja lógica)
+        setProductsList((prev) =>
+          prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
+        );
         setProductToDelete(null);
-        showToast("Producto eliminado", `"${deletedName}" se eliminó correctamente.`);
+        showToast(
+          "Producto dado de baja",
+          `"${deletedName}" fue dado de baja del catálogo activo (baja lógica). Podés consultarlo o reactivarlo en "Inactivos".`
+        );
         loadProducts();
       } else {
-        setDeleteError(res.error || "No se pudo eliminar el producto");
+        setDeleteError(res.error || "No se pudo dar de baja el producto");
       }
     } catch (err) {
-      console.error("Error al eliminar el producto:", err);
-      setDeleteError("Ocurrió un error inesperado al eliminar el producto");
+      console.error("Error al dar de baja el producto:", err);
+      setDeleteError("Ocurrió un error inesperado al dar de baja el producto");
     } finally {
       setIsDeleting(false);
     }
   };
 
+  const handleReactivateProduct = async (product: DetailedProductItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      setIsReactivatingId(product.id);
+      const res = await toggleProductActive(product.id);
+      if (res.success) {
+        // Actualización optimista inmediata en la interfaz:
+        // Marcamos el producto nuevamente como activo
+        setProductsList((prev) =>
+          prev.map((p) => (p.id === product.id ? { ...p, active: true } : p))
+        );
+        showToast(
+          "Producto reactivado",
+          `"${product.name}" ha sido reactivado y devuelto al mostrador (POS) y catálogo activo.`
+        );
+        loadProducts();
+      } else {
+        showToast("Error", res.error || "No se pudo reactivar el producto");
+      }
+    } catch (err) {
+      console.error("Error al reactivar el producto:", err);
+      showToast("Error", "Ocurrió un error inesperado al reactivar el producto");
+    } finally {
+      setIsReactivatingId(null);
+    }
+  };
+
+  const loadDisciplines = useCallback(async () => {
+    try {
+      const res = await getDisciplines();
+      if (res.success && Array.isArray(res.data)) {
+        const names = res.data.map((d: any) => d.name).filter(Boolean);
+        setDbDisciplines(names);
+      }
+    } catch (err) {
+      console.warn("No se pudieron cargar las disciplinas desde la BD:", err);
+    }
+  }, []);
+
   const loadProducts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await getDetailedInventoryProducts();
-      if (res.success && Array.isArray(res.data)) {
-        setProductsList(res.data);
-        setIsLiveFromDb(true);
+      const [productsRes] = await Promise.all([
+        getDetailedInventoryProducts({ includeInactive: true }),
+        loadDisciplines(),
+      ]);
+      if (productsRes.success && Array.isArray(productsRes.data)) {
+        setProductsList(productsRes.data);
       }
     } catch (err) {
       console.warn("Utilizando catálogo inicial de demostración:", err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadDisciplines]);
 
   useEffect(() => {
+    loadDisciplines();
     if (!initialProducts || initialProducts.length === 0) {
       loadProducts();
     }
-  }, [loadProducts, initialProducts]);
+  }, [loadProducts, loadDisciplines, initialProducts]);
 
 
   const handleSelectDiscipline = (d: string) => {
@@ -460,6 +820,21 @@ export function InventoryView({
       onDisciplineChange(d);
     } else {
       setInternalDiscipline(d);
+    }
+  };
+
+  // Alternar filtro de alertas de stock con reseteo de disciplina si estaba acotada
+  const handleToggleStockAlertFilter = (filter: StockAlertFilterMode) => {
+    if (stockAlertFilter === filter) {
+      // Si ya estaba activo, se desactiva (toggle off) y vuelve al catálogo completo
+      setStockAlertFilter("ALL");
+    } else {
+      // Si se activa un filtro de alerta y la disciplina estaba acotada (ej. Natación),
+      // la pasamos a "Todas" para que el usuario no se pierda productos en alerta de otras categorías
+      if (selectedDiscipline !== "Todas") {
+        handleSelectDiscipline("Todas");
+      }
+      setStockAlertFilter(filter);
     }
   };
 
@@ -501,11 +876,11 @@ export function InventoryView({
     }
   };
 
-  // Filtrar productos según el modo de búsqueda (Código de Barra / Todos) y disciplina
+  // Filtrar productos según el modo de búsqueda (Código de Barra / Todos), disciplina y estado de alerta
   const filteredProducts = useMemo(() => {
     const term = searchQuery.trim().toLowerCase();
 
-    return productsList.filter((item) => {
+    const filtered = productsList.filter((item) => {
       let matchesSearch = true;
 
       if (term !== "") {
@@ -542,11 +917,63 @@ export function InventoryView({
 
       const matchesDiscipline =
         selectedDiscipline === "Todas" ||
-        item.discipline.toLowerCase().includes(selectedDiscipline.toLowerCase().split(" ")[0]);
+        item.discipline.trim().toLowerCase() === selectedDiscipline.trim().toLowerCase() ||
+        item.discipline.toLowerCase().includes(selectedDiscipline.toLowerCase()) ||
+        selectedDiscipline.toLowerCase().includes(item.discipline.toLowerCase());
 
-      return matchesSearch && matchesDiscipline;
+      let matchesAlertFilter = true;
+      if (stockAlertFilter === "IN_ALERT") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter = status.totalAlerts > 0;
+      } else if (stockAlertFilter === "OUT_OF_STOCK") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter = status.outOfStockVariants > 0 || status.totalStock === 0;
+      } else if (stockAlertFilter === "STORE_REPLENISHMENT") {
+        const status = evaluateProductStockStatus(item);
+        matchesAlertFilter =
+          status.storeEmptyVariants > 0 ||
+          (status.totalStore === 0 && status.totalWarehouse > 0);
+      }
+
+      let matchesActive = true;
+      if (activeFilterMode === "ACTIVE") {
+        matchesActive = item.active !== false;
+      } else if (activeFilterMode === "INACTIVE") {
+        matchesActive = item.active === false;
+      } else if (activeFilterMode === "ALL") {
+        matchesActive = true;
+      }
+
+      return matchesSearch && matchesDiscipline && matchesAlertFilter && matchesActive;
     });
-  }, [productsList, searchQuery, searchMode, selectedDiscipline]);
+
+    // Ordenamiento jerárquico por severidad de alerta:
+    // 1. Agotados (0 un.) -> 2. Salón vacío (depósito disponible) -> 3. Stock crítico -> 4. Reposición preventiva
+    if (stockAlertFilter !== "ALL") {
+      const alertPriorityMap: Record<string, number> = {
+        OUT_OF_STOCK: 1,
+        STORE_EMPTY_WAREHOUSE_AVAIL: 2,
+        CRITICAL_LOW: 3,
+        STORE_REPLENISHMENT: 4,
+        NORMAL: 5,
+      };
+
+      filtered.sort((a, b) => {
+        const statusA = evaluateProductStockStatus(a);
+        const statusB = evaluateProductStockStatus(b);
+        const prioA = alertPriorityMap[statusA.highestAlert] ?? 5;
+        const prioB = alertPriorityMap[statusB.highestAlert] ?? 5;
+        return prioA - prioB;
+      });
+    }
+
+    return filtered;
+  }, [productsList, searchQuery, searchMode, selectedDiscipline, stockAlertFilter, activeFilterMode]);
+
+  // Resetear página al cambiar filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stockAlertFilter, activeFilterMode, searchQuery, selectedDiscipline]);
 
   // Cálculos de Paginación Adaptable
   const totalItems = filteredProducts.length;
@@ -557,6 +984,22 @@ export function InventoryView({
     const startIdx = (validCurrentPage - 1) * itemsPerPage;
     return filteredProducts.slice(startIdx, startIdx + itemsPerPage);
   }, [filteredProducts, validCurrentPage, itemsPerPage]);
+
+  const toggleSelectAllVisible = (e?: React.MouseEvent | React.ChangeEvent) => {
+    if (e) e.stopPropagation();
+    const visibleIds = paginatedProducts.map((p) => p.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedProductIds.has(id));
+
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
 
   const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(validCurrentPage * itemsPerPage, totalItems);
@@ -630,19 +1073,28 @@ export function InventoryView({
     </div>
   );
 
+  // Referencia para evitar que actualizaciones asíncronas de la lista de productos
+  // resuciten el detalle del producto mientras la transición de URL de Next.js se completa
+  const closedProductIdRef = React.useRef<string | null>(null);
+
   // Sincronizar el producto seleccionado cuando cambia la URL (historial Atrás / Adelante del navegador)
   useEffect(() => {
     if (selectedProductId) {
+      if (closedProductIdRef.current === selectedProductId) {
+        return;
+      }
       const found = productsList.find((p) => p.id === selectedProductId);
       if (found) {
         setSelectedProduct(found);
       }
     } else {
+      closedProductIdRef.current = null;
       setSelectedProduct(null);
     }
   }, [selectedProductId, productsList]);
 
   const handleOpenDetail = (product: DetailedProductItem) => {
+    closedProductIdRef.current = null;
     setSelectedProduct(product);
     onProductChange?.(product.id);
   };
@@ -657,15 +1109,24 @@ export function InventoryView({
           setSelectedProduct(updated);
         }}
         onBack={() => {
+          if (selectedProduct) {
+            closedProductIdRef.current = selectedProduct.id;
+          }
           setSelectedProduct(null);
           onProductChange?.(null);
           loadProducts();
         }}
         onDeleteSuccess={(deletedId: string) => {
-          setProductsList((prev) => prev.filter((p) => p.id !== deletedId));
+          closedProductIdRef.current = deletedId;
+          setProductsList((prev) =>
+            prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
+          );
           setSelectedProduct(null);
           onProductChange?.(null);
-          showToast("Producto eliminado", `"${selectedProduct.name}" se eliminó correctamente.`);
+          showToast(
+            "Producto dado de baja",
+            `"${selectedProduct.name}" fue dado de baja (baja lógica). Podés consultarlo o reactivarlo en "Inactivos".`
+          );
           loadProducts();
         }}
       />
@@ -674,23 +1135,36 @@ export function InventoryView({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 select-none">
-      {/* Top Header: Title + Status + Actions */}
+      {catalogViewTab !== "products" ? (
+        <MasterCategoriesManager
+          initialTab={catalogViewTab}
+          onTabChange={(tab) => setCatalogViewTab(tab)}
+          onBackToInventory={() => {
+            setCatalogViewTab("products");
+            loadProducts();
+          }}
+          onDataModified={() => {
+            loadProducts();
+          }}
+        />
+      ) : (
+        <>
+          {/* Top Header: Title + Status + Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
+            {!isSidebarOpen && onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="hidden md:flex p-1.5 mr-1 bg-slate-900 text-emerald-400 rounded-lg hover:bg-slate-800 transition-colors shadow-xs"
+                title="Mostrar menú lateral"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               Inventario y Catálogo
             </h1>
-            {isLiveFromDb ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                En vivo
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                Demo
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Gestión de stock local y catálogo de e-commerce
@@ -710,20 +1184,77 @@ export function InventoryView({
             </button>
 
             <button
-              title="Notificaciones"
-              className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors relative"
+              type="button"
+              onClick={() => handleToggleAlertsDrawer(true)}
+              title={
+                stockAlertsSummary.totalAlertVariants > 0
+                  ? `${stockAlertsSummary.totalAlertVariants} alertas de stock crítico`
+                  : "Centro de Alertas de Stock"
+              }
+              className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors active:scale-95 relative"
             >
               <Bell className="w-4 h-4" />
-              <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
+              {stockAlertsSummary.totalAlertVariants > 0 ? (
+                <span className="min-w-[17px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-black absolute top-0.5 right-0.5 flex items-center justify-center ring-2 ring-white animate-pulse">
+                  {stockAlertsSummary.totalAlertVariants > 99 ? "99+" : stockAlertsSummary.totalAlertVariants}
+                </span>
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
+              )}
             </button>
           </div>
 
           <button
-            onClick={handleOpenCreateModal}
-            className="flex-1 sm:flex-initial bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-extrabold text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+            type="button"
+            onClick={() => setIsBatchPriceModalOpen(true)}
+            className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 active:scale-95 text-emerald-300 font-medium text-xs px-3.5 sm:px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 border border-slate-800 select-none"
+            title="Actualización masiva y porcentual de precios"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nuevo Producto</span>
+            <Percent className="w-4 h-4 text-emerald-300" />
+            <span>Ajuste Masivo de Precios</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPriceHistoryModalOpen(true)}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Ver Historial Global y Auditoría de Ajustes de Precios"
+          >
+            <History className="w-4 h-4 text-slate-500" />
+            <span className="hidden md:inline">Historial de Ajustes</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsBulkImportModalOpen(true)}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100/90 active:scale-95 text-emerald-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Importar catálogo e inventario desde Excel o CSV"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span className="hidden sm:inline">Importar Excel/CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCatalogViewTab("brands")}
+            className="px-3 sm:px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none"
+            title="Gestión de tablas maestras (marcas, disciplinas y categorías)"
+          >
+            <Layers className="w-4 h-4 text-indigo-500" />
+            <span className="hidden lg:inline">Tablas Maestras</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="flex-1 sm:flex-initial bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-4 sm:px-5 py-2 rounded-2xl border border-emerald-400/40 shadow-[0_2px_4px_rgba(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-3 select-none"
+            title="Registrar Nuevo Producto en el Inventario"
+          >
+            <Plus className="w-5 h-5 text-white stroke-[2.2] shrink-0" />
+            <div className="flex flex-col items-center justify-center text-center leading-tight">
+              <span className="text-white font-bold text-xs sm:text-[13px] tracking-tight">Nuevo</span>
+              <span className="text-white font-bold text-xs sm:text-[13px] tracking-tight">Producto</span>
+            </div>
           </button>
         </div>
       </div>
@@ -806,21 +1337,61 @@ export function InventoryView({
             </div>
           </div>
 
-          {/* Discipline filter tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 text-xs select-none -mx-1 px-1">
-            {DISCIPLINES.map((d) => (
-              <button
-                key={d}
-                onClick={() => handleSelectDiscipline(d)}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all font-medium text-xs active:scale-95 ${
-                  selectedDiscipline === d
-                    ? "bg-slate-900 text-white shadow-xs font-semibold"
-                    : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+          {/* Selector Dinámico de Disciplinas (RF-01 / RF-01.2) */}
+          <div className="flex items-center gap-1.5 shrink-0 select-none">
+            <div
+              className={`inline-flex items-center gap-1.5 p-1 rounded-xl border transition-all ${
+                selectedDiscipline !== "Todas"
+                  ? "bg-slate-900 border-slate-800 text-white shadow-xs"
+                  : "bg-slate-100/90 border-slate-200/80 text-slate-700"
+              }`}
+            >
+              <Layers
+                className={`w-3.5 h-3.5 ml-1.5 shrink-0 ${
+                  selectedDiscipline !== "Todas" ? "text-[#00D615]" : "text-slate-500"
+                }`}
+              />
+              <span
+                className={`text-[10.5px] font-bold uppercase tracking-wider hidden sm:inline ${
+                  selectedDiscipline !== "Todas" ? "text-slate-300" : "text-slate-500"
                 }`}
               >
-                {d}
+                Disciplina:
+              </span>
+              <select
+                value={selectedDiscipline}
+                onChange={(e) => handleSelectDiscipline(e.target.value)}
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border shadow-2xs transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-emerald-400/20 max-w-[180px] sm:max-w-[220px] truncate ${
+                  selectedDiscipline !== "Todas"
+                    ? "bg-slate-800 text-white border-slate-700 hover:bg-slate-750"
+                    : "bg-white text-slate-800 border-slate-200 hover:border-slate-300"
+                }`}
+                title="Filtrar catálogo por disciplina deportiva (cargadas y futuras)"
+              >
+                {allDisciplines.map((d) => {
+                  const count =
+                    disciplineCounts[d] ?? (d === "Todas" ? disciplineCounts.Todas ?? 0 : 0);
+                  return (
+                    <option key={d} value={d} className="bg-white text-slate-900 font-medium">
+                      {d === "Todas" ? `Todas las disciplinas (${count})` : `${d} (${count})`}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Botón rápido para limpiar filtro de disciplina si no es 'Todas' */}
+            {selectedDiscipline !== "Todas" && (
+              <button
+                type="button"
+                onClick={() => handleSelectDiscipline("Todas")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors active:scale-95 shadow-2xs"
+                title="Restablecer a todas las disciplinas"
+              >
+                <X className="w-3 h-3 text-slate-400" />
+                <span className="hidden sm:inline">Todas</span>
               </button>
-            ))}
+            )}
           </div>
         </div>
 
@@ -841,6 +1412,152 @@ export function InventoryView({
                 {filteredProducts.length} {filteredProducts.length === 1 ? "coincidencia" : "coincidencias"}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Quick Filter Chips: Alertas de Stock Crítico y Agotados (RF-06 / CU-INV-08) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5 select-none -mx-1 px-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline mr-1">
+              Filtro de Stock:
+            </span>
+
+            {/* Chip: En Alerta */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("IN_ALERT")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "IN_ALERT"
+                  ? "bg-rose-600 text-white shadow-xs ring-2 ring-rose-400/40"
+                  : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
+              }`}
+              title="Filtrar artículos en alerta (ordenados por criticidad de stock)"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>En Alerta</span>
+              {stockAlertsSummary.totalAlertVariants > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "IN_ALERT" ? "bg-white text-rose-700" : "bg-rose-500 text-white"
+                }`}>
+                  {stockAlertsSummary.totalAlertVariants}
+                </span>
+              )}
+            </button>
+
+            {/* Chip: Agotados (0 un.) */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("OUT_OF_STOCK")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "OUT_OF_STOCK"
+                  ? "bg-rose-700 text-white shadow-xs ring-2 ring-rose-400/40"
+                  : "bg-rose-50/70 text-rose-900 hover:bg-rose-100 border border-rose-300"
+              }`}
+              title="Filtrar únicamente artículos con quiebre de stock total"
+            >
+              <AlertOctagon className="w-3.5 h-3.5" />
+              <span>Agotados (0 un.)</span>
+              {stockAlertsSummary.outOfStockCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "OUT_OF_STOCK" ? "bg-white text-rose-800" : "bg-rose-600 text-white"
+                }`}>
+                  {stockAlertsSummary.outOfStockCount}
+                </span>
+              )}
+            </button>
+
+            {/* Chip: Reponer Mostrador */}
+            <button
+              type="button"
+              onClick={() => handleToggleStockAlertFilter("STORE_REPLENISHMENT")}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 ${
+                stockAlertFilter === "STORE_REPLENISHMENT"
+                  ? "bg-orange-600 text-white shadow-xs ring-2 ring-orange-400/40"
+                  : "bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-300"
+              }`}
+              title="Filtrar artículos con salón en 0 y existencia en depósito para reponer"
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>Reponer Mostrador</span>
+              {stockAlertsSummary.storeEmptyCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  stockAlertFilter === "STORE_REPLENISHMENT" ? "bg-white text-orange-800" : "bg-orange-600 text-white"
+                }`}>
+                  {stockAlertsSummary.storeEmptyCount}
+                </span>
+              )}
+            </button>
+
+            {/* Botón para quitar filtro cuando hay alguno activo */}
+            {stockAlertFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setStockAlertFilter("ALL")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl transition-colors active:scale-95 ml-1 border border-slate-200 shadow-2xs"
+                title="Quitar filtro de alerta de stock"
+              >
+                <X className="w-3 h-3 text-slate-400" />
+                <span>Quitar filtro</span>
+              </button>
+            )}
+          </div>
+
+          {/* Selector de Estado (RF-01) y Botón de Drawer */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Selector de Estado en Filtros: Activos, Inactivos / Dados de Baja, Todos */}
+            <div className="inline-flex items-center gap-1.5 bg-slate-100/90 p-0.5 sm:p-1 rounded-xl border border-slate-200/80 select-none">
+              <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider px-1.5 hidden md:inline">
+                Estado:
+              </span>
+              <select
+                value={activeFilterMode}
+                onChange={(e) => setActiveFilterMode(e.target.value as ActiveFilterMode)}
+                className={`text-xs font-bold px-2.5 py-1 rounded-lg border shadow-2xs transition-colors cursor-pointer ${
+                  activeFilterMode === "INACTIVE"
+                    ? "bg-slate-800 text-amber-300 border-slate-700"
+                    : activeFilterMode === "ALL"
+                    ? "bg-slate-100 text-slate-900 border-slate-300"
+                    : "bg-white text-slate-800 border-slate-200"
+                }`}
+                title="Filtrar por estado del producto: Activos, Inactivos / Dados de Baja, o Todos"
+              >
+                <option value="ACTIVE">Activos ({activeStatusSummary.activeCount})</option>
+                <option value="INACTIVE">Inactivos / Dados de Baja ({activeStatusSummary.inactiveCount})</option>
+                <option value="ALL">Todos ({activeStatusSummary.totalCount})</option>
+              </select>
+            </div>
+
+            {/* Botón directo para abrir Drawer de Alertas */}
+            <button
+              type="button"
+              onClick={() => handleToggleAlertsDrawer(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all active:scale-95 shadow-2xs shrink-0"
+            >
+              <Bell className="w-3.5 h-3.5 text-rose-400" />
+              <span>Ver Panel de Alertas</span>
+              {stockAlertsSummary.totalAlertVariants > 0 && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Banner Informativo al consultar Inactivos */}
+        {activeFilterMode === "INACTIVE" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-100/90 rounded-xl border border-slate-200 text-slate-700 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+              <span className="font-medium">
+                Mostrando <strong className="font-bold text-slate-900">artículos dados de baja lógica</strong>. Están ocultos del mostrador (POS) y catálogo de ventas. Podés reactivarlos con el botón <strong>Reactivar</strong>.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveFilterMode("ACTIVE")}
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0 cursor-pointer"
+            >
+              Volver a productos activos
+            </button>
           </div>
         )}
       </div>
@@ -889,6 +1606,38 @@ export function InventoryView({
         </div>
       </div>
 
+      {/* Barra de Acciones de Selección Múltiple */}
+      {selectedProductIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 border border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-lg bg-gradient-to-b from-[#16a34a] to-[#0f6f36] text-white font-bold flex items-center justify-center text-xs shadow-xs border border-emerald-400/30">
+              {selectedProductIds.size}
+            </span>
+            <span className="text-xs font-semibold text-slate-200">
+              {selectedProductIds.size === 1 ? "producto seleccionado" : "productos seleccionados"} para ajuste masivo
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchPriceModalOpen(true)}
+              className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs border border-emerald-400/40 transition-all flex items-center gap-1.5"
+            >
+              <Percent className="w-3.5 h-3.5 text-white" />
+              <span>Ajustar Precios de Seleccionados</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-slate-400 hover:text-white text-xs font-semibold px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              Desmarcar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ======================================================== */}
       {/* 1. MOBILE CARDS VIEW (Visible cuando mobileViewMode === "cards") */}
       {/* ======================================================== */}
@@ -909,29 +1658,65 @@ export function InventoryView({
                   ? searchMode === "barcode"
                     ? `No existe ningún producto con el código "${searchQuery}". Verifique que el código esté asignado.`
                     : `No hay coincidencias para "${searchQuery}".`
+                  : activeFilterMode === "INACTIVE"
+                  ? "No hay productos inactivos o dados de baja en el sistema."
+                  : stockAlertFilter !== "ALL"
+                  ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la categoría "${selectedDiscipline}".`
                   : "No hay productos registrados en esta disciplina."}
               </p>
             </div>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  searchInputRef.current?.focus();
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
-              >
-                <X className="w-3 h-3" />
-                Limpiar búsqueda
-              </button>
-            )}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Limpiar búsqueda
+                </button>
+              )}
+              {activeFilterMode === "INACTIVE" && (
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterMode("ACTIVE")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  Volver a productos activos
+                </button>
+              )}
+              {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDiscipline("Todas")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  Ver alertas en todas las disciplinas
+                </button>
+              )}
+              {stockAlertFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setStockAlertFilter("ALL")}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Quitar filtro de stock
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           paginatedProducts.map((item) => (
             <div
               key={item.id}
               onClick={() => handleOpenDetail(item)}
-              className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs hover:shadow-xs transition-all active:scale-[0.99] space-y-3 cursor-pointer"
+              className={`bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs hover:shadow-xs transition-all active:scale-[0.99] space-y-3 cursor-pointer ${
+                item.active === false ? "opacity-60 hover:opacity-100 bg-slate-50/60" : ""
+              }`}
             >
               {/* Card Header */}
               <div className="flex items-start gap-3">
@@ -957,13 +1742,47 @@ export function InventoryView({
                   <p className="text-[11px] text-slate-500 font-medium">
                     {item.brand} • {item.category}
                   </p>
-                  <span className="inline-block mt-1 text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {item.discipline}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="text-[10.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                      {item.discipline}
+                    </span>
+                    {item.active === false && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                        Inactivo
+                      </span>
+                    )}
+                    {(() => {
+                      const status = evaluateProductStockStatus(item);
+                      if (status.highestAlert === "OUT_OF_STOCK") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                            <AlertOctagon className="w-2.5 h-2.5 text-rose-600" />
+                            <span>Agotado</span>
+                          </span>
+                        );
+                      }
+                      if (status.highestAlert === "STORE_EMPTY_WAREHOUSE_AVAIL") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                            <Store className="w-2.5 h-2.5 text-orange-600" />
+                            <span>Salón Vacío</span>
+                          </span>
+                        );
+                      }
+                      if (status.highestAlert === "CRITICAL_LOW") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                            <span>Stock Crítico</span>
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
               </div>
 
-              {/* Price and Barcode */}
               {/* Price, Stock and Barcode */}
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
                 <div>
@@ -1010,10 +1829,47 @@ export function InventoryView({
                 </div>
                 <div className="text-center">
                   <span className="text-[10px] text-slate-400 block">Stock Local</span>
-                  <span className={`inline-flex items-center gap-1 font-bold text-xs ${item.stockLocal > 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                    <Store className="w-3 h-3" />
-                    {item.stockLocal > 0 ? `${item.stockLocal} un.` : "Sin stock"}
-                  </span>
+                  {(() => {
+                    const matchedVar = getMatchedVariant(item, searchQuery);
+                    const store = matchedVar
+                      ? matchedVar.stockStore
+                      : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+                    const warehouse = matchedVar
+                      ? matchedVar.stockWarehouse
+                      : item.stockWeb ?? item.variants?.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0) ?? 0;
+                    const total = store + warehouse;
+
+                    if (total === 0) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-black text-xs text-rose-600">
+                          <AlertOctagon className="w-3 h-3" />
+                          Agotado
+                        </span>
+                      );
+                    }
+                    if (store === 0 && warehouse > 0) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-black text-xs text-orange-600">
+                          <Store className="w-3 h-3" />
+                          Salón 0 (Dep: {warehouse})
+                        </span>
+                      );
+                    }
+                    if (total <= (item.minStock || 2)) {
+                      return (
+                        <span className="inline-flex items-center gap-1 font-bold text-xs text-amber-600">
+                          <AlertTriangle className="w-3 h-3" />
+                          {store} un.
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1 font-bold text-xs text-emerald-700">
+                        <Store className="w-3 h-3" />
+                        {store} un.
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block">Código / SKU</span>
@@ -1027,19 +1883,38 @@ export function InventoryView({
               <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
+                    title="Movimientos y Traslado de Stock"
+                    className="p-2 text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors active:scale-95"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={(e) => handleOpenEditModal(item, e)}
                     title="Editar producto"
                     className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors active:scale-95"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
-                  <button
-                    onClick={(e) => handleOpenDeleteModal(item, e)}
-                    title="Dar de baja producto"
-                    className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors active:scale-95"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {item.active === false ? (
+                    <button
+                      onClick={(e) => handleReactivateProduct(item, e)}
+                      disabled={isReactivatingId === item.id}
+                      title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all active:scale-95"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isReactivatingId === item.id ? "animate-spin" : ""}`} />
+                      <span>Reactivar</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => handleOpenDeleteModal(item, e)}
+                      title="Dar de baja producto"
+                      className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -1085,6 +1960,15 @@ export function InventoryView({
             {/* Table Header con sticky top sólido para no transparentarse en scroll vertical */}
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px] tracking-wider">
               <tr>
+                <th className="py-3 px-3 w-10 text-center bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedProductIds.has(p.id))}
+                    onChange={toggleSelectAllVisible}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4 align-middle"
+                    title="Seleccionar o deseleccionar todos los visibles"
+                  />
+                </th>
                 <th className="py-3 px-5 min-w-[240px] bg-slate-50">PRODUCTO / MARCA</th>
                 <th className="py-3 px-4 min-w-[130px] bg-slate-50">DISCIPLINA</th>
                 <th className="py-3 px-4 min-w-[120px] bg-slate-50">PRECIO VENTA</th>
@@ -1098,7 +1982,7 @@ export function InventoryView({
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 px-4">
+                  <td colSpan={7} className="text-center py-12 px-4">
                     <div className="max-w-md mx-auto space-y-3">
                       <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
                         <Barcode className="w-6 h-6 stroke-[1.8]" />
@@ -1114,213 +1998,461 @@ export function InventoryView({
                             ? searchMode === "barcode"
                               ? `No existe ningún producto con el código "${searchQuery}". Asegúrese de que el código esté asignado en el producto o variantes.`
                               : `No hay productos que coincidan con "${searchQuery}".`
+                            : activeFilterMode === "INACTIVE"
+                            ? "No hay productos inactivos o dados de baja en el sistema."
+                            : stockAlertFilter !== "ALL"
+                            ? `No hay artículos ${stockAlertFilter === "OUT_OF_STOCK" ? "agotados" : "en alerta de stock"} en la disciplina "${selectedDiscipline}".`
                             : "No hay productos registrados bajo esta categoría o disciplina."}
                         </p>
                       </div>
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSearchQuery("");
-                            searchInputRef.current?.focus();
-                          }}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Limpiar búsqueda y volver a escanear
-                        </button>
-                      )}
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery("");
+                              searchInputRef.current?.focus();
+                            }}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Limpiar búsqueda y volver a escanear
+                          </button>
+                        )}
+                        {activeFilterMode === "INACTIVE" && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveFilterMode("ACTIVE")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            Volver a productos activos
+                          </button>
+                        )}
+                        {stockAlertFilter !== "ALL" && selectedDiscipline !== "Todas" && (
+                          <button
+                            type="button"
+                            onClick={() => handleSelectDiscipline("Todas")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-200 transition-colors shadow-2xs"
+                          >
+                            Ver alertas en todas las disciplinas
+                          </button>
+                        )}
+                        {stockAlertFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setStockAlertFilter("ALL")}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl border border-slate-200 transition-colors shadow-2xs"
+                          >
+                            <X className="w-3.5 h-3.5 text-slate-400" />
+                            Quitar filtro de stock
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : (
                 paginatedProducts.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
-                    onClick={() => handleOpenDetail(item)}
-                  >
-                    {/* 1. Name / Brand */}
-                    <td className="py-4 px-5 min-w-[240px]">
-                      <div className="flex items-center gap-3">
-                        {item.imageUrl ? (
-                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name}
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${item.iconBg} text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
-                          >
-                            <Package className="w-4 h-4" />
-                          </div>
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            {item.brand} • {item.category}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* 2. Discipline */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/70">
-                        {item.discipline}
-                      </span>
-                    </td>
-
-                    {/* 3. Sale Price */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        if (matchedVar && matchedVar.price) {
-                          return (
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-900 text-xs">
-                                {formatCurrency(matchedVar.price)}
-                              </span>
-                              <span className="text-[10px] text-emerald-700 font-semibold">
-                                Talle {matchedVar.size}
-                              </span>
+                  <React.Fragment key={item.id}>
+                    <tr
+                      className={`hover:bg-slate-50/80 transition-colors group cursor-pointer ${
+                        selectedProductIds.has(item.id) ? "bg-emerald-50/40" : ""
+                      } ${item.active === false ? "opacity-60 hover:opacity-100 bg-slate-50/60" : ""}`}
+                      onClick={() => handleOpenDetail(item)}
+                    >
+                      {/* Checkbox de Selección */}
+                      <td className="py-4 px-3 text-center w-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.has(item.id)}
+                          onChange={(e) => toggleSelectProduct(item.id, e)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4 align-middle"
+                        />
+                      </td>
+                      {/* 1. Name / Brand */}
+                      <td className="py-4 px-5 min-w-[240px]">
+                        <div className="flex items-center gap-3">
+                          {item.imageUrl ? (
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform p-0.5">
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="w-full h-full object-contain"
+                              />
                             </div>
-                          );
-                        }
-                        const variantPrices = item.variants
-                          ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
-                          : [];
-                        if (variantPrices.length > 1) {
-                          const minP = Math.min(...variantPrices);
-                          const maxP = Math.max(...variantPrices);
-                          if (minP !== maxP) {
+                          ) : (
+                            <div
+                              className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${item.iconBg} text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
+                            >
+                              <Package className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                                {item.name}
+                              </span>
+                              {item.active === false && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                                  Inactivo
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {item.brand} • {item.category}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Discipline */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/70">
+                          {item.discipline}
+                        </span>
+                      </td>
+
+                      {/* 3. Sale Price */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[130px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          if (matchedVar && matchedVar.price) {
                             return (
                               <div className="flex flex-col">
                                 <span className="font-bold text-slate-900 text-xs">
-                                  {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                  {formatCurrency(matchedVar.price)}
                                 </span>
-                                <span className="text-[10px] text-emerald-700 font-medium">
-                                  Precios por talle
+                                <span className="text-[10px] text-emerald-700 font-semibold">
+                                  Talle {matchedVar.size}
                                 </span>
                               </div>
                             );
                           }
-                        }
-                        return (
-                          <span className="font-bold text-slate-900 text-xs">
-                            {formatCurrency(item.price)}
-                          </span>
-                        );
-                      })()}
-                    </td>
-
-                    {/* 4. Stock Disponible en Local (Saavedra 241) */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[140px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        const displayStock = matchedVar
-                          ? matchedVar.stockStore
-                          : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
-
-                        if (displayStock === 0) {
+                          const variantPrices = item.variants
+                            ? item.variants.map((v) => v.price ?? item.price).filter((p) => p > 0)
+                            : [];
+                          if (variantPrices.length > 1) {
+                            const minP = Math.min(...variantPrices);
+                            const maxP = Math.max(...variantPrices);
+                            if (minP !== maxP) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-900 text-xs">
+                                    {formatCurrency(minP)} – {formatCurrency(maxP)}
+                                  </span>
+                                  <span className="text-[10px] text-emerald-700 font-medium">
+                                    Precios por talle
+                                  </span>
+                                </div>
+                              );
+                            }
+                          }
                           return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                              <span>Sin stock</span>
+                            <span className="font-bold text-slate-900 text-xs">
+                              {formatCurrency(item.price)}
                             </span>
                           );
-                        }
+                        })()}
+                      </td>
 
-                        if (displayStock <= (item.minStock || 3)) {
+                      {/* 4. Stock Disponible en Local (Saavedra 241) */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          const displayStock = matchedVar
+                            ? matchedVar.stockStore
+                            : item.stockLocal ?? item.variants?.reduce((acc, v) => acc + (v.stockStore || 0), 0) ?? 0;
+                          const warehouseStock = matchedVar
+                            ? matchedVar.stockWarehouse
+                            : item.stockWeb ?? item.variants?.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0) ?? 0;
+                          const totalStock = displayStock + warehouseStock;
+                          const minStock = item.minStock || 2;
+
+                          // 1. Totalmente agotado
+                          if (totalStock === 0) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-800 border border-rose-300 w-fit">
+                                  <AlertOctagon className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  <span>Agotado Total</span>
+                                </span>
+                                <span className="text-[10px] text-rose-600 font-medium mt-0.5">
+                                  0 local • 0 depósito
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // 2. Salón vacío pero con existencia en depósito (Urgente Mostrador)
+                          if (displayStock === 0 && warehouseStock > 0) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-orange-100 text-orange-800 border border-orange-300 w-fit">
+                                  <Store className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                                  <span>Salón Vacío</span>
+                                </span>
+                                <span className="text-[10px] text-orange-700 font-semibold mt-0.5">
+                                  Hay {warehouseStock} un. en depósito
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // 3. Stock crítico o stock de salón bajo
+                          if (totalStock <= minStock || displayStock <= 1) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>{displayStock} un. (Bajo)</span>
+                                </span>
+                                <span className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                  Depósito: {warehouseStock} un.
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // 4. Stock saludable / óptimo
                           return (
                             <div className="flex flex-col">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
-                                <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                                <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span>{displayStock} un.</span>
                               </span>
-                              <span className="text-[10px] text-amber-700 font-medium mt-0.5">Stock bajo</span>
+                              {matchedVar ? (
+                                <span className="text-[10px] text-slate-400 mt-0.5">Talle {matchedVar.size}</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 mt-0.5">Saavedra 241</span>
+                              )}
                             </div>
                           );
-                        }
+                        })()}
+                      </td>
 
-                        return (
-                          <div className="flex flex-col">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
-                              <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>{displayStock} un.</span>
-                            </span>
-                            {matchedVar ? (
-                              <span className="text-[10px] text-slate-400 mt-0.5">Talle {matchedVar.size}</span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 mt-0.5">Saavedra 241</span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* 5. Barcode / SKU */}
-                    <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
-                      {(() => {
-                        const matchedVar = getMatchedVariant(item, searchQuery);
-                        if (matchedVar) {
+                      {/* 5. Barcode / SKU + Selector de Variantes */}
+                      <td className="py-4 px-4 whitespace-nowrap min-w-[150px]">
+                        {(() => {
+                          const matchedVar = getMatchedVariant(item, searchQuery);
+                          if (matchedVar) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="font-mono font-bold text-emerald-700 text-[11.5px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block w-fit">
+                                  {matchedVar.barcode}
+                                </span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                  Variante: {matchedVar.size} • {matchedVar.color}
+                                </span>
+                              </div>
+                            );
+                          }
                           return (
                             <div className="flex flex-col">
-                              <span className="font-mono font-bold text-emerald-700 text-[11.5px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block w-fit">
-                                {matchedVar.barcode}
+                              <span className="font-mono font-medium text-slate-700 text-[11px]">
+                                {item.barcode || item.sku}
                               </span>
-                              <span className="text-[10px] text-slate-400 mt-0.5">
-                                Variante: {matchedVar.size} • {matchedVar.color}
-                              </span>
+                              {item.variants && item.variants.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleExpandProduct(item.id, e)}
+                                  className="text-[10.5px] text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 mt-0.5 w-fit hover:underline"
+                                  title="Ver fila de variantes y acciones rápidas de stock"
+                                >
+                                  <span>{item.variants.length} variantes</span>
+                                  {expandedProductIds.has(item.id) ? (
+                                    <ChevronUp className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <ChevronDown className="w-3 h-3 text-emerald-600" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           );
-                        }
-                        return (
-                          <div className="flex flex-col">
-                            <span className="font-mono font-medium text-slate-700 text-[11px]">
-                              {item.barcode || item.sku}
-                            </span>
-                            {item.variants && item.variants.length > 1 && (
-                              <span className="text-[10px] text-slate-400">
-                                {item.variants.length} variantes
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
+                        })()}
+                      </td>
 
-                    {/* 6. Action Buttons (Sticky Right para no perderse al scrollear) */}
-                    <td className="py-4 px-5 text-right whitespace-nowrap min-w-[140px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={(e) => handleOpenEditModal(item, e)}
-                          title="Editar producto"
-                          className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleOpenDeleteModal(item, e)}
-                          title="Dar de baja producto"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDetail(item)}
-                          className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
-                        >
-                          Ver Detalle
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      {/* 6. Action Buttons (Sticky Right para no perderse al scrollear) */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap min-w-[150px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Botón rápido de Movimiento de Stock */}
+                          <button
+                            onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
+                            title="Ajustar Stock / Movimientos"
+                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenEditModal(item, e)}
+                            title="Editar producto"
+                            className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {item.active === false ? (
+                            <button
+                              onClick={(e) => handleReactivateProduct(item, e)}
+                              disabled={isReactivatingId === item.id}
+                              title="Reactivar producto y devolver al mostrador (POS) y catálogo activo"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold transition-all active:scale-95 shadow-2xs"
+                            >
+                              <RefreshCw className={`w-3 h-3 text-emerald-600 ${isReactivatingId === item.id ? "animate-spin" : ""}`} />
+                              <span>Reactivar</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleOpenDeleteModal(item, e)}
+                              title="Dar de baja producto"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOpenDetail(item)}
+                            className="bg-[#c2f25b] hover:bg-[#b0e838] active:scale-95 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition-all tracking-tight ml-1"
+                          >
+                            Ver Detalle
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Fila Desplegable de Variantes con Acciones Rápidas (RF-03 / CU-04) */}
+                    {expandedProductIds.has(item.id) && item.variants && item.variants.length > 0 && (
+                      <tr className="bg-slate-50/70 border-b border-slate-200/90 animate-in fade-in duration-200">
+                        <td colSpan={7} className="py-2.5 px-4 sm:px-6">
+                          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                            <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <Boxes className="w-3.5 h-3.5 text-slate-600" />
+                                Fila de Variantes ({item.variants.length} talles registrados)
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Operaciones directas de stock por variante
+                              </span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-50 text-slate-500 font-semibold text-[10px] uppercase border-b border-slate-200/70">
+                                  <tr>
+                                    <th className="py-2 px-3">Talle / Color</th>
+                                    <th className="py-2 px-3 font-mono">Cód. Barra</th>
+                                    <th className="py-2 px-3 text-center">Stock Tienda</th>
+                                    <th className="py-2 px-3 text-center">Stock Depósito</th>
+                                    <th className="py-2 px-3 text-center">Total</th>
+                                    <th className="py-2 px-3 text-center">Estado</th>
+                                    <th className="py-2 px-3 text-center min-w-[130px]">Acciones de Stock</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {item.variants.map((v, vIdx) => {
+                                    const vTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
+                                    return (
+                                      <tr key={v.id || vIdx} className="hover:bg-slate-50/70 transition-colors">
+                                        <td className="py-2 px-3 font-semibold text-slate-800">
+                                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5">
+                                            {v.size}
+                                          </span>
+                                          <span className="text-slate-500 text-[11px]">{v.color}</span>
+                                        </td>
+                                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
+                                          {v.barcode || `${item.barcode || item.sku}-${v.size}`}
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                            {v.stockStore || 0} un.
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-800">
+                                            {v.stockWarehouse || 0} un.
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-bold text-slate-900">
+                                          {vTotal}
+                                        </td>
+                                        <td className="py-2 px-3 text-center">
+                                          {vTotal === 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                              <AlertOctagon className="w-2.5 h-2.5 text-rose-600" />
+                                              <span>Agotado</span>
+                                            </span>
+                                          ) : (v.stockStore || 0) === 0 && (v.stockWarehouse || 0) > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                                              <Store className="w-2.5 h-2.5 text-orange-600" />
+                                              <span>Salón 0</span>
+                                            </span>
+                                          ) : vTotal <= (item.minStock || 2) ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                              <span>Crítico</span>
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                                              <span>Óptimo</span>
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-center whitespace-nowrap">
+                                          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                            {/* - Venta Mostrador (RF-POS / CU-04) */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "VENTA_MOSTRADOR", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`- Registrar Venta en Mostrador (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <ShoppingBag className="w-3 h-3" />
+                                              <span>- Venta</span>
+                                            </button>
+
+                                            {/* + Ingreso por Compra */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "INGRESO_COMPRA", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`+ Ingreso por Compra (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <PackagePlus className="w-3 h-3" />
+                                              <span>+ Compra</span>
+                                            </button>
+
+                                            {/* - Ajuste / Merma */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "AJUSTE_EGRESO", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`- Ajuste / Merma (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <MinusCircle className="w-3 h-3" />
+                                              <span>- Merma</span>
+                                            </button>
+
+                                            {/* ⇄ Traslado Interno */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", v.id, e)}
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10.5px] font-semibold transition-all active:scale-95 shadow-2xs"
+                                              title={`⇄ Traslado Depósito ➔ Salón (Talle ${v.size} - ${v.color})`}
+                                            >
+                                              <ArrowRightLeft className="w-3 h-3" />
+                                              <span>⇄ Traslado</span>
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
@@ -1330,6 +2462,8 @@ export function InventoryView({
         {/* Pie de tabla con paginación integrada */}
         {renderPaginationFooter()}
       </div>
+      </>
+    )}
 
       {/* Modal de Crear / Editar Producto */}
       <ProductFormModal
@@ -1361,10 +2495,10 @@ export function InventoryView({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900">
-                  ¿Eliminar producto?
+                  ¿Dar de baja producto?
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  El producto <strong className="text-slate-800 font-semibold">{productToDelete.name}</strong> se dará de baja del mostrador (POS) y catálogo activo, pero <span className="font-medium text-slate-700">su historial contable y ventas se conservarán intactos</span>.
+                  El producto <strong className="text-slate-800 font-semibold">{productToDelete.name}</strong> se dará de baja del mostrador (POS) y catálogo activo. <span className="font-medium text-slate-700">Su historial contable y trazabilidad se conservan intactos, y podés reactivarlo en cualquier momento filtrando por &quot;Inactivos / Dados de Baja&quot;</span>.
                 </p>
               </div>
             </div>
@@ -1393,12 +2527,12 @@ export function InventoryView({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Eliminando...</span>
+                    <span>Dando de baja...</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar Producto</span>
+                    <span>Confirmar Baja Lógica</span>
                   </>
                 )}
               </button>
@@ -1406,6 +2540,78 @@ export function InventoryView({
           </div>
         </div>
       )}
+
+      {/* Modal de Movimientos Manuales de Stock (RF-03 / CU-04) */}
+      {stockModalProduct && (
+        <StockMovementModal
+          isOpen={isStockModalOpen}
+          onClose={() => {
+            setIsStockModalOpen(false);
+            setStockModalProduct(null);
+            setStockModalOperation(undefined);
+            setStockModalVariantId(undefined);
+          }}
+          product={stockModalProduct}
+          onSuccess={() => {
+            loadProducts();
+            showToast("Stock actualizado", "El movimiento de stock se registró correctamente en el sistema.");
+          }}
+          initialOperationType={stockModalOperation}
+          initialVariantId={stockModalVariantId}
+        />
+      )}
+
+      {/* Modal de Actualización Masiva y Porcentual de Precios (RF-01.1 / CU-INV-05) */}
+      <BatchPriceUpdateModal
+        isOpen={isBatchPriceModalOpen}
+        onClose={() => setIsBatchPriceModalOpen(false)}
+        onSuccess={() => {
+          loadProducts();
+          clearSelection();
+          showToast(
+            "Precios actualizados",
+            "La actualización masiva de precios se aplicó exitosamente en el catálogo."
+          );
+        }}
+        selectedProductIds={Array.from(selectedProductIds)}
+        totalCatalogProductsCount={productsList.length}
+      />
+
+      {/* Modal de Historial Global de Ajustes de Precios */}
+      <PriceHistoryModal
+        isOpen={isPriceHistoryModalOpen}
+        onClose={() => setIsPriceHistoryModalOpen(false)}
+      />
+
+      {/* Modal de Carga Inicial Progresiva e Ingestión Excel/CSV (RF-04 / CU-INV-02) */}
+      <BulkImportModal
+        isOpen={isBulkImportModalOpen}
+        onClose={() => setIsBulkImportModalOpen(false)}
+        onSuccess={() => {
+          loadProducts();
+          showToast(
+            "Lote importado con éxito",
+            "Los productos y variantes del archivo fueron incorporados al catálogo."
+          );
+        }}
+      />
+
+      {/* Drawer de Alertas de Stock Crítico y Productos Agotados (RF-06 / CU-INV-08) */}
+      <StockAlertsDrawer
+        isOpen={isStockAlertsDrawerOpen}
+        onClose={() => handleToggleAlertsDrawer(false)}
+        products={productsList}
+        onSelectProduct={(productId) => {
+          const prod = productsList.find((p) => p.id === productId);
+          if (prod) {
+            handleOpenDetail(prod);
+          }
+        }}
+        onOpenStockMovement={(product, operation, variantId) => {
+          handleOpenStockModal(product, operation, variantId);
+        }}
+        onRefresh={loadProducts}
+      />
 
       {/* Floating Toast Notification */}
       {toast && (

@@ -107,6 +107,7 @@ export interface DetailedProductItem {
   salesWebTotal?: number;
   variants: ProductVariantItem[];
   sizeConversions?: SizeConversion[];
+  active?: boolean;
 }
 
 export interface InventoryMovementItem {
