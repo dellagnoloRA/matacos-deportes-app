@@ -428,6 +428,8 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
       const vStore = v.stockStore ?? 0;
       const vWarehouse = v.stockWarehouse ?? 0;
       const vTotal = vStore + vWarehouse;
+      const vMinStock = v.minStock ?? minStock;
+      const vMinStore = v.minStoreStock ?? (product.minStoreStock ?? 1);
 
       totalStore += vStore;
       totalWarehouse += vWarehouse;
@@ -436,7 +438,7 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
         outOfStockVariants++;
       } else if (vStore === 0 && vWarehouse > 0) {
         storeEmptyVariants++;
-      } else if (vTotal <= minStock || (vStore <= 1 && vWarehouse > 0)) {
+      } else if (vTotal <= vMinStock || (vStore <= vMinStore && vWarehouse > 0)) {
         criticalLowVariants++;
       }
     }
@@ -2166,7 +2168,8 @@ export function InventoryView({
                             ? matchedVar.stockWarehouse
                             : item.stockWeb ?? item.variants?.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0) ?? 0;
                           const totalStock = displayStock + warehouseStock;
-                          const minStock = item.minStock || 2;
+                          const minStock = matchedVar?.minStock ?? item.minStock ?? 2;
+                          const minStoreStock = matchedVar?.minStoreStock ?? item.minStoreStock ?? 1;
 
                           // 1. Totalmente agotado
                           if (totalStock === 0) {
@@ -2199,7 +2202,7 @@ export function InventoryView({
                           }
 
                           // 3. Stock crítico o stock de salón bajo
-                          if (totalStock <= minStock || displayStock <= 1) {
+                          if (totalStock <= minStock || (displayStock <= minStoreStock && warehouseStock > 0)) {
                             return (
                               <div className="flex flex-col">
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit">

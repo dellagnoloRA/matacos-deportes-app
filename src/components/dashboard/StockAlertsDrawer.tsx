@@ -143,6 +143,8 @@ export function StockAlertsDrawer({
           const store = v.stockStore ?? 0;
           const warehouse = v.stockWarehouse ?? 0;
           const total = store + warehouse;
+          const variantMinStock = v.minStock ?? minStock;
+          const variantMinStore = v.minStoreStock ?? (product.minStoreStock ?? 1);
 
           let alertLevel: EvaluatedVariantAlert["alertLevel"] | null = null;
           let actionRequired = "";
@@ -152,13 +154,13 @@ export function StockAlertsDrawer({
             actionRequired = "Agotado total. Generar orden de compra a proveedor.";
           } else if (store === 0 && warehouse > 0) {
             alertLevel = "STORE_EMPTY_WAREHOUSE_AVAIL";
-            actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, 4)} un. desde depósito.`;
-          } else if (total <= minStock) {
+            actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, Math.max(variantMinStore * 2, 2))} un. desde depósito.`;
+          } else if (total <= variantMinStock) {
             alertLevel = "CRITICAL_LOW";
             actionRequired = `Stock crítico (${total} un.). Solicitar compra preventiva a proveedor.`;
-          } else if (store <= 1 && warehouse > 0) {
+          } else if (store <= variantMinStore && warehouse > 0) {
             alertLevel = "STORE_REPLENISHMENT";
-            actionRequired = "Reposición preventiva. Trasladar unidades de depósito a salón.";
+            actionRequired = `Salón bajo (${store} un. <= mín. ${variantMinStore}). Trasladar unidades de depósito a salón.`;
           }
 
           if (alertLevel) {

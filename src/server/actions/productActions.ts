@@ -498,6 +498,7 @@ export async function getDetailedInventoryProducts(options?: {
         stockLocal: stockStore,
         stockWeb: stockWarehouse,
         minStock: firstVariant?.minStock || 2,
+        minStoreStock: firstVariant?.minStoreStock ?? 1,
         active: p.active,
         updatedAt: formatDateEs(p.updatedAt),
         iconBg: getDisciplineGradient(p.discipline.name),

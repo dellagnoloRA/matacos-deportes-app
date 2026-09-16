@@ -300,6 +300,7 @@ export function ProductDetailView({
           imageUrl: res.data.imageUrl || undefined,
           variants: updatedVariants,
           minStock: updatedVariants[0]?.minStock ?? 2,
+          minStoreStock: updatedVariants[0]?.minStoreStock ?? 1,
           stockLocal: totalStore,
           stockWeb: totalWarehouse,
         };
@@ -885,7 +886,9 @@ export function ProductDetailView({
                         </th>
                         <th className="py-3 px-3 text-center">Stock Tienda</th>
                         <th className="py-3 px-3 text-center">Stock Depósito</th>
-                        <th className="py-3 px-3 text-center">Mín. Alerta</th>
+                        <th className="py-3 px-3 text-center" title="Umbrales de stock mínimo: Salón (reposición) y Depósito (compra proveedor)">
+                          Mín. Alerta (Local / Dep.)
+                        </th>
                         <th className="py-3 px-3 text-center">Recibido</th>
                         <th className="py-3 px-3 text-center">Vendido</th>
                         <th
@@ -912,8 +915,12 @@ export function ProductDetailView({
                           v.minStock !== undefined && v.minStock !== null
                             ? v.minStock
                             : product.minStock || 2;
+                        const minStoreThreshold =
+                          v.minStoreStock !== undefined && v.minStoreStock !== null
+                            ? v.minStoreStock
+                            : product.minStoreStock || 1;
                         const isCritical = variantTotal <= minThreshold;
-                        const isLowStore = (v.stockStore || 0) <= 2;
+                        const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
                         const vMovementReceived = movements
                           .filter((m) => m.variantId === v.id && (m.type === "INGRESO_COMPRA" || m.type === "INGRESO_INICIAL"))
                           .reduce((acc, m) => acc + m.quantity, 0);
@@ -979,22 +986,40 @@ export function ProductDetailView({
                               </span>
                             </td>
 
-                            {/* Stock Mínimo / Umbral de Alerta */}
+                            {/* Stock Mínimo / Umbrales de Alerta (Local y Depósito) */}
                             <td className="py-3 px-3 text-center">
-                              <span
-                                className={`inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                  isCritical
-                                    ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
-                                title={
-                                  isCritical
-                                    ? `¡Alerta activa! Existencias (${variantTotal} un.) <= Mínimo (${minThreshold} un.)`
-                                    : `Umbral de alerta por stock bajo: ${minThreshold} un.`
-                                }
-                              >
-                                {minThreshold} un.
-                              </span>
+                              <div className="flex flex-col items-center gap-1">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold ${
+                                    isLowStore
+                                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                  title={
+                                    isLowStore
+                                      ? `¡Alerta Salón! Stock salón (${v.stockStore} un.) <= Mínimo (${minStoreThreshold} un.)`
+                                      : `Umbral de reposición salón: ${minStoreThreshold} un.`
+                                  }
+                                >
+                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Salón:</span>
+                                  <span>{minStoreThreshold}</span>
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold ${
+                                    isCritical
+                                      ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                  title={
+                                    isCritical
+                                      ? `¡Alerta Proveedor! Stock total (${variantTotal} un.) <= Mínimo (${minThreshold} un.)`
+                                      : `Umbral de compra a proveedor: ${minThreshold} un.`
+                                  }
+                                >
+                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Dep.:</span>
+                                  <span>{minThreshold}</span>
+                                </span>
+                              </div>
                             </td>
 
                             {/* Recibido */}
@@ -1262,20 +1287,39 @@ export function ProductDetailView({
                             v.minStock !== undefined && v.minStock !== null
                               ? v.minStock
                               : product.minStock || 2;
+                          const minStoreThreshold =
+                            v.minStoreStock !== undefined && v.minStoreStock !== null
+                              ? v.minStoreStock
+                              : product.minStoreStock || 1;
                           const total = (v.stockStore || 0) + (v.stockWarehouse || 0);
                           const isCritical = total <= minThreshold;
+                          const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
                           return (
-                            <span
-                              className={`font-bold text-[11px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                isCritical
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : "bg-amber-50 text-amber-800 border-amber-200"
-                              }`}
-                              title="Stock mínimo para disparar alerta de compra a proveedor"
-                            >
-                              <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              Mín. Alerta: {minThreshold} un.
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                  isLowStore
+                                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                                    : "bg-slate-50 text-slate-700 border-slate-200"
+                                }`}
+                                title="Stock mínimo salón: alerta de reposición si mostrador <= este valor"
+                              >
+                                <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Local:</span>
+                                <span>{minStoreThreshold} un.</span>
+                              </span>
+                              <span
+                                className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                  isCritical
+                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                    : "bg-slate-50 text-slate-700 border-slate-200"
+                                }`}
+                                title="Stock mínimo total: alerta de compra a proveedor si existencias <= este valor"
+                              >
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Dep.:</span>
+                                <span>{minThreshold} un.</span>
+                              </span>
+                            </div>
                           );
                         })()}
                       </div>

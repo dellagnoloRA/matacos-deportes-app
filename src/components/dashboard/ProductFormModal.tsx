@@ -54,6 +54,7 @@ interface FormVariant {
   barcode: string;
   stockStore: number;
   stockWarehouse: number;
+  minStoreStock: number;
   minStock: number;
   price?: number | "";
 }
@@ -97,6 +98,7 @@ export function ProductFormModal({
       barcode: "",
       stockStore: 1,
       stockWarehouse: 0,
+      minStoreStock: 1,
       minStock: 2,
       price: "",
     },
@@ -272,6 +274,10 @@ export function ProductFormModal({
             barcode: v.barcode || "",
             stockStore: v.stockStore,
             stockWarehouse: v.stockWarehouse,
+            minStoreStock:
+              v.minStoreStock !== undefined && v.minStoreStock !== null
+                ? Number(v.minStoreStock)
+                : productToEdit.minStoreStock ?? 1,
             minStock:
               v.minStock !== undefined && v.minStock !== null
                 ? Number(v.minStock)
@@ -301,6 +307,7 @@ export function ProductFormModal({
           barcode: "",
           stockStore: 1,
           stockWarehouse: 0,
+          minStoreStock: 1,
           minStock: 2,
           price: "",
         },
@@ -381,6 +388,8 @@ export function ProductFormModal({
   // Manejar variantes
   const handleAddVariant = () => {
     const lastColor = variants[variants.length - 1]?.color || "Negro";
+    const lastMinStore = variants[variants.length - 1]?.minStoreStock ?? 1;
+    const lastMinStock = variants[variants.length - 1]?.minStock ?? 2;
 
     setVariants((prev) => [
       ...prev,
@@ -391,10 +400,29 @@ export function ProductFormModal({
         barcode: "",
         stockStore: 1,
         stockWarehouse: 0,
-        minStock: 2,
+        minStoreStock: lastMinStore,
+        minStock: lastMinStock,
         price: "", // Por defecto hereda el precio base general configurado arriba
       },
     ]);
+  };
+
+  // Replicar los umbrales de stock mínimo de la primera variante a todas las demás
+  const handleApplyMinStockToAll = () => {
+    if (variants.length <= 1) return;
+    const firstMinStore = variants[0]?.minStoreStock ?? 1;
+    const firstMinStock = variants[0]?.minStock ?? 2;
+
+    setVariants((prev) =>
+      prev.map((v) => ({
+        ...v,
+        minStoreStock: firstMinStore,
+        minStock: firstMinStock,
+      }))
+    );
+    setSuccessMessage(
+      `Se aplicó Mín. Local (${firstMinStore} un.) y Mín. Depósito (${firstMinStock} un.) a todos los talles.`
+    );
   };
 
   const handleRemoveVariant = (index: number) => {
@@ -759,7 +787,10 @@ export function ProductFormModal({
           barcode: v.barcode && v.barcode.trim() !== "" ? v.barcode.trim() : null,
           stockStore: Number(v.stockStore) || 0,
           stockWarehouse: Number(v.stockWarehouse) || 0,
-          minStoreStock: 1,
+          minStoreStock:
+            typeof v.minStoreStock === "number" && !isNaN(v.minStoreStock)
+              ? Math.max(0, v.minStoreStock)
+              : 1,
           minStock:
             typeof v.minStock === "number" && !isNaN(v.minStock)
               ? Math.max(0, v.minStock)
@@ -828,7 +859,7 @@ export function ProductFormModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
       <div
-        className="relative bg-white w-full max-w-4xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
+        className="relative bg-white w-full max-w-5xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
@@ -1453,28 +1484,55 @@ export function ProductFormModal({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddVariant}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Agregar Talle
-              </button>
+              <div className="flex items-center gap-2">
+                {variants.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleApplyMinStockToAll}
+                    className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+                    title="Copiar los umbrales de stock mínimo del primer talle a todos los demás"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Copiar mínimos a todos</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddVariant}
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Agregar Talle
+                </button>
+              </div>
             </div>
 
-            {/* Banner Informativo: Precios Diferenciales y Stock Mínimo por Variante */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-start gap-2.5 text-xs text-emerald-950">
+            {/* Banner Informativo: Precios Diferenciales y Alertas de Stock Mínimo por Ubicación */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-950">
               <Tag className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-900 text-xs">
-                    Precios Diferenciales y Stock Mínimo por Variante:
+                    Precios Diferenciales y Alertas de Stock Mínimo por Ubicación:
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
-                  Todos los talles adoptan por defecto el <strong>Precio de Venta Base ({priceNum > 0 ? formatCurrency(priceNum) : "$ 0,00"})</strong>. En <strong>Mín. Alerta</strong> configurás el umbral de stock crítico total (Salón + Depósito) para que el sistema dispare la alerta de compra a proveedor cuando las existencias alcancen o caigan por debajo de dicho valor.
+                  Todos los talles adoptan por defecto el <strong>Precio de Venta Base ({priceNum > 0 ? formatCurrency(priceNum) : "$ 0,00"})</strong>. Podés configurar umbrales de alerta independientes para cada ubicación física:
                 </p>
+                <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-emerald-200/60">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                    <div>
+                      <strong className="text-emerald-900">Mín. Local (Salón):</strong> Alerta de reposición interna cuando el salón tiene existencias iguales o inferiores a este valor y aún queda stock en depósito.
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 mt-1 shrink-0" />
+                    <div>
+                      <strong className="text-amber-900">Mín. Depósito (Proveedor):</strong> Alerta crítica de compra a proveedor cuando las existencias totales (Salón + Depósito) alcanzan o caen por debajo de este valor.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1618,9 +1676,12 @@ export function ProductFormModal({
                       </div>
                     </div>
 
-                    {/* 5. Salón */}
+                    {/* 5. Stock Salón */}
                     <div className="col-span-1 sm:col-span-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5">
+                      <label
+                        className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
+                        title="Stock actual en Salón Saavedra 241"
+                      >
                         Salón
                       </label>
                       <input
@@ -1628,15 +1689,43 @@ export function ProductFormModal({
                         min="0"
                         value={variant.stockStore}
                         onChange={(e) =>
-                          handleVariantChange(idx, "stockStore", Number(e.target.value))
+                          handleVariantChange(idx, "stockStore", Math.max(0, parseInt(e.target.value, 10) || 0))
                         }
-                        className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center"
+                        title="Existencias actuales en Salón comercial"
+                        className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
 
-                    {/* 6. Depósito */}
+                    {/* 6. Mínimo Alerta Salón / Local */}
                     <div className="col-span-1 sm:col-span-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5">
+                      <label
+                        className="text-[10px] font-bold text-emerald-800 uppercase text-center block mb-0.5 truncate"
+                        title="Umbral de alerta para reposición interna de mostrador (Salón <= este valor y hay en depósito)"
+                      >
+                        Mín. Local
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.minStoreStock !== undefined && variant.minStoreStock !== null ? variant.minStoreStock : 1}
+                        onChange={(e) =>
+                          handleVariantChange(
+                            idx,
+                            "minStoreStock",
+                            e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
+                          )
+                        }
+                        title="Alerta de Reposición Interna: se activa si stock en mostrador <= este valor y hay en depósito"
+                        className="w-full bg-emerald-50/70 px-1.5 py-1.5 rounded-lg border border-emerald-300 text-xs font-extrabold text-emerald-950 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all text-center"
+                      />
+                    </div>
+
+                    {/* 7. Stock Depósito */}
+                    <div className="col-span-1 sm:col-span-1">
+                      <label
+                        className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
+                        title="Stock actual en Depósito interno"
+                      >
                         Depósito
                       </label>
                       <input
@@ -1644,20 +1733,20 @@ export function ProductFormModal({
                         min="0"
                         value={variant.stockWarehouse}
                         onChange={(e) =>
-                          handleVariantChange(idx, "stockWarehouse", Number(e.target.value))
+                          handleVariantChange(idx, "stockWarehouse", Math.max(0, parseInt(e.target.value, 10) || 0))
                         }
-                        className="w-full bg-white px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center"
+                        title="Existencias actuales en Depósito interno"
+                        className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
 
-                    {/* 7. Mín. Stock (Umbral Alerta) - Espacio amplio y legible */}
-                    <div className="col-span-2 sm:col-span-2">
+                    {/* 8. Mínimo Alerta Depósito / Proveedor */}
+                    <div className="col-span-1 sm:col-span-1">
                       <label
-                        className="text-[10.5px] font-bold text-amber-900 uppercase flex items-center justify-center gap-1 mb-0.5 whitespace-nowrap"
-                        title="Stock mínimo total (Salón + Depósito) para disparar alerta de compra a proveedor"
+                        className="text-[10px] font-bold text-amber-900 uppercase text-center block mb-0.5 truncate"
+                        title="Umbral de alerta de compra a proveedor cuando existencias totales (Salón + Depósito) <= este valor"
                       >
-                        <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span>Mín. Alerta</span>
+                        Mín. Dep.
                       </label>
                       <input
                         type="number"
@@ -1670,13 +1759,13 @@ export function ProductFormModal({
                             e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
                           )
                         }
-                        title="Alerta de Stock Crítico: si existencias totales <= este valor"
-                        className="w-full bg-amber-50/70 px-3 py-1.5 rounded-lg border border-amber-300 text-xs font-extrabold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
+                        title="Alerta de Stock Crítico: compra a proveedor si existencias totales <= este valor"
+                        className="w-full bg-amber-50/70 px-1.5 py-1.5 rounded-lg border border-amber-300 text-xs font-extrabold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
                       />
                     </div>
                   </div>
 
-                  {/* 8. Botón Eliminar Talle al extremo derecho */}
+                  {/* 9. Botón Eliminar Talle al extremo derecho */}
                   {variants.length > 1 && (
                     <div className="pt-4 shrink-0">
                       <button

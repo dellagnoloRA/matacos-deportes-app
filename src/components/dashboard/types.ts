@@ -100,6 +100,7 @@ export interface DetailedProductItem {
   stockLocal: number; // Suma store
   stockWeb: number; // Suma web/warehouse
   minStock: number;
+  minStoreStock?: number;
   updatedAt: string;
   iconBg: string;
   imageUrl?: string;
