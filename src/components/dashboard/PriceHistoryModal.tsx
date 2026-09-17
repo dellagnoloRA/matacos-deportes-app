@@ -20,11 +20,13 @@ import {
   FileText,
   RotateCcw,
   Boxes,
+  Trash2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
   PriceHistoryBatch,
   getPriceHistoryBatches,
+  deletePriceHistoryBatch,
 } from "@/lib/priceHistoryStorage";
 
 export interface PriceHistoryModalProps {
@@ -53,6 +55,11 @@ export function PriceHistoryModal({ isOpen, onClose }: PriceHistoryModalProps) {
       }
     }
   }, [isOpen]);
+
+  const handleDeleteBatch = (id: string) => {
+    deletePriceHistoryBatch(id);
+    setBatches(getPriceHistoryBatches());
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedBatchIds((prev) => {
@@ -294,7 +301,21 @@ export function PriceHistoryModal({ isOpen, onClose }: PriceHistoryModalProps) {
 
         {/* Content Body - List of Batches */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
-          {filteredBatches.length === 0 ? (
+          {batches.length === 0 ? (
+            <div className="py-12 px-4 text-center space-y-3 max-w-sm mx-auto">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                <History className="w-6 h-6 stroke-[1.8]" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">
+                  Sin historial de cambios de precios
+                </h4>
+                <p className="text-slate-400 text-xs mt-1">
+                  Aún no se han registrado actualizaciones de precios en el catálogo.
+                </p>
+              </div>
+            </div>
+          ) : filteredBatches.length === 0 ? (
             <div className="py-12 px-4 text-center space-y-3 max-w-sm mx-auto">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
                 <Search className="w-6 h-6 stroke-[1.8]" />
@@ -371,11 +392,27 @@ export function PriceHistoryModal({ isOpen, onClose }: PriceHistoryModalProps) {
                         </span>
                       </div>
 
-                      {/* Fecha y Hora */}
-                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{batch.formattedDate}</span>
-                      </span>
+                      {/* Fecha y Hora + Botón Eliminar Registro */}
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{batch.formattedDate}</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm("¿Deseas eliminar este registro de cambio de precio?")) {
+                              handleDeleteBatch(batch.id);
+                            }
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Eliminar este registro del historial"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Motivo de Auditoría */}
