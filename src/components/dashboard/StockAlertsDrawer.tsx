@@ -103,13 +103,13 @@ export function StockAlertsDrawer({
         let alertLevel: EvaluatedVariantAlert["alertLevel"] | null = null;
         let actionRequired = "";
 
-        if (total === 0) {
+        if (total === 0 && minStock > 0) {
           alertLevel = "OUT_OF_STOCK";
           actionRequired = "Agotado total. Generar orden de compra a proveedor.";
         } else if (store === 0 && warehouse > 0) {
           alertLevel = "STORE_EMPTY_WAREHOUSE_AVAIL";
           actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, 4)} un. desde depósito.`;
-        } else if (total <= minStock) {
+        } else if (minStock > 0 && total <= minStock) {
           alertLevel = "CRITICAL_LOW";
           actionRequired = `Stock crítico (${total} un.). Solicitar compra preventiva a proveedor.`;
         }
@@ -149,16 +149,21 @@ export function StockAlertsDrawer({
           let alertLevel: EvaluatedVariantAlert["alertLevel"] | null = null;
           let actionRequired = "";
 
-          if (total === 0) {
+          // Variante en plantilla / catálogo pasivo: sin existencias y sin umbral de compra
+          if (variantMinStock === 0 && total === 0) {
+            continue;
+          }
+
+          if (total === 0 && variantMinStock > 0) {
             alertLevel = "OUT_OF_STOCK";
             actionRequired = "Agotado total. Generar orden de compra a proveedor.";
           } else if (store === 0 && warehouse > 0) {
             alertLevel = "STORE_EMPTY_WAREHOUSE_AVAIL";
             actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, Math.max(variantMinStore * 2, 2))} un. desde depósito.`;
-          } else if (total <= variantMinStock) {
+          } else if (variantMinStock > 0 && total <= variantMinStock) {
             alertLevel = "CRITICAL_LOW";
             actionRequired = `Stock crítico (${total} un.). Solicitar compra preventiva a proveedor.`;
-          } else if (store <= variantMinStore && warehouse > 0) {
+          } else if (variantMinStore > 0 && store <= variantMinStore && warehouse > 0) {
             alertLevel = "STORE_REPLENISHMENT";
             actionRequired = `Salón bajo (${store} un. <= mín. ${variantMinStore}). Trasladar unidades de depósito a salón.`;
           }
@@ -312,69 +317,6 @@ export function StockAlertsDrawer({
               <X className="w-5 h-5" />
             </button>
           </div>
-        </div>
-
-        {/* Resumen numérico rápido en tarjetas de métricas */}
-        <div className="grid grid-cols-3 gap-2 px-5 py-3 bg-slate-50 border-b border-slate-200 shrink-0 text-xs">
-          {/* 1. Agotados */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("OUT_OF_STOCK")}
-            className={`p-2.5 rounded-xl border text-left transition-all ${
-              activeTab === "OUT_OF_STOCK"
-                ? "bg-rose-50 border-rose-300 ring-2 ring-rose-400/30"
-                : "bg-white border-slate-200 hover:border-rose-200"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-rose-700">Agotados (0 un.)</span>
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
-            </div>
-            <div className="text-lg font-black text-rose-950 mt-1">
-              {counters.outOfStock}
-            </div>
-            <span className="text-[10px] text-rose-600 block mt-0.5">Compra a proveedor</span>
-          </button>
-
-          {/* 2. Urgente Mostrador */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("STORE_EMPTY")}
-            className={`p-2.5 rounded-xl border text-left transition-all ${
-              activeTab === "STORE_EMPTY"
-                ? "bg-orange-50 border-orange-300 ring-2 ring-orange-400/30"
-                : "bg-white border-slate-200 hover:border-orange-200"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-orange-800">Urgente Mostrador</span>
-              <span className="w-2 h-2 rounded-full bg-orange-500" />
-            </div>
-            <div className="text-lg font-black text-orange-950 mt-1">
-              {counters.storeEmpty}
-            </div>
-            <span className="text-[10px] text-orange-700 block mt-0.5">Mover desde depósito</span>
-          </button>
-
-          {/* 3. Stock Crítico */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("CRITICAL_LOW")}
-            className={`p-2.5 rounded-xl border text-left transition-all ${
-              activeTab === "CRITICAL_LOW"
-                ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30"
-                : "bg-white border-slate-200 hover:border-amber-200"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-amber-800">Stock Crítico</span>
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-            </div>
-            <div className="text-lg font-black text-amber-950 mt-1">
-              {counters.criticalLow}
-            </div>
-            <span className="text-[10px] text-amber-700 block mt-0.5">≤ Stock mínimo</span>
-          </button>
         </div>
 
         {/* Pestañas de Navegación y Buscador Interno */}
@@ -562,104 +504,96 @@ export function StockAlertsDrawer({
                     </div>
                   </div>
 
-                  {/* Fila 3: Desglose de Stock Físico (Salón vs Depósito vs Mínimo) */}
-                  <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                    <div className={`p-2 rounded-xl border ${
-                      alert.stockStore === 0
-                        ? "bg-rose-50 border-rose-200 text-rose-900"
-                        : alert.stockStore <= 1
-                        ? "bg-amber-50 border-amber-200 text-amber-900"
-                        : "bg-slate-50 border-slate-200 text-slate-800"
-                    }`}>
-                      <span className="text-[10px] text-slate-500 font-medium block">
-                        Saavedra 241
-                      </span>
-                      <span className="font-black text-sm">
-                        {alert.stockStore} un.
-                      </span>
+                  {/* Fila de Acción y Alerta de Stock Local */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                    {/* Alerta de ubicación con poco stock */}
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {alert.stockStore === 0 ? (
+                        <div className="px-2.5 py-1 rounded-lg border bg-rose-50 border-rose-200 text-rose-900 inline-flex items-center gap-1.5 text-xs">
+                          <span className="text-slate-500 font-medium">Saavedra 241</span>
+                          <span className="font-black text-rose-700">0 un.</span>
+                          {alert.stockWarehouse > 0 && (
+                            <span className="text-[11px] font-semibold text-emerald-700 ml-0.5">
+                              (Hay {alert.stockWarehouse} en dep.)
+                            </span>
+                          )}
+                        </div>
+                      ) : alert.stockStore <= (alert.variant.minStoreStock ?? 1) ? (
+                        <div className="px-2.5 py-1 rounded-lg border bg-amber-50 border-amber-200 text-amber-900 inline-flex items-center gap-1.5 text-xs">
+                          <span className="text-slate-500 font-medium">Saavedra 241</span>
+                          <span className="font-black text-amber-700">{alert.stockStore} un.</span>
+                          {alert.stockWarehouse > 0 && (
+                            <span className="text-[11px] font-medium text-slate-600 ml-0.5">
+                              (Dep: {alert.stockWarehouse} un.)
+                            </span>
+                          )}
+                        </div>
+                      ) : alert.stockWarehouse === 0 ? (
+                        <div className="px-2.5 py-1 rounded-lg border bg-rose-50 border-rose-200 text-rose-900 inline-flex items-center gap-1.5 text-xs">
+                          <span className="text-slate-500 font-medium">Depósito Central</span>
+                          <span className="font-black text-rose-700">0 un.</span>
+                        </div>
+                      ) : (
+                        <div className="px-2.5 py-1 rounded-lg border bg-amber-50 border-amber-200 text-amber-900 inline-flex items-center gap-1.5 text-xs">
+                          <span className="text-slate-500 font-medium">Stock crítico</span>
+                          <span className="font-black text-amber-700">{alert.stockTotal} un.</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className={`p-2 rounded-xl border ${
-                      alert.stockWarehouse > 0
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                        : "bg-rose-50 border-rose-200 text-rose-900"
-                    }`}>
-                      <span className="text-[10px] text-slate-500 font-medium block">
-                        Depósito Central
-                      </span>
-                      <span className="font-black text-sm">
-                        {alert.stockWarehouse} un.
-                      </span>
-                    </div>
-
-                    <div className="p-2 rounded-xl border bg-slate-50 border-slate-200 text-slate-800">
-                      <span className="text-[10px] text-slate-500 font-medium block">
-                        Total / Mínimo
-                      </span>
-                      <span className="font-black text-sm">
-                        {alert.stockTotal} <span className="text-slate-400 font-normal text-xs">/ {alert.minStock}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Fila 4: Mensaje Operativo de Acción Requerida */}
-                  <div className="flex items-start gap-2 text-xs text-slate-600 bg-slate-100/70 px-3 py-2 rounded-xl border border-slate-200/80">
-                    <span className="font-bold text-slate-800 shrink-0">Acción sugerida:</span>
-                    <span>{alert.actionRequired}</span>
-                  </div>
-
-                  {/* Fila 5: Botones de Acción Directa */}
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
-                    {/* Botón Ver Producto */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onSelectProduct?.(alert.product.id);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all active:scale-95 shadow-2xs"
-                      title="Ver ficha completa de este producto"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Ver Producto</span>
-                    </button>
-
-                    {/* Botón Reponer / Trasladar */}
-                    {isStoreEmpty || alert.alertLevel === "STORE_REPLENISHMENT" ? (
+                    {/* Botones de Acción Directa */}
+                    <div className="flex items-center gap-2 ml-auto">
+                      {/* Botón Ver Producto */}
                       <button
                         type="button"
                         onClick={() => {
                           onClose();
-                          onOpenStockMovement?.(
-                            alert.product,
-                            "TRANSFERENCIA_INTERNA",
-                            alert.variant.id
-                          );
+                          onSelectProduct?.(alert.product.id);
                         }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-extrabold text-xs shadow-xs transition-all"
-                        title="Trasladar stock de depósito a salón de ventas"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all active:scale-95 shadow-2xs"
+                        title="Ver ficha completa de este producto"
                       >
-                        <ArrowRightLeft className="w-3.5 h-3.5" />
-                        <span>Trasladar a Salón</span>
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Ver Producto</span>
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onOpenStockMovement?.(
-                            alert.product,
-                            "INGRESO_COMPRA",
-                            alert.variant.id
-                          );
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-[#00D615] font-extrabold text-xs shadow-xs transition-all border border-slate-800"
-                        title="Registrar orden de compra o ingreso a depósito"
-                      >
-                        <PackagePlus className="w-3.5 h-3.5" />
-                        <span>+ Ingreso / Compra</span>
-                      </button>
-                    )}
+
+                      {/* Botón Reponer / Trasladar */}
+                      {isStoreEmpty || alert.alertLevel === "STORE_REPLENISHMENT" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onOpenStockMovement?.(
+                              alert.product,
+                              "TRANSFERENCIA_INTERNA",
+                              alert.variant.id
+                            );
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-extrabold text-xs shadow-xs transition-all"
+                          title="Trasladar stock de depósito a salón de ventas"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          <span>Trasladar a Salón</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onOpenStockMovement?.(
+                              alert.product,
+                              "INGRESO_COMPRA",
+                              alert.variant.id
+                            );
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-[#00D615] font-extrabold text-xs shadow-xs transition-all border border-slate-800"
+                          title="Registrar orden de compra o ingreso a depósito"
+                        >
+                          <PackagePlus className="w-3.5 h-3.5" />
+                          <span>+ Ingreso / Compra</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -668,17 +602,10 @@ export function StockAlertsDrawer({
         </div>
 
         {/* Pie del Drawer */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-white text-xs text-slate-500 flex items-center justify-between shrink-0">
+        <div className="px-5 py-2.5 border-t border-slate-200 bg-white text-xs text-slate-500 flex items-center justify-between shrink-0">
           <span className="font-medium">
             Total en lista: <strong className="text-slate-900 font-bold">{filteredAlerts.length}</strong> variantes
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors"
-          >
-            Cerrar
-          </button>
         </div>
       </aside>
     </div>

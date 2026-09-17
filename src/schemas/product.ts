@@ -81,10 +81,19 @@ export const CreateProductSchema = z.object({
   name: z.string().min(3, "El nombre del producto debe tener al menos 3 caracteres"),
   description: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
+  modelCode: z.string().nullable().optional(),
   disciplineId: z.string().uuid("Debe seleccionar una disciplina válida"),
   costPrice: z
-    .number({ invalid_type_error: "El precio de costo debe ser un número" })
-    .min(0, "El precio de costo no puede ser negativo"),
+    .union([
+      z
+        .number({ invalid_type_error: "El precio de costo debe ser un número" })
+        .min(0, "El precio de costo no puede ser negativo"),
+      z.literal("").transform(() => null),
+      z.null(),
+      z.undefined(),
+    ])
+    .nullable()
+    .optional(),
   price: z
     .number({ invalid_type_error: "El precio de venta debe ser un número" })
     .min(0, "El precio de venta no puede ser negativo"),

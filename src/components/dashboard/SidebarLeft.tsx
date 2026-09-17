@@ -10,6 +10,10 @@ import {
   Settings,
   LayoutDashboard,
   PanelLeft,
+  Package,
+  Layers,
+  History,
+  ChevronDown,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -29,6 +33,16 @@ export function SidebarLeft({
   activeItem = "inventario",
   onSelectItem,
 }: SidebarLeftProps) {
+  const isInventoryActive =
+    activeItem === "inventario" || activeItem.startsWith("inventario-");
+
+  const activeSubItem =
+    activeItem === "inventario-tablas"
+      ? "tablas"
+      : activeItem === "inventario-historial"
+      ? "historial"
+      : "productos";
+
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
       onSelectItem(id);
@@ -103,20 +117,70 @@ export function SidebarLeft({
             <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 2. Inventario (Activo) */}
-          <button
-            onClick={() => handleItemClick("inventario")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "inventario"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Boxes className={`w-4 h-4 ${activeItem === "inventario" ? "text-slate-950" : "text-emerald-300"}`} />
-              <span>Inventario</span>
-            </div>
-          </button>
+          {/* 2. Inventario con Sub-índices (Activo) */}
+          <div className="space-y-1">
+            <button
+              onClick={() => handleItemClick("inventario-productos")}
+              className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+                isInventoryActive
+                  ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                  : "text-emerald-100 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Boxes className={`w-4 h-4 ${isInventoryActive ? "text-slate-950" : "text-emerald-300"}`} />
+                <span>Inventario</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isInventoryActive ? "text-slate-950 rotate-0" : "text-emerald-400/60 -rotate-90"}`} />
+            </button>
+
+            {/* Sub-índices de Inventario */}
+            {isInventoryActive && (
+              <div className="ml-3 pl-3.5 border-l border-emerald-500/30 space-y-1 pt-1.5 pb-1 animate-in fade-in duration-150">
+                {/* 2.1 Productos */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("inventario-productos")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeSubItem === "productos"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Package className={`w-3.5 h-3.5 ${activeSubItem === "productos" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Productos</span>
+                </button>
+
+                {/* 2.2 Tablas */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("inventario-tablas")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeSubItem === "tablas"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Layers className={`w-3.5 h-3.5 ${activeSubItem === "tablas" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Tablas</span>
+                </button>
+
+                {/* 2.3 Historial */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("inventario-historial")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeSubItem === "historial"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <History className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Historial</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* 3. Ventas POS (Bloqueado) */}
           <button

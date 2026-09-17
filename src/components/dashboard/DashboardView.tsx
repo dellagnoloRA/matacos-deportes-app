@@ -68,6 +68,14 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "inventario";
   }, [searchParams]);
 
+  // Sub-vista de inventario sincronizada con la URL (productos, tablas, historial)
+  const currentInventorySubView = useMemo<"productos" | "tablas" | "historial">(() => {
+    const seccion = searchParams.get("seccion");
+    if (seccion === "tablas") return "tablas";
+    if (seccion === "historial") return "historial";
+    return "productos";
+  }, [searchParams]);
+
   // Categoría/Disciplina seleccionada sincronizada con la URL
   const selectedCategory = useMemo(() => {
     return searchParams.get("categoria") || "Todas";
@@ -103,11 +111,32 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const handleSelectTab = useCallback(
     (id: string) => {
       setSelectedProductId(null);
-      const targetTab = id === "analytics" ? "inicio" : id;
-      updateUrl({
-        tab: targetTab,
-        producto: null,
-      });
+      if (id === "inventario" || id === "inventario-productos") {
+        updateUrl({
+          tab: "inventario",
+          seccion: null,
+          producto: null,
+        });
+      } else if (id === "inventario-tablas") {
+        updateUrl({
+          tab: "inventario",
+          seccion: "tablas",
+          producto: null,
+        });
+      } else if (id === "inventario-historial") {
+        updateUrl({
+          tab: "inventario",
+          seccion: "historial",
+          producto: null,
+        });
+      } else {
+        const targetTab = id === "analytics" ? "inicio" : id;
+        updateUrl({
+          tab: targetTab,
+          seccion: null,
+          producto: null,
+        });
+      }
     },
     [updateUrl]
   );
@@ -187,7 +216,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+            activeItem={
+              currentTab === "inventario"
+                ? `inventario-${currentInventorySubView}`
+                : currentTab === "analytics"
+                ? "inicio"
+                : currentTab
+            }
             onSelectItem={handleSelectTab}
             onSelectCategory={handleSelectCategory}
             onClose={handleToggleLeft}
@@ -220,7 +255,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-emerald-300/80 bg-white/10 px-2.5 py-1 rounded-full border border-white/10">
-                  {selectedCategory === "Todas" ? "Catálogo" : selectedCategory}
+                  {currentInventorySubView === "tablas"
+                    ? "Tablas"
+                    : currentInventorySubView === "historial"
+                    ? "Historial"
+                    : selectedCategory === "Todas"
+                    ? "Catálogo"
+                    : selectedCategory}
                 </span>
               </div>
             </div>
@@ -236,6 +277,10 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               onAlertsCountChange={setGlobalAlertsCount}
               isSidebarOpen={isDesktopLeftOpen}
               onToggleSidebar={handleToggleLeft}
+              activeSubView={currentInventorySubView}
+              onSubViewChange={(sub) => {
+                handleSelectTab(sub === "productos" ? "inventario-productos" : `inventario-${sub}`);
+              }}
             />
           </div>
         ) : (
@@ -338,7 +383,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         <SidebarLeft
           className="h-full w-full bg-[#06241d]"
           isMobile
-          activeItem={currentTab === "analytics" ? "inicio" : currentTab}
+          activeItem={
+            currentTab === "inventario"
+              ? `inventario-${currentInventorySubView}`
+              : currentTab === "analytics"
+              ? "inicio"
+              : currentTab
+          }
           onSelectItem={handleSelectTab}
           selectedCategory={selectedCategory}
           onSelectCategory={handleSelectCategory}

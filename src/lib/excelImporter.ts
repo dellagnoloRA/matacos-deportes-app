@@ -166,8 +166,29 @@ export function parseExcelStockToPayload(options: ParseExcelOptions): {
 
     const stockStore = Math.floor(cleanNumeric(row["Stock Salón"], 0));
     const stockWarehouse = Math.floor(cleanNumeric(row["Stock Depósito"], 0));
-    const minStoreStock = Math.floor(cleanNumeric(row["Mínimo Salón"], 1));
-    const minStock = Math.floor(cleanNumeric(row["Mínimo Proveedor"], 2));
+
+    const isZeroInitialStock = stockStore === 0 && stockWarehouse === 0;
+    const cat = cleanText(row["Categoría"]) || "";
+    const isAccessoryNoWarehouse = !cat.toLowerCase().includes("calzado") && stockWarehouse === 0;
+
+    const rawMinStore = row["Mínimo Salón"];
+    const rawMinStock = row["Mínimo Proveedor"];
+
+    const minStoreStock =
+      rawMinStore !== undefined && rawMinStore !== null && String(rawMinStore).trim() !== ""
+        ? Math.floor(cleanNumeric(rawMinStore, 0))
+        : isZeroInitialStock || isAccessoryNoWarehouse
+          ? 0
+          : 1;
+
+    const minStock =
+      rawMinStock !== undefined && rawMinStock !== null && String(rawMinStock).trim() !== ""
+        ? Math.floor(cleanNumeric(rawMinStock, 0))
+        : isZeroInitialStock
+          ? 0
+          : isAccessoryNoWarehouse
+            ? 1
+            : 2;
 
     const variant: BulkVariantItemInput = {
       size,

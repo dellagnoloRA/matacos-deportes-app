@@ -93,9 +93,10 @@ export interface DetailedProductItem {
   discipline: string;
   category: string;
   subcategory?: string;
+  modelCode?: string;
   sku: string;
   barcode: string;
-  costPrice: number;
+  costPrice: number | null;
   price: number;
   stockLocal: number; // Suma store
   stockWeb: number; // Suma web/warehouse

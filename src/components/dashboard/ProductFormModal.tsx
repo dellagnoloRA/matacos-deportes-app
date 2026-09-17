@@ -36,7 +36,7 @@ import {
   createBrand,
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
-import { slugify } from "@/lib/textUtils";
+import { slugify, generateDeterministicSku, generateModelCode } from "@/lib/textUtils";
 import { generateEan13FromSequence, GS1_INTERNAL_PREFIX } from "@/lib/barcodeGenerator";
 import { generateInternalBarcodes } from "@/server/actions/barcodeActions";
 
@@ -205,8 +205,8 @@ export function ProductFormModal({
         setErrorMessage("Por favor selecciona archivos de imagen válidos (PNG, JPG, WEBP, etc.)");
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage("Cada imagen no debe superar los 5 MB de tamaño");
+      if (file.size > 12 * 1024 * 1024) {
+        setErrorMessage("Cada imagen no debe superar los 12 MB de tamaño");
         continue;
       }
       validFiles.push(file);
@@ -314,7 +314,11 @@ export function ProductFormModal({
     if (productToEdit && isOpen) {
       setName(productToEdit.name);
       setDescription(productToEdit.description || "");
-      setCostPrice(productToEdit.costPrice);
+      setCostPrice(
+        productToEdit.costPrice !== null && productToEdit.costPrice !== undefined
+          ? productToEdit.costPrice
+          : ""
+      );
       setPrice(productToEdit.price);
       setImageUrl(productToEdit.imageUrl || null);
 
@@ -423,6 +427,16 @@ export function ProductFormModal({
   const selectedDisciplineName = disciplines.find((d) => d.id === disciplineId)?.name || "";
   const selectedBrandName = brands.find((b) => b.id === brandId)?.name || "";
 
+  const previewModelCode = useMemo(() => {
+    if (!name.trim()) return "";
+    return generateModelCode({
+      brand: selectedBrandName || "MAT",
+      category: selectedCategoryName || "GEN",
+      discipline: selectedDisciplineName,
+      productName: name,
+    });
+  }, [name, selectedBrandName, selectedCategoryName, selectedDisciplineName]);
+
   const isCrocsOrFootwear = useMemo(() => {
     const b = selectedBrandName.toLowerCase();
     const d = selectedDisciplineName.toLowerCase();
@@ -456,11 +470,12 @@ export function ProductFormModal({
   }, [isCrocsOrFootwear]);
 
   // Calcular margen en tiempo real
-  const costNum = typeof costPrice === "number" ? costPrice : 0;
-  const priceNum = typeof price === "number" ? price : 0;
-  const profitMargin = priceNum - costNum;
+  const costNum = typeof costPrice === "number" && !isNaN(costPrice) ? costPrice : null;
+  const priceNum = typeof price === "number" && !isNaN(price) ? price : 0;
+  const hasCost = costNum !== null && costNum > 0;
+  const profitMargin = hasCost ? priceNum - costNum : 0;
   const marginPercentage =
-    costNum > 0 ? ((profitMargin / costNum) * 100).toFixed(1) : "0.0";
+    hasCost && costNum ? ((profitMargin / costNum) * 100).toFixed(1) : "0.0";
 
   // Manejar variantes
   const handleAddVariant = () => {
@@ -735,7 +750,7 @@ export function ProductFormModal({
     if (!brandId) {
       errors.brandId = true;
     }
-    if (costNum <= 0) {
+    if (typeof costPrice === "number" && !isNaN(costPrice) && costPrice < 0) {
       errors.costPrice = true;
     }
     if (priceNum <= 0) {
@@ -759,7 +774,7 @@ export function ProductFormModal({
       } else if (errors.brandId) {
         setErrorMessage("Por favor, selecciona una marca para el producto.");
       } else if (errors.costPrice) {
-        setErrorMessage("El precio de costo debe ser mayor a $ 0,00.");
+        setErrorMessage("El precio de costo no puede ser negativo.");
       } else if (errors.price) {
         setErrorMessage("El precio de venta debe ser mayor a $ 0,00.");
       } else {
@@ -773,27 +788,29 @@ export function ProductFormModal({
       return;
     }
 
-    if (priceNum < costNum) {
+    if (hasCost && costNum !== null && priceNum < costNum) {
       setFieldErrors({ price: true });
       setErrorMessage("El precio de venta base no debería ser inferior al precio de costo.");
       return;
     }
 
     // Validación preventiva: advertir si alguna variante tiene un precio diferencial menor al costo
-    const variantBelowCost = variants.find(
-      (v) =>
-        v.price !== "" &&
-        v.price !== undefined &&
-        Number(v.price) > 0 &&
-        Number(v.price) < costNum
-    );
-    if (variantBelowCost) {
-      setErrorMessage(
-        `El precio diferencial del talle "${variantBelowCost.size || "seleccionado"}" (${formatCurrency(
-          Number(variantBelowCost.price)
-        )}) no debería ser inferior al precio de costo (${formatCurrency(costNum)}).`
+    if (hasCost && costNum !== null) {
+      const variantBelowCost = variants.find(
+        (v) =>
+          v.price !== "" &&
+          v.price !== undefined &&
+          Number(v.price) > 0 &&
+          Number(v.price) < costNum
       );
-      return;
+      if (variantBelowCost) {
+        setErrorMessage(
+          `El precio diferencial del talle "${variantBelowCost.size || "seleccionado"}" (${formatCurrency(
+            Number(variantBelowCost.price)
+          )}) no debería ser inferior al precio de costo (${formatCurrency(costNum)}).`
+        );
+        return;
+      }
     }
 
     // Validación estricta para Calzado y Crocs: no permitir 'Talle Único' ni solo letras (ej. S, M, L)
@@ -841,6 +858,15 @@ export function ProductFormModal({
         if (item.file) {
           const uploadData = new FormData();
           uploadData.append("file", item.file);
+          if (selectedBrandName) {
+            uploadData.append("brand", selectedBrandName);
+          }
+          uploadData.append("productName", name || "producto");
+          if (item.color && item.color !== "General") {
+            uploadData.append("color", item.color);
+          }
+          uploadData.append("order", String(idx + 1));
+          uploadData.append("isPrimary", String(item.isPrimary));
 
           const uploadRes = await fetch("/api/upload", {
             method: "POST",
@@ -875,15 +901,19 @@ export function ProductFormModal({
         null;
 
       // 2. Formatear variantes (conservando ID si existía)
-      const nameClean = slugify(name).replace(/-/g, "").slice(0, 3).toUpperCase() || "MAT";
-      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-
       const formattedVariants = variants.map((v, i) => {
-        const sizeClean = slugify(v.size).replace(/-/g, "").toUpperCase() || "UNI";
         const autoSku =
           v.sku && v.sku.trim() !== ""
-            ? v.sku.trim()
-            : `MAT-${nameClean}-${sizeClean}-${randomSuffix}${i > 0 ? `-${i + 1}` : ""}`;
+            ? v.sku.trim().toUpperCase()
+            : generateDeterministicSku({
+                brand: selectedBrandName || "MAT",
+                category: selectedCategoryName || "GEN",
+                discipline: selectedDisciplineName,
+                productName: name,
+                size: v.size,
+                color: v.color,
+                suffixIndex: i > 0 ? i + 1 : undefined,
+              });
 
         return {
           id: v.id,
@@ -905,12 +935,22 @@ export function ProductFormModal({
         };
       });
 
+      const canonicalModelCode =
+        previewModelCode ||
+        generateModelCode({
+          brand: selectedBrandName || "MAT",
+          category: selectedCategoryName || "GEN",
+          discipline: selectedDisciplineName,
+          productName: name,
+        });
+
       if (isEditing && productToEdit) {
         // Modo Actualización con Variantes e Imágenes por Color
         const res = await updateProduct({
           id: productToEdit.id,
           name: name.trim(),
           description: description.trim() || null,
+          modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
@@ -932,6 +972,7 @@ export function ProductFormModal({
         const res = await createProduct({
           name: name.trim(),
           description: description.trim() || null,
+          modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
@@ -1150,7 +1191,7 @@ export function ProductFormModal({
                   <span className="text-xs text-slate-500"> o arrastra archivos aquí</span>
                 </div>
                 <p className="text-[10px] text-slate-400">
-                  Selección múltiple permitida • PNG, JPG, WEBP o SVG (máx. 5 MB c/u)
+                  Selección múltiple permitida • PNG, JPG, WEBP, AVIF (conversión automática a WebP optimizado, máx. 12 MB)
                 </p>
               </div>
 
@@ -1158,7 +1199,7 @@ export function ProductFormModal({
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,image/avif,image/heic,image/heif"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -1185,6 +1226,19 @@ export function ProductFormModal({
                     : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                 }`}
               />
+              {previewModelCode && (
+                <div className="flex items-center justify-between text-xs text-slate-500 mt-1.5 px-0.5 animate-in fade-in">
+                  <span className="flex items-center gap-1.5">
+                    Código de Modelo:{" "}
+                    <strong className="font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                      {previewModelCode}
+                    </strong>
+                  </span>
+                  <span className="text-[10.5px] text-slate-400 hidden sm:inline">
+                    Raíz común de la familia
+                  </span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1547,7 +1601,7 @@ export function ProductFormModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div>
                 <label className="block text-slate-700 font-semibold mb-1.5">
-                  Precio de Costo (ARS) <span className="text-rose-500">*</span>
+                  Precio de Costo (ARS) <span className="text-slate-400 font-normal text-xs">(Opcional)</span>
                 </label>
                 <input
                   type="number"
@@ -1557,11 +1611,11 @@ export function ProductFormModal({
                   onChange={(e) => {
                     const val = e.target.value === "" ? "" : Number(e.target.value);
                     setCostPrice(val);
-                    if (typeof val === "number" && val > 0) {
+                    if (typeof val === "number" && val >= 0) {
                       fulfillFieldError("costPrice", "costo");
                     }
                   }}
-                  placeholder="$ 0,00"
+                  placeholder="Sin costo (Opcional)"
                   className={`w-full px-3.5 py-2.5 rounded-xl border font-bold transition-all ${
                     fieldErrors.costPrice
                       ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-slate-900"
@@ -1596,14 +1650,25 @@ export function ProductFormModal({
               </div>
 
               {/* Indicador de Margen Calculado */}
-              <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex flex-col justify-center">
-                <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
-                  Margen Estimado: +{marginPercentage}%
-                </span>
-                <span className="text-xs font-bold text-emerald-950 mt-0.5">
-                  Utilidad: {formatCurrency(Math.max(0, profitMargin))}
-                </span>
-              </div>
+              {hasCost ? (
+                <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex flex-col justify-center">
+                  <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
+                    Margen Estimado: +{marginPercentage}%
+                  </span>
+                  <span className="text-xs font-bold text-emerald-950 mt-0.5">
+                    Utilidad: {formatCurrency(Math.max(0, profitMargin))}
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Margen Estimado
+                  </span>
+                  <span className="text-xs font-medium text-slate-400 mt-0.5">
+                    Sin costo asignado (Opcional)
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
