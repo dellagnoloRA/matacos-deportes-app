@@ -36,7 +36,7 @@ import {
   createBrand,
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
-import { slugify, generateDeterministicSku } from "@/lib/textUtils";
+import { slugify, generateDeterministicSku, generateModelCode } from "@/lib/textUtils";
 import { generateEan13FromSequence, GS1_INTERNAL_PREFIX } from "@/lib/barcodeGenerator";
 import { generateInternalBarcodes } from "@/server/actions/barcodeActions";
 
@@ -426,6 +426,16 @@ export function ProductFormModal({
   const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name || "";
   const selectedDisciplineName = disciplines.find((d) => d.id === disciplineId)?.name || "";
   const selectedBrandName = brands.find((b) => b.id === brandId)?.name || "";
+
+  const previewModelCode = useMemo(() => {
+    if (!name.trim()) return "";
+    return generateModelCode({
+      brand: selectedBrandName || "MAT",
+      category: selectedCategoryName || "GEN",
+      discipline: selectedDisciplineName,
+      productName: name,
+    });
+  }, [name, selectedBrandName, selectedCategoryName, selectedDisciplineName]);
 
   const isCrocsOrFootwear = useMemo(() => {
     const b = selectedBrandName.toLowerCase();
@@ -925,12 +935,22 @@ export function ProductFormModal({
         };
       });
 
+      const canonicalModelCode =
+        previewModelCode ||
+        generateModelCode({
+          brand: selectedBrandName || "MAT",
+          category: selectedCategoryName || "GEN",
+          discipline: selectedDisciplineName,
+          productName: name,
+        });
+
       if (isEditing && productToEdit) {
         // Modo Actualización con Variantes e Imágenes por Color
         const res = await updateProduct({
           id: productToEdit.id,
           name: name.trim(),
           description: description.trim() || null,
+          modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
@@ -952,6 +972,7 @@ export function ProductFormModal({
         const res = await createProduct({
           name: name.trim(),
           description: description.trim() || null,
+          modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
@@ -1205,6 +1226,19 @@ export function ProductFormModal({
                     : "bg-slate-50 text-slate-900 border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                 }`}
               />
+              {previewModelCode && (
+                <div className="flex items-center justify-between text-xs text-slate-500 mt-1.5 px-0.5 animate-in fade-in">
+                  <span className="flex items-center gap-1.5">
+                    Código de Modelo:{" "}
+                    <strong className="font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                      {previewModelCode}
+                    </strong>
+                  </span>
+                  <span className="text-[10.5px] text-slate-400 hidden sm:inline">
+                    Raíz común de la familia
+                  </span>
+                </div>
+              )}
             </div>
 
             <div>

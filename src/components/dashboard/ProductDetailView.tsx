@@ -501,8 +501,8 @@ export function ProductDetailView({
               <h1 className="text-base sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900 leading-tight truncate">
                 {product.name}
               </h1>
-              <span className="font-mono text-[11px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0">
-                {product.barcode || product.sku}
+              <span className="font-mono text-[11px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0" title="Código de Modelo">
+                Modelo: {product.modelCode || product.sku}
               </span>
               {product.active === false && (
                 <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-300 whitespace-nowrap shrink-0">
@@ -793,10 +793,10 @@ export function ProductDetailView({
                 {/* Quick Identification footer in Image Card */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/50">
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
-                    Código de Producto
+                    Código de Modelo
                   </div>
                   <div className="font-mono text-sm font-bold text-slate-800 mt-0.5">
-                    {product.barcode || product.sku}
+                    {product.modelCode || product.sku}
                   </div>
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mt-2.5">
                     Nombre Oficial
@@ -957,16 +957,25 @@ export function ProductDetailView({
                               </div>
                             </td>
 
-                            {/* Talle */}
-                            <td className="py-3 px-3 font-bold text-slate-800">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">
+                            {/* Talle y SKU */}
+                            <td className="py-3 px-3">
+                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 inline-block">
                                 {v.size}
                               </span>
+                              {v.sku && (
+                                <span className="block text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la variante">
+                                  {v.sku}
+                                </span>
+                              )}
                             </td>
 
                             {/* Código de Barra */}
-                            <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                              {v.barcode || `${product.barcode}-${v.size}`}
+                            <td className="py-3 px-3 font-mono text-[11px]">
+                              {v.barcode ? (
+                                <span className="text-slate-700 font-medium">{v.barcode}</span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
+                              )}
                             </td>
 
                             {/* Precio Venta */}
@@ -1273,8 +1282,8 @@ export function ProductDetailView({
                 <span className="font-semibold text-slate-800 mt-0.5 block">{product.category} &gt; {product.subcategory || "General"}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-medium">Código SKU / Barcode Base</span>
-                <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.sku} / {product.barcode}</span>
+                <span className="text-slate-400 block font-medium">Código de Modelo (Familia)</span>
+                <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.modelCode || product.sku}</span>
               </div>
             </div>
           </div>
@@ -1309,9 +1318,18 @@ export function ProductDetailView({
                         Talle {v.size}
                       </span>
                       <span className="font-semibold text-slate-700">{v.color}</span>
-                      {v.barcode && (
-                        <span className="font-mono text-slate-400 text-[11px] bg-slate-100 px-2 py-0.5 rounded">
+                      {v.barcode ? (
+                        <span className="font-mono text-slate-700 text-[11px] bg-slate-100 px-2 py-0.5 rounded font-medium">
                           {v.barcode}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-slate-400 italic text-[10.5px] bg-slate-100 px-2 py-0.5 rounded">
+                          Sin código
+                        </span>
+                      )}
+                      {v.sku && (
+                        <span className="font-mono text-slate-500 text-[10.5px] bg-white border border-slate-200 px-2 py-0.5 rounded" title="SKU de la variante">
+                          SKU: {v.sku}
                         </span>
                       )}
                     </div>

@@ -93,6 +93,7 @@ export interface DetailedProductItem {
   discipline: string;
   category: string;
   subcategory?: string;
+  modelCode?: string;
   sku: string;
   barcode: string;
   costPrice: number | null;

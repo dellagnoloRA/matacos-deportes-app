@@ -217,6 +217,28 @@ export function extractModelCode(productName: string, brand?: string | null): st
   return acronym.slice(0, 4) || sanitizeSkuCode(words[0], 3);
 }
 
+export interface GenerateModelCodeParams {
+  brand: string;
+  discipline?: string | null;
+  category?: string | null;
+  productName: string;
+}
+
+/**
+ * Genera el Código de Modelo canónico para el Producto Padre (agrupador de familia).
+ * Formato oficial: [MARCA-3]-[CAT/DISC-3]-[MODELO]
+ * Ejemplos:
+ *  - "CRO-CAL-CB" (Crocs Calzado Crocband)
+ *  - "WIL-MOC-1C" (Wilson Mochila 1 Compartimiento)
+ *  - "SPE-NAT-ANT" (Speedo Natación Antiparras)
+ */
+export function generateModelCode(params: GenerateModelCodeParams): string {
+  const b = sanitizeSkuCode(params.brand, 3);
+  const c = sanitizeSkuCode(params.category || params.discipline, 3);
+  const m = extractModelCode(params.productName, params.brand);
+  return `${b}-${c}-${m}`;
+}
+
 export interface GenerateDeterministicSkuParams {
   brand: string;
   discipline?: string | null;
@@ -237,14 +259,16 @@ export interface GenerateDeterministicSkuParams {
  *  - "CRO-CAL-LR-360-M11-NEG"
  */
 export function generateDeterministicSku(params: GenerateDeterministicSkuParams): string {
-  const b = sanitizeSkuCode(params.brand, 3);
-  // Prioriza Categoría (ej: CAL, MOC, RIÑ) igual que en el Excel oficial; si no viene, usa Disciplina
-  const c = sanitizeSkuCode(params.category || params.discipline, 3);
-  const m = extractModelCode(params.productName, params.brand);
+  const modelCode = generateModelCode({
+    brand: params.brand,
+    category: params.category,
+    discipline: params.discipline,
+    productName: params.productName,
+  });
   const s = formatSkuSize(params.size);
   const col = formatSkuColor(params.color);
 
-  let sku = `${b}-${c}-${m}-${s}-${col}`;
+  let sku = `${modelCode}-${s}-${col}`;
 
   if (params.suffixIndex && params.suffixIndex > 1) {
     sku += `-${params.suffixIndex}`;

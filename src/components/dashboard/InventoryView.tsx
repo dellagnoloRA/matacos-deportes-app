@@ -2256,9 +2256,9 @@ export function InventoryView({
                   })()}
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">Código / SKU</span>
-                  <span className="font-mono text-[11px] text-slate-700 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/70">
-                    {item.barcode || item.sku}
+                  <span className="text-[10px] text-slate-400 block">Modelo</span>
+                  <span className="font-mono text-[11px] text-slate-700 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/70" title="Código de Modelo">
+                    {item.modelCode || item.sku}
                   </span>
                 </div>
               </div>
@@ -2583,9 +2583,11 @@ export function InventoryView({
                           }
                           return (
                             <div className="flex flex-col">
-                              <span className="font-mono font-medium text-slate-700 text-[11px]">
-                                {item.barcode || item.sku}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-800 text-[11px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80 w-fit" title="Código de Modelo">
+                                  {item.modelCode || item.sku}
+                                </span>
+                              </div>
                               {item.variants && item.variants.length > 0 && (
                                 <button
                                   type="button"
@@ -2687,13 +2689,26 @@ export function InventoryView({
                                     return (
                                       <tr key={v.id || vIdx} className="hover:bg-slate-50/70 transition-colors">
                                         <td className="py-2 px-3 font-semibold text-slate-800">
-                                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5">
-                                            {v.size}
-                                          </span>
-                                          <span className="text-slate-500 text-[11px]">{v.color}</span>
+                                          <div className="flex flex-col">
+                                            <div className="flex items-center">
+                                              <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5 font-bold text-slate-900">
+                                                {v.size}
+                                              </span>
+                                              <span className="text-slate-600 text-[11px]">{v.color}</span>
+                                            </div>
+                                            {v.sku && (
+                                              <span className="text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la Variante">
+                                                SKU: {v.sku}
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
-                                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
-                                          {v.barcode || `${item.barcode || item.sku}-${v.size}`}
+                                        <td className="py-2 px-3 font-mono text-[11px]">
+                                          {v.barcode ? (
+                                            <span className="text-slate-800 font-semibold">{v.barcode}</span>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
+                                          )}
                                         </td>
                                         <td className="py-2 px-3 text-center">
                                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${

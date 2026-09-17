@@ -7,7 +7,7 @@ import {
   BulkImportResult,
   BulkImportError,
 } from "@/schemas/bulkImport";
-import { slugify, toCanonicalTitle, generateDeterministicSku } from "@/lib/textUtils";
+import { slugify, toCanonicalTitle, generateDeterministicSku, generateModelCode } from "@/lib/textUtils";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -106,12 +106,20 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
         let targetProductId: string;
         let isNewProduct = false;
 
+        const canonicalModelCode = generateModelCode({
+          brand: brand.name,
+          category: category.name,
+          discipline: discipline.name,
+          productName: item.name,
+        });
+
         if (!existingProduct) {
           // Crear Producto padre
           const newProduct = await tx.product.create({
             data: {
               name: toCanonicalTitle(item.name),
               description: item.description?.trim() || null,
+              modelCode: canonicalModelCode,
               disciplineId: discipline.id,
               categoryId: category.id,
               brandId: brand.id,
@@ -132,6 +140,7 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
               data: {
                 disciplineId: discipline.id,
                 categoryId: category.id,
+                modelCode: existingProduct.modelCode || canonicalModelCode,
                 costPrice: item.costPrice !== null && item.costPrice !== undefined ? new Prisma.Decimal(item.costPrice) : null,
                 price: new Prisma.Decimal(item.price),
                 description: item.description?.trim() !== undefined ? item.description?.trim() : existingProduct.description,
