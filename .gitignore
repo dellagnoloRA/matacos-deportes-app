@@ -49,3 +49,7 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Documentos temporales de Pull Request
+*PULL_REQUEST*.md
+
