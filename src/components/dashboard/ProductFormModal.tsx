@@ -205,8 +205,8 @@ export function ProductFormModal({
         setErrorMessage("Por favor selecciona archivos de imagen válidos (PNG, JPG, WEBP, etc.)");
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage("Cada imagen no debe superar los 5 MB de tamaño");
+      if (file.size > 12 * 1024 * 1024) {
+        setErrorMessage("Cada imagen no debe superar los 12 MB de tamaño");
         continue;
       }
       validFiles.push(file);
@@ -848,6 +848,15 @@ export function ProductFormModal({
         if (item.file) {
           const uploadData = new FormData();
           uploadData.append("file", item.file);
+          if (selectedBrandName) {
+            uploadData.append("brand", selectedBrandName);
+          }
+          uploadData.append("productName", name || "producto");
+          if (item.color && item.color !== "General") {
+            uploadData.append("color", item.color);
+          }
+          uploadData.append("order", String(idx + 1));
+          uploadData.append("isPrimary", String(item.isPrimary));
 
           const uploadRes = await fetch("/api/upload", {
             method: "POST",
@@ -1161,7 +1170,7 @@ export function ProductFormModal({
                   <span className="text-xs text-slate-500"> o arrastra archivos aquí</span>
                 </div>
                 <p className="text-[10px] text-slate-400">
-                  Selección múltiple permitida • PNG, JPG, WEBP o SVG (máx. 5 MB c/u)
+                  Selección múltiple permitida • PNG, JPG, WEBP, AVIF (conversión automática a WebP optimizado, máx. 12 MB)
                 </p>
               </div>
 
@@ -1169,7 +1178,7 @@ export function ProductFormModal({
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,image/avif,image/heic,image/heif"
                 onChange={handleFileChange}
                 className="hidden"
               />

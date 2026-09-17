@@ -252,3 +252,45 @@ export function generateDeterministicSku(params: GenerateDeterministicSkuParams)
 
   return sku;
 }
+
+export interface GenerateProductImageFilenameParams {
+  brand?: string | null;
+  productName?: string | null;
+  color?: string | null;
+  order?: number | string;
+  isPrimary?: boolean;
+}
+
+/**
+ * Genera un nombre de archivo normalizado y estandarizado para imágenes de productos (WebP).
+ * Formato canónico: [slug-marca-producto]-[color]-[rol]-[hash5].webp
+ * Ejemplos:
+ *  - "crocs-crocband-negro-portada-3a8f1.webp"
+ *  - "crocs-crocband-marino-rojo-foto-2-9c4d2.webp"
+ *  - "wilson-pelota-voley-portada-e1b7x.webp"
+ */
+export function generateProductImageFilename(params: GenerateProductImageFilenameParams): string {
+  const brandSlug = params.brand ? slugify(params.brand) : "";
+  const productSlug = params.productName ? slugify(params.productName) : "producto";
+
+  // Si el slug del producto ya incluye la marca, no duplicarla (ej. "crocs-crocband" vs "crocs")
+  let combinedSlug = productSlug;
+  if (brandSlug && !productSlug.startsWith(brandSlug)) {
+    combinedSlug = `${brandSlug}-${productSlug}`;
+  }
+
+  // Sanitizar color (si es null, vacío o "general", no agrega segmento de color redundante)
+  const colorSlug =
+    params.color && slugify(params.color) !== "general" ? slugify(params.color) : "";
+
+  // Rol de la imagen en el carrusel
+  const orderNum = Number(params.order) || 1;
+  const roleSlug = params.isPrimary ? "portada" : `foto-${orderNum}`;
+
+  // Hash aleatorio corto (5 caracteres alfanuméricos) para evitar colisiones y asegurar refresco de caché
+  const uniqueHash = Math.random().toString(36).substring(2, 7);
+
+  const parts = [combinedSlug, colorSlug, roleSlug, uniqueHash].filter(Boolean);
+  return `${parts.join("-")}.webp`;
+}
+
