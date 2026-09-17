@@ -62,7 +62,7 @@ model Product {
   imageUrl     String?
   disciplineId String
   discipline   Discipline       @relation(fields: [disciplineId], references: [id])
-  costPrice    Decimal          @db.Decimal(12, 2)
+  costPrice    Decimal?         @db.Decimal(12, 2)
   price        Decimal          @db.Decimal(12, 2)
   active       Boolean          @default(true)
   categoryId   String

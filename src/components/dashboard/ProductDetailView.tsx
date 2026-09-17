@@ -444,8 +444,9 @@ export function ProductDetailView({
   const stockInTransfer = product.stockTransfer || 0;
 
   // Margin calculation
-  const profitMargin = product.price - product.costPrice;
-  const marginPercentage = product.costPrice > 0 ? ((profitMargin / product.costPrice) * 100).toFixed(1) : "0";
+  const hasCostPrice = product.costPrice !== null && product.costPrice !== undefined && product.costPrice > 0;
+  const profitMargin = hasCostPrice ? product.price - (product.costPrice ?? 0) : 0;
+  const marginPercentage = hasCostPrice && product.costPrice ? ((profitMargin / product.costPrice) * 100).toFixed(1) : "0";
 
   // Determinar si el producto pertenece a la categoría de calzado / zapatillas
   const isFootwear = useMemo(() => {
@@ -1114,7 +1115,11 @@ export function ProductDetailView({
                     <div>
                       <span className="text-[10.5px] text-slate-500 font-medium">Costo de Compra</span>
                       <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                        {formatCurrency(product.costPrice)}
+                        {hasCostPrice && product.costPrice ? (
+                          formatCurrency(product.costPrice)
+                        ) : (
+                          <span className="text-slate-400 italic">Sin registrar</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -1157,9 +1162,13 @@ export function ProductDetailView({
                       </span>
                       <span className="text-[10px] text-emerald-600">Rentabilidad comercial</span>
                     </div>
-                    <span className="font-bold text-emerald-900 text-sm">
-                      +{marginPercentage}% ({formatCurrency(profitMargin)})
-                    </span>
+                    {hasCostPrice ? (
+                      <span className="font-bold text-emerald-900 text-sm">
+                        +{marginPercentage}% ({formatCurrency(profitMargin)})
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs italic">Sin costo asignado</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1705,13 +1714,23 @@ export function ProductDetailView({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-xs text-slate-400 font-medium">Costo de Adquisición</span>
-                <div className="text-lg font-bold text-slate-900 mt-1">{formatCurrency(product.costPrice)}</div>
+                <div className="text-lg font-bold text-slate-900 mt-1">
+                  {hasCostPrice && product.costPrice ? (
+                    formatCurrency(product.costPrice)
+                  ) : (
+                    <span className="text-slate-400 text-sm italic font-normal">Sin registrar</span>
+                  )}
+                </div>
                 <span className="text-[10px] text-slate-500">Precio neto mayorista proveedor</span>
               </div>
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
                 <span className="text-xs text-emerald-700 font-medium">Margen Bruto de Ganancia</span>
-                <div className="text-lg font-bold text-emerald-800 mt-1">+{marginPercentage}%</div>
-                <span className="text-[10px] text-emerald-600 font-medium">Utilidad: {formatCurrency(profitMargin)}</span>
+                <div className="text-lg font-bold text-emerald-800 mt-1">
+                  {hasCostPrice ? `+${marginPercentage}%` : "N/A"}
+                </div>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  {hasCostPrice ? `Utilidad: ${formatCurrency(profitMargin)}` : "Sin costo asignado"}
+                </span>
               </div>
               <div className="p-4 rounded-xl bg-slate-900 text-white">
                 <span className="text-xs text-slate-400 font-medium">Precio Venta Público</span>
@@ -1745,9 +1764,9 @@ export function ProductDetailView({
                     <tbody className="divide-y divide-slate-100">
                       {sortedVariants.map((v, i) => {
                         const effPrice = v.price ?? product.price;
-                        const vMargin = effPrice - product.costPrice;
+                        const vMargin = hasCostPrice && product.costPrice ? effPrice - product.costPrice : 0;
                         const vMarginPct =
-                          product.costPrice > 0
+                          hasCostPrice && product.costPrice
                             ? ((vMargin / product.costPrice) * 100).toFixed(1)
                             : "0.0";
                         const isDiff = Boolean(v.price && v.price !== product.price);
@@ -1760,7 +1779,11 @@ export function ProductDetailView({
                               {formatCurrency(effPrice)}
                             </td>
                             <td className="p-3 text-emerald-700 font-semibold">
-                              +{vMarginPct}% ({formatCurrency(vMargin)})
+                              {hasCostPrice ? (
+                                `+${vMarginPct}% (${formatCurrency(vMargin)})`
+                              ) : (
+                                <span className="text-slate-400 font-normal italic">N/A</span>
+                              )}
                             </td>
                             <td className="p-3">
                               {isDiff ? (

@@ -115,7 +115,7 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
               disciplineId: discipline.id,
               categoryId: category.id,
               brandId: brand.id,
-              costPrice: new Prisma.Decimal(item.costPrice),
+              costPrice: item.costPrice !== null && item.costPrice !== undefined ? new Prisma.Decimal(item.costPrice) : null,
               price: new Prisma.Decimal(item.price),
               active: true,
             },
@@ -132,7 +132,7 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
               data: {
                 disciplineId: discipline.id,
                 categoryId: category.id,
-                costPrice: new Prisma.Decimal(item.costPrice),
+                costPrice: item.costPrice !== null && item.costPrice !== undefined ? new Prisma.Decimal(item.costPrice) : null,
                 price: new Prisma.Decimal(item.price),
                 description: item.description?.trim() !== undefined ? item.description?.trim() : existingProduct.description,
               },

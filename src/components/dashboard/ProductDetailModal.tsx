@@ -93,7 +93,11 @@ export function ProductDetailModal({
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-[11px] text-slate-400 font-medium">Costo de Compra</span>
               <div className="text-base font-semibold text-slate-700 mt-0.5">
-                {formatCurrency(product.costPrice)}
+                {product.costPrice !== null && product.costPrice !== undefined && product.costPrice > 0 ? (
+                  formatCurrency(product.costPrice)
+                ) : (
+                  <span className="text-slate-400 text-xs italic font-normal">Sin registrar</span>
+                )}
               </div>
             </div>
 

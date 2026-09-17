@@ -97,7 +97,7 @@ export async function previewBatchPriceUpdate(
 
     for (const prod of products) {
       const currentPrice = Number(prod.price);
-      const currentCost = Number(prod.costPrice);
+      const currentCost = prod.costPrice !== null && prod.costPrice !== undefined ? Number(prod.costPrice) : 0;
 
       let calculatedPrice = currentPrice;
       let calculatedCost = currentCost;
@@ -106,7 +106,7 @@ export async function previewBatchPriceUpdate(
         calculatedPrice = calculateNewPrice(currentPrice, validated.percentage, validated.roundingPolicy).finalPrice;
       }
 
-      if (validated.targetField === "COST_PRICE" || validated.targetField === "BOTH") {
+      if ((validated.targetField === "COST_PRICE" || validated.targetField === "BOTH") && prod.costPrice !== null && prod.costPrice !== undefined) {
         calculatedCost = calculateNewPrice(currentCost, validated.percentage, validated.roundingPolicy).finalPrice;
       }
 
@@ -236,7 +236,7 @@ export async function updatePricesByPercentage(
 
       for (const prod of products) {
         const oldPrice = Number(prod.price);
-        const oldCost = Number(prod.costPrice);
+        const oldCost = prod.costPrice !== null && prod.costPrice !== undefined ? Number(prod.costPrice) : 0;
 
         let newPrice = oldPrice;
         let newCost = oldCost;
@@ -248,7 +248,7 @@ export async function updatePricesByPercentage(
           updateData.price = new Prisma.Decimal(newPrice);
         }
 
-        if (validated.targetField === "COST_PRICE" || validated.targetField === "BOTH") {
+        if ((validated.targetField === "COST_PRICE" || validated.targetField === "BOTH") && prod.costPrice !== null && prod.costPrice !== undefined) {
           newCost = calculateNewPrice(oldCost, validated.percentage, validated.roundingPolicy).finalPrice;
           updateData.costPrice = new Prisma.Decimal(newCost);
         }

@@ -183,7 +183,7 @@ export async function createProduct(input: CreateProductInput) {
           description: validated.description ?? null,
           imageUrl: primaryImage,
           disciplineId: validated.disciplineId,
-          costPrice: new Prisma.Decimal(validated.costPrice),
+          costPrice: validated.costPrice !== null && validated.costPrice !== undefined ? new Prisma.Decimal(validated.costPrice) : null,
           price: new Prisma.Decimal(validated.price),
           categoryId: validated.categoryId,
           brandId: validated.brandId,
@@ -281,7 +281,11 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.description !== undefined ? { description: validated.description } : {}),
           imageUrl: primaryImage,
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
-          ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
+          ...(validated.costPrice !== undefined
+            ? {
+                costPrice: validated.costPrice !== null ? new Prisma.Decimal(validated.costPrice) : null,
+              }
+            : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
           ...(validated.categoryId ? { categoryId: validated.categoryId } : {}),
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
@@ -543,7 +547,7 @@ export async function getDetailedInventoryProducts(options?: {
         subcategory: p.category.name,
         sku: firstVariant?.sku || `SKU-${p.id.slice(0, 8)}`,
         barcode: firstVariant?.barcode || "",
-        costPrice: Number(p.costPrice),
+        costPrice: p.costPrice !== null && p.costPrice !== undefined ? Number(p.costPrice) : null,
         price: Number(p.price),
         stockLocal: stockStore,
         stockWeb: stockWarehouse,

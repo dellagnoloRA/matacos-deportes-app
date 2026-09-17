@@ -907,7 +907,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                               </div>
                             </td>
                             <td className="py-2.5 px-3 font-mono text-slate-500">
-                              {formatCurrency(item.costPrice)}
+                              {item.costPrice ? formatCurrency(item.costPrice) : "Sin costo"}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
                               {formatCurrency(item.price)}
