@@ -415,9 +415,9 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
     totalWarehouse = product.stockWeb ?? 0;
     const total = totalStore + totalWarehouse;
 
-    if (total === 0) outOfStockVariants = 1;
+    if (total === 0 && minStock > 0) outOfStockVariants = 1;
     else if (totalStore === 0 && totalWarehouse > 0) storeEmptyVariants = 1;
-    else if (total <= minStock) criticalLowVariants = 1;
+    else if (minStock > 0 && total <= minStock) criticalLowVariants = 1;
   } else {
     for (const v of variants) {
       const vStore = v.stockStore ?? 0;
@@ -430,10 +430,12 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
       totalWarehouse += vWarehouse;
 
       if (vTotal === 0) {
-        outOfStockVariants++;
+        if (vMinStock > 0) {
+          outOfStockVariants++;
+        }
       } else if (vStore === 0 && vWarehouse > 0) {
         storeEmptyVariants++;
-      } else if (vTotal <= vMinStock || (vStore <= vMinStore && vWarehouse > 0)) {
+      } else if ((vMinStock > 0 && vTotal <= vMinStock) || (vMinStore > 0 && vStore <= vMinStore && vWarehouse > 0)) {
         criticalLowVariants++;
       }
     }
@@ -444,11 +446,11 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
 
   let highestAlert: "OUT_OF_STOCK" | "STORE_EMPTY_WAREHOUSE_AVAIL" | "CRITICAL_LOW" | "NORMAL" = "NORMAL";
 
-  if (outOfStockVariants > 0 || totalStock === 0) {
+  if (outOfStockVariants > 0 || (totalStock === 0 && minStock > 0)) {
     highestAlert = "OUT_OF_STOCK";
   } else if (storeEmptyVariants > 0 || (totalStore === 0 && totalWarehouse > 0)) {
     highestAlert = "STORE_EMPTY_WAREHOUSE_AVAIL";
-  } else if (criticalLowVariants > 0 || totalStock <= minStock) {
+  } else if (criticalLowVariants > 0 || (minStock > 0 && totalStock <= minStock)) {
     highestAlert = "CRITICAL_LOW";
   }
 
@@ -668,10 +670,10 @@ export function getProductStockBadgeInfo(
     warehouseStock += vWarehouse;
 
     if (vTotal === 0) {
-      outOfStockVariants++;
+      if (vMin > 0) outOfStockVariants++;
     } else if (vStore === 0 && vWarehouse > 0) {
       storeEmptyVariants++;
-    } else if (vTotal <= vMin || (vStore <= vMinStore && vWarehouse > 0)) {
+    } else if ((vMin > 0 && vTotal <= vMin) || (vMinStore > 0 && vStore <= vMinStore && vWarehouse > 0)) {
       criticalVariants++;
     }
   }
@@ -679,8 +681,8 @@ export function getProductStockBadgeInfo(
   const totalStock = displayStock + warehouseStock;
   const atRiskVariantsCount = outOfStockVariants + storeEmptyVariants + criticalVariants;
 
-  // 1. Gris/Negro: Agotado (todo el stock en 0 o todas las variantes agotadas)
-  if (totalStock === 0 || outOfStockVariants === totalVariants) {
+  // 1. Gris/Negro: Agotado (todo el stock en 0 y con umbral activo, o todas las variantes activas agotadas)
+  if ((totalStock === 0 && (item.minStock ?? 2) > 0) || (outOfStockVariants === totalVariants && totalVariants > 0)) {
     return {
       level: "OUT_OF_STOCK",
       badgeClass: "bg-zinc-900 text-zinc-100 border-zinc-700 shadow-2xs",
