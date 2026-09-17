@@ -34,9 +34,10 @@ if %errorlevel% neq 0 (
 echo [2/3] Levantando base de datos PostgreSQL...
 call pnpm db:up >nul 2>&1
 
-:: 3. Lanzar apertura automatica del navegador en paralelo
+:: 3. Lanzar apertura automatica del navegador en modo aplicacion limpia
 echo [3/3] Iniciando servidor web y abriendo navegador...
-start "" cmd /c "timeout /t 4 /nobreak >nul & start http://localhost:3000"
+start "" cmd /c "timeout /t 4 /nobreak >nul & if exist \"%ProgramFiles%\Google\Chrome\Application\chrome.exe\" (start \"\" \"%ProgramFiles%\Google\Chrome\Application\chrome.exe\" --app=http://localhost:3000 --start-maximized) else if exist \"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe\" (start \"\" \"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe\" --app=http://localhost:3000 --start-maximized) else (start http://localhost:3000)"
+
 
 echo.
 echo =======================================================================

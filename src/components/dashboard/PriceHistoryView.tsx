@@ -15,11 +15,15 @@ import {
   RefreshCw,
   Clock,
   Layers,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
   PriceHistoryBatch,
   getPriceHistoryBatches,
+  deletePriceHistoryBatch,
+  clearPriceHistory,
 } from "@/lib/priceHistoryStorage";
 
 export interface PriceHistoryViewProps {
@@ -30,6 +34,8 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
   const [batches, setBatches] = useState<PriceHistoryBatch[]>([]);
   const [expandedBatchIds, setExpandedBatchIds] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [batchToDelete, setBatchToDelete] = useState<PriceHistoryBatch | null>(null);
+  const [isConfirmClearAllOpen, setIsConfirmClearAllOpen] = useState(false);
 
   // Filtros
   const [selectedBrand, setSelectedBrand] = useState<string>("TODAS");
@@ -45,11 +51,25 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
       // Por defecto, expandir el primer lote si existe para mostrar el detalle de inmediato
       if (data.length > 0) {
         setExpandedBatchIds(new Set([data[0].id]));
+      } else {
+        setExpandedBatchIds(new Set());
       }
     } finally {
       setTimeout(() => setIsRefreshing(false), 300);
     }
   }, []);
+
+  const handleDeleteBatch = (id: string) => {
+    deletePriceHistoryBatch(id);
+    setBatchToDelete(null);
+    loadData();
+  };
+
+  const handleClearAll = () => {
+    clearPriceHistory();
+    setIsConfirmClearAllOpen(false);
+    loadData();
+  };
 
   useEffect(() => {
     loadData();
@@ -195,6 +215,18 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {batches.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsConfirmClearAllOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors shadow-2xs cursor-pointer active:scale-95"
+              title="Vaciar todo el historial de cambios de precios"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Vaciar historial</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={loadData}
@@ -297,7 +329,21 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
 
       {/* 3. Lista de Lotes / Ajustes */}
       <div className="space-y-3.5">
-        {filteredBatches.length === 0 ? (
+        {batches.length === 0 ? (
+          <div className="py-16 px-6 text-center space-y-3 bg-white rounded-2xl border border-dashed border-slate-200 max-w-xl mx-auto shadow-2xs">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+              <History className="w-6 h-6 stroke-[1.8]" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm">
+                Sin historial de cambios de precios
+              </h4>
+              <p className="text-slate-400 text-xs mt-1 max-w-md mx-auto leading-relaxed">
+                Aún no se han ejecutado actualizaciones de precios en el catálogo. Cuando realices un ajuste porcentual masivo desde el inventario, cada lote y su detalle de auditoría aparecerán reflejados aquí automáticamente.
+              </p>
+            </div>
+          </div>
+        ) : filteredBatches.length === 0 ? (
           <div className="py-16 px-4 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 max-w-xl mx-auto">
             <div className="w-12 h-12 mx-auto rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-2xs">
               <Search className="w-6 h-6 stroke-[1.8]" />
@@ -373,11 +419,25 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
                       </span>
                     </div>
 
-                    {/* Fecha y Hora */}
-                    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{batch.formattedDate}</span>
-                    </span>
+                    {/* Fecha y Hora + Botón Eliminar Registro */}
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{batch.formattedDate}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBatchToDelete(batch);
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                        title="Eliminar este registro del historial"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Motivo de Auditoría */}
@@ -511,6 +571,103 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
           })
         )}
       </div>
+
+      {/* Modal de Confirmación: Eliminar Lote Específico */}
+      {batchToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  ¿Eliminar este registro de cambio de precio?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Esta acción eliminará de forma permanente este lote del historial.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Ámbito:</span>
+                <span className="font-semibold text-slate-900">{batchToDelete.scopeLabel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Porcentaje:</span>
+                <span className="font-bold font-mono text-emerald-700">
+                  {batchToDelete.percentage > 0 ? `+${batchToDelete.percentage}%` : `${batchToDelete.percentage}%`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Fecha:</span>
+                <span className="font-medium text-slate-700">{batchToDelete.formattedDate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Productos afectados:</span>
+                <span className="font-semibold text-slate-900">{batchToDelete.auditLog.length} producto(s)</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setBatchToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteBatch(batchToDelete.id)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-2xs cursor-pointer active:scale-95"
+              >
+                Eliminar Registro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación: Vaciar Todo el Historial */}
+      {isConfirmClearAllOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  ¿Vaciar todo el historial de cambios de precios?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Se borrarán permanentemente todos los registros y lotes de auditoría guardados en el navegador.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmClearAllOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-2xs cursor-pointer active:scale-95"
+              >
+                Vaciar Todo el Historial
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
