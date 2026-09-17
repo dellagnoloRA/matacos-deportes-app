@@ -32,6 +32,16 @@ export const SalePaymentSchema = z.object({
   amount: z
     .number({ invalid_type_error: "El monto a pagar debe ser un número" })
     .positive("El monto a pagar debe ser mayor a 0"),
+  receivedAmount: z
+    .number({ invalid_type_error: "El monto con el que pagó debe ser un número" })
+    .positive("El monto abonado debe ser mayor a 0")
+    .optional()
+    .nullable(),
+  change: z
+    .number({ invalid_type_error: "El vuelto debe ser un número" })
+    .min(0, "El vuelto no puede ser negativo")
+    .optional()
+    .nullable(),
 });
 
 /**
@@ -69,6 +79,26 @@ export const CreateSaleSchema = z
     },
     {
       message: "El monto total de los pagos ingresados no cubre el importe neto total de la venta",
+      path: ["payments"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Si se especificó con cuánto abonó en efectivo, debe cubrir el monto a cobrar
+      for (const pay of data.payments) {
+        if (
+          pay.method === "EFECTIVO" &&
+          pay.receivedAmount !== undefined &&
+          pay.receivedAmount !== null &&
+          pay.receivedAmount < pay.amount - 0.01
+        ) {
+          return false;
+        }
+      }
+      return true;
+    },
+    {
+      message: "El monto abonado en efectivo es menor al importe a cobrar",
       path: ["payments"],
     }
   );

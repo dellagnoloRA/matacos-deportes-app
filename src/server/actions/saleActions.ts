@@ -11,18 +11,28 @@ export interface SaleHistoryFilterOptions {
   limit?: number;
 }
 
-function serializeData<T>(data: T): T {
-  return JSON.parse(
-    JSON.stringify(data, (key, value) => {
-      if (typeof value === "object" && value !== null && typeof value.toNumber === "function") {
-        return value.toNumber();
-      }
-      if (typeof value === "object" && value !== null && "d" in value && "e" in value && "s" in value) {
-        return Number(value);
-      }
-      return value;
-    })
-  );
+function serializeData<T>(obj: any): T {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "object" && typeof obj.toNumber === "function") {
+    return obj.toNumber() as unknown as T;
+  }
+  if (typeof obj === "object" && "d" in obj && "e" in obj && "s" in obj) {
+    return Number(obj) as unknown as T;
+  }
+  if (obj instanceof Date) {
+    return obj.toISOString() as any;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => serializeData(item)) as any;
+  }
+  if (typeof obj === "object") {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = serializeData(obj[key]);
+    }
+    return res;
+  }
+  return obj;
 }
 
 /**
@@ -146,11 +156,27 @@ export async function processSale(input: CreateSaleInput) {
 
       // e. Registrar los pagos asociados
       for (const payment of validated.payments) {
+        const receivedAmount =
+          payment.receivedAmount != null
+            ? payment.receivedAmount
+            : payment.method === "EFECTIVO"
+            ? payment.amount
+            : null;
+
+        const change =
+          payment.change != null
+            ? payment.change
+            : payment.method === "EFECTIVO" && receivedAmount != null
+            ? Math.max(0, receivedAmount - payment.amount)
+            : null;
+
         await tx.salePayment.create({
           data: {
             saleId: sale.id,
             method: payment.method as PaymentMethod,
             amount: new Prisma.Decimal(payment.amount),
+            receivedAmount: receivedAmount != null ? new Prisma.Decimal(receivedAmount) : null,
+            change: change != null ? new Prisma.Decimal(change) : null,
           },
         });
       }
@@ -171,8 +197,12 @@ export async function processSale(input: CreateSaleInput) {
       });
     });
 
-    revalidatePath("/admin");
-    revalidatePath("/");
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/");
+    } catch {
+      // Ignored outside Next.js request context (e.g. testing scripts)
+    }
 
     return {
       success: true,
@@ -188,23 +218,40 @@ export async function processSale(input: CreateSaleInput) {
   }
 }
 
+export interface SaleHistoryFilterOptions {
+  startDate?: Date | string;
+  endDate?: Date | string;
+  date?: string; // Formato YYYY-MM-DD en America/Argentina/Buenos_Aires
+  limit?: number;
+}
+
 /**
  * Obtener historial de ventas registradas
  */
 export async function getSaleHistory(options: SaleHistoryFilterOptions = {}) {
   try {
-    const { startDate, endDate, limit = 50 } = options;
+    const { startDate, endDate, date, limit = 100 } = options;
+
+    let dateWhere: Prisma.SaleWhereInput["createdAt"] = undefined;
+
+    if (date) {
+      // Filtrar día completo en zona horaria de Formosa (America/Argentina/Buenos_Aires, UTC-3)
+      const startOfDay = new Date(`${date}T00:00:00-03:00`);
+      const endOfDay = new Date(`${date}T23:59:59.999-03:00`);
+      dateWhere = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    } else if (startDate || endDate) {
+      dateWhere = {
+        ...(startDate ? { gte: new Date(startDate) } : {}),
+        ...(endDate ? { lte: new Date(endDate) } : {}),
+      };
+    }
 
     const sales = await prisma.sale.findMany({
       where: {
-        ...(startDate || endDate
-          ? {
-              createdAt: {
-                ...(startDate ? { gte: new Date(startDate) } : {}),
-                ...(endDate ? { lte: new Date(endDate) } : {}),
-              },
-            }
-          : {}),
+        ...(dateWhere ? { createdAt: dateWhere } : {}),
       },
       include: {
         items: {
