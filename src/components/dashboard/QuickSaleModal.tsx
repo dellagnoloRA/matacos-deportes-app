@@ -24,6 +24,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Percent,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { processSale } from "@/server/actions/saleActions";
@@ -45,6 +46,13 @@ export interface SaleItemRow {
 }
 
 export type PaymentMethodType = "EFECTIVO" | "DEBITO" | "CREDITO" | "TRANSFERENCIA";
+
+export interface SplitPaymentItem {
+  id: string;
+  method: PaymentMethodType;
+  amount: number | "";
+  receivedCash: number | "";
+}
 
 interface QuickSaleModalProps {
   isOpen: boolean;
@@ -98,6 +106,14 @@ export function QuickSaleModal({
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("EFECTIVO");
   const [receivedCash, setReceivedCash] = useState<number | "">("");
+  const receivedCashInputRef = useRef<HTMLInputElement>(null);
+
+  // Modo de cobro dividido (múltiples medios de pago simultáneos)
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<SplitPaymentItem[]>([
+    { id: "split-1", method: "EFECTIVO", amount: "", receivedCash: "" },
+    { id: "split-2", method: "TRANSFERENCIA", amount: "", receivedCash: "" },
+  ]);
 
   // Estados de procesamiento
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,6 +135,11 @@ export function QuickSaleModal({
       setSearchQuery("");
       setReceivedCash("");
       setDiscount(0);
+      setIsSplitPayment(false);
+      setSplitPayments([
+        { id: "split-1", method: "EFECTIVO", amount: "", receivedCash: "" },
+        { id: "split-2", method: "TRANSFERENCIA", amount: "", receivedCash: "" },
+      ]);
       setErrorMessage(null);
       setCompletedSale(null);
       setSelectedColorByProduct({});
@@ -429,6 +450,16 @@ export function QuickSaleModal({
   const netTotal = Math.max(0, grossTotal - discount);
   const totalUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Cálculo de cubierto en pago dividido
+  const totalSplitCovered = useMemo(() => {
+    return splitPayments.reduce(
+      (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
+      0
+    );
+  }, [splitPayments]);
+
+  const splitDifference = netTotal - totalSplitCovered;
+
   // Cálculo de vuelto para cobro en efectivo
   const numReceived = typeof receivedCash === "number" ? receivedCash : 0;
   const changeDue = Math.max(0, numReceived - netTotal);
@@ -444,6 +475,25 @@ export function QuickSaleModal({
     setReceivedCash(netTotal);
   };
 
+  // Helper para asignar el saldo restante en pago dividido
+  const handleAssignRemaining = (rowId: string) => {
+    const otherCovered = splitPayments
+      .filter((p) => p.id !== rowId)
+      .reduce((sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0), 0);
+    const rem = Math.max(0, netTotal - otherCovered);
+    setSplitPayments((prev) =>
+      prev.map((p) =>
+        p.id === rowId
+          ? {
+              ...p,
+              amount: rem,
+              receivedCash: p.method === "EFECTIVO" ? rem : p.receivedCash,
+            }
+          : p
+      )
+    );
+  };
+
   // =================================================================
   // CONFIRMACIÓN Y EJECUCIÓN ATÓMICA DE LA VENTA EN EL BACKEND
   // =================================================================
@@ -455,13 +505,97 @@ export function QuickSaleModal({
       return;
     }
 
-    if (paymentMethod === "EFECTIVO" && numReceived > 0 && numReceived < netTotal) {
-      setErrorMessage(
-        `El monto en efectivo ingresado (${formatCurrency(
-          numReceived
-        )}) no cubre el total de la venta (${formatCurrency(netTotal)}).`
-      );
-      return;
+    let paymentsPayload: Array<{
+      method: PaymentMethodType;
+      amount: number;
+      receivedAmount?: number;
+      change?: number;
+    }> = [];
+
+    if (isSplitPayment) {
+      // 1. Validar líneas de pago dividido
+      if (splitPayments.length === 0) {
+        setErrorMessage("Debes configurar al menos un medio de pago.");
+        return;
+      }
+
+      for (const p of splitPayments) {
+        if (p.amount === "" || typeof p.amount !== "number" || p.amount <= 0) {
+          setErrorMessage("Todos los medios de pago deben tener un importe mayor a $ 0.");
+          return;
+        }
+
+        if (p.method === "EFECTIVO") {
+          const rec = typeof p.receivedCash === "number" ? p.receivedCash : 0;
+          if (p.receivedCash === "" || rec <= 0) {
+            setErrorMessage(
+              "Para la cuota en efectivo es obligatorio ingresar con cuánto abona el cliente para calcular el vuelto."
+            );
+            return;
+          }
+          if (rec < p.amount) {
+            setErrorMessage(
+              `El efectivo ingresado (${formatCurrency(
+                rec
+              )}) no cubre la cuota en efectivo asignada (${formatCurrency(p.amount)}).`
+            );
+            return;
+          }
+        }
+      }
+
+      if (Math.abs(splitDifference) > 0.01) {
+        setErrorMessage(
+          splitDifference > 0
+            ? `Faltan asignar ${formatCurrency(splitDifference)} para cubrir el total de ${formatCurrency(netTotal)}.`
+            : `Los montos asignados superan el total a cobrar por ${formatCurrency(-splitDifference)}.`
+        );
+        return;
+      }
+
+      paymentsPayload = splitPayments.map((p) => {
+        const amt = Number(p.amount);
+        const isCash = p.method === "EFECTIVO";
+        const rec = isCash ? Number(p.receivedCash || amt) : amt;
+        const chg = isCash ? Math.max(0, rec - amt) : 0;
+        return {
+          method: p.method,
+          amount: amt,
+          receivedAmount: rec,
+          change: chg,
+        };
+      });
+    } else {
+      // 2. Validar pago simple
+      if (paymentMethod === "EFECTIVO") {
+        if (receivedCash === "" || typeof receivedCash !== "number" || receivedCash <= 0) {
+          setErrorMessage(
+            "Para ventas en efectivo es obligatorio completar el campo 'Pagó con' para calcular el vuelto y registrar con cuánto se abonó."
+          );
+          receivedCashInputRef.current?.focus();
+          return;
+        }
+
+        if (receivedCash < netTotal) {
+          const remaining = netTotal - receivedCash;
+          setErrorMessage(
+            `El monto ingresado en 'Pagó con' (${formatCurrency(
+              receivedCash
+            )}) no cubre el total a cobrar (${formatCurrency(netTotal)}). Faltan abonar: ${formatCurrency(remaining)}.`
+          );
+          receivedCashInputRef.current?.focus();
+          return;
+        }
+      }
+
+      paymentsPayload = [
+        {
+          method: paymentMethod,
+          amount: netTotal,
+          receivedAmount: paymentMethod === "EFECTIVO" ? numReceived : netTotal,
+          change: paymentMethod === "EFECTIVO" ? changeDue : 0,
+        },
+      ];
     }
 
     setIsSubmitting(true);
@@ -469,18 +603,13 @@ export function QuickSaleModal({
     try {
       const salePayload = {
         channel: "MOSTRADOR",
-        discount: discount,
+        discount: Number(discount) || 0,
         items: cart.map((item) => ({
           variantId: item.variantId,
           quantity: item.quantity,
           price: item.price,
         })),
-        payments: [
-          {
-            method: paymentMethod,
-            amount: netTotal,
-          },
-        ],
+        payments: paymentsPayload,
       };
 
       const res = await processSale(salePayload);
@@ -586,26 +715,61 @@ export function QuickSaleModal({
                   </span>
                 </div>
 
+                {Number(completedSale.discount) > 0 && (
+                  <div className="flex items-center justify-between text-[11px] text-rose-600">
+                    <span>Descuento aplicado:</span>
+                    <span className="font-bold font-mono">
+                      -{formatCurrency(Number(completedSale.discount))}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-[11px] text-slate-600">
                   <span>Total cobrado:</span>
-                  <span className="font-bold text-slate-900 text-xs">
+                  <span className="font-bold text-slate-900 text-xs font-mono">
                     {formatCurrency(Number(completedSale.total))}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-600">
-                  <span>Medio de pago:</span>
-                  <span className="font-bold text-slate-800 uppercase">
-                    {completedSale.payments?.[0]?.method || paymentMethod}
+                {/* Formas de Pago Registradas */}
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block font-sans">
+                    Forma(s) de Cobro:
                   </span>
-                </div>
+                  {completedSale.payments?.map((p: any, idx: number) => {
+                    const isCash = p.method === "EFECTIVO";
+                    const hasCashDetail =
+                      isCash && p.receivedAmount != null && Number(p.receivedAmount) > 0;
 
-                {paymentMethod === "EFECTIVO" && changeDue > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-amber-700 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
-                    <span className="font-sans font-bold">Vuelto entregado:</span>
-                    <span className="font-bold">{formatCurrency(changeDue)}</span>
-                  </div>
-                )}
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-slate-100 p-2 rounded-xl border border-slate-200 text-[11px] space-y-1 font-mono"
+                      >
+                        <div className="flex items-center justify-between text-slate-800">
+                          <span className="font-bold font-sans uppercase">{p.method}:</span>
+                          <span className="font-bold text-slate-900">
+                            {formatCurrency(Number(p.amount))}
+                          </span>
+                        </div>
+                        {hasCashDetail && (
+                          <div className="pt-1 border-t border-dashed border-slate-200 flex items-center justify-between text-[10.5px] text-slate-600">
+                            <span>
+                              Pagó con: <strong>{formatCurrency(Number(p.receivedAmount))}</strong>
+                            </span>
+                            {p.change != null && Number(p.change) > 0 ? (
+                              <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                Vuelto: {formatCurrency(Number(p.change))}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Pago exacto</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
                 <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-400 text-center font-sans">
                   {completedSale.items?.length || totalUnits} prendas registradas en mostrador
@@ -1078,8 +1242,8 @@ export function QuickSaleModal({
             {/* ------------------------------------------------------- */}
             {/* COLUMNA DERECHA (40%): PANEL DE COBRO FÍSICO / CAJA     */}
             {/* ------------------------------------------------------- */}
-            <div className="w-full lg:w-84 xl:w-96 bg-slate-900 text-white p-5 flex flex-col justify-between shrink-0">
-              <div className="space-y-4">
+            <div className="w-full lg:w-84 xl:w-96 bg-slate-900 text-white p-4 sm:p-5 flex flex-col justify-between shrink-0 overflow-y-auto max-h-[85vh]">
+              <div className="space-y-3.5">
                 {/* Visor de Total a Cobrar */}
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center shadow-inner">
                   <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-0.5">
@@ -1098,107 +1262,461 @@ export function QuickSaleModal({
                   )}
                 </div>
 
-                {/* Selector de Medios de Pago (Sin QR: Efectivo, Débito, Crédito, Transferencia) */}
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    Medio de Cobro
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                    {[
-                      { id: "EFECTIVO", label: "Efectivo", icon: Banknote },
-                      { id: "DEBITO", label: "Débito", icon: CreditCard },
-                      { id: "CREDITO", label: "Crédito", icon: CreditCard },
-                      { id: "TRANSFERENCIA", label: "Transferencia", icon: Store },
-                    ].map((m) => {
-                      const Icon = m.icon;
-                      const isSel = paymentMethod === m.id;
+                {/* Apartado de Descuento Aplicado */}
+                <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                      <Percent className="w-3.5 h-3.5 text-rose-400" />
+                      Descuento aplicado:
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-mono font-bold text-slate-500">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={grossTotal}
+                        value={discount || ""}
+                        onChange={(e) => {
+                          const val = e.target.value
+                            ? Math.max(0, Math.min(grossTotal, Number(e.target.value)))
+                            : 0;
+                          setDiscount(val);
+                        }}
+                        placeholder="0"
+                        className="w-28 text-right bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-rose-300 font-black font-mono focus:border-rose-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Presets rápidos de descuento en porcentaje */}
+                  <div className="grid grid-cols-5 gap-1 pt-0.5">
+                    {[0, 5, 10, 15, 20].map((pct) => {
+                      const isCurrent =
+                        pct === 0
+                          ? discount === 0
+                          : grossTotal > 0 && Math.round((discount / grossTotal) * 100) === pct;
                       return (
                         <button
-                          key={m.id}
+                          key={pct}
                           type="button"
-                          onClick={() => setPaymentMethod(m.id as any)}
-                          className={`py-2 px-1 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
-                            isSel
-                              ? "bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-500/20"
-                              : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                          onClick={() => {
+                            if (pct === 0) setDiscount(0);
+                            else setDiscount(Math.round((grossTotal * pct) / 100));
+                          }}
+                          className={`py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                            isCurrent
+                              ? "bg-rose-500/20 text-rose-300 border-rose-500/50 font-black"
+                              : "bg-slate-800/80 text-slate-400 border-slate-700/80 hover:bg-slate-700 hover:text-white"
                           }`}
                         >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span className="text-[10.5px] truncate max-w-full">
-                            {m.label}
-                          </span>
+                          {pct === 0 ? "Sin desc." : `${pct}%`}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Teclas Rápidas de Billetes Físicos y Vuelto (Solo para Efectivo) */}
-                {paymentMethod === "EFECTIVO" && (
-                  <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
-                      <span className="flex items-center gap-1">
-                        <Coins className="w-3 h-3 text-amber-400" />
-                        Billetes recibidos:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setReceivedCash("")}
-                        className="text-[10px] text-slate-500 hover:text-white underline cursor-pointer"
-                      >
-                        Limpiar
-                      </button>
-                    </div>
-
-                    {/* Botones de billetes argentinos comunes */}
-                    <div className="grid grid-cols-4 gap-1">
-                      {[10000, 20000, 50000].map((b) => (
-                        <button
-                          key={b}
-                          type="button"
-                          onClick={() => handleAddCash(b)}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg py-1.5 text-[10.5px] font-bold cursor-pointer active:scale-95"
-                        >
-                          +${b / 1000}k
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={handleExactCash}
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg py-1.5 text-[10.5px] cursor-pointer active:scale-95"
-                      >
-                        Exacto
-                      </button>
-                    </div>
-
-                    {/* Input manual de billetes y cálculo de vuelto */}
-                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Paga con:</span>
-                        <input
-                          type="number"
-                          value={receivedCash}
-                          onChange={(e) =>
-                            setReceivedCash(
-                              e.target.value ? Number(e.target.value) : ""
-                            )
-                          }
-                          placeholder="$ 0,00"
-                          className="w-32 text-right bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-bold focus:border-emerald-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
-                        <span className="text-amber-400 font-bold">
-                          Vuelto a entregar:
-                        </span>
-                        <span className="text-sm font-black text-amber-300 font-mono">
-                          {formatCurrency(changeDue)}
-                        </span>
-                      </div>
-                    </div>
+                {/* Selector de Medios de Pago (Simple vs Dividido) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Medio de Cobro
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !isSplitPayment;
+                        setIsSplitPayment(next);
+                        if (next) {
+                          const half = Math.round(netTotal / 2);
+                          setSplitPayments([
+                            {
+                              id: `split-${Date.now()}-1`,
+                              method: "EFECTIVO",
+                              amount: half,
+                              receivedCash: half,
+                            },
+                            {
+                              id: `split-${Date.now()}-2`,
+                              method: "TRANSFERENCIA",
+                              amount: netTotal - half,
+                              receivedCash: "",
+                            },
+                          ]);
+                        }
+                      }}
+                      className={`text-[10.5px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                        isSplitPayment
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black shadow-2xs"
+                          : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700"
+                      }`}
+                      title={
+                        isSplitPayment
+                          ? "Volver a cobrar con un único medio de pago"
+                          : "Habilitar múltiples medios de pago combinados"
+                      }
+                    >
+                      <Coins className="w-3 h-3 text-amber-400" />
+                      <span>{isSplitPayment ? "Modo Dividido" : "+ Dividir Medios"}</span>
+                    </button>
                   </div>
-                )}
+
+                  {!isSplitPayment ? (
+                    /* =================================================== */
+                    /* MODO 1: PAGO SIMPLE (1 ÚNICO MEDIO DE PAGO)         */
+                    /* =================================================== */
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {[
+                          { id: "EFECTIVO", label: "Efectivo", icon: Banknote },
+                          { id: "DEBITO", label: "Débito", icon: CreditCard },
+                          { id: "CREDITO", label: "Crédito", icon: CreditCard },
+                          { id: "TRANSFERENCIA", label: "Transferencia", icon: Store },
+                        ].map((m) => {
+                          const Icon = m.icon;
+                          const isSel = paymentMethod === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setPaymentMethod(m.id as any)}
+                              className={`py-2 px-1 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                                isSel
+                                  ? "bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-500/20"
+                                  : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              <span className="text-[10.5px] truncate max-w-full">
+                                {m.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Teclas Rápidas de Billetes Físicos y Vuelto (Solo para Efectivo Simple) */}
+                      {paymentMethod === "EFECTIVO" && (
+                        <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
+                            <span className="flex items-center gap-1">
+                              <Coins className="w-3 h-3 text-amber-400" />
+                              Billetes recibidos:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setReceivedCash("")}
+                              className="text-[10px] text-slate-500 hover:text-white underline cursor-pointer"
+                            >
+                              Limpiar
+                            </button>
+                          </div>
+
+                          {/* Botones de billetes argentinos comunes */}
+                          <div className="grid grid-cols-4 gap-1">
+                            {[10000, 20000, 50000].map((b) => (
+                              <button
+                                key={b}
+                                type="button"
+                                onClick={() => handleAddCash(b)}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg py-1.5 text-[10.5px] font-bold cursor-pointer active:scale-95"
+                              >
+                                +${b / 1000}k
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={handleExactCash}
+                              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg py-1.5 text-[10.5px] cursor-pointer active:scale-95"
+                            >
+                              Exacto
+                            </button>
+                          </div>
+
+                          {/* Input manual de billetes y cálculo de vuelto */}
+                          <div className="pt-2 border-t border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <label
+                                  htmlFor="cash-received-input"
+                                  className="text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>Pagó con</span>
+                                  <span className="text-rose-400 font-black" title="Campo obligatorio">*</span>:
+                                </label>
+                                <span className="text-[9.5px] font-extrabold text-amber-400/90 uppercase tracking-wider block">
+                                  (Obligatorio)
+                                </span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  id="cash-received-input"
+                                  ref={receivedCashInputRef}
+                                  type="number"
+                                  min={netTotal}
+                                  step="any"
+                                  value={receivedCash}
+                                  onChange={(e) =>
+                                    setReceivedCash(
+                                      e.target.value ? Number(e.target.value) : ""
+                                    )
+                                  }
+                                  placeholder="$ 0,00"
+                                  className={`w-36 text-right rounded-xl px-3 py-1.5 text-xs text-white font-black font-mono transition-all focus:outline-none ${
+                                    receivedCash === ""
+                                      ? "bg-slate-900 border-2 border-amber-500/80 focus:border-amber-400 ring-2 ring-amber-400/20"
+                                      : numReceived < netTotal
+                                      ? "bg-slate-900 border-2 border-rose-500 focus:border-rose-400 ring-2 ring-rose-400/20 text-rose-200"
+                                      : "bg-slate-900 border-2 border-emerald-500 focus:border-emerald-400 text-emerald-300 ring-2 ring-emerald-400/20"
+                                  }`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Mensajes dinámicos según el valor ingresado */}
+                            {receivedCash === "" ? (
+                              <div className="text-[10px] text-amber-300/90 flex items-center gap-1.5 pt-0.5">
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span>Ingresá el efectivo del cliente o presioná <strong>Exacto</strong>.</span>
+                              </div>
+                            ) : numReceived < netTotal ? (
+                              <div className="text-[11px] text-rose-300 font-semibold flex items-center justify-between p-2 rounded-xl bg-rose-950/40 border border-rose-800/60">
+                                <span className="flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                  Faltan abonar:
+                                </span>
+                                <span className="font-mono font-bold text-rose-200">
+                                  {formatCurrency(netTotal - numReceived)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-xs p-2 rounded-xl bg-emerald-950/50 border border-emerald-500/40">
+                                <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                                  <Coins className="w-4 h-4 text-emerald-400" />
+                                  Vuelto a entregar:
+                                </span>
+                                <span className="text-sm font-black text-emerald-300 font-mono">
+                                  {formatCurrency(changeDue)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* =================================================== */
+                    /* MODO 2: PAGO DIVIDIDO / MIXTO (MÚLTIPLES MEDIOS)    */
+                    /* =================================================== */
+                    <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2.5 max-h-64 overflow-y-auto">
+                      {/* Estado del balance del pago dividido */}
+                      <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
+                        <span className="text-slate-400 font-bold">Estado asignación:</span>
+                        {Math.abs(splitDifference) < 0.01 ? (
+                          <span className="text-emerald-400 font-black flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            100% Cubierto
+                          </span>
+                        ) : splitDifference > 0 ? (
+                          <span className="text-rose-400 font-bold flex items-center gap-1 font-mono">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Faltan {formatCurrency(splitDifference)}
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-bold flex items-center gap-1 font-mono">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            Excede {formatCurrency(-splitDifference)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Lista de Medios de Pago Divididos */}
+                      <div className="space-y-2">
+                        {splitPayments.map((p, idx) => {
+                          const isCash = p.method === "EFECTIVO";
+                          const pAmountNum = typeof p.amount === "number" ? p.amount : 0;
+                          const pReceivedNum = typeof p.receivedCash === "number" ? p.receivedCash : 0;
+                          const pChange = Math.max(0, pReceivedNum - pAmountNum);
+
+                          return (
+                            <div
+                              key={p.id}
+                              className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-mono text-slate-500 w-3.5">
+                                  #{idx + 1}
+                                </span>
+                                {/* Selector de método */}
+                                <select
+                                  value={p.method}
+                                  onChange={(e) => {
+                                    const m = e.target.value as PaymentMethodType;
+                                    setSplitPayments((prev) =>
+                                      prev.map((item) =>
+                                        item.id === p.id
+                                          ? {
+                                              ...item,
+                                              method: m,
+                                              receivedCash: m === "EFECTIVO" ? item.amount : "",
+                                            }
+                                          : item
+                                      )
+                                    );
+                                  }}
+                                  className="text-[11px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 font-bold focus:border-emerald-500 focus:outline-none cursor-pointer shrink-0"
+                                >
+                                  <option value="EFECTIVO">Efectivo</option>
+                                  <option value="DEBITO">Débito</option>
+                                  <option value="CREDITO">Crédito</option>
+                                  <option value="TRANSFERENCIA">Transferencia</option>
+                                </select>
+
+                                {/* Input de Monto */}
+                                <div className="relative flex-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={p.amount}
+                                    onChange={(e) => {
+                                      const val = e.target.value ? Number(e.target.value) : "";
+                                      setSplitPayments((prev) =>
+                                        prev.map((item) =>
+                                          item.id === p.id
+                                            ? {
+                                                ...item,
+                                                amount: val,
+                                                receivedCash:
+                                                  item.method === "EFECTIVO" && (item.receivedCash === "" || item.receivedCash === item.amount)
+                                                    ? val
+                                                    : item.receivedCash,
+                                              }
+                                            : item
+                                        )
+                                      );
+                                    }}
+                                    placeholder="Monto $"
+                                    className="w-full text-right bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                                  />
+                                </div>
+
+                                {/* Botón "Resto" para auto-completar el saldo pendiente */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleAssignRemaining(p.id)}
+                                  title="Asignar el saldo restante a este medio"
+                                  className="px-1.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 cursor-pointer active:scale-95"
+                                >
+                                  Resto
+                                </button>
+
+                                {/* Eliminar medio (si hay más de 1) */}
+                                {splitPayments.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSplitPayments((prev) =>
+                                        prev.filter((item) => item.id !== p.id)
+                                      )
+                                    }
+                                    className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                                    title="Quitar este medio de pago"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Si este medio es EFECTIVO, exigir "Pagó con" y calcular vuelto */}
+                              {isCash && (
+                                <div className="pt-1.5 border-t border-slate-800/80 space-y-1 text-xs">
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <span className="text-[10.5px] text-amber-300 font-bold flex items-center gap-0.5">
+                                      Pagó con <span className="text-rose-400">*</span>:
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        min={pAmountNum}
+                                        value={p.receivedCash}
+                                        onChange={(e) => {
+                                          const val = e.target.value ? Number(e.target.value) : "";
+                                          setSplitPayments((prev) =>
+                                            prev.map((item) =>
+                                              item.id === p.id
+                                                ? { ...item, receivedCash: val }
+                                                : item
+                                            )
+                                          );
+                                        }}
+                                        placeholder="Efectivo $"
+                                        className={`w-24 text-right bg-slate-950 border rounded-lg px-2 py-0.5 text-xs font-mono font-bold focus:outline-none ${
+                                          p.receivedCash === "" || pReceivedNum < pAmountNum
+                                            ? "border-rose-500 text-rose-300"
+                                            : "border-emerald-500 text-emerald-300"
+                                        }`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSplitPayments((prev) =>
+                                            prev.map((item) =>
+                                              item.id === p.id
+                                                ? { ...item, receivedCash: item.amount }
+                                                : item
+                                            )
+                                          );
+                                        }}
+                                        className="px-1.5 py-0.5 text-[9.5px] font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded cursor-pointer"
+                                      >
+                                        Exacto
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Estado de vuelto para la porción de efectivo */}
+                                  {pReceivedNum > pAmountNum && pAmountNum > 0 && (
+                                    <div className="flex items-center justify-between text-[10px] text-emerald-300 font-mono bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                                      <span>Vuelto en efectivo:</span>
+                                      <span className="font-bold">{formatCurrency(pChange)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Botón para agregar otra forma de pago */}
+                      {splitPayments.length < 4 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const otherCovered = splitPayments.reduce(
+                              (sum, p) => sum + (typeof p.amount === "number" ? p.amount : 0),
+                              0
+                            );
+                            const rem = Math.max(0, netTotal - otherCovered);
+                            setSplitPayments((prev) => [
+                              ...prev,
+                              {
+                                id: `split-${Date.now()}-${prev.length + 1}`,
+                                method: "TRANSFERENCIA",
+                                amount: rem > 0 ? rem : "",
+                                receivedCash: "",
+                              },
+                            ]);
+                          }}
+                          className="w-full py-1.5 rounded-xl border border-dashed border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white text-[10.5px] font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Agregar otro medio de cobro</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Botón Principal de Confirmación */}
