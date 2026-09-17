@@ -43,6 +43,11 @@ import {
   ArrowUp,
   ArrowDown,
   ShoppingBag,
+  Search,
+  X,
+  SlidersHorizontal,
+  ChevronDown,
+  Palette,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
@@ -81,6 +86,14 @@ type VariantSortOption =
   | "size_desc"
   | "stock_desc"
   | "stock_asc";
+
+type VariantStockFilter =
+  | "ALL"
+  | "IN_STOCK"
+  | "STORE_STOCK"
+  | "WAREHOUSE_STOCK"
+  | "LOW_STOCK"
+  | "OUT_OF_STOCK";
 
 const SIZE_ORDER_MAP: Record<string, number> = {
   xxs: 1,
@@ -124,6 +137,12 @@ export function ProductDetailView({
   const [product, setProduct] = useState<DetailedProductItem>(initialProduct);
   const [variantSort, setVariantSort] = useState<VariantSortOption>("price_desc");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Estados para búsqueda y filtrado facetado de variantes (Buscador instantáneo, Color, Talle, Disponibilidad)
+  const [variantSearchQuery, setVariantSearchQuery] = useState("");
+  const [selectedColorFilter, setSelectedColorFilter] = useState("ALL");
+  const [selectedSizeFilter, setSelectedSizeFilter] = useState("ALL");
+  const [selectedStockFilter, setSelectedStockFilter] = useState<VariantStockFilter>("ALL");
 
   // Sincronizar estado si initialProduct cambia desde el componente padre
   useEffect(() => {
@@ -235,6 +254,367 @@ export function ProductDetailView({
       }
     });
   }, [product.variants, product.price, variantSort]);
+
+  // Lista de colores únicos disponibles en las variantes con su respectivo conteo
+  const availableColors = useMemo(() => {
+    if (!product.variants) return [];
+    const map = new Map<string, number>();
+    for (const v of product.variants) {
+      const color = (v.color || "").trim();
+      if (color) {
+        map.set(color, (map.get(color) || 0) + 1);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([color, count]) => ({ color, count }))
+      .sort((a, b) => a.color.localeCompare(b.color));
+  }, [product.variants]);
+
+  // Lista de talles únicos disponibles en las variantes con su respectivo conteo, ordenados por medida
+  const availableSizes = useMemo(() => {
+    if (!product.variants) return [];
+    const map = new Map<string, number>();
+    for (const v of product.variants) {
+      const size = (v.size || "").trim();
+      if (size) {
+        map.set(size, (map.get(size) || 0) + 1);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([size, count]) => ({ size, count }))
+      .sort((a, b) => compareVariantSizes(a.size, b.size));
+  }, [product.variants]);
+
+  // Variantes filtradas según búsqueda textual y filtros facetados (color, talle, stock)
+  const filteredVariants = useMemo(() => {
+    if (!sortedVariants || sortedVariants.length === 0) return [];
+
+    const queryNorm = variantSearchQuery
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+    return sortedVariants.filter((v) => {
+      // 1. Filtro de Color
+      if (selectedColorFilter !== "ALL") {
+        if ((v.color || "").trim().toLowerCase() !== selectedColorFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 2. Filtro de Talle
+      if (selectedSizeFilter !== "ALL") {
+        if ((v.size || "").trim().toLowerCase() !== selectedSizeFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 3. Filtro de Estado de Stock
+      const storeStock = v.stockStore || 0;
+      const warehouseStock = v.stockWarehouse || 0;
+      const totalStock = storeStock + warehouseStock;
+
+      const minThreshold =
+        v.minStock !== undefined && v.minStock !== null
+          ? v.minStock
+          : product.minStock || 2;
+      const minStoreThreshold =
+        v.minStoreStock !== undefined && v.minStoreStock !== null
+          ? v.minStoreStock
+          : product.minStoreStock || 1;
+
+      if (selectedStockFilter === "IN_STOCK" && totalStock <= 0) {
+        return false;
+      }
+      if (selectedStockFilter === "STORE_STOCK" && storeStock <= 0) {
+        return false;
+      }
+      if (selectedStockFilter === "WAREHOUSE_STOCK" && warehouseStock <= 0) {
+        return false;
+      }
+      if (
+        selectedStockFilter === "LOW_STOCK" &&
+        totalStock > minThreshold &&
+        storeStock > minStoreThreshold
+      ) {
+        return false;
+      }
+      if (selectedStockFilter === "OUT_OF_STOCK" && totalStock > 0) {
+        return false;
+      }
+
+      // 4. Búsqueda por texto (Talle, Color, Código de Barra o SKU)
+      if (queryNorm) {
+        const sizeNorm = (v.size || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+        const colorNorm = (v.color || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+        const barcodeNorm = (v.barcode || "").toLowerCase().trim();
+        const skuNorm = (v.sku || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+
+        const matches =
+          sizeNorm.includes(queryNorm) ||
+          colorNorm.includes(queryNorm) ||
+          barcodeNorm.includes(queryNorm) ||
+          skuNorm.includes(queryNorm);
+
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [
+    sortedVariants,
+    variantSearchQuery,
+    selectedColorFilter,
+    selectedSizeFilter,
+    selectedStockFilter,
+    product.minStock,
+    product.minStoreStock,
+  ]);
+
+  // Estadísticas agregadas de las variantes filtradas
+  const filteredVariantStats = useMemo(() => {
+    let store = 0;
+    let warehouse = 0;
+    for (const v of filteredVariants) {
+      store += v.stockStore || 0;
+      warehouse += v.stockWarehouse || 0;
+    }
+    return {
+      count: filteredVariants.length,
+      storeStock: store,
+      warehouseStock: warehouse,
+      totalStock: store + warehouse,
+    };
+  }, [filteredVariants]);
+
+  // Indicador de si hay algún filtro de variantes activo
+  const hasActiveVariantFilters =
+    variantSearchQuery.trim() !== "" ||
+    selectedColorFilter !== "ALL" ||
+    selectedSizeFilter !== "ALL" ||
+    selectedStockFilter !== "ALL";
+
+  // Restablecer todos los filtros de variantes
+  const handleResetVariantFilters = useCallback(() => {
+    setVariantSearchQuery("");
+    setSelectedColorFilter("ALL");
+    setSelectedSizeFilter("ALL");
+    setSelectedStockFilter("ALL");
+  }, []);
+
+  // Seleccionar color y sincronizar imagen
+  const handleSelectColorFilter = useCallback(
+    (color: string) => {
+      setSelectedColorFilter(color);
+      if (color !== "ALL") {
+        selectImageByColor(color);
+      }
+    },
+    [selectImageByColor]
+  );
+
+  // Render de la barra de búsqueda y filtros facetados de variantes (utilizable en Visión General y en Administrador)
+  const renderVariantFilterToolbar = () => (
+    <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-200/80 space-y-2.5 select-none">
+      {/* Fila 1: Input de Búsqueda Omnibox a ancho completo con soporte lector de barras USB */}
+      <div className="relative w-full">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={variantSearchQuery}
+          onChange={(e) => setVariantSearchQuery(e.target.value)}
+          placeholder="Buscar por talle, color, cód. de barra (pistola USB) o SKU..."
+          className="w-full text-xs text-slate-800 placeholder-slate-400 pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 bg-white focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 transition-all shadow-2xs focus:outline-none"
+          aria-label="Buscar variantes"
+        />
+        {variantSearchQuery && (
+          <button
+            type="button"
+            onClick={() => setVariantSearchQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-md transition-colors cursor-pointer"
+            title="Limpiar búsqueda"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Fila 2: Filtros Facetados Proporcionados (3 columnas equilibradas) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* Filtro por Color */}
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all shadow-2xs ${
+            selectedColorFilter !== "ALL"
+              ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-[11px] font-semibold text-slate-500 shrink-0">Color:</span>
+          <select
+            value={selectedColorFilter}
+            onChange={(e) => handleSelectColorFilter(e.target.value)}
+            className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+            aria-label="Filtrar por color"
+          >
+            <option value="ALL">Todos ({availableColors.length})</option>
+            {availableColors.map((c) => (
+              <option key={c.color} value={c.color}>
+                {c.color} ({c.count})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filtro por Talle */}
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all shadow-2xs ${
+            selectedSizeFilter !== "ALL"
+              ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Ruler className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-[11px] font-semibold text-slate-500 shrink-0">Talle:</span>
+          <select
+            value={selectedSizeFilter}
+            onChange={(e) => setSelectedSizeFilter(e.target.value)}
+            className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+            aria-label="Filtrar por talle"
+          >
+            <option value="ALL">Todos ({availableSizes.length})</option>
+            {availableSizes.map((s) => (
+              <option key={s.size} value={s.size}>
+                Talle {s.size} ({s.count})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filtro por Estado de Stock */}
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all shadow-2xs ${
+            selectedStockFilter !== "ALL"
+              ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Store className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-[11px] font-semibold text-slate-500 shrink-0">Stock:</span>
+          <select
+            value={selectedStockFilter}
+            onChange={(e) => setSelectedStockFilter(e.target.value as VariantStockFilter)}
+            className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+            aria-label="Filtrar por disponibilidad de stock"
+          >
+            <option value="ALL">Todos los estados</option>
+            <option value="IN_STOCK">🟢 Con stock (&gt;0)</option>
+            <option value="STORE_STOCK">🏬 Salón Saavedra</option>
+            <option value="WAREHOUSE_STOCK">📦 En depósito</option>
+            <option value="LOW_STOCK">⚠️ Stock crítico</option>
+            <option value="OUT_OF_STOCK">❌ Agotados (0)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Fila 2: Chips / Resumen de Filtros Activos (solo si hay filtros activos) */}
+      {hasActiveVariantFilters && (
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200/60 text-xs animate-in fade-in duration-150">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
+              Filtros activos:
+            </span>
+
+            {variantSearchQuery && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold shadow-2xs">
+                <span>&ldquo;{variantSearchQuery}&rdquo;</span>
+                <button
+                  type="button"
+                  onClick={() => setVariantSearchQuery("")}
+                  className="hover:text-emerald-950 p-0.5 cursor-pointer"
+                  title="Quitar búsqueda"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedColorFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold shadow-2xs">
+                <span>Color: {selectedColorFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedColorFilter("ALL")}
+                  className="hover:text-emerald-950 p-0.5 cursor-pointer"
+                  title="Quitar filtro de color"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedSizeFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold shadow-2xs">
+                <span>Talle: {selectedSizeFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSizeFilter("ALL")}
+                  className="hover:text-emerald-950 p-0.5 cursor-pointer"
+                  title="Quitar filtro de talle"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedStockFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold shadow-2xs">
+                <span>
+                  {selectedStockFilter === "IN_STOCK" && "Con stock"}
+                  {selectedStockFilter === "STORE_STOCK" && "En salón"}
+                  {selectedStockFilter === "WAREHOUSE_STOCK" && "En depósito"}
+                  {selectedStockFilter === "LOW_STOCK" && "Stock crítico"}
+                  {selectedStockFilter === "OUT_OF_STOCK" && "Agotados"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStockFilter("ALL")}
+                  className="hover:text-emerald-950 p-0.5 cursor-pointer"
+                  title="Quitar filtro de stock"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-500 font-medium">
+              Mostrando <strong className="text-slate-800 font-bold">{filteredVariantStats.count}</strong> de {product.variants.length} variantes
+              {" "}({filteredVariantStats.storeStock} un. salón / {filteredVariantStats.warehouseStock} un. depósito)
+            </span>
+            <button
+              type="button"
+              onClick={handleResetVariantFilters}
+              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer transition-colors"
+            >
+              Limpiar todos
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -848,10 +1228,15 @@ export function ProductDetailView({
                     </div>
 
                     <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
-                      {product.variants.length} variante(s) registradas
+                      {hasActiveVariantFilters
+                        ? `${filteredVariants.length} de ${product.variants.length} variante(s)`
+                        : `${product.variants.length} variante(s) registradas`}
                     </span>
                   </div>
                 </div>
+
+                {/* Barra de Búsqueda y Filtros Facetados de Variantes */}
+                {renderVariantFilterToolbar()}
 
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[620px] text-left text-xs">
@@ -921,127 +1306,156 @@ export function ProductDetailView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {sortedVariants.map((v, idx) => {
-                        const variantTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
-                        const minThreshold =
-                          v.minStock !== undefined && v.minStock !== null
-                            ? v.minStock
-                            : product.minStock || 2;
-                        const minStoreThreshold =
-                          v.minStoreStock !== undefined && v.minStoreStock !== null
-                            ? v.minStoreStock
-                            : product.minStoreStock || 1;
-                        const isCritical = variantTotal <= minThreshold;
-                        const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
-
-                        const vMovementSold = movements
-                          .filter((m) => m.variantId === v.id && (m.type === "VENTA_MOSTRADOR" || m.type === "VENTA_WEB"))
-                          .reduce((acc, m) => acc + m.quantity, 0);
-                        const vSold = ((v.soldCountStore || 0) + (v.soldCountWeb || 0)) > 0
-                          ? (v.soldCountStore || 0) + (v.soldCountWeb || 0)
-                          : vMovementSold;
-                        const variantPrice = v.price ?? product.price;
-
-                        return (
-                          <tr
-                            key={idx}
-                            onClick={() => selectImageByColor(v.color)}
-                            className="hover:bg-emerald-50/40 transition-colors cursor-pointer group/row"
-                            title={`Haz clic para ver la fotografía del color ${v.color}`}
-                          >
-                            {/* Color */}
-                            <td className="py-3 px-4 font-semibold text-slate-900">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-slate-800 inline-block group-hover/row:scale-125 transition-transform" />
-                                <span className="group-hover/row:text-emerald-700 transition-colors">{v.color}</span>
+                      {filteredVariants.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 px-4 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                                <Search className="w-5 h-5" />
                               </div>
-                            </td>
+                              <p className="text-xs font-bold text-slate-800">
+                                No se encontraron variantes con los filtros aplicados
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                {variantSearchQuery
+                                  ? `No hay coincidencias para "${variantSearchQuery}".`
+                                  : "Prueba seleccionando otro talle, color o disponibilidad de stock."}
+                              </p>
+                              {hasActiveVariantFilters && (
+                                <button
+                                  type="button"
+                                  onClick={handleResetVariantFilters}
+                                  className="mt-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                                >
+                                  Restablecer todos los filtros
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredVariants.map((v, idx) => {
+                          const variantTotal = (v.stockStore || 0) + (v.stockWarehouse || 0);
+                          const minThreshold =
+                            v.minStock !== undefined && v.minStock !== null
+                              ? v.minStock
+                              : product.minStock || 2;
+                          const minStoreThreshold =
+                            v.minStoreStock !== undefined && v.minStoreStock !== null
+                              ? v.minStoreStock
+                              : product.minStoreStock || 1;
+                          const isCritical = variantTotal <= minThreshold;
+                          const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
 
-                            {/* Talle y SKU */}
-                            <td className="py-3 px-3">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 inline-block">
-                                {v.size}
-                              </span>
-                              {v.sku && (
-                                <span className="block text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la variante">
-                                  {v.sku}
+                          const vMovementSold = movements
+                            .filter((m) => m.variantId === v.id && (m.type === "VENTA_MOSTRADOR" || m.type === "VENTA_WEB"))
+                            .reduce((acc, m) => acc + m.quantity, 0);
+                          const vSold = ((v.soldCountStore || 0) + (v.soldCountWeb || 0)) > 0
+                            ? (v.soldCountStore || 0) + (v.soldCountWeb || 0)
+                            : vMovementSold;
+                          const variantPrice = v.price ?? product.price;
+
+                          return (
+                            <tr
+                              key={idx}
+                              onClick={() => selectImageByColor(v.color)}
+                              className="hover:bg-emerald-50/40 transition-colors cursor-pointer group/row"
+                              title={`Haz clic para ver la fotografía del color ${v.color}`}
+                            >
+                              {/* Color */}
+                              <td className="py-3 px-4 font-semibold text-slate-900">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-slate-800 inline-block group-hover/row:scale-125 transition-transform" />
+                                  <span className="group-hover/row:text-emerald-700 transition-colors">{v.color}</span>
+                                </div>
+                              </td>
+
+                              {/* Talle y SKU */}
+                              <td className="py-3 px-3">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 inline-block">
+                                  {v.size}
                                 </span>
-                              )}
-                            </td>
+                                {v.sku && (
+                                  <span className="block text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la variante">
+                                    {v.sku}
+                                  </span>
+                                )}
+                              </td>
 
-                            {/* Código de Barra */}
-                            <td className="py-3 px-3 font-mono text-[11px]">
-                              {v.barcode ? (
-                                <span className="text-slate-700 font-medium">{v.barcode}</span>
-                              ) : (
-                                <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
-                              )}
-                            </td>
+                              {/* Código de Barra */}
+                              <td className="py-3 px-3 font-mono text-[11px]">
+                                {v.barcode ? (
+                                  <span className="text-slate-700 font-medium">{v.barcode}</span>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
+                                )}
+                              </td>
 
-                            {/* Precio Venta */}
-                            <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-900 text-xs">
-                              <div>{formatCurrency(variantPrice)}</div>
-                              {v.price !== null && v.price !== undefined && v.price !== product.price && (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  Diferencial
+                              {/* Precio Venta */}
+                              <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-900 text-xs">
+                                <div>{formatCurrency(variantPrice)}</div>
+                                {v.price !== null && v.price !== undefined && v.price !== product.price && (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Diferencial
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Stock Tienda (Saavedra 241) */}
+                              <td className="py-3 px-3 text-center">
+                                <span
+                                  className={`inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                    isLowStore
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-100 text-emerald-800"
+                                  }`}
+                                >
+                                  {v.stockStore} un.
                                 </span>
-                              )}
-                            </td>
+                              </td>
 
-                            {/* Stock Tienda (Saavedra 241) */}
-                            <td className="py-3 px-3 text-center">
-                              <span
-                                className={`inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                  isLowStore
-                                    ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                    : "bg-emerald-100 text-emerald-800"
-                                }`}
-                              >
-                                {v.stockStore} un.
-                              </span>
-                            </td>
+                              {/* Stock Depósito */}
+                              <td className="py-3 px-3 text-center">
+                                <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-800">
+                                  {v.stockWarehouse} un.
+                                </span>
+                              </td>
 
-                            {/* Stock Depósito */}
-                            <td className="py-3 px-3 text-center">
-                              <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-800">
-                                {v.stockWarehouse} un.
-                              </span>
-                            </td>
+                              {/* Vendido */}
+                              <td className="py-3 px-3 text-center font-medium text-slate-600">
+                                {vSold}
+                              </td>
 
-                            {/* Vendido */}
-                            <td className="py-3 px-3 text-center font-medium text-slate-600">
-                              {vSold}
-                            </td>
+                              {/* Existencias Totales */}
+                              <td className="py-3 px-4 text-center">
+                                <span
+                                  className={`inline-flex items-center justify-center font-bold px-2.5 py-0.5 rounded-full text-[11.5px] ${
+                                    variantTotal === 0
+                                      ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                      : isCritical
+                                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                      : "bg-[#c2f25b]/40 text-slate-900 border border-[#c2f25b]"
+                                  }`}
+                                >
+                                  {variantTotal}
+                                </span>
+                              </td>
 
-                            {/* Existencias Totales */}
-                            <td className="py-3 px-4 text-center">
-                              <span
-                                className={`inline-flex items-center justify-center font-bold px-2.5 py-0.5 rounded-full text-[11.5px] ${
-                                  variantTotal === 0
-                                    ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                    : isCritical
-                                    ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                    : "bg-[#c2f25b]/40 text-slate-900 border border-[#c2f25b]"
-                                }`}
-                              >
-                                {variantTotal}
-                              </span>
-                            </td>
-
-                            {/* Botón de Acción Modificar (solo texto) */}
-                            <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenStockModal(undefined, v.id)}
-                                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
-                                title={`Modificar stock (Talle ${v.size} - ${v.color})`}
-                              >
-                                Modificar
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              {/* Botón de Acción Modificar (solo texto) */}
+                              <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStockModal(undefined, v.id)}
+                                  className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 hover:text-slate-950 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+                                  title={`Modificar stock (Talle ${v.size} - ${v.color})`}
+                                >
+                                  Modificar
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1050,10 +1464,24 @@ export function ProductDetailView({
                 <div className="px-4 sm:px-5 py-2.5 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Control de existencias por variante</span>
+                    <span>
+                      {hasActiveVariantFilters
+                        ? `Filtradas ${filteredVariants.length} de ${product.variants.length} variantes`
+                        : "Control de existencias por variante"}
+                    </span>
                   </div>
                   <div className="font-semibold text-slate-700">
-                    Total Físico: {totalStock} unidades disponibles
+                    {hasActiveVariantFilters ? (
+                      <span>
+                        Total visible:{" "}
+                        <strong className="text-emerald-700">
+                          {filteredVariantStats.totalStock}
+                        </strong>{" "}
+                        un. ({filteredVariantStats.storeStock} salón / {filteredVariantStats.warehouseStock} depósito)
+                      </span>
+                    ) : (
+                      <span>Total Físico: {totalStock} unidades disponibles</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1290,112 +1718,143 @@ export function ProductDetailView({
         )}
 
         {activeTab === "variants" && (
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4 animate-in fade-in-50">
-            <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden animate-in fade-in-50">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h2 className="text-base font-bold text-slate-900">Administrador de Variantes</h2>
                 <p className="text-xs text-slate-500">Control individual de códigos de barra por talle y color.</p>
               </div>
               <button
                 onClick={() => setIsStockModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-xl transition-colors border border-emerald-300"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-xl transition-colors border border-emerald-300 cursor-pointer"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-800" />
                 <span>Ajustar Stock</span>
               </button>
             </div>
-            <div className="space-y-2">
-              {sortedVariants.map((v, i) => {
-                const variantPrice = v.price ?? product.price;
 
-                return (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs flex-wrap gap-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                        Talle {v.size}
-                      </span>
-                      <span className="font-semibold text-slate-700">{v.color}</span>
-                      {v.barcode ? (
-                        <span className="font-mono text-slate-700 text-[11px] bg-slate-100 px-2 py-0.5 rounded font-medium">
-                          {v.barcode}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-slate-400 italic text-[10.5px] bg-slate-100 px-2 py-0.5 rounded">
-                          Sin código
-                        </span>
-                      )}
-                      {v.sku && (
-                        <span className="font-mono text-slate-500 text-[10.5px] bg-white border border-slate-200 px-2 py-0.5 rounded" title="SKU de la variante">
-                          SKU: {v.sku}
-                        </span>
-                      )}
+            {/* Barra de Búsqueda y Filtros Facetados de Variantes */}
+            {renderVariantFilterToolbar()}
+
+            <div className="p-6 space-y-2">
+              {filteredVariants.length === 0 ? (
+                <div className="py-12 px-4 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Search className="w-5 h-5" />
                     </div>
-
-                    <div className="flex items-center gap-4">
-                      {/* Precio de la variante */}
-                      <div className="flex items-center">
-                        <span className="font-bold text-slate-900 text-xs">
-                          {formatCurrency(variantPrice)}
-                        </span>
-                      </div>
-
-                      {/* Stocks y Mínimo de Alerta */}
-                      <div className="flex items-center gap-3 border-l border-slate-200 pl-3 flex-wrap">
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                          <Store className="w-3 h-3" />
-                          Salón: {v.stockStore} un.
-                        </span>
-                        <span className="text-slate-600 font-medium">
-                          Depósito: {v.stockWarehouse} un.
-                        </span>
-                        {(() => {
-                          const minThreshold =
-                            v.minStock !== undefined && v.minStock !== null
-                              ? v.minStock
-                              : product.minStock || 2;
-                          const minStoreThreshold =
-                            v.minStoreStock !== undefined && v.minStoreStock !== null
-                              ? v.minStoreStock
-                              : product.minStoreStock || 1;
-                          const total = (v.stockStore || 0) + (v.stockWarehouse || 0);
-                          const isCritical = total <= minThreshold;
-                          const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
-                          return (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span
-                                className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                  isLowStore
-                                    ? "bg-amber-50 text-amber-800 border-amber-300"
-                                    : "bg-slate-50 text-slate-700 border-slate-200"
-                                }`}
-                                title="Stock mínimo salón: alerta de reposición si mostrador <= este valor"
-                              >
-                                <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Local:</span>
-                                <span>{minStoreThreshold} un.</span>
-                              </span>
-                              <span
-                                className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                  isCritical
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : "bg-slate-50 text-slate-700 border-slate-200"
-                                }`}
-                                title="Stock mínimo total: alerta de compra a proveedor si existencias <= este valor"
-                              >
-                                <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Dep.:</span>
-                                <span>{minThreshold} un.</span>
-                              </span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
+                    <p className="text-xs font-bold text-slate-800">
+                      No se encontraron variantes con los filtros aplicados
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {variantSearchQuery
+                        ? `No hay coincidencias para "${variantSearchQuery}".`
+                        : "Prueba seleccionando otro talle, color o disponibilidad de stock."}
+                    </p>
+                    {hasActiveVariantFilters && (
+                      <button
+                        type="button"
+                        onClick={handleResetVariantFilters}
+                        className="mt-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                      >
+                        Restablecer todos los filtros
+                      </button>
+                    )}
                   </div>
-                );
-              })}
+                </div>
+              ) : (
+                filteredVariants.map((v, i) => {
+                  const variantPrice = v.price ?? product.price;
+
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs flex-wrap gap-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                          Talle {v.size}
+                        </span>
+                        <span className="font-semibold text-slate-700">{v.color}</span>
+                        {v.barcode ? (
+                          <span className="font-mono text-slate-700 text-[11px] bg-slate-100 px-2 py-0.5 rounded font-medium">
+                            {v.barcode}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-slate-400 italic text-[10.5px] bg-slate-100 px-2 py-0.5 rounded">
+                            Sin código
+                          </span>
+                        )}
+                        {v.sku && (
+                          <span className="font-mono text-slate-500 text-[10.5px] bg-white border border-slate-200 px-2 py-0.5 rounded" title="SKU de la variante">
+                            SKU: {v.sku}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        {/* Precio de la variante */}
+                        <div className="flex items-center">
+                          <span className="font-bold text-slate-900 text-xs">
+                            {formatCurrency(variantPrice)}
+                          </span>
+                        </div>
+
+                        {/* Stocks y Mínimo de Alerta */}
+                        <div className="flex items-center gap-3 border-l border-slate-200 pl-3 flex-wrap">
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <Store className="w-3 h-3" />
+                            Salón: {v.stockStore} un.
+                          </span>
+                          <span className="text-slate-600 font-medium">
+                            Depósito: {v.stockWarehouse} un.
+                          </span>
+                          {(() => {
+                            const minThreshold =
+                              v.minStock !== undefined && v.minStock !== null
+                                ? v.minStock
+                                : product.minStock || 2;
+                            const minStoreThreshold =
+                              v.minStoreStock !== undefined && v.minStoreStock !== null
+                                ? v.minStoreStock
+                                : product.minStoreStock || 1;
+                            const total = (v.stockStore || 0) + (v.stockWarehouse || 0);
+                            const isCritical = total <= minThreshold;
+                            const isLowStore = (v.stockStore || 0) <= minStoreThreshold;
+                            return (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                    isLowStore
+                                      ? "bg-amber-50 text-amber-800 border-amber-300"
+                                      : "bg-slate-50 text-slate-700 border-slate-200"
+                                  }`}
+                                  title="Stock mínimo salón: alerta de reposición si mostrador <= este valor"
+                                >
+                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Local:</span>
+                                  <span>{minStoreThreshold} un.</span>
+                                </span>
+                                <span
+                                  className={`font-bold text-[10.5px] px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                    isCritical
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : "bg-slate-50 text-slate-700 border-slate-200"
+                                  }`}
+                                  title="Stock mínimo total: alerta de compra a proveedor si existencias <= este valor"
+                                >
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span className="text-[9px] text-slate-400 font-normal uppercase">Mín. Dep.:</span>
+                                  <span>{minThreshold} un.</span>
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
