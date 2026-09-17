@@ -60,8 +60,16 @@ export const BulkProductItemSchema = z.object({
   brandName: z.string().min(2, "El nombre de la marca es requerido (ej: Speedo, Arena, Wilson)"),
   categoryName: z.string().min(2, "El nombre de la categoría es requerido (ej: Antiparras, Mallas, Pelotas)"),
   costPrice: z
-    .number({ invalid_type_error: "El precio de costo debe ser un número" })
-    .min(0, "El precio de costo no puede ser negativo"),
+    .union([
+      z
+        .number({ invalid_type_error: "El precio de costo debe ser un número" })
+        .min(0, "El precio de costo no puede ser negativo"),
+      z.literal("").transform(() => null),
+      z.null(),
+      z.undefined(),
+    ])
+    .nullable()
+    .optional(),
   price: z
     .number({ invalid_type_error: "El precio de venta debe ser un número" })
     .min(0, "El precio de venta no puede ser negativo"),

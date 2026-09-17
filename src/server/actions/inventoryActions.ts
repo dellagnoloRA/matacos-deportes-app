@@ -39,7 +39,7 @@ export async function registerStockMovement(input: InventoryMovementInput) {
     // 2. Obtener la variante objetivo
     const variant = await prisma.productVariant.findUnique({
       where: { id: validated.variantId },
-      include: { product: true },
+      include: { product: { include: { category: true } } },
     });
 
     if (!variant) {
@@ -80,12 +80,24 @@ export async function registerStockMovement(input: InventoryMovementInput) {
       const newStockWarehouse = !isStore ? variant.stockWarehouse + delta : variant.stockWarehouse;
       const totalStockAfter = newStockStore + newStockWarehouse;
 
+      const isIngress = validated.type === "INGRESO_COMPRA" || validated.type === "AJUSTE_INGRESO";
+      const shouldActivateThresholds = isIngress && variant.minStock === 0 && totalStockAfter > 0;
+
+      const isAccessory = variant.product?.category?.name
+        ? !variant.product.category.name.toLowerCase().includes("calzado")
+        : false;
+
+      const activatedMinStock = shouldActivateThresholds ? (isAccessory ? 1 : 2) : variant.minStock;
+      const activatedMinStoreStock = shouldActivateThresholds ? (isAccessory ? 0 : 1) : variant.minStoreStock;
+
       // Actualizar la variante de producto
       const updatedVariant = await tx.productVariant.update({
         where: { id: variant.id },
         data: {
           stockStore: newStockStore,
           stockWarehouse: newStockWarehouse,
+          minStock: activatedMinStock,
+          minStoreStock: activatedMinStoreStock,
         },
       });
 

@@ -9,6 +9,7 @@ import {
 } from "@/schemas/product";
 import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
+import { generateModelCode } from "@/lib/textUtils";
 import { revalidatePath } from "next/cache";
 
 export interface ProductFilterOptions {
@@ -55,6 +56,7 @@ export async function getProducts(options: ProductFilterOptions = {}) {
             OR: [
               { name: { contains: search, mode: "insensitive" } },
               { description: { contains: search, mode: "insensitive" } },
+              { modelCode: { contains: search, mode: "insensitive" } },
               {
                 variants: {
                   some: {
@@ -177,13 +179,29 @@ export async function createProduct(input: CreateProductInput) {
         validated.imageUrl ||
         null;
 
+      const [brand, category, discipline] = await Promise.all([
+        tx.brand.findUnique({ where: { id: validated.brandId } }),
+        tx.category.findUnique({ where: { id: validated.categoryId } }),
+        tx.discipline.findUnique({ where: { id: validated.disciplineId } }),
+      ]);
+
+      const canonicalModelCode =
+        validated.modelCode?.trim() ||
+        generateModelCode({
+          brand: brand?.name || "MAT",
+          category: category?.name,
+          discipline: discipline?.name,
+          productName: validated.name,
+        });
+
       const product = await tx.product.create({
         data: {
           name: validated.name,
           description: validated.description ?? null,
           imageUrl: primaryImage,
+          modelCode: canonicalModelCode,
           disciplineId: validated.disciplineId,
-          costPrice: new Prisma.Decimal(validated.costPrice),
+          costPrice: validated.costPrice !== null && validated.costPrice !== undefined ? new Prisma.Decimal(validated.costPrice) : null,
           price: new Prisma.Decimal(validated.price),
           categoryId: validated.categoryId,
           brandId: validated.brandId,
@@ -280,8 +298,13 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
           imageUrl: primaryImage,
+          ...(validated.modelCode !== undefined ? { modelCode: validated.modelCode?.trim() || null } : {}),
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
-          ...(validated.costPrice !== undefined ? { costPrice: new Prisma.Decimal(validated.costPrice) } : {}),
+          ...(validated.costPrice !== undefined
+            ? {
+                costPrice: validated.costPrice !== null ? new Prisma.Decimal(validated.costPrice) : null,
+              }
+            : {}),
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
           ...(validated.categoryId ? { categoryId: validated.categoryId } : {}),
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
@@ -533,6 +556,16 @@ export async function getDetailedInventoryProducts(options?: {
       const stockWarehouse = p.variants.reduce((acc, v) => acc + (v.stockWarehouse || 0), 0);
       const firstVariant = p.variants[0];
 
+      // Código de Modelo canónico para el producto padre (ej: "CRO-CAL-CB")
+      const canonicalModelCode =
+        p.modelCode ||
+        generateModelCode({
+          brand: p.brand.name,
+          category: p.category.name,
+          discipline: p.discipline.name,
+          productName: p.name,
+        });
+
       return {
         id: p.id,
         name: p.name,
@@ -541,9 +574,10 @@ export async function getDetailedInventoryProducts(options?: {
         discipline: p.discipline.name,
         category: p.category.name,
         subcategory: p.category.name,
-        sku: firstVariant?.sku || `SKU-${p.id.slice(0, 8)}`,
-        barcode: firstVariant?.barcode || "",
-        costPrice: Number(p.costPrice),
+        modelCode: canonicalModelCode,
+        sku: canonicalModelCode,
+        barcode: p.variants.length === 1 ? (firstVariant?.barcode || "") : "",
+        costPrice: p.costPrice !== null && p.costPrice !== undefined ? Number(p.costPrice) : null,
         price: Number(p.price),
         stockLocal: stockStore,
         stockWeb: stockWarehouse,

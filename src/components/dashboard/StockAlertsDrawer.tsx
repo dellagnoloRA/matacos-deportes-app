@@ -103,13 +103,13 @@ export function StockAlertsDrawer({
         let alertLevel: EvaluatedVariantAlert["alertLevel"] | null = null;
         let actionRequired = "";
 
-        if (total === 0) {
+        if (total === 0 && minStock > 0) {
           alertLevel = "OUT_OF_STOCK";
           actionRequired = "Agotado total. Generar orden de compra a proveedor.";
         } else if (store === 0 && warehouse > 0) {
           alertLevel = "STORE_EMPTY_WAREHOUSE_AVAIL";
           actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, 4)} un. desde depósito.`;
-        } else if (total <= minStock) {
+        } else if (minStock > 0 && total <= minStock) {
           alertLevel = "CRITICAL_LOW";
           actionRequired = `Stock crítico (${total} un.). Solicitar compra preventiva a proveedor.`;
         }
@@ -149,16 +149,21 @@ export function StockAlertsDrawer({
           let alertLevel: EvaluatedVariantAlert["alertLevel"] | null = null;
           let actionRequired = "";
 
-          if (total === 0) {
+          // Variante en plantilla / catálogo pasivo: sin existencias y sin umbral de compra
+          if (variantMinStock === 0 && total === 0) {
+            continue;
+          }
+
+          if (total === 0 && variantMinStock > 0) {
             alertLevel = "OUT_OF_STOCK";
             actionRequired = "Agotado total. Generar orden de compra a proveedor.";
           } else if (store === 0 && warehouse > 0) {
             alertLevel = "STORE_EMPTY_WAREHOUSE_AVAIL";
             actionRequired = `Mostrador sin stock. Reponer urgente ${Math.min(warehouse, Math.max(variantMinStore * 2, 2))} un. desde depósito.`;
-          } else if (total <= variantMinStock) {
+          } else if (variantMinStock > 0 && total <= variantMinStock) {
             alertLevel = "CRITICAL_LOW";
             actionRequired = `Stock crítico (${total} un.). Solicitar compra preventiva a proveedor.`;
-          } else if (store <= variantMinStore && warehouse > 0) {
+          } else if (variantMinStore > 0 && store <= variantMinStore && warehouse > 0) {
             alertLevel = "STORE_REPLENISHMENT";
             actionRequired = `Salón bajo (${store} un. <= mín. ${variantMinStore}). Trasladar unidades de depósito a salón.`;
           }

@@ -444,8 +444,9 @@ export function ProductDetailView({
   const stockInTransfer = product.stockTransfer || 0;
 
   // Margin calculation
-  const profitMargin = product.price - product.costPrice;
-  const marginPercentage = product.costPrice > 0 ? ((profitMargin / product.costPrice) * 100).toFixed(1) : "0";
+  const hasCostPrice = product.costPrice !== null && product.costPrice !== undefined && product.costPrice > 0;
+  const profitMargin = hasCostPrice ? product.price - (product.costPrice ?? 0) : 0;
+  const marginPercentage = hasCostPrice && product.costPrice ? ((profitMargin / product.costPrice) * 100).toFixed(1) : "0";
 
   // Determinar si el producto pertenece a la categoría de calzado / zapatillas
   const isFootwear = useMemo(() => {
@@ -500,8 +501,8 @@ export function ProductDetailView({
               <h1 className="text-base sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900 leading-tight truncate">
                 {product.name}
               </h1>
-              <span className="font-mono text-[11px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0">
-                {product.barcode || product.sku}
+              <span className="font-mono text-[11px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 tracking-wide whitespace-nowrap shrink-0" title="Código de Modelo">
+                Modelo: {product.modelCode || product.sku}
               </span>
               {product.active === false && (
                 <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-300 whitespace-nowrap shrink-0">
@@ -792,10 +793,10 @@ export function ProductDetailView({
                 {/* Quick Identification footer in Image Card */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/50">
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
-                    Código de Producto
+                    Código de Modelo
                   </div>
                   <div className="font-mono text-sm font-bold text-slate-800 mt-0.5">
-                    {product.barcode || product.sku}
+                    {product.modelCode || product.sku}
                   </div>
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mt-2.5">
                     Nombre Oficial
@@ -956,16 +957,25 @@ export function ProductDetailView({
                               </div>
                             </td>
 
-                            {/* Talle */}
-                            <td className="py-3 px-3 font-bold text-slate-800">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">
+                            {/* Talle y SKU */}
+                            <td className="py-3 px-3">
+                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono font-bold text-slate-800 inline-block">
                                 {v.size}
                               </span>
+                              {v.sku && (
+                                <span className="block text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la variante">
+                                  {v.sku}
+                                </span>
+                              )}
                             </td>
 
                             {/* Código de Barra */}
-                            <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                              {v.barcode || `${product.barcode}-${v.size}`}
+                            <td className="py-3 px-3 font-mono text-[11px]">
+                              {v.barcode ? (
+                                <span className="text-slate-700 font-medium">{v.barcode}</span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
+                              )}
                             </td>
 
                             {/* Precio Venta */}
@@ -1114,7 +1124,11 @@ export function ProductDetailView({
                     <div>
                       <span className="text-[10.5px] text-slate-500 font-medium">Costo de Compra</span>
                       <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                        {formatCurrency(product.costPrice)}
+                        {hasCostPrice && product.costPrice ? (
+                          formatCurrency(product.costPrice)
+                        ) : (
+                          <span className="text-slate-400 italic">Sin registrar</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -1157,9 +1171,13 @@ export function ProductDetailView({
                       </span>
                       <span className="text-[10px] text-emerald-600">Rentabilidad comercial</span>
                     </div>
-                    <span className="font-bold text-emerald-900 text-sm">
-                      +{marginPercentage}% ({formatCurrency(profitMargin)})
-                    </span>
+                    {hasCostPrice ? (
+                      <span className="font-bold text-emerald-900 text-sm">
+                        +{marginPercentage}% ({formatCurrency(profitMargin)})
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs italic">Sin costo asignado</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1264,8 +1282,8 @@ export function ProductDetailView({
                 <span className="font-semibold text-slate-800 mt-0.5 block">{product.category} &gt; {product.subcategory || "General"}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-medium">Código SKU / Barcode Base</span>
-                <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.sku} / {product.barcode}</span>
+                <span className="text-slate-400 block font-medium">Código de Modelo (Familia)</span>
+                <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.modelCode || product.sku}</span>
               </div>
             </div>
           </div>
@@ -1300,9 +1318,18 @@ export function ProductDetailView({
                         Talle {v.size}
                       </span>
                       <span className="font-semibold text-slate-700">{v.color}</span>
-                      {v.barcode && (
-                        <span className="font-mono text-slate-400 text-[11px] bg-slate-100 px-2 py-0.5 rounded">
+                      {v.barcode ? (
+                        <span className="font-mono text-slate-700 text-[11px] bg-slate-100 px-2 py-0.5 rounded font-medium">
                           {v.barcode}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-slate-400 italic text-[10.5px] bg-slate-100 px-2 py-0.5 rounded">
+                          Sin código
+                        </span>
+                      )}
+                      {v.sku && (
+                        <span className="font-mono text-slate-500 text-[10.5px] bg-white border border-slate-200 px-2 py-0.5 rounded" title="SKU de la variante">
+                          SKU: {v.sku}
                         </span>
                       )}
                     </div>
@@ -1705,13 +1732,23 @@ export function ProductDetailView({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-xs text-slate-400 font-medium">Costo de Adquisición</span>
-                <div className="text-lg font-bold text-slate-900 mt-1">{formatCurrency(product.costPrice)}</div>
+                <div className="text-lg font-bold text-slate-900 mt-1">
+                  {hasCostPrice && product.costPrice ? (
+                    formatCurrency(product.costPrice)
+                  ) : (
+                    <span className="text-slate-400 text-sm italic font-normal">Sin registrar</span>
+                  )}
+                </div>
                 <span className="text-[10px] text-slate-500">Precio neto mayorista proveedor</span>
               </div>
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
                 <span className="text-xs text-emerald-700 font-medium">Margen Bruto de Ganancia</span>
-                <div className="text-lg font-bold text-emerald-800 mt-1">+{marginPercentage}%</div>
-                <span className="text-[10px] text-emerald-600 font-medium">Utilidad: {formatCurrency(profitMargin)}</span>
+                <div className="text-lg font-bold text-emerald-800 mt-1">
+                  {hasCostPrice ? `+${marginPercentage}%` : "N/A"}
+                </div>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  {hasCostPrice ? `Utilidad: ${formatCurrency(profitMargin)}` : "Sin costo asignado"}
+                </span>
               </div>
               <div className="p-4 rounded-xl bg-slate-900 text-white">
                 <span className="text-xs text-slate-400 font-medium">Precio Venta Público</span>
@@ -1745,9 +1782,9 @@ export function ProductDetailView({
                     <tbody className="divide-y divide-slate-100">
                       {sortedVariants.map((v, i) => {
                         const effPrice = v.price ?? product.price;
-                        const vMargin = effPrice - product.costPrice;
+                        const vMargin = hasCostPrice && product.costPrice ? effPrice - product.costPrice : 0;
                         const vMarginPct =
-                          product.costPrice > 0
+                          hasCostPrice && product.costPrice
                             ? ((vMargin / product.costPrice) * 100).toFixed(1)
                             : "0.0";
                         const isDiff = Boolean(v.price && v.price !== product.price);
@@ -1760,7 +1797,11 @@ export function ProductDetailView({
                               {formatCurrency(effPrice)}
                             </td>
                             <td className="p-3 text-emerald-700 font-semibold">
-                              +{vMarginPct}% ({formatCurrency(vMargin)})
+                              {hasCostPrice ? (
+                                `+${vMarginPct}% (${formatCurrency(vMargin)})`
+                              ) : (
+                                <span className="text-slate-400 font-normal italic">N/A</span>
+                              )}
                             </td>
                             <td className="p-3">
                               {isDiff ? (

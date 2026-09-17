@@ -415,9 +415,9 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
     totalWarehouse = product.stockWeb ?? 0;
     const total = totalStore + totalWarehouse;
 
-    if (total === 0) outOfStockVariants = 1;
+    if (total === 0 && minStock > 0) outOfStockVariants = 1;
     else if (totalStore === 0 && totalWarehouse > 0) storeEmptyVariants = 1;
-    else if (total <= minStock) criticalLowVariants = 1;
+    else if (minStock > 0 && total <= minStock) criticalLowVariants = 1;
   } else {
     for (const v of variants) {
       const vStore = v.stockStore ?? 0;
@@ -430,10 +430,12 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
       totalWarehouse += vWarehouse;
 
       if (vTotal === 0) {
-        outOfStockVariants++;
+        if (vMinStock > 0) {
+          outOfStockVariants++;
+        }
       } else if (vStore === 0 && vWarehouse > 0) {
         storeEmptyVariants++;
-      } else if (vTotal <= vMinStock || (vStore <= vMinStore && vWarehouse > 0)) {
+      } else if ((vMinStock > 0 && vTotal <= vMinStock) || (vMinStore > 0 && vStore <= vMinStore && vWarehouse > 0)) {
         criticalLowVariants++;
       }
     }
@@ -444,11 +446,11 @@ export function evaluateProductStockStatus(product: DetailedProductItem) {
 
   let highestAlert: "OUT_OF_STOCK" | "STORE_EMPTY_WAREHOUSE_AVAIL" | "CRITICAL_LOW" | "NORMAL" = "NORMAL";
 
-  if (outOfStockVariants > 0 || totalStock === 0) {
+  if (outOfStockVariants > 0 || (totalStock === 0 && minStock > 0)) {
     highestAlert = "OUT_OF_STOCK";
   } else if (storeEmptyVariants > 0 || (totalStore === 0 && totalWarehouse > 0)) {
     highestAlert = "STORE_EMPTY_WAREHOUSE_AVAIL";
-  } else if (criticalLowVariants > 0 || totalStock <= minStock) {
+  } else if (criticalLowVariants > 0 || (minStock > 0 && totalStock <= minStock)) {
     highestAlert = "CRITICAL_LOW";
   }
 
@@ -668,10 +670,10 @@ export function getProductStockBadgeInfo(
     warehouseStock += vWarehouse;
 
     if (vTotal === 0) {
-      outOfStockVariants++;
+      if (vMin > 0) outOfStockVariants++;
     } else if (vStore === 0 && vWarehouse > 0) {
       storeEmptyVariants++;
-    } else if (vTotal <= vMin || (vStore <= vMinStore && vWarehouse > 0)) {
+    } else if ((vMin > 0 && vTotal <= vMin) || (vMinStore > 0 && vStore <= vMinStore && vWarehouse > 0)) {
       criticalVariants++;
     }
   }
@@ -679,8 +681,8 @@ export function getProductStockBadgeInfo(
   const totalStock = displayStock + warehouseStock;
   const atRiskVariantsCount = outOfStockVariants + storeEmptyVariants + criticalVariants;
 
-  // 1. Gris/Negro: Agotado (todo el stock en 0 o todas las variantes agotadas)
-  if (totalStock === 0 || outOfStockVariants === totalVariants) {
+  // 1. Gris/Negro: Agotado (todo el stock en 0 y con umbral activo, o todas las variantes activas agotadas)
+  if ((totalStock === 0 && (item.minStock ?? 2) > 0) || (outOfStockVariants === totalVariants && totalVariants > 0)) {
     return {
       level: "OUT_OF_STOCK",
       badgeClass: "bg-zinc-900 text-zinc-100 border-zinc-700 shadow-2xs",
@@ -2256,9 +2258,9 @@ export function InventoryView({
                   })()}
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">Código / SKU</span>
-                  <span className="font-mono text-[11px] text-slate-700 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/70">
-                    {item.barcode || item.sku}
+                  <span className="text-[10px] text-slate-400 block">Modelo</span>
+                  <span className="font-mono text-[11px] text-slate-700 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/70" title="Código de Modelo">
+                    {item.modelCode || item.sku}
                   </span>
                 </div>
               </div>
@@ -2583,9 +2585,11 @@ export function InventoryView({
                           }
                           return (
                             <div className="flex flex-col">
-                              <span className="font-mono font-medium text-slate-700 text-[11px]">
-                                {item.barcode || item.sku}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-800 text-[11px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80 w-fit" title="Código de Modelo">
+                                  {item.modelCode || item.sku}
+                                </span>
+                              </div>
                               {item.variants && item.variants.length > 0 && (
                                 <button
                                   type="button"
@@ -2687,13 +2691,26 @@ export function InventoryView({
                                     return (
                                       <tr key={v.id || vIdx} className="hover:bg-slate-50/70 transition-colors">
                                         <td className="py-2 px-3 font-semibold text-slate-800">
-                                          <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5">
-                                            {v.size}
-                                          </span>
-                                          <span className="text-slate-500 text-[11px]">{v.color}</span>
+                                          <div className="flex flex-col">
+                                            <div className="flex items-center">
+                                              <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] mr-1.5 font-bold text-slate-900">
+                                                {v.size}
+                                              </span>
+                                              <span className="text-slate-600 text-[11px]">{v.color}</span>
+                                            </div>
+                                            {v.sku && (
+                                              <span className="text-[10px] text-slate-400 font-mono mt-0.5" title="SKU de la Variante">
+                                                SKU: {v.sku}
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
-                                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
-                                          {v.barcode || `${item.barcode || item.sku}-${v.size}`}
+                                        <td className="py-2 px-3 font-mono text-[11px]">
+                                          {v.barcode ? (
+                                            <span className="text-slate-800 font-semibold">{v.barcode}</span>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[10.5px]">Sin código</span>
+                                          )}
                                         </td>
                                         <td className="py-2 px-3 text-center">
                                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${

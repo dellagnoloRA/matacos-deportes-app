@@ -24,8 +24,16 @@ function evaluateVariantAlert(
 ): { alertLevel: StockAlertLevel; actionRequired: string } {
   const stockTotal = stockStore + stockWarehouse;
 
-  // 1. Totalmente agotado
-  if (stockTotal === 0) {
+  // 0. Variante en plantilla/catálogo pasivo sin existencias (minStock = 0)
+  if (minStock === 0 && stockTotal === 0) {
+    return {
+      alertLevel: "NORMAL",
+      actionRequired: "En catálogo. Sin umbral de compra requerido.",
+    };
+  }
+
+  // 1. Totalmente agotado (solo si la variante tiene umbral de compra activo minStock > 0)
+  if (stockTotal === 0 && minStock > 0) {
     return {
       alertLevel: "OUT_OF_STOCK",
       actionRequired: "Agotado total. Generar orden de compra inmediata a proveedor.",
@@ -41,9 +49,9 @@ function evaluateVariantAlert(
   }
 
   // 3. Stock total crítico por debajo del mínimo general
-  if (stockTotal <= minStock) {
+  if (minStock > 0 && stockTotal <= minStock) {
     const action =
-      stockStore <= minStoreStock && stockWarehouse > 0
+      minStoreStock > 0 && stockStore <= minStoreStock && stockWarehouse > 0
         ? `Stock crítico (${stockTotal} unid.). Reponer mostrador desde depósito y solicitar compra a proveedor.`
         : `Stock crítico (${stockTotal} unid.). Solicitar compra a proveedor.`;
     return {
@@ -53,7 +61,7 @@ function evaluateVariantAlert(
   }
 
   // 4. Salón bajo pero depósito cuenta con unidades suficientes
-  if (stockStore <= minStoreStock && stockWarehouse > 0) {
+  if (minStoreStock > 0 && stockStore <= minStoreStock && stockWarehouse > 0) {
     return {
       alertLevel: "STORE_REPLENISHMENT",
       actionRequired: `Reposición preventiva. Trasladar unidades de depósito a salón de ventas.`,

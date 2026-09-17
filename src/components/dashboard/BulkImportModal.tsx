@@ -262,8 +262,36 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
 
         const stockStore = Math.max(0, parseInt(String(stockStoreRaw || 0).replace(/[^0-9]/g, ""), 10) || 0);
         const stockWarehouse = Math.max(0, parseInt(String(stockWarehouseRaw || 0).replace(/[^0-9]/g, ""), 10) || 0);
-        const minStoreStock = Math.max(0, parseInt(String(minStoreStockRaw || 1).replace(/[^0-9]/g, ""), 10) || 1);
-        const minStock = Math.max(0, parseInt(String(minStockRaw || 2).replace(/[^0-9]/g, ""), 10) || 2);
+
+        const parsedMinStore =
+          minStoreStockRaw !== undefined && minStoreStockRaw !== null && String(minStoreStockRaw).trim() !== ""
+            ? Math.max(0, parseInt(String(minStoreStockRaw).replace(/[^0-9]/g, ""), 10) || 0)
+            : null;
+        const parsedMinStock =
+          minStockRaw !== undefined && minStockRaw !== null && String(minStockRaw).trim() !== ""
+            ? Math.max(0, parseInt(String(minStockRaw).replace(/[^0-9]/g, ""), 10) || 0)
+            : null;
+
+        const isZeroInitialStock = stockStore === 0 && stockWarehouse === 0;
+        const isAccessoryNoWarehouse = !category.toLowerCase().includes("calzado") && stockWarehouse === 0;
+
+        // Si la variante no tiene stock inicial y no se especificó un mínimo manual, se asigna 0 (plantilla de catálogo pasiva)
+        // Para marroquinería/accesorios sin depósito (exhibición directa), minStore=0 y minStock=1
+        const minStoreStock =
+          parsedMinStore !== null
+            ? parsedMinStore
+            : isZeroInitialStock || isAccessoryNoWarehouse
+              ? 0
+              : 1;
+
+        const minStock =
+          parsedMinStock !== null
+            ? parsedMinStock
+            : isZeroInitialStock
+              ? 0
+              : isAccessoryNoWarehouse
+                ? 1
+                : 2;
 
         const barcode = barcodeRaw ? String(barcodeRaw).trim() : null;
         const sku = skuRaw ? String(skuRaw).trim().toUpperCase() : null;
@@ -907,7 +935,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                               </div>
                             </td>
                             <td className="py-2.5 px-3 font-mono text-slate-500">
-                              {formatCurrency(item.costPrice)}
+                              {item.costPrice ? formatCurrency(item.costPrice) : "Sin costo"}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
                               {formatCurrency(item.price)}
