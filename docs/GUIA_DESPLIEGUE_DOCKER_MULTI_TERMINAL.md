@@ -85,8 +85,8 @@ flowchart LR
   * `iniciar-en-segundo-plano.vbs`
   * `LEEME_INSTRUCCIONES.txt`
 
-### 3.2. Único Paso Pendiente antes de ir al Comercio:
-En tu computadora de desarrollo, abrir PowerShell en la raíz del proyecto (`matacos-deportes-app`) con Docker Desktop abierto y ejecutar:
+### 3.2. Paso de Preparación en Desarrollo (Completado):
+En la computadora de desarrollo, se ejecutó:
 
 ```powershell
 # 1. Construir la imagen local de producción
@@ -95,7 +95,13 @@ docker build -t matacos-app:latest .
 # 2. Guardar la imagen directamente en el pendrive E:\
 docker save -o E:\matacos-app.tar matacos-app:latest
 ```
-Una vez generado el archivo `matacos-app.tar` (pesa aprox. 250–350 MB), el pendrive queda listo para ser llevado a Saavedra 241.
+* **Estado:** Completado exitosamente. Archivo `E:\matacos-app.tar` generado con un tamaño optimizado de **~181 MB**.
+* **Ajustes de robustez resueltos durante el proceso:**
+  1. Se incluyó `pnpm-workspace.yaml` en la etapa de dependencias de Docker para que PNPM autorice las compilaciones nativas requeridas (`allowBuilds`).
+  2. Se integró `openssl` y `libc6-compat` en el runner Alpine de producción para garantizar compatibilidad con el motor de Prisma.
+  3. Se incluyó el CLI global de Prisma (`prisma@6.19.3`) y se copiaron los esquemas y migraciones (`/app/prisma`) en la imagen final, asegurando que `npx prisma migrate deploy` se ejecute de forma **100% offline** sin requerir conexión a internet al inicializar el local.
+  4. Se asignaron los permisos de usuario `nextjs:nodejs` a los directorios de subidas y estáticos para evitar errores de permisos.
+
 
 ---
 

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { CreateSaleSchema, CreateSaleInput } from "@/schemas/sale";
 import { Prisma, PaymentMethod } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
 export interface SaleHistoryFilterOptions {
   startDate?: Date | string;
@@ -169,6 +170,9 @@ export async function processSale(input: CreateSaleInput) {
         },
       });
     });
+
+    revalidatePath("/admin");
+    revalidatePath("/");
 
     return {
       success: true,

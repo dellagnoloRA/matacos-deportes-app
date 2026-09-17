@@ -33,6 +33,8 @@ import {
   FileSpreadsheet,
   AlertOctagon,
   Layers,
+  ShoppingCart,
+  Receipt,
 } from "lucide-react";
 import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
 import { formatCurrency } from "@/lib/utils";
@@ -44,6 +46,8 @@ import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
 import { PriceHistoryView } from "./PriceHistoryView";
 import { BulkImportModal } from "./BulkImportModal";
+import { QuickSaleModal } from "./QuickSaleModal";
+import { SalesHistoryModal } from "./SalesHistoryModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
@@ -961,6 +965,11 @@ export function InventoryView({
   // Estado para Carga Masiva e Ingestión Excel/CSV (RF-04 / CU-INV-02)
   const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false);
 
+  // Estados para Registro Rápido de Venta y Consulta de Tickets de Mostrador
+  const [isQuickSaleModalOpen, setIsQuickSaleModalOpen] = useState(false);
+  const [isSalesHistoryModalOpen, setIsSalesHistoryModalOpen] = useState(false);
+  const [selectedHistoryTicket, setSelectedHistoryTicket] = useState<string | null>(null);
+
   const toggleSelectProduct = (productId: string, e?: React.MouseEvent | React.ChangeEvent) => {
     if (e) e.stopPropagation();
     setSelectedProductIds((prev) => {
@@ -1572,6 +1581,33 @@ export function InventoryView({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
             <span className="hidden xl:inline">Importar Excel/CSV</span>
             <span className="xl:hidden hidden sm:inline">Importar</span>
+          </button>
+
+          {/* Botón: Historial de Tickets y Ventas */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedHistoryTicket(null);
+              setIsSalesHistoryModalOpen(true);
+            }}
+            className="px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100/90 active:scale-95 text-slate-800 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none whitespace-nowrap shrink-0 cursor-pointer"
+            title="Consultar historial de ventas y comprobantes emitidos"
+          >
+            <Receipt className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+            <span className="hidden xl:inline">Historial Tickets</span>
+            <span className="xl:hidden hidden sm:inline">Tickets</span>
+          </button>
+
+          {/* Botón: Registrar Venta de Mostrador Multiproducto */}
+          <button
+            type="button"
+            onClick={() => setIsQuickSaleModalOpen(true)}
+            className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-extrabold text-xs px-3 sm:px-3.5 py-2 rounded-xl border border-emerald-400/40 shadow-[0_2px_6px_rgba(22,163,74,0.3),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-1.5 select-none whitespace-nowrap shrink-0 cursor-pointer"
+            title="Registrar Venta de Mostrador con Múltiples Productos"
+          >
+            <ShoppingCart className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
+            <span className="hidden sm:inline">Registrar Venta</span>
+            <span className="sm:hidden">Venta</span>
           </button>
 
           <button
@@ -2927,6 +2963,31 @@ export function InventoryView({
           handleOpenStockModal(product, operation, variantId);
         }}
         onRefresh={loadProducts}
+      />
+
+      {/* Modal de Registro Rápido de Venta Multiproducto de Mostrador */}
+      <QuickSaleModal
+        isOpen={isQuickSaleModalOpen}
+        onClose={() => setIsQuickSaleModalOpen(false)}
+        products={productsList}
+        onSaleSuccess={() => {
+          loadProducts();
+          showToast("Venta registrada", "El stock de salón y el ticket fueron procesados con éxito.");
+        }}
+        onOpenHistory={(ticketNumber) => {
+          setSelectedHistoryTicket(ticketNumber || null);
+          setIsSalesHistoryModalOpen(true);
+        }}
+      />
+
+      {/* Modal de Historial de Tickets y Comprobantes de Venta */}
+      <SalesHistoryModal
+        isOpen={isSalesHistoryModalOpen}
+        onClose={() => {
+          setIsSalesHistoryModalOpen(false);
+          setSelectedHistoryTicket(null);
+        }}
+        selectedTicketNumber={selectedHistoryTicket}
       />
 
       {/* Floating Toast Notification */}
