@@ -148,6 +148,7 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
             ? v.sku.trim().toUpperCase()
             : generateDeterministicSku({
                 brand: brand.name,
+                category: category.name,
                 discipline: discipline.name,
                 productName: item.name,
                 size: v.size,
@@ -172,6 +173,13 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
           });
 
           if (existingVariant) {
+            // Salvaguarda de integridad: una variante no puede pertenecer a dos productos distintos
+            if (existingVariant.productId !== targetProductId) {
+              throw new Error(
+                `Colisión de SKU: El código '${finalSku}' ya está asignado a otro producto en la base de datos y no puede reasignarse a '${item.name}'.`
+              );
+            }
+
             if (mode === "CREATE_ONLY") {
               throw new Error(`La variante con SKU '${finalSku}' ya existe en el sistema`);
             }

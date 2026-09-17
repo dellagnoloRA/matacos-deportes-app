@@ -36,7 +36,7 @@ import {
   createBrand,
 } from "@/server/actions/categoryActions";
 import { formatCurrency } from "@/lib/utils";
-import { slugify } from "@/lib/textUtils";
+import { slugify, generateDeterministicSku } from "@/lib/textUtils";
 import { generateEan13FromSequence, GS1_INTERNAL_PREFIX } from "@/lib/barcodeGenerator";
 import { generateInternalBarcodes } from "@/server/actions/barcodeActions";
 
@@ -875,15 +875,19 @@ export function ProductFormModal({
         null;
 
       // 2. Formatear variantes (conservando ID si existía)
-      const nameClean = slugify(name).replace(/-/g, "").slice(0, 3).toUpperCase() || "MAT";
-      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-
       const formattedVariants = variants.map((v, i) => {
-        const sizeClean = slugify(v.size).replace(/-/g, "").toUpperCase() || "UNI";
         const autoSku =
           v.sku && v.sku.trim() !== ""
-            ? v.sku.trim()
-            : `MAT-${nameClean}-${sizeClean}-${randomSuffix}${i > 0 ? `-${i + 1}` : ""}`;
+            ? v.sku.trim().toUpperCase()
+            : generateDeterministicSku({
+                brand: selectedBrandName || "MAT",
+                category: selectedCategoryName || "GEN",
+                discipline: selectedDisciplineName,
+                productName: name,
+                size: v.size,
+                color: v.color,
+                suffixIndex: i > 0 ? i + 1 : undefined,
+              });
 
         return {
           id: v.id,
