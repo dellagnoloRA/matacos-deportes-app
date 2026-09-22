@@ -24,6 +24,7 @@ interface SidebarLeftProps {
   onSelectItem?: (id: string) => void;
   selectedCategory?: string;
   onSelectCategory?: (category: string) => void;
+  pendingSalesCount?: number;
 }
 
 export function SidebarLeft({
@@ -32,6 +33,7 @@ export function SidebarLeft({
   isMobile = false,
   activeItem = "inventario",
   onSelectItem,
+  pendingSalesCount = 0,
 }: SidebarLeftProps) {
   const isInventoryActive =
     activeItem === "inventario" || activeItem.startsWith("inventario-");
@@ -42,6 +44,9 @@ export function SidebarLeft({
       : activeItem === "inventario-historial"
       ? "historial"
       : "productos";
+
+  const isPosActive = activeItem === "pos" || activeItem.startsWith("pos-");
+  const activePosSubItem = activeItem === "pos-cobrar" ? "cobrar" : "preventa";
 
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
@@ -117,7 +122,7 @@ export function SidebarLeft({
             <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 2. Inventario con Sub-índices (Activo) */}
+          {/* 2. Inventario con Sub-índices */}
           <div className="space-y-1">
             <button
               onClick={() => handleItemClick("inventario-productos")}
@@ -137,7 +142,6 @@ export function SidebarLeft({
             {/* Sub-índices de Inventario */}
             {isInventoryActive && (
               <div className="ml-3 pl-3.5 border-l border-emerald-500/30 space-y-1 pt-1.5 pb-1 animate-in fade-in duration-150">
-                {/* 2.1 Productos */}
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-productos")}
@@ -151,7 +155,6 @@ export function SidebarLeft({
                   <span>Productos</span>
                 </button>
 
-                {/* 2.2 Tablas */}
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-tablas")}
@@ -165,7 +168,6 @@ export function SidebarLeft({
                   <span>Tablas</span>
                 </button>
 
-                {/* 2.3 Historial */}
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-historial")}
@@ -182,26 +184,77 @@ export function SidebarLeft({
             )}
           </div>
 
-          {/* 3. Ventas POS (Bloqueado) */}
-          <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
-          >
-            <div className="flex items-center gap-3">
-              <ShoppingBag className="w-4 h-4 text-emerald-300" />
-              <span>Ventas POS</span>
-            </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
-          </button>
+          {/* 3. Ventas POS (Activo con Preventa Salón y Cobro) */}
+          <div className="space-y-1">
+            <button
+              onClick={() => handleItemClick("pos-preventa")}
+              className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+                isPosActive
+                  ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                  : "text-emerald-100 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <ShoppingBag className={`w-4 h-4 ${isPosActive ? "text-slate-950" : "text-emerald-300"}`} />
+                <span>Ventas POS</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isPosActive ? "text-slate-950 rotate-0" : "text-emerald-400/60 -rotate-90"}`} />
+            </button>
 
-          {/* 4. Caja (Bloqueado) */}
+            {/* Sub-índices de Ventas POS */}
+            {isPosActive && (
+              <div className="ml-3 pl-3.5 border-l border-emerald-500/30 space-y-1 pt-1.5 pb-1 animate-in fade-in duration-150">
+                {/* 3.1 Preventa Salón */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("pos-preventa")}
+                  className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activePosSubItem === "preventa"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00D615]" />
+                    <span>Preventa Salón</span>
+                  </div>
+                  <span className="text-[9px] bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 px-1.5 py-0.5 rounded font-bold">
+                    vendedor
+                  </span>
+                </button>
+
+                {/* 3.2 Cobrar */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("pos-cobrar")}
+                  className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activePosSubItem === "cobrar"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span>Cobrar</span>
+                  </div>
+                  {pendingSalesCount > 0 && (
+                    <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full min-w-4 text-center">
+                      {pendingSalesCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 4. Arqueo de Caja (Bloqueado) */}
           <button
             disabled
             className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
           >
             <div className="flex items-center gap-3">
               <CircleDollarSign className="w-4 h-4 text-emerald-300" />
-              <span>Caja</span>
+              <span>Arqueo de Caja</span>
             </div>
             <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
@@ -220,31 +273,18 @@ export function SidebarLeft({
         </nav>
       </div>
 
-      {/* Bottom Section: Configuración + User Profile Card */}
+      {/* Bottom Section: User Profile Card (Lucas - Vendedor / Notebook Salón 1) */}
       <div className="space-y-3 pt-4 border-t border-emerald-800/60">
-        {/* Configuración (Bloqueado) */}
-        <button
-          disabled
-          className="flex items-center justify-between w-full py-2 px-2.5 text-emerald-200/50 cursor-not-allowed rounded-xl transition-colors font-medium text-xs"
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="w-4 h-4 text-emerald-300/50" />
-            <span>Configuración general</span>
-          </div>
-          <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
-        </button>
-
-        {/* User Profile Card (Cambiado a perfil de mostrador) */}
         <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center gap-3 shadow-inner">
-          <div className="w-9 h-9 rounded-full bg-slate-800 text-emerald-400 font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-900/50">
-            LOC
+          <div className="w-9 h-9 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">
+            V1
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-bold text-white leading-tight truncate">
-              Sesión Local
+              Lucas (Vendedor)
             </span>
-            <span className="text-[10px] text-emerald-300 font-medium tracking-wide">
-              Mostrador
+            <span className="text-[10.5px] text-emerald-300/80 font-medium tracking-wide">
+              Notebook Salón 1
             </span>
           </div>
         </div>

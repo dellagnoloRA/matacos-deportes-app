@@ -14,6 +14,8 @@ import { MarketingSeoCard } from "./MarketingSeoCard";
 import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
+import { PosView } from "./PosView";
+import { getPendingSales } from "@/server/actions/posSaleActions";
 import { DetailedProductItem, KpiData } from "./types";
 
 const INITIAL_KPIS: KpiData[] = [
@@ -76,6 +78,28 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "productos";
   }, [searchParams]);
 
+  // Sub-vista de POS sincronizada con la URL (preventa, cobrar)
+  const currentPosSubView = useMemo<"preventa" | "cobrar">(() => {
+    const seccion = searchParams.get("seccion");
+    if (seccion === "cobrar") return "cobrar";
+    return "preventa";
+  }, [searchParams]);
+
+  // Contador de preventas pendientes para el badge de "Cobrar"
+  const [pendingSalesCount, setPendingSalesCount] = useState(0);
+
+  useEffect(() => {
+    async function checkPending() {
+      try {
+        const res = await getPendingSales();
+        if (res.success && Array.isArray(res.data)) {
+          setPendingSalesCount(res.data.length);
+        }
+      } catch {}
+    }
+    checkPending();
+  }, []);
+
   // Categoría/Disciplina seleccionada sincronizada con la URL
   const selectedCategory = useMemo(() => {
     return searchParams.get("categoria") || "Todas";
@@ -111,7 +135,19 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const handleSelectTab = useCallback(
     (id: string) => {
       setSelectedProductId(null);
-      if (id === "inventario" || id === "inventario-productos") {
+      if (id === "pos" || id === "pos-preventa") {
+        updateUrl({
+          tab: "pos",
+          seccion: "preventa",
+          producto: null,
+        });
+      } else if (id === "pos-cobrar") {
+        updateUrl({
+          tab: "pos",
+          seccion: "cobrar",
+          producto: null,
+        });
+      } else if (id === "inventario" || id === "inventario-productos") {
         updateUrl({
           tab: "inventario",
           seccion: null,
@@ -219,19 +255,33 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             activeItem={
               currentTab === "inventario"
                 ? `inventario-${currentInventorySubView}`
+                : currentTab === "pos"
+                ? `pos-${currentPosSubView}`
                 : currentTab === "analytics"
                 ? "inicio"
                 : currentTab
             }
             onSelectItem={handleSelectTab}
             onSelectCategory={handleSelectCategory}
+            pendingSalesCount={pendingSalesCount}
             onClose={handleToggleLeft}
             className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
           />
         )}
 
         {/* 2. Main Content Area */}
-        {currentTab === "inventario" ? (
+        {currentTab === "pos" ? (
+          <PosView
+            initialProducts={initialProducts}
+            subView={currentPosSubView}
+            onNavigateSubView={(sub) =>
+              updateUrl({ tab: "pos", seccion: sub, producto: null })
+            }
+            onPendingCountChange={setPendingSalesCount}
+            isSidebarOpen={isDesktopLeftOpen}
+            onToggleSidebar={handleToggleLeft}
+          />
+        ) : currentTab === "inventario" ? (
           <div className="flex-1 flex flex-col min-w-0 bg-white relative min-h-screen">
             {/* Mobile Top App Bar for Inventory */}
             <div className="md:hidden px-4 py-3 bg-[#06241d] text-white flex items-center justify-between border-b border-emerald-950/60 sticky top-0 z-20 shadow-xs">
@@ -386,6 +436,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           activeItem={
             currentTab === "inventario"
               ? `inventario-${currentInventorySubView}`
+              : currentTab === "pos"
+              ? `pos-${currentPosSubView}`
               : currentTab === "analytics"
               ? "inicio"
               : currentTab
@@ -393,6 +445,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           onSelectItem={handleSelectTab}
           selectedCategory={selectedCategory}
           onSelectCategory={handleSelectCategory}
+          pendingSalesCount={pendingSalesCount}
           onClose={() => setIsMobileLeftOpen(false)}
         />
       </div>

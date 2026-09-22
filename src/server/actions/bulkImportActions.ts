@@ -7,7 +7,7 @@ import {
   BulkImportResult,
   BulkImportError,
 } from "@/schemas/bulkImport";
-import { slugify, toCanonicalTitle, generateDeterministicSku, generateModelCode } from "@/lib/textUtils";
+import { slugify, toCanonicalTitle, generateDeterministicSku, generateModelCode, isDefectiveFormulaSku } from "@/lib/textUtils";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -117,7 +117,7 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
           // Crear Producto padre
           const newProduct = await tx.product.create({
             data: {
-              name: toCanonicalTitle(item.name),
+              name: toCanonicalTitle(item.name.replace(/\s*-\s*$/, "")),
               description: item.description?.trim() || null,
               modelCode: canonicalModelCode,
               disciplineId: discipline.id,
@@ -152,8 +152,8 @@ export async function bulkImportProducts(input: BulkImportPayloadInput): Promise
 
         // C. Procesar las variantes del producto
         for (const v of item.variants) {
-          // Generar SKU determinista si viene vacío
-          const finalSku = v.sku && v.sku.trim() !== ""
+          // Generar SKU determinista si viene vacío o si proviene de una fórmula defectuosa/genérica de Excel
+          const finalSku = v.sku && v.sku.trim() !== "" && !isDefectiveFormulaSku(v.sku)
             ? v.sku.trim().toUpperCase()
             : generateDeterministicSku({
                 brand: brand.name,
