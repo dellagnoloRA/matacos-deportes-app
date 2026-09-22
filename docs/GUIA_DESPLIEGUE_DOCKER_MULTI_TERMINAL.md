@@ -302,11 +302,82 @@ Si se corta el proveedor de internet de la calle en Saavedra 241:
 
 ## 10. Actualización Futura de Software (Desde Pendrive)
 
-Cuando desarrolles nuevas funcionalidades en tu computadora de desarrollo:
-1. En tu PC:
+Cuando desarrolles nuevas funcionalidades o correcciones en tu computadora de desarrollo:
+
+### 1. En tu PC de desarrollo:
+```powershell
+# Compilar la nueva imagen de producción (incluye docker-entrypoint.sh con auto-migraciones)
+docker build -t matacos-app:latest .
+
+# Guardar la imagen en la raíz del pendrive E:\
+docker save -o E:\matacos-app.tar matacos-app:latest
+
+# Asegurarse de tener en el pendrive actualizar-sistema.bat y docker-compose.yml actualizados
+copy /y actualizar-sistema.bat E:\
+copy /y docker-compose.yml E:\
+```
+
+### 2. En la Terminal 1 del local (Saavedra 241):
+1. Conectar el pendrive USB.
+2. Hacer doble clic sobre `actualizar-sistema.bat`.
+3. El script reemplaza el contenedor con la nueva versión y **aplica automáticamente todas las migraciones pendientes de Prisma** en PostgreSQL sin reiniciar la base de datos ni perder ningún registro de inventario, ventas ni clientes.
+
+### 3. Código del Script `actualizar-sistema.bat`
+```batch
+@echo off
+title Matacos Deportes - Actualizador de Sistema
+color 0B
+
+echo =======================================================================
+echo     MATACOS DEPORTES - ACTUALIZACION DE SISTEMA EN MOSTRADOR
+echo =======================================================================
+echo.
+
+set DESTINO=C:\Matacos-POS
+set ORIGEN=%~dp0
+
+echo [1/3] Importando nueva version de la aplicacion (matacos-app.tar)...
+if not exist "%ORIGEN%matacos-app.tar" (
+    echo.
+    echo [ERROR] No se encontro matacos-app.tar en el pendrive.
+    echo Asegurese de haber copiado matacos-app.tar a la raiz del pendrive.
+    echo.
+    pause
+    exit /b 1
+)
+docker load -i "%ORIGEN%matacos-app.tar"
+
+echo.
+echo [2/3] Reiniciando contenedor con la nueva version...
+cd /d "%DESTINO%"
+docker compose up -d --no-deps app
+
+echo.
+echo [3/3] Aplicando migraciones de base de datos...
+timeout /t 3 /nobreak >nul
+docker compose exec -T app prisma migrate deploy
+
+echo.
+echo =======================================================================
+echo  SISTEMA ACTUALIZADO CON EXITO.
+echo =======================================================================
+pause
+```
+
+---
+
+## 11. Solución de Emergencia en el Local (Error de columnas faltantes)
+
+Si en el local aparece un error como `La columna "receivedAmount" does not exist in the current database`:
+Significa que el contenedor de Next.js se actualizó pero la base de datos PostgreSQL física aún no ejecutó las migraciones pendientes.
+
+### Solución inmediata en 10 segundos:
+En la **Terminal 1** del local:
+1. Presiona `Windows + R`, escribe `powershell` y pulsa Enter.
+2. Ejecuta:
    ```powershell
-   docker build -t matacos-app:latest .
-   docker save -o E:\matacos-app.tar matacos-app:latest
+   cd C:\Matacos-POS
+   docker compose exec app prisma migrate deploy
    ```
-2. Vas al local, conectas el pendrive en la Terminal 1 y haces doble clic en `actualizar-sistema.bat` (que está en el pendrive).
-3. El script reemplaza el contenedor con la versión nueva en 30 segundos **sin reiniciar PostgreSQL ni perder ningún registro de stock**.
+3. Verás en pantalla que Prisma aplica las migraciones pendientes (`add_payment_received_and_change`, `add_cash_shifts_and_pos_schema`).
+4. Las ventas volverán a registrarse de inmediato sin necesidad de reiniciar la PC.
