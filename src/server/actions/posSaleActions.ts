@@ -7,6 +7,11 @@ import {
   UpdatePendingSaleSchema,
   UpdatePendingSaleInput,
 } from "@/schemas/sale";
+import {
+  calculateSaleTotals,
+  RawSaleItemInput,
+  DiscountConfig,
+} from "@/lib/discounts";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
@@ -109,8 +114,24 @@ export async function searchPosProducts(query: string) {
 }
 
 /**
+ * Previsualizar y calcular totales y descuentos en tiempo real (RF-08)
+ * Permite al Frontend obtener el desglose exacto antes de enviar la transacción.
+ */
+export async function previewSaleTotals(
+  items: RawSaleItemInput[],
+  globalDiscount?: DiscountConfig | null
+) {
+  try {
+    const totals = calculateSaleTotals(items, globalDiscount);
+    return { success: true, data: totals };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Error al calcular totales" };
+  }
+}
+
+/**
  * Crear Preventa en Salón de Ventas (Terminal 1)
- * Reserva stock en PostgreSQL con transacción atómica y emite código correlativo diario (#042)
+ * Aplica motor de descuentos (RF-08), reserva stock preventivo y genera ticket #042
  */
 export async function createPendingSale(input: CreatePendingSaleInput) {
   try {
@@ -158,30 +179,17 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
       const ticketCode = `#${String(countToday + 1).padStart(3, "0")}`;
       const invoiceNumber = `PRE-${Date.now().toString().slice(-8)}`;
 
-      // 4. Calcular importes brutos y descuentos
-      let subtotalGross = 0;
-      let totalItemDiscounts = 0;
-
-      for (const item of validated.items) {
-        const itemGross = item.quantity * item.originalPrice;
-        subtotalGross += itemGross;
-        totalItemDiscounts += (item.discountAmount || 0) * item.quantity;
-      }
-
-      // Descuento global
-      let globalDiscountAmount = 0;
-      if (validated.globalDiscount && validated.globalDiscount.value > 0) {
-        const baseAfterItemDiscounts = Math.max(0, subtotalGross - totalItemDiscounts);
-        if (validated.globalDiscount.type === "PERCENTAGE") {
-          globalDiscountAmount = (baseAfterItemDiscounts * validated.globalDiscount.value) / 100;
-        } else {
-          globalDiscountAmount = Math.min(baseAfterItemDiscounts, validated.globalDiscount.value);
-        }
-        globalDiscountAmount = Math.round(globalDiscountAmount * 100) / 100;
-      }
-
-      const totalDiscount = Math.round((totalItemDiscounts + globalDiscountAmount) * 100) / 100;
-      const totalNet = Math.max(0, Math.round((subtotalGross - totalDiscount) * 100) / 100);
+      // 4. Calcular importes con el motor determinista de descuentos (RF-08)
+      const totals = calculateSaleTotals(
+        validated.items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          originalPrice: i.originalPrice,
+          discountType: i.discountType,
+          discountValue: i.discountValue,
+        })),
+        validated.globalDiscount
+      );
 
       // 5. Crear Venta en estado PENDIENTE_PAGO
       const sale = await tx.sale.create({
@@ -193,31 +201,31 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
           customerName: validated.customerName,
           channel: "MOSTRADOR",
           status: "PENDIENTE_PAGO",
-          subtotalGross: new Prisma.Decimal(subtotalGross),
-          discount: new Prisma.Decimal(totalDiscount),
+          subtotalGross: new Prisma.Decimal(totals.subtotalGross),
+          discount: new Prisma.Decimal(totals.totalDiscount),
           discountType: validated.globalDiscount?.type,
           discountValue: validated.globalDiscount?.value
             ? new Prisma.Decimal(validated.globalDiscount.value)
             : null,
-          total: new Prisma.Decimal(totalNet),
+          total: new Prisma.Decimal(totals.totalNet),
           notes: validated.notes ?? null,
         },
       });
 
       // 6. Crear ítems y reservar stock preventivo
-      for (const item of validated.items) {
+      for (const item of totals.items) {
         await tx.saleItem.create({
           data: {
             saleId: sale.id,
             variantId: item.variantId,
             quantity: item.quantity,
             originalPrice: new Prisma.Decimal(item.originalPrice),
-            discount: new Prisma.Decimal(item.discountAmount || 0),
+            discount: new Prisma.Decimal(item.unitDiscount),
             discountType: item.discountType,
             discountValue: item.discountValue ? new Prisma.Decimal(item.discountValue) : null,
             unitPrice: new Prisma.Decimal(item.unitPrice),
             price: new Prisma.Decimal(item.unitPrice),
-            subtotal: new Prisma.Decimal(item.quantity * item.unitPrice),
+            subtotal: new Prisma.Decimal(item.subtotal),
           },
         });
 
@@ -232,8 +240,10 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
         saleId: sale.id,
         ticketCode,
         customerName: validated.customerName,
-        totalNet,
-        itemsCount: validated.items.length,
+        subtotalGross: totals.subtotalGross,
+        totalDiscount: totals.totalDiscount,
+        totalNet: totals.totalNet,
+        itemsCount: totals.items.length,
       };
     });
 
@@ -248,6 +258,159 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
   } catch (error: any) {
     console.error("Error en createPendingSale:", error);
     return { success: false, error: error.message || "Error al generar la preventa" };
+  }
+}
+
+/**
+ * Modificar Preventa en Caja Mostrador antes del cobro (RF-08 / Terminal 2)
+ * Permite cambiar ítems, talles, cantidades y descuentos (% o $), rebalanceando el stock reservado.
+ */
+export async function updatePendingSale(input: UpdatePendingSaleInput) {
+  try {
+    const validated = UpdatePendingSaleSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener la preventa existente
+      const existingSale = await tx.sale.findUnique({
+        where: { id: validated.saleId },
+        include: { items: true },
+      });
+
+      if (!existingSale) throw new Error("Preventa no encontrada");
+      if (existingSale.status !== "PENDIENTE_PAGO") {
+        throw new Error("Solo se pueden editar preventas pendientes de pago");
+      }
+
+      // Mapear reservas previas
+      const oldReservations = new Map<string, number>();
+      for (const oldItem of existingSale.items) {
+        oldReservations.set(
+          oldItem.variantId,
+          (oldReservations.get(oldItem.variantId) || 0) + oldItem.quantity
+        );
+      }
+
+      // Mapear nuevas reservas deseadas
+      const newReservations = new Map<string, number>();
+      for (const newItem of validated.items) {
+        newReservations.set(
+          newItem.variantId,
+          (newReservations.get(newItem.variantId) || 0) + newItem.quantity
+        );
+      }
+
+      // Todas las variantes involucradas en el cambio
+      const allVariantIds = Array.from(
+        new Set([...oldReservations.keys(), ...newReservations.keys()])
+      );
+
+      const variants = await tx.productVariant.findMany({
+        where: { id: { in: allVariantIds } },
+        include: { product: true },
+      });
+      const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+      // 2. Validar disponibilidad de stock para las variantes que aumentan cantidad
+      for (const [vId, newQty] of newReservations.entries()) {
+        const oldQty = oldReservations.get(vId) || 0;
+        const diff = newQty - oldQty;
+        if (diff > 0) {
+          const v = variantMap.get(vId);
+          if (!v) throw new Error(`Variante no encontrada: ${vId}`);
+          const available = v.stockStore - v.stockReserved;
+          if (available < diff) {
+            throw new Error(
+              `Stock insuficiente para "${v.product.name}" (${v.size}/${v.color}). Se solicitaron ${diff} un. adicionales pero solo hay ${available} disponibles.`
+            );
+          }
+        }
+      }
+
+      // 3. Ajustar reservas de stock atómicamente
+      for (const vId of allVariantIds) {
+        const oldQty = oldReservations.get(vId) || 0;
+        const newQty = newReservations.get(vId) || 0;
+        const diff = newQty - oldQty;
+        if (diff !== 0) {
+          await tx.productVariant.update({
+            where: { id: vId },
+            data: { stockReserved: { increment: diff } },
+          });
+        }
+      }
+
+      // 4. Recalcular importes y descuentos
+      const totals = calculateSaleTotals(
+        validated.items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          originalPrice: i.originalPrice,
+          discountType: i.discountType,
+          discountValue: i.discountValue,
+        })),
+        validated.globalDiscount
+      );
+
+      // 5. Reemplazar los ítems de la venta
+      await tx.saleItem.deleteMany({
+        where: { saleId: existingSale.id },
+      });
+
+      for (const item of totals.items) {
+        await tx.saleItem.create({
+          data: {
+            saleId: existingSale.id,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            originalPrice: new Prisma.Decimal(item.originalPrice),
+            discount: new Prisma.Decimal(item.unitDiscount),
+            discountType: item.discountType,
+            discountValue: item.discountValue ? new Prisma.Decimal(item.discountValue) : null,
+            unitPrice: new Prisma.Decimal(item.unitPrice),
+            price: new Prisma.Decimal(item.unitPrice),
+            subtotal: new Prisma.Decimal(item.subtotal),
+          },
+        });
+      }
+
+      // 6. Actualizar cabecera de la venta
+      const updated = await tx.sale.update({
+        where: { id: existingSale.id },
+        data: {
+          customerName: validated.customerName ?? existingSale.customerName,
+          subtotalGross: new Prisma.Decimal(totals.subtotalGross),
+          discount: new Prisma.Decimal(totals.totalDiscount),
+          discountType: validated.globalDiscount?.type,
+          discountValue: validated.globalDiscount?.value
+            ? new Prisma.Decimal(validated.globalDiscount.value)
+            : null,
+          total: new Prisma.Decimal(totals.totalNet),
+          notes: validated.notes !== undefined ? validated.notes : existingSale.notes,
+        },
+      });
+
+      return {
+        saleId: updated.id,
+        ticketCode: updated.ticketCode,
+        customerName: updated.customerName,
+        subtotalGross: totals.subtotalGross,
+        totalDiscount: totals.totalDiscount,
+        totalNet: totals.totalNet,
+        itemsCount: totals.items.length,
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+    } catch {
+      // Ignored outside Next.js request context
+    }
+
+    return { success: true, data: serializeData(result) };
+  } catch (error: any) {
+    console.error("Error en updatePendingSale:", error);
+    return { success: false, error: error.message || "Error al modificar la preventa" };
   }
 }
 

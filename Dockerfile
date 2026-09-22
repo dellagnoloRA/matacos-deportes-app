@@ -5,7 +5,7 @@
 # 1. Base image con Node.js 20 LTS Alpine
 FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 
 # 2. Etapa de dependencias con PNPM
