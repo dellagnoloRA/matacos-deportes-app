@@ -6,13 +6,17 @@ import {
   CreatePendingSaleInput,
   UpdatePendingSaleSchema,
   UpdatePendingSaleInput,
+  CompletePendingSaleSchema,
+  CompletePendingSaleInput,
+  CreateSaleSchema,
+  CreateSaleInput,
 } from "@/schemas/sale";
 import {
   calculateSaleTotals,
   RawSaleItemInput,
   DiscountConfig,
 } from "@/lib/discounts";
-import { Prisma } from "@prisma/client";
+import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 function serializeData<T>(obj: any): T {
@@ -411,6 +415,328 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
   } catch (error: any) {
     console.error("Error en updatePendingSale:", error);
     return { success: false, error: error.message || "Error al modificar la preventa" };
+  }
+}
+
+/**
+ * Cobro de Preventa en Caja Mostrador (RF-09 / Terminal 2)
+ * Admite pagos combinados (Efectivo, Débito, Crédito, QR, Transferencia), calcula vuelto,
+ * descuenta definitivamente de stockStore, libera stockReserved y genera auditoría de movimientos.
+ */
+export async function completePendingSale(input: CompletePendingSaleInput) {
+  try {
+    const validated = CompletePendingSaleSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener la preventa y sus ítems
+      const sale = await tx.sale.findUnique({
+        where: { id: validated.saleId },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: { product: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!sale) throw new Error("Preventa no encontrada");
+      if (sale.status !== "PENDIENTE_PAGO") {
+        throw new Error(`La venta ya se encuentra en estado ${sale.status}`);
+      }
+
+      // 2. Validar turno de caja si fue especificado
+      if (validated.cashShiftId) {
+        const shift = await tx.cashShift.findUnique({
+          where: { id: validated.cashShiftId },
+        });
+        if (!shift) throw new Error("Turno de caja no encontrado");
+        if (shift.status !== "ABIERTA") {
+          throw new Error("El turno de caja especificado ya se encuentra cerrado.");
+        }
+      }
+
+      // 3. Validar que la suma de pagos cubra el total neto
+      const totalNet = Number(sale.total);
+      const totalPayments = validated.payments.reduce((sum, p) => sum + p.amount, 0);
+
+      if (totalPayments < totalNet - 0.05) {
+        throw new Error(
+          `Los pagos ingresados ($ ${totalPayments.toFixed(2)}) no cubren el total de la venta ($ ${totalNet.toFixed(2)}).`
+        );
+      }
+
+      // 4. Generar número de comprobante definitivo
+      const invoiceNumber = `TKT-${Date.now().toString().slice(-8)}`;
+
+      // 5. Descontar definitivamente de stockStore, liberar stockReserved y registrar movimiento
+      for (const item of sale.items) {
+        const variant = item.variant;
+        const newStockStore = variant.stockStore - item.quantity;
+        const newStockReserved = Math.max(0, variant.stockReserved - item.quantity);
+        const totalStockAfter = newStockStore + variant.stockWarehouse;
+
+        // Actualizar stock de la variante
+        await tx.productVariant.update({
+          where: { id: variant.id },
+          data: {
+            stockStore: newStockStore,
+            stockReserved: newStockReserved,
+          },
+        });
+
+        // Registrar auditoría en InventoryMovement
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: variant.id,
+            type: "VENTA_MOSTRADOR",
+            quantity: item.quantity,
+            stockAfter: totalStockAfter,
+            location: "STORE",
+            reason: `Venta Mostrador ${invoiceNumber} (Ticket ${sale.ticketCode || "Salón"})`,
+          },
+        });
+      }
+
+      // 6. Registrar los medios de pago con cálculo de vuelto
+      let totalChangeGiven = 0;
+
+      for (const payment of validated.payments) {
+        let change: number | null = null;
+        let received: number | null = null;
+
+        if (payment.method === "EFECTIVO") {
+          received = payment.receivedAmount ?? payment.amount;
+          if (received < payment.amount - 0.05) {
+            throw new Error(
+              `El monto entregado en efectivo ($ ${received.toFixed(2)}) es menor al monto a abonar ($ ${payment.amount.toFixed(2)}).`
+            );
+          }
+          change = Math.max(0, Math.round((received - payment.amount) * 100) / 100);
+          totalChangeGiven += change;
+        }
+
+        await tx.salePayment.create({
+          data: {
+            saleId: sale.id,
+            method: payment.method as PaymentMethod,
+            amount: new Prisma.Decimal(payment.amount),
+            receivedAmount: received !== null ? new Prisma.Decimal(received) : null,
+            change: change !== null ? new Prisma.Decimal(change) : null,
+            cardBrand: payment.cardBrand ?? null,
+            cardVoucher: payment.cardVoucher ?? null,
+            installments: payment.installments ?? null,
+            referenceCode: payment.referenceCode ?? null,
+          },
+        });
+      }
+
+      // 7. Actualizar la venta a estado COMPLETADA
+      const completedSale = await tx.sale.update({
+        where: { id: sale.id },
+        data: {
+          invoiceNumber,
+          status: "COMPLETADA",
+          cashierId: validated.cashierId ?? null,
+          cashShiftId: validated.cashShiftId ?? null,
+        },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: { product: true },
+              },
+            },
+          },
+          payments: true,
+          seller: { select: { id: true, name: true } },
+          cashier: { select: { id: true, name: true } },
+        },
+      });
+
+      return {
+        sale: completedSale,
+        invoiceNumber,
+        totalNet,
+        totalPayments,
+        totalChangeGiven,
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+    } catch {
+      // Ignored outside Next.js request context
+    }
+
+    return {
+      success: true,
+      data: serializeData(result.sale),
+      message: `Venta ${result.invoiceNumber} cobrada con éxito. Vuelto: $ ${result.totalChangeGiven.toFixed(2)}`,
+    };
+  } catch (error: any) {
+    console.error("Error en completePendingSale:", error);
+    return { success: false, error: error.message || "Error al procesar el cobro" };
+  }
+}
+
+/**
+ * Cobro Directo en Mostrador (Sin preventa previa en salón)
+ * Realiza el escaneo, cálculo de descuentos, cobro multimétodo y baja de stock en una sola transacción.
+ */
+export async function createDirectSale(input: CreateSaleInput) {
+  try {
+    const validated = CreateSaleSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Verificar turno de caja si fue provisto
+      if (validated.cashShiftId) {
+        const shift = await tx.cashShift.findUnique({ where: { id: validated.cashShiftId } });
+        if (!shift || shift.status !== "ABIERTA") {
+          throw new Error("El turno de caja especificado se encuentra cerrado o no existe.");
+        }
+      }
+
+      // 2. Verificar disponibilidad de stock en salón
+      const variantIds = validated.items.map((i) => i.variantId);
+      const variants = await tx.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        include: { product: true },
+      });
+      const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+      for (const item of validated.items) {
+        const v = variantMap.get(item.variantId);
+        if (!v) throw new Error(`Variante no encontrada: ${item.variantId}`);
+        const available = v.stockStore - v.stockReserved;
+        if (available < item.quantity) {
+          throw new Error(`Stock insuficiente en mostrador para ${v.product.name}.`);
+        }
+      }
+
+      // 3. Generar número de comprobante
+      const invoiceNumber = `TKT-${Date.now().toString().slice(-8)}`;
+
+      // 4. Calcular totales
+      const totals = calculateSaleTotals(
+        validated.items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          originalPrice: i.price,
+          discountType: i.discountType,
+          discountValue: i.discountValue,
+        })),
+        validated.discountType && validated.discountValue
+          ? { type: validated.discountType, value: validated.discountValue }
+          : validated.discount > 0
+          ? { type: "FIXED", value: validated.discount }
+          : null
+      );
+
+      // 5. Validar pagos
+      const totalPayments = validated.payments.reduce((sum, p) => sum + p.amount, 0);
+      if (totalPayments < totals.totalNet - 0.05) {
+        throw new Error(
+          `Los pagos ingresados ($ ${totalPayments.toFixed(2)}) no cubren el total neto ($ ${totals.totalNet.toFixed(2)}).`
+        );
+      }
+
+      // 6. Crear Venta COMPLETADA
+      const sale = await tx.sale.create({
+        data: {
+          invoiceNumber,
+          offlineId: validated.offlineId ?? null,
+          sellerId: validated.sellerId ?? validated.userId ?? null,
+          cashierId: validated.cashierId ?? validated.userId ?? null,
+          cashShiftId: validated.cashShiftId ?? null,
+          customerName: validated.customerName || "Cliente Mostrador",
+          channel: validated.channel || "MOSTRADOR",
+          status: "COMPLETADA",
+          subtotalGross: new Prisma.Decimal(totals.subtotalGross),
+          discount: new Prisma.Decimal(totals.totalDiscount),
+          discountType: validated.discountType,
+          discountValue: validated.discountValue ? new Prisma.Decimal(validated.discountValue) : null,
+          total: new Prisma.Decimal(totals.totalNet),
+        },
+      });
+
+      // 7. Crear SaleItems y descontar stock
+      for (const item of totals.items) {
+        const variant = variantMap.get(item.variantId)!;
+        const newStockStore = variant.stockStore - item.quantity;
+
+        await tx.productVariant.update({
+          where: { id: variant.id },
+          data: { stockStore: newStockStore },
+        });
+
+        await tx.saleItem.create({
+          data: {
+            saleId: sale.id,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            originalPrice: new Prisma.Decimal(item.originalPrice),
+            discount: new Prisma.Decimal(item.unitDiscount),
+            discountType: item.discountType,
+            discountValue: item.discountValue ? new Prisma.Decimal(item.discountValue) : null,
+            unitPrice: new Prisma.Decimal(item.unitPrice),
+            price: new Prisma.Decimal(item.unitPrice),
+            subtotal: new Prisma.Decimal(item.subtotal),
+          },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: variant.id,
+            type: "VENTA_MOSTRADOR",
+            quantity: item.quantity,
+            stockAfter: newStockStore + variant.stockWarehouse,
+            location: "STORE",
+            reason: `Venta Directa Mostrador ${invoiceNumber}`,
+          },
+        });
+      }
+
+      // 8. Registrar pagos y calcular vuelto
+      for (const payment of validated.payments) {
+        let change: number | null = null;
+        let received: number | null = null;
+
+        if (payment.method === "EFECTIVO") {
+          received = payment.receivedAmount ?? payment.amount;
+          change = Math.max(0, Math.round((received - payment.amount) * 100) / 100);
+        }
+
+        await tx.salePayment.create({
+          data: {
+            saleId: sale.id,
+            method: payment.method as PaymentMethod,
+            amount: new Prisma.Decimal(payment.amount),
+            receivedAmount: received !== null ? new Prisma.Decimal(received) : null,
+            change: change !== null ? new Prisma.Decimal(change) : null,
+            cardBrand: payment.cardBrand ?? null,
+            cardVoucher: payment.cardVoucher ?? null,
+            installments: payment.installments ?? null,
+            referenceCode: payment.referenceCode ?? null,
+          },
+        });
+      }
+
+      return sale;
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+    } catch {}
+
+    return { success: true, data: serializeData(result) };
+  } catch (error: any) {
+    console.error("Error en createDirectSale:", error);
+    return { success: false, error: error.message || "Error al procesar la venta directa" };
   }
 }
 
