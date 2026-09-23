@@ -3,12 +3,19 @@
 import {
   generateReceiptPayload,
   generateReceiptPayloadByTicketCode,
+  formatTicketToPlainText,
 } from "@/server/services/receiptService";
 import { ReceiptData } from "@/schemas/receipt";
 
 export interface GetReceiptResponse {
   success: boolean;
   data?: ReceiptData;
+  error?: string;
+}
+
+export interface GetReceiptPlainTextResponse {
+  success: boolean;
+  text?: string;
   error?: string;
 }
 
@@ -49,6 +56,31 @@ export async function getReceiptByTicketCode(ticketCode: string): Promise<GetRec
     return {
       success: false,
       error: error.message || "Error al obtener comprobante por código",
+    };
+  }
+}
+
+/**
+ * Server Action: Obtiene la versión en texto plano (ESC/POS monocromático) del comprobante
+ */
+export async function getReceiptPlainText(
+  saleId: string,
+  cols: 40 | 32 | 48 = 40,
+  includePolicies = false
+): Promise<GetReceiptPlainTextResponse> {
+  try {
+    if (!saleId || typeof saleId !== "string") {
+      return { success: false, error: "ID de venta inválido o no proporcionado" };
+    }
+
+    const data = await generateReceiptPayload(saleId);
+    const text = formatTicketToPlainText(data, cols, { includePolicies });
+    return { success: true, text };
+  } catch (error: any) {
+    console.error("Error en getReceiptPlainText:", error);
+    return {
+      success: false,
+      error: error.message || "Error al obtener texto del comprobante",
     };
   }
 }

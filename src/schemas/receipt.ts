@@ -35,6 +35,7 @@ export const ReceiptSaleHeaderSchema = z.object({
   customerCondition: z.string(), // "A CONSUMIDOR FINAL"
   sellerName: z.string().nullable().optional(), // "Nahir Fornari"
   cashierName: z.string().nullable().optional(), // "Agustín Dellagnolo"
+  cashierCode: z.string().default("CAJERO01"),
 });
 
 /**
@@ -109,6 +110,9 @@ export const ReceiptFiscalSchema = z.object({
   securityHash: z.string(), // Hash SHA-256 corto para antifraude
   qrUrl: z.string(), // URL estándar AFIP con JSON en Base64
   qrRawPayload: z.record(z.unknown()), // Datos puros para impresoras ESC/POS
+  qrDataUrl: z.string().optional(), // Imagen DataURL en Base64 para tags <img> y vistas previas
+  fiscalSerialNumber: z.string().default("SESHRA000022252"),
+  softwareVersion: z.string().default("V: 1.02"),
 });
 
 /**

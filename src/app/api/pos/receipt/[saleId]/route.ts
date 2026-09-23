@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateReceiptPayload } from "@/server/services/receiptService";
+import {
+  generateReceiptPayload,
+  formatTicketToPlainText,
+  formatTicketToHtml,
+} from "@/server/services/receiptService";
 
 /**
  * Route Handler REST: GET /api/pos/receipt/[saleId]
@@ -20,6 +24,35 @@ export async function GET(
     }
 
     const receipt = await generateReceiptPayload(saleId);
+
+    const { searchParams } = new URL(req.url);
+    const format = searchParams.get("format");
+
+    if (format === "print" || format === "html") {
+      const htmlOutput = formatTicketToHtml(receipt, {
+        autoPrint: searchParams.get("autoprint") !== "false",
+      });
+      return new NextResponse(htmlOutput, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "private, no-cache",
+        },
+      });
+    }
+
+    if (format === "plain") {
+      const parsedCols = parseInt(searchParams.get("cols") || "40", 10);
+      const cols = parsedCols === 32 ? 32 : parsedCols === 48 ? 48 : 40;
+      const includePolicies = searchParams.get("policies") === "true";
+      const textOutput = formatTicketToPlainText(receipt, cols, { includePolicies });
+      return new NextResponse(textOutput, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "private, no-cache",
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, data: receipt });
   } catch (error: any) {
     console.error("Error en GET /api/pos/receipt/[saleId]:", error);

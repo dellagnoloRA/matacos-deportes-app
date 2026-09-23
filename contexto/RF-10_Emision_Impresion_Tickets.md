@@ -100,10 +100,10 @@ sequenceDiagram
 
 ## 5. Pruebas y Validación (QA)
 
-Se desarrolló la suite automatizada [`scripts/test-rf10-receipts.ts`](file:///C:/Users/della/matacos-deportes-app/scripts/test-rf10-receipts.ts) con 30 pruebas unitarias que cubren el 100% de la lógica impositiva y de datos:
+Se desarrolló la suite automatizada [`scripts/test-rf10-receipts.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/test-rf10-receipts.ts) con 54 pruebas unitarias que cubren el 100% de la lógica impositiva, de datos y fidelidad visual con el ticket físico:
 
 ### Prueba 1: Deducción Matemática de Transparencia Fiscal
-1. **Precondición:** Venta de `$ 4.800,00` correspondiente al ticket físico de muestra de Saavedra 241.
+1. **Precondición:** Venta de `$ 4.800,00` correspondiente al ticket físico de muestra de Saavedra 241 (`contexto/Ticket-Factura Matacos.jpeg`).
 2. **Paso:** Ejecutar `calculateVatBreakdown(4800.0)`.
 3. **Resultado Esperado:** 
    - `vatAmount` es exactamente `$ 833,06`.
@@ -133,3 +133,24 @@ Se desarrolló la suite automatizada [`scripts/test-rf10-receipts.ts`](file:///C
 2. **Resultado Esperado:** 
    - `ReceiptDataSchema.safeParse` retorna `success: true`.
    - El cliente no especificado aplica fallback automático a `"CONSUMIDOR FINAL"`.
+
+### Prueba 6: Fidelidad Visual con el Ticket Físico Real (Saavedra 241)
+1. **Paso:** Ejecutar `formatTicketToPlainText(receipt, 40)` sobre la venta idéntica a la fotografía de muestra.
+2. **Resultado Esperado:**
+   - Encabezado con letras espaciadas centrado: `M A T A C O S` y `D E P O R T E S`.
+   - Bloque emisor: `MUJICA SANDRA ISABEL`, CUIT `27-18036080-3`, IIBB `01-2718036080-3`, Dirección `SAAVEDRA 241`, Localidad `FORMOSA - CAPITAL`, `C.P.3600`, Inicio `25/07/2007`, `IVA RESPONSABLE INSCRIPTO`, `A CONSUMIDOR FINAL`.
+   - Comprobante: `Cód. 083 - TIQUE`, `P.V. Nro. 00008 - Nro. T. 00026445`, `Fecha 22/09/2026           Hora 10:34:01`.
+   - Renglones: `ACCESORIOS                            $4800,00`.
+   - Totales: `TOTAL                                 $4800,00`.
+   - Pagos: `RECIBI(MOS)` y `EFECTIVO                              $4800,00`.
+   - Transparencia Fiscal: `TRANSPARENCIA FISCAL`, `IVA contenido:                         $833,06` y cajero `CAJERO01`.
+   - Código QR oficial AFIP escaneable y visualmente adaptado.
+   - Pie: `CF SESHRA000022252                    V: 1.02`.
+   - Ancho térmico: Ninguna línea supera las 40 columnas de la bobina de 80mm.
+
+---
+
+## 6. Scripts de Utilidad y Previsualización
+- [`scripts/test-rf10-receipts.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/test-rf10-receipts.ts): Banco integral de 54 pruebas unitarias automáticas (`pnpm exec tsx scripts/test-rf10-receipts.ts`).
+- [`scripts/preview-ticket-fidelity.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/preview-ticket-fidelity.ts): Generador visual interactivo que renderiza el ticket en consola con el código QR escaneable por smartphones (`pnpm exec tsx scripts/preview-ticket-fidelity.ts`).
+

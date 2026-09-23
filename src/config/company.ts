@@ -26,6 +26,9 @@ export interface CompanyConfig {
   instagram: string;
   exchangePolicy: string;
   legalNotice: string;
+  fiscalSerialNumber: string;
+  softwareVersion: string;
+  defaultCashierCode: string;
 }
 
 export function getCompanyConfig(): CompanyConfig {
@@ -58,6 +61,9 @@ export function getCompanyConfig(): CompanyConfig {
       process.env.COMPANY_EXCHANGE_POLICY ||
       "CAMBIOS: Indispensable presentar este comprobante. El producto debe encontrarse sin uso, sin daños y con sus etiquetas originales adheridas. Prendas íntimas, mallas y medias no tienen cambio.",
     legalNotice: "Comprobante de Entrega / Tique Mostrador. Válido para control de salida y cambios de mercadería.",
+    fiscalSerialNumber: process.env.COMPANY_FISCAL_SERIAL || "SESHRA000022252",
+    softwareVersion: process.env.COMPANY_SOFTWARE_VERSION || "V: 1.02",
+    defaultCashierCode: process.env.POS_DEFAULT_CASHIER_CODE || "CAJERO01",
   };
 }
 
