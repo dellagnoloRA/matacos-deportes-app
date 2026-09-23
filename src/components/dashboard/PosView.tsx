@@ -9,8 +9,6 @@ import React, {
 } from "react";
 import {
   Search,
-  Barcode,
-  Keyboard,
   LayoutGrid,
   List,
   Sparkles,
@@ -29,6 +27,8 @@ import {
   DollarSign,
   Printer,
   ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   CreditCard,
   Banknote,
   QrCode,
@@ -39,6 +39,7 @@ import {
   ShoppingBag,
   CircleDollarSign,
   PanelLeft,
+  Split,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
@@ -55,6 +56,7 @@ import {
   cancelPendingSale,
 } from "@/server/actions/posSaleActions";
 import { BarcodeSvg } from "./BarcodeSvg";
+import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
 
 // ----------------------------------------------------------------------
 // Tipos de Estado para Preventa y Carrito
@@ -119,8 +121,8 @@ export interface PendingSaleItemSummary {
 
 interface PosViewProps {
   initialProducts?: DetailedProductItem[];
-  subView?: "preventa" | "cobrar";
-  onNavigateSubView?: (subView: "preventa" | "cobrar") => void;
+  subView?: "preventa" | "cobrar" | "historial";
+  onNavigateSubView?: (subView: "preventa" | "cobrar" | "historial") => void;
   onPendingCountChange?: (count: number) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
@@ -142,6 +144,8 @@ export function PosView({
   const [selectedDiscipline, setSelectedDiscipline] = useState<string>("Todas");
   const [viewLayout, setViewLayout] = useState<"grid" | "list">("grid");
   const [isUsbScannerActive, setIsUsbScannerActive] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(6);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,11 +190,27 @@ export function PosView({
   // ----------------------------------------------------------------------
   const [pendingSales, setPendingSales] = useState<PendingSaleItemSummary[]>([]);
   const [isLoadingPendingSales, setIsLoadingPendingSales] = useState(false);
+  type CashierPaymentMethodType =
+    | "EFECTIVO"
+    | "DEBITO"
+    | "CREDITO"
+    | "QR_MERCADOPAGO"
+    | "TRANSFERENCIA";
+
   const [activeCheckoutSale, setActiveCheckoutSale] = useState<PendingSaleItemSummary | null>(null);
-  const [cashierPaymentMethod, setCashierPaymentMethod] = useState<
-    "EFECTIVO" | "DEBITO" | "CREDITO" | "QR_MERCADOPAGO" | "TRANSFERENCIA"
-  >("EFECTIVO");
+  const [cashierPaymentMethod, setCashierPaymentMethod] = useState<CashierPaymentMethodType>("EFECTIVO");
   const [cashierReceivedAmount, setCashierReceivedAmount] = useState<string>("");
+
+  // Soporte para Cobro Dividido (2 Métodos de Pago)
+  const [isSplitPayment, setIsSplitPayment] = useState<boolean>(false);
+  const [splitPayment1Method, setSplitPayment1Method] = useState<CashierPaymentMethodType>("EFECTIVO");
+  const [splitPayment1Amount, setSplitPayment1Amount] = useState<string>("");
+  const [splitPayment1Received, setSplitPayment1Received] = useState<string>("");
+
+  const [splitPayment2Method, setSplitPayment2Method] = useState<CashierPaymentMethodType>("DEBITO");
+  const [splitPayment2Amount, setSplitPayment2Amount] = useState<string>("");
+  const [splitPayment2Received, setSplitPayment2Received] = useState<string>("");
+
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedSaleResult, setCompletedSaleResult] = useState<{
     invoiceNumber: string;
@@ -258,6 +278,39 @@ export function PosView({
     return ["Todas", ...Array.from(list)];
   }, [products]);
 
+  const [isCategoriesDropdownOpen, setIsCategoriesDropdownOpen] = useState(false);
+  const categoriesDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        categoriesDropdownRef.current &&
+        !categoriesDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCategoriesDropdownOpen(false);
+      }
+    };
+    if (isCategoriesDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isCategoriesDropdownOpen]);
+
+  const MAX_VISIBLE_CATEGORIES = 5;
+  const visibleCategories = useMemo(() => {
+    const initial = disciplineOptions.slice(0, MAX_VISIBLE_CATEGORIES);
+    if (
+      selectedDiscipline &&
+      selectedDiscipline !== "Todas" &&
+      !initial.includes(selectedDiscipline)
+    ) {
+      return [...initial, selectedDiscipline];
+    }
+    return initial;
+  }, [disciplineOptions, selectedDiscipline]);
+
   // ----------------------------------------------------------------------
   // Filtrado reactivo de productos del catálogo
   // ----------------------------------------------------------------------
@@ -290,6 +343,44 @@ export function PosView({
 
     return result;
   }, [products, selectedDiscipline, searchQuery]);
+
+  // Resetear paginación al cambiar filtros o búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDiscipline]);
+
+  // Cálculos de Paginación del Catálogo POS
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const startIdx = (validCurrentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredProducts, validCurrentPage, itemsPerPage]);
+
+  const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(validCurrentPage * itemsPerPage, totalItems);
+
+  const getPageNumbers = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [];
+    if (validCurrentPage <= 3) {
+      pages.push(1, 2, 3, "...", totalPages);
+    } else if (validCurrentPage >= totalPages - 2) {
+      pages.push(1, "...", totalPages - 2, totalPages - 1, totalPages);
+    } else {
+      pages.push(1, "...", validCurrentPage, "...", totalPages);
+    }
+    return pages;
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // ----------------------------------------------------------------------
   // Totales de la Preventa en Tiempo Real (RF-08)
@@ -376,7 +467,7 @@ export function PosView({
         ) {
           // Agregar al carrito
           handleAddVariantToCart(prod, variant);
-          showToast(`Lector USB: "${prod.name} (${variant.size})" agregado al carrito`);
+          showToast(`"${prod.name} (${variant.size})" agregado al carrito`);
           return;
         }
       }
@@ -636,8 +727,19 @@ export function PosView({
   // ----------------------------------------------------------------------
   const handleOpenCheckoutModal = (sale: PendingSaleItemSummary) => {
     setActiveCheckoutSale(sale);
+    setIsSplitPayment(false);
     setCashierPaymentMethod("EFECTIVO");
     setCashierReceivedAmount(sale.total.toString());
+
+    // Inicializar valores para pago mixto por defecto (50% / 50%)
+    const half = Math.round((sale.total / 2) * 100) / 100;
+    const rest = Math.round((sale.total - half) * 100) / 100;
+    setSplitPayment1Method("EFECTIVO");
+    setSplitPayment1Amount(half.toString());
+    setSplitPayment1Received(half.toString());
+    setSplitPayment2Method("DEBITO");
+    setSplitPayment2Amount(rest.toString());
+    setSplitPayment2Received(rest.toString());
   };
 
   const handleCancelPending = async (saleId: string, ticketCode: string | null) => {
@@ -666,60 +768,164 @@ export function PosView({
     if (!activeCheckoutSale) return;
 
     const totalToPay = activeCheckoutSale.total;
-    const receivedNum = parseFloat(cashierReceivedAmount) || totalToPay;
 
-    if (cashierPaymentMethod === "EFECTIVO" && receivedNum < totalToPay - 0.05) {
-      showToast("El monto en efectivo ingresado no cubre el total de la venta", "error");
-      return;
-    }
+    if (!isSplitPayment) {
+      const receivedNum = parseFloat(cashierReceivedAmount) || totalToPay;
 
-    setIsProcessingCheckout(true);
-    try {
-      const payload = {
-        saleId: activeCheckoutSale.id,
-        payments: [
-          {
-            method: cashierPaymentMethod,
-            amount: totalToPay,
-            receivedAmount: cashierPaymentMethod === "EFECTIVO" ? receivedNum : undefined,
-          },
-        ],
-      };
-
-      const res = await completePendingSale(payload);
-
-      if (!res.success || !res.data) {
-        showToast(res.error || "No se pudo registrar el cobro", "error");
+      if (cashierPaymentMethod === "EFECTIVO" && receivedNum < totalToPay - 0.05) {
+        showToast("El monto en efectivo ingresado no cubre el total de la venta", "error");
         return;
       }
 
-      const completed = res.data as {
-        invoiceNumber: string;
-        ticketCode?: string;
-        customerName?: string;
-      };
-      const changeGiven =
-        cashierPaymentMethod === "EFECTIVO" ? Math.max(0, receivedNum - totalToPay) : 0;
+      setIsProcessingCheckout(true);
+      try {
+        const payload = {
+          saleId: activeCheckoutSale.id,
+          payments: [
+            {
+              method: cashierPaymentMethod,
+              amount: totalToPay,
+              receivedAmount: cashierPaymentMethod === "EFECTIVO" ? receivedNum : undefined,
+            },
+          ],
+        };
 
-      setCompletedSaleResult({
-        invoiceNumber: completed.invoiceNumber,
-        ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
-        customerName: completed.customerName || "Consumidor Final",
-        totalNet: totalToPay,
-        change: changeGiven,
-        payments: [{ method: cashierPaymentMethod, amount: totalToPay }],
-        items: activeCheckoutSale.items,
-      });
+        const res = await completePendingSale(payload);
 
-      setActiveCheckoutSale(null);
-      fetchPendingSalesList();
-    } catch (err: any) {
-      console.error("Error al cobrar:", err);
-      showToast(err.message || "Error al procesar el cobro", "error");
-    } finally {
-      setIsProcessingCheckout(false);
+        if (!res.success || !res.data) {
+          showToast(res.error || "No se pudo registrar el cobro", "error");
+          return;
+        }
+
+        const completed = res.data as {
+          invoiceNumber: string;
+          ticketCode?: string;
+          customerName?: string;
+        };
+        const changeGiven =
+          cashierPaymentMethod === "EFECTIVO" ? Math.max(0, receivedNum - totalToPay) : 0;
+
+        setCompletedSaleResult({
+          invoiceNumber: completed.invoiceNumber,
+          ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
+          customerName: completed.customerName || "Consumidor Final",
+          totalNet: totalToPay,
+          change: changeGiven,
+          payments: [{ method: cashierPaymentMethod, amount: totalToPay }],
+          items: activeCheckoutSale.items,
+        });
+
+        setActiveCheckoutSale(null);
+        fetchPendingSalesList();
+      } catch (err: any) {
+        console.error("Error al cobrar:", err);
+        showToast(err.message || "Error al procesar el cobro", "error");
+      } finally {
+        setIsProcessingCheckout(false);
+      }
+    } else {
+      // Cobro con 2 Métodos de Pago
+      const amt1 = parseFloat(splitPayment1Amount) || 0;
+      const amt2 = parseFloat(splitPayment2Amount) || 0;
+      const sumPayments = Math.round((amt1 + amt2) * 100) / 100;
+
+      if (amt1 <= 0 || amt2 <= 0) {
+        showToast("Ambos métodos de pago deben tener un monto asignado mayor a cero", "error");
+        return;
+      }
+
+      if (Math.abs(sumPayments - totalToPay) > 0.05) {
+        showToast(
+          `La suma de ambos pagos (${formatCurrency(sumPayments)}) debe coincidir exactamente con el total (${formatCurrency(totalToPay)})`,
+          "error"
+        );
+        return;
+      }
+
+      const rec1 = parseFloat(splitPayment1Received) || amt1;
+      const rec2 = parseFloat(splitPayment2Received) || amt2;
+
+      if (splitPayment1Method === "EFECTIVO" && rec1 < amt1 - 0.05) {
+        showToast("El efectivo recibido en Método 1 no cubre el monto asignado", "error");
+        return;
+      }
+
+      if (splitPayment2Method === "EFECTIVO" && rec2 < amt2 - 0.05) {
+        showToast("El efectivo recibido en Método 2 no cubre el monto asignado", "error");
+        return;
+      }
+
+      setIsProcessingCheckout(true);
+      try {
+        const payload = {
+          saleId: activeCheckoutSale.id,
+          payments: [
+            {
+              method: splitPayment1Method,
+              amount: amt1,
+              receivedAmount: splitPayment1Method === "EFECTIVO" ? rec1 : undefined,
+            },
+            {
+              method: splitPayment2Method,
+              amount: amt2,
+              receivedAmount: splitPayment2Method === "EFECTIVO" ? rec2 : undefined,
+            },
+          ],
+        };
+
+        const res = await completePendingSale(payload);
+
+        if (!res.success || !res.data) {
+          showToast(res.error || "No se pudo registrar el cobro", "error");
+          return;
+        }
+
+        const completed = res.data as {
+          invoiceNumber: string;
+          ticketCode?: string;
+          customerName?: string;
+        };
+        const change1 = splitPayment1Method === "EFECTIVO" ? Math.max(0, rec1 - amt1) : 0;
+        const change2 = splitPayment2Method === "EFECTIVO" ? Math.max(0, rec2 - amt2) : 0;
+        const totalChange = change1 + change2;
+
+        setCompletedSaleResult({
+          invoiceNumber: completed.invoiceNumber,
+          ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
+          customerName: completed.customerName || "Consumidor Final",
+          totalNet: totalToPay,
+          change: totalChange,
+          payments: [
+            { method: splitPayment1Method, amount: amt1 },
+            { method: splitPayment2Method, amount: amt2 },
+          ],
+          items: activeCheckoutSale.items,
+        });
+
+        setActiveCheckoutSale(null);
+        fetchPendingSalesList();
+      } catch (err: any) {
+        console.error("Error al cobrar con pagos mixtos:", err);
+        showToast(err.message || "Error al procesar el cobro", "error");
+      } finally {
+        setIsProcessingCheckout(false);
+      }
     }
   };
+
+  // ----------------------------------------------------------------------
+  // Render: SUB-VISTA HISTORIAL DE TRANSACCIONES POS
+  // ----------------------------------------------------------------------
+  if (subView === "historial") {
+    return (
+      <PosTransactionHistoryView
+        onNavigateToPreventa={() => onNavigateSubView?.("preventa")}
+        onNavigateToCobrar={() => onNavigateSubView?.("cobrar")}
+        onToggleSidebar={onToggleSidebar}
+        pendingSalesCount={pendingSales.length}
+      />
+    );
+  }
 
   // ----------------------------------------------------------------------
   // Render: SUB-VISTA COBRAR (TERMINAL 2)
@@ -754,13 +960,20 @@ export function PosView({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => onNavigateSubView?.("preventa")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
             >
               <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
               <span>Ir a Preventa Salón</span>
+            </button>
+            <button
+              onClick={() => onNavigateSubView?.("historial")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
+            >
+              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Historial Transacciones</span>
             </button>
             <button
               onClick={fetchPendingSalesList}
@@ -894,118 +1107,416 @@ export function PosView({
         </div>
 
         {/* Modal de Cobro Caja Mostrador */}
-        {activeCheckoutSale && (
-          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-sm font-mono font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
-                    {activeCheckoutSale.ticketCode || "#000"}
-                  </span>
-                  <h3 className="text-base font-bold">Cobrar Preventa en Caja</h3>
-                </div>
-                <button
-                  onClick={() => setActiveCheckoutSale(null)}
-                  className="text-slate-400 hover:text-white p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        {/* Modal de Cobro Caja Mostrador */}
+        {activeCheckoutSale && (() => {
+          const splitP1 = parseFloat(splitPayment1Amount) || 0;
+          const splitP2 = parseFloat(splitPayment2Amount) || 0;
+          const splitTotalAssigned = Math.round((splitP1 + splitP2) * 100) / 100;
+          const splitDiff = Math.round((activeCheckoutSale.total - splitTotalAssigned) * 100) / 100;
+          const isSplitBalanced = Math.abs(splitDiff) <= 0.05 && splitP1 > 0 && splitP2 > 0;
 
-              <div className="p-6 space-y-5">
-                {/* Total Display */}
-                <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 text-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                    Total a Cobrar
-                  </span>
-                  <p className="text-3xl font-black text-emerald-700 mt-1 font-mono">
-                    {formatCurrency(activeCheckoutSale.total)}
-                  </p>
-                </div>
+          const splitRec1 = parseFloat(splitPayment1Received) || splitP1;
+          const splitRec2 = parseFloat(splitPayment2Received) || splitP2;
+          const splitChange1 = splitPayment1Method === "EFECTIVO" ? Math.max(0, splitRec1 - splitP1) : 0;
+          const splitChange2 = splitPayment2Method === "EFECTIVO" ? Math.max(0, splitRec2 - splitP2) : 0;
+          const totalSplitChange = splitChange1 + splitChange2;
 
-                {/* Métodos de Pago */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700">Medio de Pago</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { id: "EFECTIVO", label: "Efectivo", icon: Banknote },
-                      { id: "DEBITO", label: "Débito", icon: CreditCard },
-                      { id: "CREDITO", label: "Crédito", icon: CreditCard },
-                      { id: "QR_MERCADOPAGO", label: "QR / MP", icon: QrCode },
-                      { id: "TRANSFERENCIA", label: "Transfer.", icon: ArrowUpRight },
-                    ].map((m) => {
-                      const Icon = m.icon;
-                      const isSelected = cashierPaymentMethod === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setCashierPaymentMethod(m.id as any)}
-                          className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
-                            isSelected
-                              ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span>{m.label}</span>
-                        </button>
-                      );
-                    })}
+          const cashierPaymentOptions = [
+            { id: "EFECTIVO", label: "Efectivo", icon: Banknote },
+            { id: "DEBITO", label: "Débito", icon: CreditCard },
+            { id: "CREDITO", label: "Crédito", icon: CreditCard },
+            { id: "QR_MERCADOPAGO", label: "QR / MP", icon: QrCode },
+            { id: "TRANSFERENCIA", label: "Transfer.", icon: ArrowUpRight },
+          ] as const;
+
+          return (
+            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
+              <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+                {/* Header */}
+                <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-mono font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
+                      {activeCheckoutSale.ticketCode || "#000"}
+                    </span>
+                    <h3 className="text-base font-bold">Cobrar Preventa en Caja</h3>
                   </div>
+                  <button
+                    onClick={() => setActiveCheckoutSale(null)}
+                    className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                {/* Si es efectivo: input de monto entregado y cálculo de vuelto */}
-                {cashierPaymentMethod === "EFECTIVO" && (
-                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Monto entregado por el cliente:
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        value={cashierReceivedAmount}
-                        onChange={(e) => setCashierReceivedAmount(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
+                <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                  {/* Total Display */}
+                  <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-3.5 text-center">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                      Total a Cobrar
+                    </span>
+                    <p className="text-3xl font-black text-emerald-700 mt-0.5 font-mono">
+                      {formatCurrency(activeCheckoutSale.total)}
+                    </p>
+                  </div>
 
-                    {parseFloat(cashierReceivedAmount) >= activeCheckoutSale.total && (
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                        <span className="font-bold text-slate-600">Vuelto a entregar:</span>
-                        <span className="font-mono font-black text-emerald-700 text-base">
-                          {formatCurrency(
-                            parseFloat(cashierReceivedAmount) - activeCheckoutSale.total
-                          )}
-                        </span>
+                  {/* Selector Segmentado: 1 Método vs 2 Métodos */}
+                  <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setIsSplitPayment(false)}
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        !isSplitPayment
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Pago Único (1 Medio)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSplitPayment(true);
+                        if (!splitPayment1Amount || parseFloat(splitPayment1Amount) === 0) {
+                          const half = Math.round((activeCheckoutSale.total / 2) * 100) / 100;
+                          const rest = Math.round((activeCheckoutSale.total - half) * 100) / 100;
+                          setSplitPayment1Amount(half.toString());
+                          setSplitPayment1Received(half.toString());
+                          setSplitPayment2Amount(rest.toString());
+                          setSplitPayment2Received(rest.toString());
+                        }
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        isSplitPayment
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Split className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Dividir Pago (2 Medios)</span>
+                    </button>
+                  </div>
+
+                  {/* VISTA A: 1 SOLO MEDIO DE PAGO */}
+                  {!isSplitPayment && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-700">Medio de Pago</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          {cashierPaymentOptions.map((m) => {
+                            const Icon = m.icon;
+                            const isSelected = cashierPaymentMethod === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setCashierPaymentMethod(m.id as any)}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                }`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                <span className="truncate">{m.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Botón de Confirmación */}
-                <button
-                  type="button"
-                  onClick={handleProcessCashierCheckout}
-                  disabled={isProcessingCheckout}
-                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-sm rounded-xl shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2"
-                >
-                  {isProcessingCheckout ? (
-                    <span>Procesando cobro...</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>CONFIRMAR COBRO Y ENTREGAR PRENDAS</span>
-                    </>
+                      {/* Si es efectivo: input de monto entregado y cálculo de vuelto */}
+                      {cashierPaymentMethod === "EFECTIVO" && (
+                        <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                          <label className="text-xs font-bold text-slate-700 block">
+                            Monto entregado por el cliente:
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              value={cashierReceivedAmount}
+                              onChange={(e) => setCashierReceivedAmount(e.target.value)}
+                              className="w-full pl-8 pr-3 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+
+                          {parseFloat(cashierReceivedAmount) >= activeCheckoutSale.total && (
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                              <span className="font-bold text-slate-600">Vuelto a entregar:</span>
+                              <span className="font-mono font-black text-emerald-700 text-base">
+                                {formatCurrency(
+                                  parseFloat(cashierReceivedAmount) - activeCheckoutSale.total
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
+
+                  {/* VISTA B: PAGO DIVIDIDO (2 MÉTODOS DE PAGO) */}
+                  {isSplitPayment && (
+                    <div className="space-y-3.5 animate-in fade-in duration-150">
+                      {/* Accesos rápidos de distribución */}
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500 font-semibold text-[11px]">Distribución rápida:</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const half = Math.round((activeCheckoutSale.total / 2) * 100) / 100;
+                              const rest = Math.round((activeCheckoutSale.total - half) * 100) / 100;
+                              setSplitPayment1Amount(half.toString());
+                              setSplitPayment1Received(half.toString());
+                              setSplitPayment2Amount(rest.toString());
+                              setSplitPayment2Received(rest.toString());
+                            }}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200 text-[11px] transition-colors"
+                          >
+                            50% / 50%
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const p1 = parseFloat(splitPayment1Amount) || 0;
+                              const rest = Math.max(0, Math.round((activeCheckoutSale.total - p1) * 100) / 100);
+                              setSplitPayment2Amount(rest.toString());
+                              setSplitPayment2Received(rest.toString());
+                            }}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg border border-emerald-200 text-[11px] transition-colors"
+                          >
+                            Restante a Método 2
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tarjeta Método 1 */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center font-mono">1</span>
+                            Primer Medio de Pago
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {cashierPaymentOptions.map((m) => {
+                            const Icon = m.icon;
+                            const isSel = splitPayment1Method === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  setSplitPayment1Method(m.id as any);
+                                  if (m.id === "EFECTIVO" && !splitPayment1Received) {
+                                    setSplitPayment1Received(splitPayment1Amount);
+                                  }
+                                }}
+                                className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
+                                  isSel
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                <Icon className="w-3.5 h-3.5" />
+                                <span className="truncate">{m.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-600 block mb-1">Monto a Cobrar:</label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                              <input
+                                type="number"
+                                step="any"
+                                value={splitPayment1Amount}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSplitPayment1Amount(val);
+                                  if (splitPayment1Method === "EFECTIVO") {
+                                    setSplitPayment1Received(val);
+                                  }
+                                }}
+                                className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+                          </div>
+                          {splitPayment1Method === "EFECTIVO" ? (
+                            <div>
+                              <label className="text-[11px] font-bold text-slate-600 block mb-1">Efectivo Recibido:</label>
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={splitPayment1Received}
+                                  onChange={(e) => setSplitPayment1Received(e.target.value)}
+                                  className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-end pb-1.5">
+                              <span className="text-[11px] text-slate-400 italic">Monto exacto vía tarjeta/transferencia</span>
+                            </div>
+                          )}
+                        </div>
+                        {splitPayment1Method === "EFECTIVO" && splitChange1 > 0 && (
+                          <div className="text-right text-[11px] font-bold text-emerald-700 font-mono">
+                            Vuelto Método 1: {formatCurrency(splitChange1)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tarjeta Método 2 */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center font-mono">2</span>
+                            Segundo Medio de Pago
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {cashierPaymentOptions.map((m) => {
+                            const Icon = m.icon;
+                            const isSel = splitPayment2Method === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  setSplitPayment2Method(m.id as any);
+                                  if (m.id === "EFECTIVO" && !splitPayment2Received) {
+                                    setSplitPayment2Received(splitPayment2Amount);
+                                  }
+                                }}
+                                className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
+                                  isSel
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                <Icon className="w-3.5 h-3.5" />
+                                <span className="truncate">{m.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-600 block mb-1">Monto a Cobrar:</label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                              <input
+                                type="number"
+                                step="any"
+                                value={splitPayment2Amount}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSplitPayment2Amount(val);
+                                  if (splitPayment2Method === "EFECTIVO") {
+                                    setSplitPayment2Received(val);
+                                  }
+                                }}
+                                className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+                          </div>
+                          {splitPayment2Method === "EFECTIVO" ? (
+                            <div>
+                              <label className="text-[11px] font-bold text-slate-600 block mb-1">Efectivo Recibido:</label>
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={splitPayment2Received}
+                                  onChange={(e) => setSplitPayment2Received(e.target.value)}
+                                  className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-end pb-1.5">
+                              <span className="text-[11px] text-slate-400 italic">Monto exacto vía tarjeta/transferencia</span>
+                            </div>
+                          )}
+                        </div>
+                        {splitPayment2Method === "EFECTIVO" && splitChange2 > 0 && (
+                          <div className="text-right text-[11px] font-bold text-emerald-700 font-mono">
+                            Vuelto Método 2: {formatCurrency(splitChange2)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Balance y Resumen de Asignación */}
+                      <div
+                        className={`p-3 rounded-2xl border text-xs flex flex-col gap-1.5 ${
+                          isSplitBalanced
+                            ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                            : splitDiff > 0
+                            ? "bg-amber-50/80 border-amber-200 text-amber-900"
+                            : "bg-rose-50/80 border-rose-200 text-rose-900"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span>Total Asignado:</span>
+                          <span className="font-mono text-sm">
+                            {formatCurrency(splitTotalAssigned)} / {formatCurrency(activeCheckoutSale.total)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          {isSplitBalanced ? (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> Coincide con el total a cobrar
+                            </span>
+                          ) : splitDiff > 0 ? (
+                            <span className="text-amber-700 font-semibold flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Faltan asignar {formatCurrency(splitDiff)}
+                            </span>
+                          ) : (
+                            <span className="text-rose-700 font-semibold flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Supera el total por {formatCurrency(Math.abs(splitDiff))}
+                            </span>
+                          )}
+                          {totalSplitChange > 0 && (
+                            <span className="font-mono font-bold text-emerald-800">
+                              Vuelto Total: {formatCurrency(totalSplitChange)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón de Confirmación */}
+                  <button
+                    type="button"
+                    onClick={handleProcessCashierCheckout}
+                    disabled={isProcessingCheckout || (isSplitPayment && !isSplitBalanced)}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2 shrink-0"
+                  >
+                    {isProcessingCheckout ? (
+                      <span>Procesando cobro...</span>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>CONFIRMAR COBRO Y ENTREGAR PRENDAS</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Modal de Éxito de Cobro Definitivo */}
         {completedSaleResult && (
@@ -1022,7 +1533,7 @@ export function PosView({
                 </p>
               </div>
 
-              <div className="bg-slate-50 rounded-2xl p-4 text-left space-y-1.5 text-xs">
+              <div className="bg-slate-50 rounded-2xl p-4 text-left space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Cliente:</span>
                   <span className="font-bold text-slate-800">{completedSaleResult.customerName}</span>
@@ -1033,6 +1544,30 @@ export function PosView({
                     {formatCurrency(completedSaleResult.totalNet)}
                   </span>
                 </div>
+                {completedSaleResult.payments && completedSaleResult.payments.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">Medios de Pago:</span>
+                    {completedSaleResult.payments.map((p, idx) => (
+                      <div key={idx} className="flex justify-between font-mono pl-1 text-[11px]">
+                        <span className="text-slate-600 font-medium">
+                          {p.method === "EFECTIVO"
+                            ? "Efectivo"
+                            : p.method === "DEBITO"
+                            ? "Tarjeta Débito"
+                            : p.method === "CREDITO"
+                            ? "Tarjeta Crédito"
+                            : p.method === "QR_MERCADOPAGO"
+                            ? "QR Mercado Pago"
+                            : p.method === "TRANSFERENCIA"
+                            ? "Transferencia"
+                            : p.method}
+                          :
+                        </span>
+                        <span className="font-bold text-slate-800">{formatCurrency(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {completedSaleResult.change > 0 && (
                   <div className="flex justify-between text-emerald-700 font-bold pt-1 border-t border-slate-200">
                     <span>Vuelto Entregado:</span>
@@ -1067,11 +1602,11 @@ export function PosView({
   // Render: SUB-VISTA PREVENTA SALÓN (TERMINAL 1)
   // ----------------------------------------------------------------------
   return (
-    <div className="flex-1 flex flex-col xl:flex-row bg-[#f1f4f6] min-h-screen relative overflow-x-hidden">
+    <div className="flex-1 flex flex-col md:flex-row bg-[#f1f4f6] min-h-screen relative overflow-x-hidden">
       {/* ============================================================ */}
       {/* COLUMNA CENTRAL / IZQUIERDA: CATÁLOGO Y BUSCADOR             */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 pb-24 xl:pb-6">
+      <div className="flex-1 flex flex-col min-w-0 pb-24 md:pb-6">
         {/* Top Sticky Header */}
         <header className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3.5 sticky top-0 z-20 shadow-2xs space-y-3">
           {/* Breadcrumb & Navigation Controls */}
@@ -1099,7 +1634,7 @@ export function PosView({
             </div>
 
             {/* Subview Pill & Cashier Link */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => onNavigateSubView?.("cobrar")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
@@ -1112,10 +1647,17 @@ export function PosView({
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => onNavigateSubView?.("historial")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all"
+              >
+                <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Historial POS</span>
+              </button>
             </div>
           </div>
 
-          {/* Search Bar with F2 and Lector USB Controls */}
+          {/* Search Bar */}
           <div className="flex items-center gap-2.5">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1124,53 +1666,21 @@ export function PosView({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nombre, código de barras, SKU... (Atajo F2)"
-                className="w-full pl-10 pr-28 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-xs sm:text-sm text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-slate-400 outline-none"
+                placeholder="Buscar por nombre, código de barras, SKU..."
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-xs sm:text-sm text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-slate-400 outline-none"
               />
 
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                <kbd
-                  onClick={() => {
-                    searchInputRef.current?.focus();
-                    searchInputRef.current?.select();
-                  }}
-                  className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-200/80 hover:bg-slate-300 text-slate-600 rounded text-[10px] font-mono cursor-pointer transition-colors"
-                  title="Presiona F2 en cualquier momento para buscar"
-                >
-                  <Keyboard className="w-3 h-3" />
-                  <span>F2</span>
-                </kbd>
-
-                {searchQuery && (
+              {searchQuery && (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
                   <button
                     onClick={() => setSearchQuery("")}
                     className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-
-            {/* Lector USB Toggle Pill */}
-            <button
-              type="button"
-              onClick={() => setIsUsbScannerActive(!isUsbScannerActive)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all shrink-0 ${
-                isUsbScannerActive
-                  ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs"
-                  : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
-              }`}
-              title="Escaneo automático con lector de barras USB (emulación teclado)"
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isUsbScannerActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                }`}
-              />
-              <Barcode className="w-4 h-4" />
-              <span className="hidden md:inline">Lector USB</span>
-            </button>
 
             {/* Layout Toggle (Grid / List) */}
             <div className="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
@@ -1200,14 +1710,14 @@ export function PosView({
           </div>
 
           {/* Discipline / Category Filter Chips */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-            {disciplineOptions.map((disc) => {
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap relative py-0.5">
+            {visibleCategories.map((disc) => {
               const isSelected = selectedDiscipline === disc;
               return (
                 <button
                   key={disc}
                   onClick={() => setSelectedDiscipline(disc)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isSelected
                       ? "bg-slate-900 text-white shadow-xs"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -1217,6 +1727,71 @@ export function PosView({
                 </button>
               );
             })}
+
+            {/* Botón Desplegable hacia abajo para Ver Todas las Categorías */}
+            {disciplineOptions.length > MAX_VISIBLE_CATEGORIES && (
+              <div className="relative shrink-0" ref={categoriesDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoriesDropdownOpen((prev) => !prev)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                    isCategoriesDropdownOpen
+                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                  title="Ver todas las categorías"
+                >
+                  <span>Más</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isCategoriesDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Menú Desplegable hacia abajo */}
+                {isCategoriesDropdownOpen && (
+                  <div className="absolute left-0 sm:left-auto right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-2xl p-3 min-w-[280px] max-w-[340px] animate-in fade-in zoom-in-95 duration-150 space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                        Todas las Categorías ({disciplineOptions.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoriesDropdownOpen(false)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+                      {disciplineOptions.map((disc) => {
+                        const isSelected = selectedDiscipline === disc;
+                        return (
+                          <button
+                            key={disc}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDiscipline(disc);
+                              setIsCategoriesDropdownOpen(false);
+                            }}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isSelected
+                                ? "bg-slate-900 text-white shadow-xs font-bold"
+                                : "bg-slate-50 border border-slate-200/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                            }`}
+                          >
+                            <span>{disc}</span>
+                            {isSelected && <Check className="w-3 h-3 text-[#c2f25b]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
@@ -1240,8 +1815,8 @@ export function PosView({
               </button>
             </div>
           ) : viewLayout === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-              {filteredProducts.map((product) => {
+            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 sm:gap-4">
+              {paginatedProducts.map((product) => {
                 const totalSalonStock = product.variants.reduce(
                   (acc, v) => acc + (v.stockStore || 0),
                   0
@@ -1255,7 +1830,7 @@ export function PosView({
                 return (
                   <div
                     key={product.id}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all p-4 flex flex-col justify-between space-y-3 group"
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all p-3.5 sm:p-4 flex flex-col justify-between space-y-3 group"
                   >
                     <div>
                       {/* Top Badges */}
@@ -1298,7 +1873,7 @@ export function PosView({
                       <span className="text-[10px] font-bold text-slate-400 block">
                         Tocar talle para agregar:
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 max-h-24 sm:max-h-28 overflow-y-auto pr-0.5 no-scrollbar">
                         {product.variants.map((v) => {
                           const vAvail = Math.max(
                             0,
@@ -1344,7 +1919,7 @@ export function PosView({
           ) : (
             /* Vista de Lista Compacta */
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
-              {filteredProducts.map((product) => {
+              {paginatedProducts.map((product) => {
                 const totalSalon = product.variants.reduce(
                   (acc, v) => acc + (v.stockStore || 0),
                   0
@@ -1398,13 +1973,124 @@ export function PosView({
               })}
             </div>
           )}
+
+          {/* Paginador del Catálogo (Totalmente Responsive) */}
+          {totalItems > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs mt-4">
+              {/* Información y selector de ítems */}
+              <div className="flex items-center justify-between gap-2 w-full sm:w-auto shrink-0">
+                <span className="font-medium text-slate-600 text-xs truncate">
+                  <strong className="text-slate-900 font-bold">{startIndex}-{endIndex}</strong> de <strong className="text-slate-900 font-bold">{totalItems}</strong>
+                </span>
+
+                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-xl shadow-2xs shrink-0">
+                  <span className="text-[10px] text-slate-500 font-medium">Por pág.:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-transparent text-slate-900 font-bold text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value={6}>6</option>
+                    <option value={9}>9</option>
+                    <option value={12}>12</option>
+                    <option value={24}>24</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Controles de Navegación de Páginas */}
+              {totalPages > 1 && (
+                <>
+                  {/* Vista Mobile (< sm): Táctil y compacta sin desbordes */}
+                  <div className="flex sm:hidden items-center justify-between w-full pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.max(1, validCurrentPage - 1))}
+                      disabled={validCurrentPage <= 1}
+                      className="w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shadow-2xs transition-all active:scale-95 cursor-pointer"
+                      title="Página anterior"
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
+                      {validCurrentPage} / {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.min(totalPages, validCurrentPage + 1))}
+                      disabled={validCurrentPage >= totalPages}
+                      className="w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shadow-2xs transition-all active:scale-95 cursor-pointer"
+                      title="Página siguiente"
+                      aria-label="Página siguiente"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Vista Tablet / Desktop (sm+): Flechitas en burbuja + números compactos */}
+                  <div className="hidden sm:flex items-center gap-1.5 w-auto justify-end shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.max(1, validCurrentPage - 1))}
+                      disabled={validCurrentPage <= 1}
+                      className="w-7 h-7 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                      title="Página anterior"
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {getPageNumbers().map((pageNum, idx) =>
+                        typeof pageNum === "string" ? (
+                          <span key={`dots-${idx}`} className="px-0.5 text-slate-400 text-xs font-bold">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              validCurrentPage === pageNum
+                                ? "bg-slate-900 text-white shadow-xs scale-105"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.min(totalPages, validCurrentPage + 1))}
+                      disabled={validCurrentPage >= totalPages}
+                      className="w-7 h-7 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                      title="Página siguiente"
+                      aria-label="Página siguiente"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
       {/* ============================================================ */}
       {/* COLUMNA DERECHA: PANEL DE PREVENTA / CARRITO SALÓN           */}
       {/* ============================================================ */}
-      <aside className="w-full xl:w-[410px] shrink-0 bg-white border-l border-slate-200/90 flex flex-col justify-between h-auto xl:h-screen sticky xl:top-0 shadow-sm z-30">
+      <aside id="pos-cart-panel" className="w-full md:w-[330px] lg:w-[370px] xl:w-[410px] shrink-0 bg-white border-l border-slate-200/90 flex flex-col justify-between h-auto md:h-screen sticky md:top-0 shadow-sm z-30">
         {/* Header Preventa */}
         <div className="p-4 sm:p-5 border-b border-slate-200/80 space-y-3 bg-white">
           <div className="flex items-center justify-between">
@@ -1447,7 +2133,7 @@ export function PosView({
         </div>
 
         {/* Lista de Ítems del Carrito */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 max-h-[380px] xl:max-h-none">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 max-h-[380px] md:max-h-none">
           {cart.length === 0 ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
               <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />
@@ -1657,6 +2343,37 @@ export function PosView({
           </button>
         </div>
       </aside>
+
+      {/* Mobile Floating Cart Summary Bar (Visible en móviles cuando hay ítems en preventa) */}
+      {cart.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#06241d]/95 backdrop-blur-md border-t border-[#094d3f] p-3 shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2.5 text-white pl-1 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[#c2f25b] shrink-0">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-wider block truncate">
+                {cart.reduce((acc, i) => acc + i.quantity, 0)} {cart.reduce((acc, i) => acc + i.quantity, 0) === 1 ? "ítem" : "ítems"}
+              </span>
+              <span className="text-base font-black text-[#00D615] font-mono leading-none truncate block">
+                {formatCurrency(saleTotals.totalNet)}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const asideEl = document.getElementById("pos-cart-panel");
+              asideEl?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="px-4 py-2 bg-[#00D615] hover:bg-[#00be13] active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+          >
+            <span>Ver Preventa</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* MODAL DE DESCUENTO (RF-08): Ítem o Global                   */}

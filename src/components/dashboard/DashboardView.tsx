@@ -70,18 +70,20 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "inventario";
   }, [searchParams]);
 
-  // Sub-vista de inventario sincronizada con la URL (productos, tablas, historial)
-  const currentInventorySubView = useMemo<"productos" | "tablas" | "historial">(() => {
+  // Sub-vista de inventario sincronizada con la URL (productos, tablas, historial, movimientos)
+  const currentInventorySubView = useMemo<"productos" | "tablas" | "historial" | "movimientos">(() => {
     const seccion = searchParams.get("seccion");
     if (seccion === "tablas") return "tablas";
-    if (seccion === "historial") return "historial";
+    if (seccion === "historial" || seccion === "precios") return "historial";
+    if (seccion === "movimientos") return "movimientos";
     return "productos";
   }, [searchParams]);
 
-  // Sub-vista de POS sincronizada con la URL (preventa, cobrar)
-  const currentPosSubView = useMemo<"preventa" | "cobrar">(() => {
+  // Sub-vista de POS sincronizada con la URL (preventa, cobrar, historial)
+  const currentPosSubView = useMemo<"preventa" | "cobrar" | "historial">(() => {
     const seccion = searchParams.get("seccion");
     if (seccion === "cobrar") return "cobrar";
+    if (seccion === "historial" || seccion === "transacciones") return "historial";
     return "preventa";
   }, [searchParams]);
 
@@ -147,6 +149,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           seccion: "cobrar",
           producto: null,
         });
+      } else if (id === "pos-historial" || id === "pos-transacciones") {
+        updateUrl({
+          tab: "pos",
+          seccion: "historial",
+          producto: null,
+        });
       } else if (id === "inventario" || id === "inventario-productos") {
         updateUrl({
           tab: "inventario",
@@ -159,10 +167,16 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           seccion: "tablas",
           producto: null,
         });
-      } else if (id === "inventario-historial") {
+      } else if (id === "inventario-historial" || id === "inventario-precios") {
         updateUrl({
           tab: "inventario",
           seccion: "historial",
+          producto: null,
+        });
+      } else if (id === "inventario-movimientos") {
+        updateUrl({
+          tab: "inventario",
+          seccion: "movimientos",
           producto: null,
         });
       } else {

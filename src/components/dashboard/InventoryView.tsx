@@ -45,6 +45,7 @@ import { StockMovementModal, type OperationType } from "./StockMovementModal";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
 import { PriceHistoryView } from "./PriceHistoryView";
+import { StockMovementHistoryView } from "./StockMovementHistoryView";
 import { BulkImportModal } from "./BulkImportModal";
 import { QuickSaleModal } from "./QuickSaleModal";
 import { SalesHistoryModal } from "./SalesHistoryModal";
@@ -779,8 +780,8 @@ interface InventoryViewProps {
   onAlertsCountChange?: (count: number) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
-  activeSubView?: "productos" | "tablas" | "historial";
-  onSubViewChange?: (subView: "productos" | "tablas" | "historial") => void;
+  activeSubView?: "productos" | "tablas" | "historial" | "movimientos";
+  onSubViewChange?: (subView: "productos" | "tablas" | "historial" | "movimientos") => void;
 }
 
 export function InventoryView({
@@ -1497,11 +1498,24 @@ export function InventoryView({
             loadProducts();
           }}
         />
+      ) : activeSubView === "movimientos" ? (
+        <StockMovementHistoryView
+          onBackToInventory={() => {
+            onSubViewChange?.("productos");
+            loadProducts();
+          }}
+          onNavigateToPriceHistory={() => {
+            onSubViewChange?.("historial");
+          }}
+        />
       ) : activeSubView === "historial" ? (
         <PriceHistoryView
           onBackToInventory={() => {
             onSubViewChange?.("productos");
             loadProducts();
+          }}
+          onNavigateToStockMovements={() => {
+            onSubViewChange?.("movimientos");
           }}
         />
       ) : (

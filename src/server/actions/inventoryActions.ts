@@ -481,3 +481,118 @@ export async function getVariantMovementHistory(variantId: string) {
     };
   }
 }
+
+export interface GetStockMovementsFilter {
+  type?: string;
+  location?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  take?: number;
+  skip?: number;
+}
+
+/**
+ * Obtener todos los movimientos de stock del sistema con filtros avanzados y auditoría (RF-03 / CU-INV-07)
+ */
+export async function getAllInventoryMovements(filter?: GetStockMovementsFilter) {
+  try {
+    const where: any = {};
+
+    if (filter?.type && filter.type !== "ALL") {
+      where.type = filter.type;
+    }
+
+    if (filter?.location && filter.location !== "ALL") {
+      where.location = filter.location;
+    }
+
+    if (filter?.startDate || filter?.endDate) {
+      where.createdAt = {};
+      if (filter.startDate) {
+        where.createdAt.gte = new Date(filter.startDate);
+      }
+      if (filter.endDate) {
+        where.createdAt.lte = new Date(filter.endDate);
+      }
+    }
+
+    if (filter?.search && filter.search.trim()) {
+      const q = filter.search.trim();
+      where.OR = [
+        { variant: { product: { name: { contains: q, mode: "insensitive" } } } },
+        { variant: { product: { brand: { name: { contains: q, mode: "insensitive" } } } } },
+        { variant: { sku: { contains: q, mode: "insensitive" } } },
+        { variant: { barcode: { contains: q, mode: "insensitive" } } },
+        { reason: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
+    const totalCount = await prisma.inventoryMovement.count({ where });
+    const movements = await prisma.inventoryMovement.findMany({
+      where,
+      include: {
+        variant: {
+          include: {
+            product: {
+              include: {
+                brand: true,
+                category: true,
+                discipline: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: filter?.take ?? 300,
+      skip: filter?.skip ?? 0,
+    });
+
+    const serialized = movements.map((m) => ({
+      id: m.id,
+      variantId: m.variantId,
+      type: m.type,
+      quantity: m.quantity,
+      stockAfter: m.stockAfter,
+      location: m.location,
+      reason: m.reason,
+      createdAt: m.createdAt.toISOString(),
+      variant: {
+        id: m.variant.id,
+        size: m.variant.size,
+        color: m.variant.color,
+        sku: m.variant.sku,
+        barcode: m.variant.barcode,
+        stockStore: m.variant.stockStore,
+        stockWarehouse: m.variant.stockWarehouse,
+      },
+      product: m.variant.product
+        ? {
+            id: m.variant.product.id,
+            name: m.variant.product.name,
+            brand: m.variant.product.brand?.name || "Sin marca",
+            category: m.variant.product.category?.name || "General",
+            discipline: m.variant.product.discipline?.name || null,
+            code: m.variant.product.modelCode || null,
+            imageUrl: m.variant.product.imageUrl || null,
+          }
+        : null,
+    }));
+
+    return {
+      success: true,
+      data: serialized,
+      totalCount,
+    };
+  } catch (error) {
+    console.error("Error al obtener todos los movimientos de stock:", error);
+    return {
+      success: false,
+      error: "No se pudo cargar el historial general de movimientos de stock",
+    };
+  }
+}
+

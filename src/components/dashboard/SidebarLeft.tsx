@@ -14,6 +14,9 @@ import {
   Layers,
   History,
   ChevronDown,
+  ArrowRightLeft,
+  Tag,
+  Receipt,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -41,7 +44,9 @@ export function SidebarLeft({
   const activeSubItem =
     activeItem === "inventario-tablas"
       ? "tablas"
-      : activeItem === "inventario-historial"
+      : activeItem === "inventario-movimientos"
+      ? "movimientos"
+      : activeItem === "inventario-historial" || activeItem === "inventario-precios"
       ? "historial"
       : "productos";
 
@@ -51,6 +56,7 @@ export function SidebarLeft({
     activeItem === "pos";
   const isCajaActive =
     activeItem === "pos-cobrar" ||
+    activeItem === "pos-historial" ||
     activeItem === "caja";
 
   const handleItemClick = (id: string) => {
@@ -175,6 +181,19 @@ export function SidebarLeft({
 
                 <button
                   type="button"
+                  onClick={() => handleItemClick("inventario-movimientos")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeSubItem === "movimientos"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <ArrowRightLeft className={`w-3.5 h-3.5 ${activeSubItem === "movimientos" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Movimientos de Stock</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handleItemClick("inventario-historial")}
                   className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
                     activeSubItem === "historial"
@@ -182,14 +201,14 @@ export function SidebarLeft({
                       : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <History className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
-                  <span>Historial</span>
+                  <Tag className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Ajustes de Precios</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* 3. Preventa (Terminal Salón / Vendedor) */}
+
           <button
             onClick={() => handleItemClick("pos-preventa")}
             className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
