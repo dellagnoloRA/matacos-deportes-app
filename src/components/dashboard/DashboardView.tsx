@@ -70,11 +70,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "inventario";
   }, [searchParams]);
 
-  // Sub-vista de inventario sincronizada con la URL (productos, tablas, historial)
-  const currentInventorySubView = useMemo<"productos" | "tablas" | "historial">(() => {
+  // Sub-vista de inventario sincronizada con la URL (productos, tablas, historial, movimientos)
+  const currentInventorySubView = useMemo<"productos" | "tablas" | "historial" | "movimientos">(() => {
     const seccion = searchParams.get("seccion");
     if (seccion === "tablas") return "tablas";
-    if (seccion === "historial") return "historial";
+    if (seccion === "historial" || seccion === "precios") return "historial";
+    if (seccion === "movimientos") return "movimientos";
     return "productos";
   }, [searchParams]);
 
@@ -159,10 +160,16 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           seccion: "tablas",
           producto: null,
         });
-      } else if (id === "inventario-historial") {
+      } else if (id === "inventario-historial" || id === "inventario-precios") {
         updateUrl({
           tab: "inventario",
           seccion: "historial",
+          producto: null,
+        });
+      } else if (id === "inventario-movimientos") {
+        updateUrl({
+          tab: "inventario",
+          seccion: "movimientos",
           producto: null,
         });
       } else {
