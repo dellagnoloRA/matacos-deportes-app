@@ -179,12 +179,25 @@ export function StockMovementHistoryView({
     let transferCount = 0;
 
     filteredMovements.forEach((m) => {
+      const qty = Math.abs(m.quantity);
       if (m.type === "TRANSFERENCIA_INTERNA") {
         transferCount++;
-      } else if (m.quantity > 0) {
-        unitsIn += m.quantity;
-      } else if (m.quantity < 0) {
-        unitsOut += Math.abs(m.quantity);
+      } else if (
+        m.type === "VENTA_MOSTRADOR" ||
+        m.type === "VENTA_WEB" ||
+        m.type === "AJUSTE_EGRESO" ||
+        m.quantity < 0
+      ) {
+        unitsOut += qty;
+      } else if (
+        m.type === "INGRESO_COMPRA" ||
+        m.type === "INGRESO_INICIAL" ||
+        m.type === "AJUSTE_INGRESO" ||
+        m.type === "DEVOLUCION_CLIENTE" ||
+        m.type === "ANULACION_VENTA" ||
+        m.quantity > 0
+      ) {
+        unitsIn += qty;
       }
     });
 
@@ -622,8 +635,12 @@ export function StockMovementHistoryView({
                     minute: "2-digit",
                   });
 
-                  const isPositive = m.quantity > 0;
-                  const isNegative = m.quantity < 0;
+                  const isTransfer = m.type === "TRANSFERENCIA_INTERNA";
+                  const isEgress =
+                    m.type === "VENTA_MOSTRADOR" ||
+                    m.type === "VENTA_WEB" ||
+                    m.type === "AJUSTE_EGRESO" ||
+                    m.quantity < 0;
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
@@ -674,14 +691,19 @@ export function StockMovementHistoryView({
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <span
                           className={`font-mono font-black text-sm px-2.5 py-0.5 rounded-lg ${
-                            isPositive
-                              ? "bg-emerald-50 text-emerald-700"
-                              : isNegative
+                            isTransfer
+                              ? "bg-indigo-50 text-indigo-700"
+                              : isEgress
                               ? "bg-rose-50 text-rose-700"
-                              : "bg-slate-100 text-slate-700"
+                              : "bg-emerald-50 text-emerald-700"
                           }`}
                         >
-                          {isPositive ? `+${m.quantity}` : `${m.quantity}`} u.
+                          {isTransfer
+                            ? `🔄 ${Math.abs(m.quantity)}`
+                            : isEgress
+                            ? `-${Math.abs(m.quantity)}`
+                            : `+${Math.abs(m.quantity)}`}{" "}
+                          u.
                         </span>
                       </td>
 
