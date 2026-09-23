@@ -2,13 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { CreateSaleSchema, CreateSaleInput } from "@/schemas/sale";
-import { Prisma, PaymentMethod } from "@prisma/client";
+import { Prisma, PaymentMethod, SaleStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 export interface SaleHistoryFilterOptions {
   startDate?: Date | string;
   endDate?: Date | string;
+  date?: string; // Formato YYYY-MM-DD en America/Argentina/Buenos_Aires
   limit?: number;
+  channel?: string;
+  status?: SaleStatus | string;
 }
 
 function serializeData<T>(obj: any): T {
@@ -218,19 +221,12 @@ export async function processSale(input: CreateSaleInput) {
   }
 }
 
-export interface SaleHistoryFilterOptions {
-  startDate?: Date | string;
-  endDate?: Date | string;
-  date?: string; // Formato YYYY-MM-DD en America/Argentina/Buenos_Aires
-  limit?: number;
-}
-
 /**
  * Obtener historial de ventas registradas
  */
 export async function getSaleHistory(options: SaleHistoryFilterOptions = {}) {
   try {
-    const { startDate, endDate, date, limit = 100 } = options;
+    const { startDate, endDate, date, limit = 150, channel, status } = options;
 
     let dateWhere: Prisma.SaleWhereInput["createdAt"] = undefined;
 
@@ -249,19 +245,36 @@ export async function getSaleHistory(options: SaleHistoryFilterOptions = {}) {
       };
     }
 
+    const where: Prisma.SaleWhereInput = {
+      ...(dateWhere ? { createdAt: dateWhere } : {}),
+      ...(channel ? { channel } : {}),
+      ...(status ? { status: status as SaleStatus } : {}),
+    };
+
     const sales = await prisma.sale.findMany({
-      where: {
-        ...(dateWhere ? { createdAt: dateWhere } : {}),
-      },
+      where,
       include: {
         items: {
           include: {
             variant: {
-              include: { product: true },
+              include: {
+                product: {
+                  include: {
+                    brand: true,
+                    category: true,
+                  },
+                },
+              },
             },
           },
         },
         payments: true,
+        seller: {
+          select: { id: true, name: true, email: true },
+        },
+        cashier: {
+          select: { id: true, name: true, email: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,

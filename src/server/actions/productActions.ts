@@ -602,6 +602,7 @@ export async function getDetailedInventoryProducts(options?: {
           sku: v.sku,
           stockStore: v.stockStore,
           stockWarehouse: v.stockWarehouse,
+          stockReserved: v.stockReserved || 0,
           minStock: v.minStock ?? 2,
           minStoreStock: v.minStoreStock ?? 1,
           price: v.price ? Number(v.price) : null,

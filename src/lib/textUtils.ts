@@ -52,6 +52,7 @@ export const KNOWN_MODEL_CODES: Record<string, string> = {
   "croc classic sandal": "CLSS",
   "croc crush sandal": "CRS",
   "croc classic crush clog": "CCCC",
+  "croc plataforma": "PLAT",
   "croc santa cruz mens": "SCM",
   "croc santa cruz clean cut": "SCCC",
   "croc santa cruz 2 luxe leather": "SC2L",
@@ -62,10 +63,10 @@ export const KNOWN_MODEL_CODES: Record<string, string> = {
   // Modelos Wilson / Bolsos / Mochilas / Accesorios
   "bandolera wilson": "BAN",
   "botinero wilson": "BOT",
-  "riñonera wilson": "RIÑ",
-  "rinonera wilson": "RIÑ",
   "riñonera wilson sin compartimiento": "RIÑ-SC",
   "rinonera wilson sin compartimiento": "RIÑ-SC",
+  "riñonera wilson": "RIÑ",
+  "rinonera wilson": "RIÑ",
   "mochila 1 compartimiento": "1C",
   "mochila 2 compartimiento": "2C",
   "mochila con porta-notebook": "NOTE",
@@ -82,7 +83,25 @@ export const KNOWN_MODEL_CODES: Record<string, string> = {
   "valija chica tela": "VCHI-TEL",
   "valija mediana tela": "VMED-TEL",
   "valija grande tela": "VGRA-TEL",
+  "valija chica": "VCHI",
+  "valija mediana": "VMED",
+  "valija grande": "VGRA",
 };
+
+/**
+ * Detecta si un SKU proviene de una fórmula defectuosa o genérica de Excel:
+ * 1. Triple prefijo idéntico: "CRO-CRO-CRO-..."
+ * 2. Doble guión por talle o componente vacío: "...--..."
+ * 3. Prefijos genéricos de Wilson sin modelo: "WIL-ACC-MOC-...", "WIL-ACC-BOL-...", "WIL-ACC-VAL-..."
+ */
+export function isDefectiveFormulaSku(sku?: string | null): boolean {
+  if (!sku) return false;
+  const s = sku.trim().toUpperCase();
+  if (/^([A-Z0-9]{3})-\1-\1-/.test(s)) return true;
+  if (/--/.test(s)) return true;
+  if (/^WIL-ACC-(MOC|BOL|VAL)-/i.test(s)) return true;
+  return false;
+}
 
 /**
  * Sanitiza una porción de código para el SKU preservando la letra Ñ (ej: RIÑ para Riñonera).
@@ -145,7 +164,7 @@ export function formatSkuColor(rawColor: string): string {
 
 /**
  * Extrae o genera un código de modelo para el SKU.
- * 1. Consulta el diccionario canónico de modelos conocidos.
+ * 1. Consulta el diccionario canónico de modelos conocidos (ordenando de mayor a menor longitud).
  * 2. Si es un producto nuevo desconocido, aplica el algoritmo heurístico de acrónimos:
  *    - Descarta la marca redundante del inicio.
  *    - Quita conectores y stop-words ("de", "con", "para").
@@ -153,17 +172,22 @@ export function formatSkuColor(rawColor: string): string {
  */
 export function extractModelCode(productName: string, brand?: string | null): string {
   if (!productName) return "GEN";
-  const cleanName = productName.trim();
-  const normalizedKey = cleanName.toLowerCase().replace(/\s+/g, " ");
+  // 1. Limpiar guiones colgantes al final y normalizar espacios
+  const cleanName = productName.trim().replace(/\s*-\s*$/, "").replace(/\s+/g, " ");
+  // Normalizar guiones internos como " - " a " " para que "Valija Grande - Tela" coincida con "valija grande tela"
+  const normalizedKey = cleanName.toLowerCase().replace(/\s*-\s*/g, " ").replace(/\s+/g, " ");
 
   // 1. Búsqueda exacta en diccionario
   if (KNOWN_MODEL_CODES[normalizedKey]) {
     return KNOWN_MODEL_CODES[normalizedKey];
   }
 
-  // 2. Búsqueda por prefijo en diccionario
-  for (const [key, code] of Object.entries(KNOWN_MODEL_CODES)) {
-    if (normalizedKey.startsWith(key)) {
+  // 2. Búsqueda por prefijo ordenando las claves por longitud descendente
+  // Esto garantiza que frases más largas y específicas coincidan antes que frases cortas
+  const sortedEntries = Object.entries(KNOWN_MODEL_CODES).sort((a, b) => b[0].length - a[0].length);
+
+  for (const [key, code] of sortedEntries) {
+    if (normalizedKey === key || normalizedKey.startsWith(key + " ") || normalizedKey.startsWith(key)) {
       return code;
     }
   }

@@ -34,6 +34,7 @@ import {
   BulkVariantItemInput,
 } from "@/schemas/bulkImport";
 import { bulkImportProducts } from "@/server/actions/bulkImportActions";
+import { isDefectiveFormulaSku } from "@/lib/textUtils";
 
 export interface BulkImportModalProps {
   isOpen: boolean;
@@ -235,7 +236,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         ).trim();
         const productName = String(
           getRowValue(row, ["nombreproducto", "nombre", "productname", "producto", "articulo", "item"]) || ""
-        ).trim();
+        ).trim().replace(/\s*-\s*$/, "");
         const description = getRowValue(row, ["descripcion", "description", "detalle", "observaciones"]);
 
         const size = String(getRowValue(row, ["talle", "size", "medida", "numero", "dimension"]) || "Único").trim();
@@ -294,7 +295,9 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                 : 2;
 
         const barcode = barcodeRaw ? String(barcodeRaw).trim() : null;
-        const sku = skuRaw ? String(skuRaw).trim().toUpperCase() : null;
+        const rawSkuStr = skuRaw ? String(skuRaw).trim().toUpperCase() : null;
+        // Si el SKU viene de una fórmula genérica de Excel defectuosa (ej: CRO-CRO-CRO-...), se descarta para generar el SKU canónico oficial
+        const sku = rawSkuStr && !isDefectiveFormulaSku(rawSkuStr) ? rawSkuStr : null;
 
         totalVariantsCount++;
         totalStockUnits += stockStore + stockWarehouse;
