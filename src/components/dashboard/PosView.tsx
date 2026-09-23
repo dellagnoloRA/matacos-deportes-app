@@ -55,6 +55,7 @@ import {
   cancelPendingSale,
 } from "@/server/actions/posSaleActions";
 import { BarcodeSvg } from "./BarcodeSvg";
+import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
 
 // ----------------------------------------------------------------------
 // Tipos de Estado para Preventa y Carrito
@@ -119,8 +120,8 @@ export interface PendingSaleItemSummary {
 
 interface PosViewProps {
   initialProducts?: DetailedProductItem[];
-  subView?: "preventa" | "cobrar";
-  onNavigateSubView?: (subView: "preventa" | "cobrar") => void;
+  subView?: "preventa" | "cobrar" | "historial";
+  onNavigateSubView?: (subView: "preventa" | "cobrar" | "historial") => void;
   onPendingCountChange?: (count: number) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
@@ -912,6 +913,20 @@ export function PosView({
   };
 
   // ----------------------------------------------------------------------
+  // Render: SUB-VISTA HISTORIAL DE TRANSACCIONES POS
+  // ----------------------------------------------------------------------
+  if (subView === "historial") {
+    return (
+      <PosTransactionHistoryView
+        onNavigateToPreventa={() => onNavigateSubView?.("preventa")}
+        onNavigateToCobrar={() => onNavigateSubView?.("cobrar")}
+        onToggleSidebar={onToggleSidebar}
+        pendingSalesCount={pendingSales.length}
+      />
+    );
+  }
+
+  // ----------------------------------------------------------------------
   // Render: SUB-VISTA COBRAR (TERMINAL 2)
   // ----------------------------------------------------------------------
   if (subView === "cobrar") {
@@ -944,13 +959,20 @@ export function PosView({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => onNavigateSubView?.("preventa")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
             >
               <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
               <span>Ir a Preventa Salón</span>
+            </button>
+            <button
+              onClick={() => onNavigateSubView?.("historial")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
+            >
+              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Historial Transacciones</span>
             </button>
             <button
               onClick={fetchPendingSalesList}
@@ -1611,18 +1633,25 @@ export function PosView({
             </div>
 
             {/* Subview Pill & Cashier Link */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => onNavigateSubView?.("cobrar")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
               >
-                <Receipt className="w-3.5 h-3.5 text-amber-700" />
+                <Store className="w-3.5 h-3.5 text-amber-700" />
                 <span>Cobrar en Caja</span>
                 {pendingSales.length > 0 && (
                   <span className="ml-1 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full">
                     {pendingSales.length}
                   </span>
                 )}
+              </button>
+              <button
+                onClick={() => onNavigateSubView?.("historial")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all"
+              >
+                <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Historial POS</span>
               </button>
             </div>
           </div>

@@ -79,10 +79,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "productos";
   }, [searchParams]);
 
-  // Sub-vista de POS sincronizada con la URL (preventa, cobrar)
-  const currentPosSubView = useMemo<"preventa" | "cobrar">(() => {
+  // Sub-vista de POS sincronizada con la URL (preventa, cobrar, historial)
+  const currentPosSubView = useMemo<"preventa" | "cobrar" | "historial">(() => {
     const seccion = searchParams.get("seccion");
     if (seccion === "cobrar") return "cobrar";
+    if (seccion === "historial" || seccion === "transacciones") return "historial";
     return "preventa";
   }, [searchParams]);
 
@@ -146,6 +147,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         updateUrl({
           tab: "pos",
           seccion: "cobrar",
+          producto: null,
+        });
+      } else if (id === "pos-historial" || id === "pos-transacciones") {
+        updateUrl({
+          tab: "pos",
+          seccion: "historial",
           producto: null,
         });
       } else if (id === "inventario" || id === "inventario-productos") {

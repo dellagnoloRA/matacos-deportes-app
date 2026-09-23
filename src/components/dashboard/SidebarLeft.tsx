@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ArrowRightLeft,
   Tag,
+  Receipt,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -50,7 +51,12 @@ export function SidebarLeft({
       : "productos";
 
   const isPosActive = activeItem === "pos" || activeItem.startsWith("pos-");
-  const activePosSubItem = activeItem === "pos-cobrar" ? "cobrar" : "preventa";
+  const activePosSubItem =
+    activeItem === "pos-cobrar"
+      ? "cobrar"
+      : activeItem === "pos-historial"
+      ? "historial"
+      : "preventa";
 
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
@@ -259,6 +265,20 @@ export function SidebarLeft({
                       {pendingSalesCount}
                     </span>
                   )}
+                </button>
+
+                {/* 3.3 Historial de Transacciones */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("pos-historial")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activePosSubItem === "historial"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Receipt className={`w-3.5 h-3.5 ${activePosSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Historial Transacciones</span>
                 </button>
               </div>
             )}
