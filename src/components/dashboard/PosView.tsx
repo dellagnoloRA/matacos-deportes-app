@@ -37,6 +37,7 @@ import {
   Store,
   Check,
   ShoppingBag,
+  CircleDollarSign,
   PanelLeft,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -1086,10 +1087,10 @@ export function PosView({
                 </button>
               )}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-400">Ventas POS</span>
+                <span className="text-xs font-semibold text-slate-400">Preventa</span>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                 <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                  Preventa Salón
+                  Salón
                 </h1>
                 <span className="hidden sm:inline-flex bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-300/50">
                   Notebook Salón 1
@@ -1103,8 +1104,8 @@ export function PosView({
                 onClick={() => onNavigateSubView?.("cobrar")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
               >
-                <Receipt className="w-3.5 h-3.5 text-amber-700" />
-                <span>Cobrar en Caja</span>
+                <CircleDollarSign className="w-3.5 h-3.5 text-amber-700" />
+                <span>Caja</span>
                 {pendingSales.length > 0 && (
                   <span className="ml-1 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full">
                     {pendingSales.length}

@@ -45,8 +45,13 @@ export function SidebarLeft({
       ? "historial"
       : "productos";
 
-  const isPosActive = activeItem === "pos" || activeItem.startsWith("pos-");
-  const activePosSubItem = activeItem === "pos-cobrar" ? "cobrar" : "preventa";
+  const isPreventaActive =
+    activeItem === "pos-preventa" ||
+    activeItem === "preventa" ||
+    activeItem === "pos";
+  const isCajaActive =
+    activeItem === "pos-cobrar" ||
+    activeItem === "caja";
 
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
@@ -184,79 +189,62 @@ export function SidebarLeft({
             )}
           </div>
 
-          {/* 3. Ventas POS (Activo con Preventa Salón y Cobro) */}
-          <div className="space-y-1">
-            <button
-              onClick={() => handleItemClick("pos-preventa")}
-              className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-                isPosActive
-                  ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                  : "text-emerald-100 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <ShoppingBag className={`w-4 h-4 ${isPosActive ? "text-slate-950" : "text-emerald-300"}`} />
-                <span>Ventas POS</span>
-              </div>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isPosActive ? "text-slate-950 rotate-0" : "text-emerald-400/60 -rotate-90"}`} />
-            </button>
-
-            {/* Sub-índices de Ventas POS */}
-            {isPosActive && (
-              <div className="ml-3 pl-3.5 border-l border-emerald-500/30 space-y-1 pt-1.5 pb-1 animate-in fade-in duration-150">
-                {/* 3.1 Preventa Salón */}
-                <button
-                  type="button"
-                  onClick={() => handleItemClick("pos-preventa")}
-                  className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
-                    activePosSubItem === "preventa"
-                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
-                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00D615]" />
-                    <span>Preventa Salón</span>
-                  </div>
-                  <span className="text-[9px] bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 px-1.5 py-0.5 rounded font-bold">
-                    vendedor
-                  </span>
-                </button>
-
-                {/* 3.2 Cobrar */}
-                <button
-                  type="button"
-                  onClick={() => handleItemClick("pos-cobrar")}
-                  className={`flex items-center justify-between w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
-                    activePosSubItem === "cobrar"
-                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
-                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span>Cobrar</span>
-                  </div>
-                  {pendingSalesCount > 0 && (
-                    <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full min-w-4 text-center">
-                      {pendingSalesCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 4. Arqueo de Caja (Bloqueado) */}
+          {/* 3. Preventa (Terminal Salón / Vendedor) */}
           <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
+            onClick={() => handleItemClick("pos-preventa")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              isPreventaActive
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
           >
             <div className="flex items-center gap-3">
-              <CircleDollarSign className="w-4 h-4 text-emerald-300" />
-              <span>Arqueo de Caja</span>
+              <ShoppingBag className={`w-4 h-4 ${isPreventaActive ? "text-slate-950" : "text-emerald-300"}`} />
+              <span>Preventa</span>
             </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                isPreventaActive
+                  ? "bg-slate-950/15 text-slate-950"
+                  : "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
+              }`}
+            >
+              Salón
+            </span>
+          </button>
+
+          {/* 4. Caja (Cobro de Preventas y Arqueo) */}
+          <button
+            onClick={() => handleItemClick("pos-cobrar")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              isCajaActive
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <CircleDollarSign className={`w-4 h-4 ${isCajaActive ? "text-slate-950" : "text-emerald-300"}`} />
+              <span>Caja</span>
+            </div>
+            {pendingSalesCount > 0 ? (
+              <span
+                className={`text-[10px] font-black px-2 py-0.5 rounded-full min-w-5 text-center transition-colors ${
+                  isCajaActive
+                    ? "bg-slate-950 text-[#c2f25b]"
+                    : "bg-amber-400 text-slate-950"
+                }`}
+              >
+                {pendingSalesCount}
+              </span>
+            ) : (
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  isCajaActive ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
+                }`}
+              >
+                Cobro
+              </span>
+            )}
           </button>
 
           {/* 5. E-commerce (Bloqueado) */}

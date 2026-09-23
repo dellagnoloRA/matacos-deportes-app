@@ -135,13 +135,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const handleSelectTab = useCallback(
     (id: string) => {
       setSelectedProductId(null);
-      if (id === "pos" || id === "pos-preventa") {
+      if (id === "pos" || id === "pos-preventa" || id === "preventa") {
         updateUrl({
           tab: "pos",
           seccion: "preventa",
           producto: null,
         });
-      } else if (id === "pos-cobrar") {
+      } else if (id === "pos-cobrar" || id === "caja") {
         updateUrl({
           tab: "pos",
           seccion: "cobrar",
