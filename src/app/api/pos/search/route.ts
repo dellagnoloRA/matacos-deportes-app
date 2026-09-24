@@ -119,18 +119,35 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Búsqueda Predictiva por Nombre, Marca, Categoría, Color, Talle o SKU (Top 20)
+    const terms = q.split(/\s+/).filter(Boolean);
     const variants = await prisma.productVariant.findMany({
       where: {
         product: { active: true },
-        OR: [
-          { product: { name: { contains: q, mode: "insensitive" } } },
-          { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
-          { product: { category: { name: { contains: q, mode: "insensitive" } } } },
-          { sku: { contains: q, mode: "insensitive" } },
-          { barcode: { contains: q, mode: "insensitive" } },
-          { color: { contains: q, mode: "insensitive" } },
-          { size: { contains: q, mode: "insensitive" } },
-        ],
+        ...(terms.length === 1
+          ? {
+              OR: [
+                { product: { name: { contains: q, mode: "insensitive" } } },
+                { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
+                { product: { category: { name: { contains: q, mode: "insensitive" } } } },
+                { sku: { contains: q, mode: "insensitive" } },
+                { barcode: { contains: q, mode: "insensitive" } },
+                { color: { contains: q, mode: "insensitive" } },
+                { size: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {
+              AND: terms.map((term) => ({
+                OR: [
+                  { product: { name: { contains: term, mode: "insensitive" } } },
+                  { product: { brand: { name: { contains: term, mode: "insensitive" } } } },
+                  { product: { category: { name: { contains: term, mode: "insensitive" } } } },
+                  { sku: { contains: term, mode: "insensitive" } },
+                  { barcode: { contains: term, mode: "insensitive" } },
+                  { color: { contains: term, mode: "insensitive" } },
+                  { size: { contains: term, mode: "insensitive" } },
+                ],
+              })),
+            }),
       },
       take: 20,
       orderBy: [
