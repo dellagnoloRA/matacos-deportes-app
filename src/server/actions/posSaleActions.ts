@@ -18,6 +18,11 @@ import {
 } from "@/lib/discounts";
 import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import {
+  getNextOfficialInvoiceNumber,
+  buildReceiptPayloadFromSaleRecord,
+} from "@/server/services/receiptService";
+
 
 function serializeData<T>(obj: any): T {
   if (obj === null || obj === undefined) return obj;
@@ -485,8 +490,9 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         );
       }
 
-      // 4. Generar número de comprobante definitivo
-      const invoiceNumber = `TKT-${Date.now().toString().slice(-8)}`;
+      // 4. Generar número de comprobante oficial correlativo (RF-10: PPPPP-NNNNNNNN)
+      const { invoiceNumber } = await getNextOfficialInvoiceNumber(tx);
+
 
       // 5. Descontar definitivamente de stockStore, liberar stockReserved y registrar movimiento
       for (const item of sale.items) {
@@ -563,15 +569,21 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
           items: {
             include: {
               variant: {
-                include: { product: true },
+                include: {
+                  product: {
+                    include: { brand: true },
+                  },
+                },
               },
             },
           },
           payments: true,
-          seller: { select: { id: true, name: true } },
-          cashier: { select: { id: true, name: true } },
+          seller: { select: { id: true, name: true, email: true } },
+          cashier: { select: { id: true, name: true, email: true } },
         },
       });
+
+      const receipt = buildReceiptPayloadFromSaleRecord(completedSale);
 
       return {
         sale: completedSale,
@@ -579,6 +591,7 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         totalNet,
         totalPayments,
         totalChangeGiven,
+        receipt,
       };
     });
 
@@ -592,8 +605,10 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
     return {
       success: true,
       data: serializeData(result.sale),
+      receipt: result.receipt,
       message: `Venta ${result.invoiceNumber} cobrada con éxito. Vuelto: $ ${result.totalChangeGiven.toFixed(2)}`,
     };
+
   } catch (error: any) {
     console.error("Error en completePendingSale:", error);
     return { success: false, error: error.message || "Error al procesar el cobro" };
@@ -634,8 +649,9 @@ export async function createDirectSale(input: CreateSaleInput) {
         }
       }
 
-      // 3. Generar número de comprobante
-      const invoiceNumber = `TKT-${Date.now().toString().slice(-8)}`;
+      // 3. Generar número de comprobante oficial correlativo (RF-10: PPPPP-NNNNNNNN)
+      const { invoiceNumber } = await getNextOfficialInvoiceNumber(tx);
+
 
       // 4. Calcular totales
       const totals = calculateSaleTotals(
@@ -742,7 +758,32 @@ export async function createDirectSale(input: CreateSaleInput) {
         });
       }
 
-      return sale;
+      const fullSale = await tx.sale.findUnique({
+        where: { id: sale.id },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: {
+                  product: {
+                    include: { brand: true },
+                  },
+                },
+              },
+            },
+          },
+          payments: true,
+          seller: { select: { id: true, name: true, email: true } },
+          cashier: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      const receipt = fullSale ? buildReceiptPayloadFromSaleRecord(fullSale) : null;
+
+      return {
+        sale: fullSale || sale,
+        receipt,
+      };
     });
 
     try {
@@ -750,7 +791,12 @@ export async function createDirectSale(input: CreateSaleInput) {
       revalidatePath("/pos");
     } catch {}
 
-    return { success: true, data: serializeData(result) };
+    return {
+      success: true,
+      data: serializeData(result.sale),
+      receipt: result.receipt,
+    };
+
   } catch (error: any) {
     console.error("Error en createDirectSale:", error);
     return { success: false, error: error.message || "Error al procesar la venta directa" };

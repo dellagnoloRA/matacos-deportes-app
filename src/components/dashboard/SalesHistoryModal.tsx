@@ -383,20 +383,30 @@ export function SalesHistoryModal({
                 id="printable-ticket"
                 className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 text-slate-900 font-sans print:shadow-none print:border-none print:max-w-none print:p-0"
               >
-                {/* Cabecera del Comercio */}
-                <div className="text-center pb-4 border-b border-dashed border-slate-300">
-                  <div className="inline-block font-black italic text-emerald-700 text-xl tracking-tighter">
-                    MATACOS DEPORTES
+                {/* Cabecera del Comercio con Datos Reales (Boceto Oficial) */}
+                <div className="border-b border-dashed border-slate-300 pb-3 font-mono">
+                  <div className="text-center font-black tracking-[0.25em] text-[16px] leading-tight text-slate-950">
+                    M A T A C O S
                   </div>
-                  <p className="text-xs font-bold text-slate-700">
-                    Artículos Deportivos & Accesorios
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Saavedra 241 — Formosa Capital, Argentina
-                  </p>
-                  <div className="mt-2 inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-full text-xs font-mono font-bold text-slate-800 border border-slate-200">
-                    <span>COMPROBANTE DE VENTA:</span>
-                    <span className="text-emerald-700">{activeSale.invoiceNumber}</span>
+                  <div className="text-center font-black tracking-[0.2em] text-[16px] leading-tight text-slate-950 mb-2">
+                    D E P O R T E S
+                  </div>
+                  <div className="text-left text-[11.5px] leading-[1.3] text-neutral-900 space-y-0.5 pt-1">
+                    <div className="font-semibold text-slate-950">MUJICA SANDRA ISABEL</div>
+                    <div>CUIT Nro.: 27-18036080-3</div>
+                    <div>Ing. Brutos 01-2718036080-3</div>
+                    <div>Dirección: SAAVEDRA 241</div>
+                    <div>FORMOSA - CAPITAL</div>
+                    <div>C.P.3600</div>
+                    <div>Inicio de Actividades: 25/07/2007</div>
+                    <div>IVA RESPONSABLE INSCRIPTO</div>
+                    <div className="font-medium pt-0.5">A CONSUMIDOR FINAL</div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-full text-xs font-mono font-bold text-slate-800 border border-slate-200">
+                      <span>COMPROBANTE DE VENTA:</span>
+                      <span className="text-emerald-700">{activeSale.invoiceNumber}</span>
+                    </div>
                   </div>
                 </div>
 

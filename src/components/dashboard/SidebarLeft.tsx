@@ -280,18 +280,18 @@ export function SidebarLeft({
         </nav>
       </div>
 
-      {/* Bottom Section: User Profile Card (Lucas - Vendedor / Notebook Salón 1) */}
+      {/* Bottom Section: User Profile Card (Terminal Mostrador / Saavedra 241) */}
       <div className="space-y-3 pt-4 border-t border-emerald-800/60">
         <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center gap-3 shadow-inner">
           <div className="w-9 h-9 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">
-            V1
+            POS
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-bold text-white leading-tight truncate">
-              Lucas (Vendedor)
+              Terminal Mostrador
             </span>
             <span className="text-[10.5px] text-emerald-300/80 font-medium tracking-wide">
-              Notebook Salón 1
+              Saavedra 241
             </span>
           </div>
         </div>

@@ -602,10 +602,6 @@ export function PosTransactionHistoryView({
                         <span className="font-bold text-slate-800">
                           {sale.customerName || "Consumidor Final"}
                         </span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-slate-500 text-[11px]">
-                          Vendedor: {sale.seller?.name || "Lucas (Salón 1)"}
-                        </span>
                         {sale.cashier?.name && (
                           <>
                             <span className="text-slate-300">•</span>
@@ -817,31 +813,44 @@ export function PosTransactionHistoryView({
 
               {/* Ticket Preview Body */}
               <div className="p-6 overflow-y-auto font-mono text-xs text-slate-800 space-y-4">
-                <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-4">
-                  <h3 className="text-base font-black uppercase tracking-wider">
-                    MATACOS DEPORTES
-                  </h3>
-                  <p className="text-[11px] text-slate-600">Saavedra 241, Formosa Capital</p>
-                  <p className="text-[10px] text-slate-400 font-bold">CUIT: 30-71234567-9 • IVA Responsable Inscripto</p>
+                {/* Cabecera del Comercio con Datos Reales (Boceto Oficial) */}
+                <div className="border-b border-dashed border-slate-300 pb-3">
+                  <div className="text-center font-black tracking-[0.25em] text-[15px] leading-tight pt-1 text-slate-950">
+                    M A T A C O S
+                  </div>
+                  <div className="text-center font-black tracking-[0.2em] text-[15px] leading-tight mb-2.5 text-slate-950">
+                    D E P O R T E S
+                  </div>
+                  <div className="text-left text-[11px] leading-[1.3] text-neutral-900 space-y-0.5 pt-1">
+                    <div className="font-semibold text-slate-950">MUJICA SANDRA ISABEL</div>
+                    <div>CUIT Nro.: 27-18036080-3</div>
+                    <div>Ing. Brutos 01-2718036080-3</div>
+                    <div>Dirección: SAAVEDRA 241</div>
+                    <div>FORMOSA - CAPITAL</div>
+                    <div>C.P.3600</div>
+                    <div>Inicio de Actividades: 25/07/2007</div>
+                    <div>IVA RESPONSABLE INSCRIPTO</div>
+                    <div className="font-medium pt-0.5">A CONSUMIDOR FINAL</div>
+                  </div>
                 </div>
 
                 <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-3">
-                  <div className="flex justify-between">
-                    <span>Comprobante:</span>
-                    <strong className="text-slate-950">{sale.invoiceNumber || sale.ticketCode || "TKT-0000"}</strong>
+                  <div className="text-center text-[12px] space-y-0.5 pb-1">
+                    <div className="font-bold text-[12.5px]">Cód. 083 - TIQUE</div>
+                    <div>
+                      P.V. Nro. {sale.invoiceNumber?.split("-")[0] || "00008"} - Nro. T. {sale.invoiceNumber?.split("-")[1] || sale.ticketCode || "00000001"}
+                    </div>
                   </div>
                   <div className="flex justify-between">
-                    <span>Fecha y Hora:</span>
-                    <span>{formattedDate} {formattedTime} hs</span>
+                    <span>Fecha {formattedDate}</span>
+                    <span>Hora {formattedTime}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Cliente:</span>
-                    <strong className="text-slate-950">{sale.customerName || "Consumidor Final"}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Vendedor:</span>
-                    <span>{sale.seller?.name || "Lucas (Salón)"}</span>
-                  </div>
+                  {sale.customerName && sale.customerName !== "Consumidor Final" && sale.customerName !== "CONSUMIDOR FINAL" && (
+                    <div className="flex justify-between pt-0.5">
+                      <span>Cliente:</span>
+                      <strong className="text-slate-950">{sale.customerName}</strong>
+                    </div>
+                  )}
                   {sale.cashier?.name && (
                     <div className="flex justify-between">
                       <span>Cajero:</span>
