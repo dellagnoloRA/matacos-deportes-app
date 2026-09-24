@@ -1084,7 +1084,7 @@ export function PosView({
               </div>
               <h3 className="text-base font-bold text-slate-900">No hay preventas pendientes</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                Los vendedores no tienen clientes esperando en caja en este momento.
+                No hay clientes esperando en caja en este momento.
               </p>
               <button
                 onClick={() => onNavigateSubView?.("preventa")}
@@ -1115,9 +1115,6 @@ export function PosView({
                       <h4 className="text-sm font-bold text-slate-800">
                         {sale.customerName || "Consumidor Final"}
                       </h4>
-                      <p className="text-xs text-slate-500">
-                        Vendedor: {sale.seller?.name || "Lucas (Salón 1)"}
-                      </p>
                     </div>
 
                     {/* Breakdown of items */}
@@ -2077,7 +2074,7 @@ export function PosView({
 
           <p className="text-xs text-slate-500 flex items-center gap-1.5">
             <Store className="w-3.5 h-3.5 text-slate-400" />
-            <span>Vendedor: Lucas • Saavedra 241</span>
+            <span>Saavedra 241 • Formosa</span>
           </p>
 
           {/* Campo Cliente / Ref */}
@@ -2584,10 +2581,6 @@ export function PosView({
                   <div className="flex justify-between">
                     <span className="text-slate-500">Cliente:</span>
                     <span className="font-bold">{preventaSuccessData.customerName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Vendedor:</span>
-                    <span>Lucas (Salón 1)</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Fecha:</span>

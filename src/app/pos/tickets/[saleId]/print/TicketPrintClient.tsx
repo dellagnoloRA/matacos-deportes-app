@@ -79,12 +79,9 @@ export function TicketPrintClient({ receipt, autoPrint = true }: TicketPrintClie
         <div className="text-center font-black tracking-[0.25em] text-[16px] leading-tight pt-1">
           M A T A C O S
         </div>
-        <div className="text-center font-black tracking-[0.2em] text-[16px] leading-tight mb-2">
+        <div className="text-center font-black tracking-[0.2em] text-[16px] leading-tight mb-2.5">
           D E P O R T E S
         </div>
-
-        {/* Separador sutil */}
-        <div className="border-t border-dashed border-neutral-300 my-2" />
 
         {/* Datos Comerciales y Fiscales del Emisor */}
         <div className="text-left text-[11.5px] leading-[1.3] text-neutral-900 space-y-0.5">

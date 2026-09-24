@@ -864,9 +864,7 @@ export function formatTicketToHtml(
   </div>
   <div class="ticket-paper">
     <div class="title-spaced">M A T A C O S</div>
-    <div class="title-spaced">D E P O R T E S</div>
-    
-    <div class="divider"></div>
+    <div class="title-spaced" style="margin-bottom: 8px;">D E P O R T E S</div>
     
     <div style="font-size: 11.5px; line-height: 1.3;">
       <div class="bold">${receipt.company.legalName}</div>
