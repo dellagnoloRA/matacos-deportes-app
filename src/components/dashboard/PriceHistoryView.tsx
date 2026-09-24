@@ -17,6 +17,8 @@ import {
   Layers,
   Trash2,
   AlertTriangle,
+  Boxes,
+  Tag,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -28,9 +30,13 @@ import {
 
 export interface PriceHistoryViewProps {
   onBackToInventory?: () => void;
+  onNavigateToStockMovements?: () => void;
 }
 
-export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
+export function PriceHistoryView({
+  onBackToInventory,
+  onNavigateToStockMovements,
+}: PriceHistoryViewProps) {
   const [batches, setBatches] = useState<PriceHistoryBatch[]>([]);
   const [expandedBatchIds, setExpandedBatchIds] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -214,7 +220,30 @@ export function PriceHistoryView({ onBackToInventory }: PriceHistoryViewProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Segmented Switcher entre Historiales */}
+          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-2xs">
+            {onNavigateToStockMovements && (
+              <button
+                type="button"
+                onClick={onNavigateToStockMovements}
+                className="py-1.5 px-3 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-white/60 flex items-center gap-1.5 transition-all"
+                title="Ir a Historial de Movimientos de Stock"
+              >
+                <Boxes className="w-3.5 h-3.5 text-slate-400" />
+                <span>Movimientos de Stock</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="py-1.5 px-3 rounded-xl text-xs font-black bg-slate-900 text-white shadow-xs flex items-center gap-1.5 transition-all"
+            >
+              <Tag className="w-3.5 h-3.5 text-[#00D615]" />
+              <span>Ajustes de Precios</span>
+            </button>
+          </div>
+
           {batches.length > 0 && (
             <button
               type="button"

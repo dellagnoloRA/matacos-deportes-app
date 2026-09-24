@@ -14,6 +14,9 @@ import {
   Layers,
   History,
   ChevronDown,
+  ArrowRightLeft,
+  Tag,
+  Receipt,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -24,6 +27,7 @@ interface SidebarLeftProps {
   onSelectItem?: (id: string) => void;
   selectedCategory?: string;
   onSelectCategory?: (category: string) => void;
+  pendingSalesCount?: number;
 }
 
 export function SidebarLeft({
@@ -32,6 +36,7 @@ export function SidebarLeft({
   isMobile = false,
   activeItem = "inventario",
   onSelectItem,
+  pendingSalesCount = 0,
 }: SidebarLeftProps) {
   const isInventoryActive =
     activeItem === "inventario" || activeItem.startsWith("inventario-");
@@ -39,9 +44,20 @@ export function SidebarLeft({
   const activeSubItem =
     activeItem === "inventario-tablas"
       ? "tablas"
-      : activeItem === "inventario-historial"
+      : activeItem === "inventario-movimientos"
+      ? "movimientos"
+      : activeItem === "inventario-historial" || activeItem === "inventario-precios"
       ? "historial"
       : "productos";
+
+  const isPreventaActive =
+    activeItem === "pos-preventa" ||
+    activeItem === "preventa" ||
+    activeItem === "pos";
+  const isCajaActive =
+    activeItem === "pos-cobrar" ||
+    activeItem === "pos-historial" ||
+    activeItem === "caja";
 
   const handleItemClick = (id: string) => {
     if (onSelectItem) {
@@ -117,7 +133,7 @@ export function SidebarLeft({
             <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
           </button>
 
-          {/* 2. Inventario con Sub-índices (Activo) */}
+          {/* 2. Inventario con Sub-índices */}
           <div className="space-y-1">
             <button
               onClick={() => handleItemClick("inventario-productos")}
@@ -137,7 +153,6 @@ export function SidebarLeft({
             {/* Sub-índices de Inventario */}
             {isInventoryActive && (
               <div className="ml-3 pl-3.5 border-l border-emerald-500/30 space-y-1 pt-1.5 pb-1 animate-in fade-in duration-150">
-                {/* 2.1 Productos */}
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-productos")}
@@ -151,7 +166,6 @@ export function SidebarLeft({
                   <span>Productos</span>
                 </button>
 
-                {/* 2.2 Tablas */}
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-tablas")}
@@ -165,7 +179,19 @@ export function SidebarLeft({
                   <span>Tablas</span>
                 </button>
 
-                {/* 2.3 Historial */}
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("inventario-movimientos")}
+                  className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeSubItem === "movimientos"
+                      ? "bg-white/15 text-[#c2f25b] font-bold shadow-xs border border-[#c2f25b]/25"
+                      : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <ArrowRightLeft className={`w-3.5 h-3.5 ${activeSubItem === "movimientos" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Movimientos de Stock</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => handleItemClick("inventario-historial")}
@@ -175,35 +201,69 @@ export function SidebarLeft({
                       : "text-emerald-200/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <History className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
-                  <span>Historial</span>
+                  <Tag className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
+                  <span>Ajustes de Precios</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* 3. Ventas POS (Bloqueado) */}
+
           <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
+            onClick={() => handleItemClick("pos-preventa")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              isPreventaActive
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
           >
             <div className="flex items-center gap-3">
-              <ShoppingBag className="w-4 h-4 text-emerald-300" />
-              <span>Ventas POS</span>
+              <ShoppingBag className={`w-4 h-4 ${isPreventaActive ? "text-slate-950" : "text-emerald-300"}`} />
+              <span>Preventa</span>
             </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                isPreventaActive
+                  ? "bg-slate-950/15 text-slate-950"
+                  : "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
+              }`}
+            >
+              Salón
+            </span>
           </button>
 
-          {/* 4. Caja (Bloqueado) */}
+          {/* 4. Caja (Cobro de Preventas y Arqueo) */}
           <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
+            onClick={() => handleItemClick("pos-cobrar")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              isCajaActive
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
           >
             <div className="flex items-center gap-3">
-              <CircleDollarSign className="w-4 h-4 text-emerald-300" />
+              <CircleDollarSign className={`w-4 h-4 ${isCajaActive ? "text-slate-950" : "text-emerald-300"}`} />
               <span>Caja</span>
             </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
+            {pendingSalesCount > 0 ? (
+              <span
+                className={`text-[10px] font-black px-2 py-0.5 rounded-full min-w-5 text-center transition-colors ${
+                  isCajaActive
+                    ? "bg-slate-950 text-[#c2f25b]"
+                    : "bg-amber-400 text-slate-950"
+                }`}
+              >
+                {pendingSalesCount}
+              </span>
+            ) : (
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  isCajaActive ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
+                }`}
+              >
+                Cobro
+              </span>
+            )}
           </button>
 
           {/* 5. E-commerce (Bloqueado) */}
@@ -220,31 +280,18 @@ export function SidebarLeft({
         </nav>
       </div>
 
-      {/* Bottom Section: Configuración + User Profile Card */}
+      {/* Bottom Section: User Profile Card (Lucas - Vendedor / Notebook Salón 1) */}
       <div className="space-y-3 pt-4 border-t border-emerald-800/60">
-        {/* Configuración (Bloqueado) */}
-        <button
-          disabled
-          className="flex items-center justify-between w-full py-2 px-2.5 text-emerald-200/50 cursor-not-allowed rounded-xl transition-colors font-medium text-xs"
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="w-4 h-4 text-emerald-300/50" />
-            <span>Configuración general</span>
-          </div>
-          <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
-        </button>
-
-        {/* User Profile Card (Cambiado a perfil de mostrador) */}
         <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center gap-3 shadow-inner">
-          <div className="w-9 h-9 rounded-full bg-slate-800 text-emerald-400 font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-900/50">
-            LOC
+          <div className="w-9 h-9 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">
+            V1
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-bold text-white leading-tight truncate">
-              Sesión Local
+              Lucas (Vendedor)
             </span>
-            <span className="text-[10px] text-emerald-300 font-medium tracking-wide">
-              Mostrador
+            <span className="text-[10.5px] text-emerald-300/80 font-medium tracking-wide">
+              Notebook Salón 1
             </span>
           </div>
         </div>

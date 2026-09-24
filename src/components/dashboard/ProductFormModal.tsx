@@ -1084,7 +1084,21 @@ export function ProductFormModal({
         )}
 
         {/* Form Body */}
-        <form noValidate onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+        <form
+          noValidate
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            // Evitar que la tecla Enter (habitual en pistolas de código de barras USB y tipeo rápido)
+            // dispare el submit involuntario del formulario
+            if (e.key === "Enter") {
+              const target = e.target as HTMLElement;
+              if (target.tagName === "INPUT" || target.tagName === "SELECT") {
+                e.preventDefault();
+              }
+            }
+          }}
+          className="flex-1 overflow-y-auto p-6 space-y-6 text-xs"
+        >
           {/* 1. Datos Principales */}
           <div className="space-y-4">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2 text-[11px]">
@@ -1767,9 +1781,20 @@ export function ProductFormModal({
                         Talle <span className="text-rose-500">*</span>
                       </label>
                       <input
+                        id={`variant-size-${idx}`}
                         type="text"
                         value={variant.size}
                         onChange={(e) => handleSizeChange(idx, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const next = document.getElementById(`variant-color-${idx}`) as HTMLInputElement | null;
+                            if (next) {
+                              next.focus();
+                              next.select();
+                            }
+                          }
+                        }}
                         placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
                         className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
                           fieldErrors[`variant_${idx}_size`]
@@ -1785,9 +1810,20 @@ export function ProductFormModal({
                         Color <span className="text-rose-500">*</span>
                       </label>
                       <input
+                        id={`variant-color-${idx}`}
                         type="text"
                         value={variant.color}
                         onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const next = document.getElementById(`variant-barcode-${idx}`) as HTMLInputElement | null;
+                            if (next) {
+                              next.focus();
+                              next.select();
+                            }
+                          }
+                        }}
                         placeholder="Negro / Azul"
                         className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                           fieldErrors[`variant_${idx}_color`]
@@ -1872,9 +1908,35 @@ export function ProductFormModal({
                       </div>
                       <div className="relative flex items-center">
                         <input
+                          id={`variant-barcode-${idx}`}
                           type="text"
                           value={variant.barcode}
                           onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              // Si la pistola de código de barras escanea y envía Enter:
+                              // Saltar automáticamente al código de barra de la siguiente variante
+                              if (idx + 1 < variants.length) {
+                                const nextInput = document.getElementById(
+                                  `variant-barcode-${idx + 1}`
+                                ) as HTMLInputElement | null;
+                                if (nextInput) {
+                                  nextInput.focus();
+                                  nextInput.select();
+                                }
+                              } else {
+                                // Si es la última variante, enfocar el stock en salón
+                                const stockInput = document.getElementById(
+                                  `variant-stockStore-${idx}`
+                                ) as HTMLInputElement | null;
+                                if (stockInput) {
+                                  stockInput.focus();
+                                  stockInput.select();
+                                }
+                              }
+                            }
+                          }}
                           placeholder="779... / 200..."
                           className="w-full bg-white pl-2 pr-6 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
                         />
@@ -1903,6 +1965,7 @@ export function ProductFormModal({
                         Salón
                       </label>
                       <input
+                        id={`variant-stockStore-${idx}`}
                         type="number"
                         min="0"
                         value={variant.stockStore}
