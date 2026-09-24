@@ -51,17 +51,34 @@ export async function searchPosProducts(query: string) {
   if (!q) return { success: true, items: [] };
 
   try {
+    const words = q.split(/\s+/).filter(Boolean);
     const variants = await prisma.productVariant.findMany({
       where: {
         product: { active: true },
-        OR: [
-          { barcode: q },
-          { sku: q },
-          { product: { name: { contains: q, mode: "insensitive" } } },
-          { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
-          { color: { contains: q, mode: "insensitive" } },
-          { size: { contains: q, mode: "insensitive" } },
-        ],
+        ...(words.length === 1
+          ? {
+              OR: [
+                { barcode: q },
+                { sku: q },
+                { product: { name: { contains: q, mode: "insensitive" } } },
+                { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
+                { color: { contains: q, mode: "insensitive" } },
+                { size: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {
+              AND: words.map((w) => ({
+                OR: [
+                  { barcode: { contains: w, mode: "insensitive" } },
+                  { sku: { contains: w, mode: "insensitive" } },
+                  { color: { contains: w, mode: "insensitive" } },
+                  { size: { contains: w, mode: "insensitive" } },
+                  { product: { name: { contains: w, mode: "insensitive" } } },
+                  { product: { brand: { name: { contains: w, mode: "insensitive" } } } },
+                  { product: { category: { name: { contains: w, mode: "insensitive" } } } },
+                ],
+              })),
+            }),
       },
       take: 20,
       orderBy: [{ stockStore: "desc" }],

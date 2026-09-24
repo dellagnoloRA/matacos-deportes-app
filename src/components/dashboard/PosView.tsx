@@ -57,6 +57,11 @@ import {
 } from "@/server/actions/posSaleActions";
 import { BarcodeSvg } from "./BarcodeSvg";
 import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
+import {
+  PosProductGridCard,
+  PosProductListRow,
+  getColorSwatchClass,
+} from "./PosProductCard";
 
 // ----------------------------------------------------------------------
 // Tipos de Estado para Preventa y Carrito
@@ -323,21 +328,34 @@ export function PosView({
       );
     }
 
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
+    const rawQ = searchQuery.trim().toLowerCase();
+    if (rawQ) {
+      const terms = rawQ.split(/\s+/).filter(Boolean);
       result = result.filter((p) => {
-        const matchName = p.name.toLowerCase().includes(q);
-        const matchBrand = p.brand.toLowerCase().includes(q);
-        const matchCategory = p.category.toLowerCase().includes(q);
-        const matchModel = p.modelCode?.toLowerCase().includes(q);
-        const matchVariants = p.variants.some(
-          (v) =>
-            v.size.toLowerCase().includes(q) ||
-            v.color.toLowerCase().includes(q) ||
-            v.sku?.toLowerCase().includes(q) ||
-            v.barcode.toLowerCase().includes(q)
-        );
-        return matchName || matchBrand || matchCategory || matchModel || matchVariants;
+        return terms.every((term) => {
+          const matchName = p.name.toLowerCase().includes(term);
+          const matchBrand = p.brand.toLowerCase().includes(term);
+          const matchCategory = p.category.toLowerCase().includes(term);
+          const matchDiscipline = p.discipline?.toLowerCase().includes(term);
+          const matchModel =
+            p.modelCode?.toLowerCase().includes(term) ||
+            p.sku?.toLowerCase().includes(term);
+          const matchVariants = p.variants.some(
+            (v) =>
+              v.size.toLowerCase().includes(term) ||
+              v.color.toLowerCase().includes(term) ||
+              v.sku?.toLowerCase().includes(term) ||
+              v.barcode.toLowerCase().includes(term)
+          );
+          return (
+            matchName ||
+            matchBrand ||
+            matchCategory ||
+            matchDiscipline ||
+            matchModel ||
+            matchVariants
+          );
+        });
       });
     }
 
@@ -380,6 +398,49 @@ export function PosView({
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Sugerencias predictivas de colores presentes en los productos filtrados
+  const predictiveColorSuggestions = useMemo(() => {
+    const rawQ = searchQuery.trim().toLowerCase();
+    if (!rawQ || rawQ.length < 2) return [];
+
+    const colorMap = new Map<string, number>();
+    for (const p of filteredProducts) {
+      for (const v of p.variants) {
+        const c = v.color?.trim();
+        if (c) {
+          const avail = Math.max(0, v.stockStore - (v.stockReserved || 0));
+          colorMap.set(c, (colorMap.get(c) || 0) + avail);
+        }
+      }
+    }
+
+    const terms = rawQ.split(/\s+/).filter(Boolean);
+    const results: Array<{ color: string; stock: number }> = [];
+
+    colorMap.forEach((stock, color) => {
+      // Excluir si el color ya está escrito en la búsqueda
+      const alreadyInQuery = terms.some(
+        (t) => color.toLowerCase() === t.toLowerCase()
+      );
+      if (!alreadyInQuery) {
+        results.push({ color, stock });
+      }
+    });
+
+    results.sort((a, b) => b.stock - a.stock);
+    return results.slice(0, 7);
+  }, [filteredProducts, searchQuery]);
+
+  const handleSelectPredictiveColor = (colorName: string) => {
+    const currentTerms = searchQuery.trim().split(/\s+/).filter(Boolean);
+    if (!currentTerms.some((t) => t.toLowerCase() === colorName.toLowerCase())) {
+      setSearchQuery([...currentTerms, colorName].join(" "));
+    } else {
+      setSearchQuery(colorName);
+    }
+    searchInputRef.current?.focus();
   };
 
   // ----------------------------------------------------------------------
@@ -467,7 +528,8 @@ export function PosView({
         ) {
           // Agregar al carrito
           handleAddVariantToCart(prod, variant);
-          showToast(`"${prod.name} (${variant.size})" agregado al carrito`);
+          const colorDetail = variant.color ? ` - ${variant.color}` : "";
+          showToast(`"${prod.name}${colorDetail} (${variant.size})" agregado al carrito`);
           return;
         }
       }
@@ -488,8 +550,9 @@ export function PosView({
     );
 
     if (availableStock <= 0) {
+      const colorDetail = variant.color ? ` (${variant.color})` : "";
       showToast(
-        `Sin stock disponible en salón para ${product.name} (Talle ${variant.size})`,
+        `Sin stock disponible en salón para ${product.name}${colorDetail} (Talle ${variant.size})`,
         "error"
       );
       return;
@@ -1064,8 +1127,8 @@ export function PosView({
                           key={it.id}
                           className="flex items-center justify-between text-xs text-slate-600 bg-slate-50/80 px-2.5 py-1.5 rounded-lg"
                         >
-                          <span className="truncate max-w-[170px] font-medium">
-                            {it.quantity}x {it.variant.product.name} ({it.variant.size})
+                          <span className="truncate max-w-[170px] font-medium" title={`${it.variant.product.name} - ${it.variant.color || ""} (Talle ${it.variant.size})`}>
+                            {it.quantity}x {it.variant.product.name} ({it.variant.color ? `${it.variant.color} • ` : ""}{it.variant.size})
                           </span>
                           <span className="font-semibold text-slate-800 font-mono">
                             {formatCurrency(Number(it.subtotal))}
@@ -1709,6 +1772,37 @@ export function PosView({
             </div>
           </div>
 
+          {/* Barra de Sugerencias Predictivas de Color */}
+          {predictiveColorSuggestions.length > 0 && (
+            <div className="flex items-center gap-1.5 pt-0.5 flex-wrap animate-in fade-in duration-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>Colores sugeridos:</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                {predictiveColorSuggestions.map(({ color, stock }) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => handleSelectPredictiveColor(color)}
+                    className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-white hover:bg-emerald-50 hover:text-emerald-900 text-slate-700 border border-slate-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    title={`Filtrar por ${color} (${stock} un. en salón)`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full border shrink-0 ${getColorSwatchClass(
+                        color
+                      )}`}
+                    />
+                    <span>{color}</span>
+                    <span className="text-[9.5px] font-mono text-slate-400">
+                      ({stock})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Discipline / Category Filter Chips */}
           <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap relative py-0.5">
             {visibleCategories.map((disc) => {
@@ -1816,161 +1910,28 @@ export function PosView({
             </div>
           ) : viewLayout === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 sm:gap-4">
-              {paginatedProducts.map((product) => {
-                const totalSalonStock = product.variants.reduce(
-                  (acc, v) => acc + (v.stockStore || 0),
-                  0
-                );
-                const totalReservedStock = product.variants.reduce(
-                  (acc, v) => acc + (v.stockReserved || 0),
-                  0
-                );
-                const availableSalonStock = Math.max(0, totalSalonStock - totalReservedStock);
-
-                return (
-                  <div
-                    key={product.id}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all p-3.5 sm:p-4 flex flex-col justify-between space-y-3 group"
-                  >
-                    <div>
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                          {product.brand} • {product.category || product.discipline}
-                        </span>
-
-                        <span
-                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                            availableSalonStock > 0
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                              : "bg-rose-50 text-rose-700 border-rose-200/60"
-                          }`}
-                        >
-                          {availableSalonStock > 0
-                            ? `${availableSalonStock} en salón`
-                            : "Sin stock"}
-                        </span>
-                      </div>
-
-                      {/* Product Name */}
-                      <h3 className="text-sm font-bold text-slate-900 mt-1.5 leading-snug line-clamp-2">
-                        {product.name}
-                      </h3>
-
-                      {/* SKU & Price */}
-                      <div className="flex items-baseline justify-between mt-2 pt-1 border-t border-slate-100">
-                        <span className="text-[11px] font-mono text-slate-400">
-                          SKU: {product.modelCode || product.sku}
-                        </span>
-                        <span className="text-base font-black text-slate-900 font-mono">
-                          {formatCurrency(product.price)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Variant Size Chips (Direct Add to Cart) */}
-                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 block">
-                        Tocar talle para agregar:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 sm:max-h-28 overflow-y-auto pr-0.5 no-scrollbar">
-                        {product.variants.map((v) => {
-                          const vAvail = Math.max(
-                            0,
-                            v.stockStore - (v.stockReserved || 0)
-                          );
-                          const isOutOfStock = vAvail <= 0;
-
-                          // Cuántos ya hay en carrito de esta variante
-                          const inCart = cart.find((i) => i.variantId === v.id);
-                          const inCartQty = inCart ? inCart.quantity : 0;
-
-                          return (
-                            <button
-                              key={v.id || `${v.size}-${v.color}`}
-                              type="button"
-                              disabled={isOutOfStock}
-                              onClick={() => handleAddVariantToCart(product, v)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
-                                isOutOfStock
-                                  ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed line-through"
-                                  : inCartQty > 0
-                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 active:scale-95"
-                              }`}
-                            >
-                              <span>{v.size}</span>
-                              <span
-                                className={`text-[10px] font-medium opacity-80 ${
-                                  inCartQty > 0 ? "text-emerald-100" : "text-slate-400"
-                                }`}
-                              >
-                                ({vAvail})
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {paginatedProducts.map((product) => (
+                <PosProductGridCard
+                  key={product.id}
+                  product={product}
+                  cart={cart}
+                  searchQuery={searchQuery}
+                  onAddVariant={handleAddVariantToCart}
+                />
+              ))}
             </div>
           ) : (
             /* Vista de Lista Compacta */
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
-              {paginatedProducts.map((product) => {
-                const totalSalon = product.variants.reduce(
-                  (acc, v) => acc + (v.stockStore || 0),
-                  0
-                );
-                return (
-                  <div
-                    key={product.id}
-                    className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        {product.brand} • {product.category}
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900">{product.name}</h4>
-                      <span className="text-xs font-mono text-slate-400 block">
-                        SKU: {product.modelCode || product.sku}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <span className="text-base font-black text-slate-900 font-mono">
-                        {formatCurrency(product.price)}
-                      </span>
-
-                      <div className="flex flex-wrap gap-1">
-                        {product.variants.map((v) => {
-                          const vAvail = Math.max(
-                            0,
-                            v.stockStore - (v.stockReserved || 0)
-                          );
-                          const disabled = vAvail <= 0;
-                          return (
-                            <button
-                              key={v.id}
-                              disabled={disabled}
-                              onClick={() => handleAddVariantToCart(product, v)}
-                              className={`px-2 py-1 rounded-lg text-xs font-bold border ${
-                                disabled
-                                  ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed"
-                                  : "bg-white hover:bg-slate-100 text-slate-800 border-slate-200 active:scale-95"
-                              }`}
-                            >
-                              {v.size} ({vAvail})
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {paginatedProducts.map((product) => (
+                <PosProductListRow
+                  key={product.id}
+                  product={product}
+                  cart={cart}
+                  searchQuery={searchQuery}
+                  onAddVariant={handleAddVariantToCart}
+                />
+              ))}
             </div>
           )}
 
@@ -2638,8 +2599,8 @@ export function PosView({
                 <div className="space-y-1 border-b border-dashed border-slate-300 pb-2 text-[11px]">
                   {preventaSuccessData.items.map((it, idx) => (
                     <div key={idx} className="flex justify-between">
-                      <span className="truncate max-w-[200px]">
-                        {it.quantity}x {it.name} ({it.size})
+                      <span className="truncate max-w-[200px]" title={`${it.name} - ${it.color || ""} (${it.size})`}>
+                        {it.quantity}x {it.name} ({it.color ? `${it.color} • ` : ""}{it.size})
                       </span>
                       <span className="font-bold">
                         {formatCurrency(it.originalPrice * it.quantity)}

@@ -1188,11 +1188,46 @@ export function InventoryView({
     }
   };
 
-  // Identificar qué variante coincide con el código de barra buscado
+  // Identificar qué variante coincide con el código de barra o SKU buscado
   const getMatchedVariant = useCallback((item: DetailedProductItem, query: string) => {
     if (!query) return null;
     const q = query.trim().toLowerCase();
-    return item.variants?.find((v) => v.barcode && v.barcode.toLowerCase().includes(q)) || null;
+    if (!item.variants || item.variants.length === 0) return null;
+
+    // 1. Coincidencia exacta por código de barra
+    const exactBarcode = item.variants.find(
+      (v) => v.barcode && v.barcode.trim().toLowerCase() === q
+    );
+    if (exactBarcode) return exactBarcode;
+
+    // 2. Coincidencia exacta por SKU
+    const exactSku = item.variants.find(
+      (v) => v.sku && v.sku.trim().toLowerCase() === q
+    );
+    if (exactSku) return exactSku;
+
+    // 3. Coincidencia parcial por código de barra (mínimo 3 dígitos)
+    if (q.length >= 3) {
+      const partialBarcode = item.variants.find(
+        (v) => v.barcode && v.barcode.toLowerCase().includes(q)
+      );
+      if (partialBarcode) return partialBarcode;
+    }
+
+    // 4. Coincidencia parcial por SKU
+    if (q.length >= 3) {
+      const partialSku = item.variants.find(
+        (v) => v.sku && v.sku.toLowerCase().includes(q)
+      );
+      if (partialSku) return partialSku;
+    }
+
+    // 5. Si el producto tiene una única variante, asociarla directamente
+    if (item.variants.length === 1) {
+      return item.variants[0];
+    }
+
+    return null;
   }, []);
 
   // Manejo de pulsación de teclas en el campo de búsqueda (lector USB de código de barras)
@@ -1202,7 +1237,7 @@ export function InventoryView({
       const term = searchQuery.trim().toLowerCase();
       if (!term) return;
 
-      // 1. Buscar coincidencia exacta por código de barra (en producto o variantes)
+      // 1. Buscar coincidencia por código de barra (en producto o variantes)
       const exactMatch = filteredProducts.find(
         (p) =>
           (p.barcode && p.barcode.toLowerCase() === term) ||
@@ -1210,11 +1245,29 @@ export function InventoryView({
       );
 
       if (exactMatch) {
-        handleOpenDetail(exactMatch);
-        showToast("Producto escaneado", `Se abrió el detalle de "${exactMatch.name}".`);
+        const matchedVar = getMatchedVariant(exactMatch, term);
+        if (matchedVar) {
+          showToast(
+            "Variante identificada",
+            `Talle ${matchedVar.size} (${matchedVar.color}) de "${exactMatch.name}". Pulsa las flechas para modificar stock.`
+          );
+        } else {
+          showToast(
+            "Producto localizado",
+            `"${exactMatch.name}". Pulsa las flechas para modificar stock.`
+          );
+        }
       } else if (filteredProducts.length === 1) {
-        handleOpenDetail(filteredProducts[0]);
-        showToast("Producto encontrado", `Se abrió "${filteredProducts[0].name}".`);
+        const single = filteredProducts[0];
+        const matchedVar = getMatchedVariant(single, term);
+        if (matchedVar) {
+          showToast(
+            "Variante identificada",
+            `Talle ${matchedVar.size} (${matchedVar.color}) de "${single.name}". Pulsa las flechas para modificar stock.`
+          );
+        } else {
+          showToast("Producto filtrado", `"${single.name}". Pulsa las flechas para modificar stock.`);
+        }
       } else if (filteredProducts.length === 0) {
         showToast(
           "Código no encontrado",
@@ -1443,8 +1496,12 @@ export function InventoryView({
     }
   }, [selectedProductId, productsList]);
 
-  const handleOpenDetail = (product: DetailedProductItem) => {
+  const [selectedVariantIdForDetail, setSelectedVariantIdForDetail] = useState<string | undefined>(undefined);
+
+  const handleOpenDetail = (product: DetailedProductItem, variantId?: string) => {
     closedProductIdRef.current = null;
+    const targetVariantId = variantId || getMatchedVariant(product, searchQuery)?.id;
+    setSelectedVariantIdForDetail(targetVariantId);
     setSelectedProduct(product);
     onProductChange?.(product.id);
   };
@@ -1454,6 +1511,7 @@ export function InventoryView({
     return (
       <ProductDetailView
         product={selectedProduct}
+        initialVariantId={selectedVariantIdForDetail}
         onProductUpdate={(updated) => {
           setProductsList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           setSelectedProduct(updated);
@@ -1463,6 +1521,7 @@ export function InventoryView({
             closedProductIdRef.current = selectedProduct.id;
           }
           setSelectedProduct(null);
+          setSelectedVariantIdForDetail(undefined);
           onProductChange?.(null);
           loadProducts();
         }}
@@ -1472,6 +1531,7 @@ export function InventoryView({
             prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
           );
           setSelectedProduct(null);
+          setSelectedVariantIdForDetail(undefined);
           onProductChange?.(null);
           showToast(
             "Producto dado de baja",
@@ -2318,13 +2378,31 @@ export function InventoryView({
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
-                    title="Movimientos y Traslado de Stock"
-                    className="p-2 text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors active:scale-95"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const matchedVariant = getMatchedVariant(item, searchQuery);
+                    return (
+                      <button
+                        onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", matchedVariant?.id, e)}
+                        title={
+                          matchedVariant
+                            ? `Ajustar stock de variante escaneada (${matchedVariant.size} - ${matchedVariant.color})`
+                            : "Movimientos y Traslado de Stock"
+                        }
+                        className={`p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 ${
+                          matchedVariant
+                            ? "text-emerald-950 bg-emerald-100 hover:bg-emerald-200 ring-2 ring-emerald-500/40 font-bold shadow-2xs"
+                            : "text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+                        }`}
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                        {matchedVariant && (
+                          <span className="text-[10.5px] font-bold text-emerald-950">
+                            {matchedVariant.size}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={(e) => handleOpenEditModal(item, e)}
                     title="Editar producto"
@@ -2664,13 +2742,26 @@ export function InventoryView({
                       <td className="py-4 px-5 text-right whitespace-nowrap min-w-[150px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Botón rápido de Movimiento de Stock */}
-                          <button
-                            onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
-                            title="Ajustar Stock / Movimientos"
-                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
-                          >
-                            <ArrowRightLeft className="w-3.5 h-3.5" />
-                          </button>
+                          {(() => {
+                            const matchedVar = getMatchedVariant(item, searchQuery);
+                            return (
+                              <button
+                                onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", matchedVar?.id, e)}
+                                title={
+                                  matchedVar
+                                    ? `Ajustar stock de variante escaneada (${matchedVar.size} - ${matchedVar.color})`
+                                    : "Ajustar Stock / Movimientos"
+                                }
+                                className={`p-1.5 rounded-lg transition-all border ${
+                                  matchedVar
+                                    ? "text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border-emerald-300 font-bold ring-2 ring-emerald-500/30"
+                                    : "text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 border-transparent hover:border-emerald-200"
+                                }`}
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={(e) => handleOpenEditModal(item, e)}
                             title="Editar producto"

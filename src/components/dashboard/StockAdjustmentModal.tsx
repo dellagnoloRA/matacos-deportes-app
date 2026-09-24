@@ -93,8 +93,14 @@ export function StockAdjustmentModal({
   useEffect(() => {
     if (isOpen) {
       // Determinar variante inicial según prop o fallback a primera variante
-      const matchedVariant = initialVariantId
-        ? variants.find((v) => v.id === initialVariantId)
+      const cleanInitial = initialVariantId ? initialVariantId.trim().toLowerCase() : "";
+      const matchedVariant = cleanInitial
+        ? variants.find(
+            (v) =>
+              (v.id && v.id.toLowerCase() === cleanInitial) ||
+              (v.barcode && v.barcode.toLowerCase() === cleanInitial) ||
+              (v.sku && v.sku.toLowerCase() === cleanInitial)
+          )
         : null;
       const targetId = matchedVariant?.id || (variants.length > 0 && variants[0].id ? variants[0].id : "");
 
@@ -118,6 +124,55 @@ export function StockAdjustmentModal({
       setSuccessMessage(null);
     }
   }, [isOpen, product, initialOperationType, initialVariantId]);
+
+  // Escáner rápido de código de barras USB mientras el modal está abierto
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleWindowKeyDown = (e: KeyboardEvent) => {
+      // No interferir si el usuario está escribiendo en textarea (motivo) o un input de texto
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "TEXTAREA" ||
+          (target.tagName === "INPUT" && (target as HTMLInputElement).type === "text"))
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastKeyTime > 200) {
+        buffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) {
+          const code = buffer.trim().toLowerCase();
+          const found = variants.find(
+            (v) =>
+              (v.barcode && v.barcode.toLowerCase() === code) ||
+              (v.sku && v.sku.toLowerCase() === code)
+          );
+          if (found && found.id) {
+            handleReturnVariantChange(found.id);
+            setSuccessMessage(
+              `Variante escaneada: Talle ${found.size} (${found.color})`
+            );
+          }
+        }
+        buffer = "";
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  }, [isOpen, variants]);
 
   // Manejar cambio del talle devuelto asegurando que el entregado no sea el mismo
   const handleReturnVariantChange = (newReturnId: string) => {

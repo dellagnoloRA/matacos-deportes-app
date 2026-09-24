@@ -66,6 +66,7 @@ interface ProductDetailViewProps {
   onBack: () => void;
   onDeleteSuccess?: (deletedId: string) => void;
   onProductUpdate?: (updatedProduct: DetailedProductItem) => void;
+  initialVariantId?: string;
 }
 
 const TABS = [
@@ -133,10 +134,25 @@ export function ProductDetailView({
   onBack,
   onDeleteSuccess,
   onProductUpdate,
+  initialVariantId,
 }: ProductDetailViewProps) {
   const [product, setProduct] = useState<DetailedProductItem>(initialProduct);
   const [variantSort, setVariantSort] = useState<VariantSortOption>("price_desc");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Variante identificada a partir del escaneo previo
+  const initialMatchedVariant = useMemo(() => {
+    if (!initialVariantId || !product.variants) return null;
+    const clean = initialVariantId.trim().toLowerCase();
+    return (
+      product.variants.find(
+        (v) =>
+          (v.id && v.id.toLowerCase() === clean) ||
+          (v.barcode && v.barcode.toLowerCase() === clean) ||
+          (v.sku && v.sku.toLowerCase() === clean)
+      ) || null
+    );
+  }, [initialVariantId, product.variants]);
 
   // Estados para búsqueda y filtrado facetado de variantes (Buscador instantáneo, Color, Talle, Disponibilidad)
   const [variantSearchQuery, setVariantSearchQuery] = useState("");
@@ -632,7 +648,7 @@ export function ProductDetailView({
   // Helper para abrir el modal en una operación y variante específica
   const handleOpenStockModal = (operation?: OperationType, variantId?: string) => {
     setStockModalOperation(operation);
-    setStockModalVariantId(variantId);
+    setStockModalVariantId(variantId || initialMatchedVariant?.id || initialVariantId);
     setIsStockModalOpen(true);
   };
 
@@ -905,12 +921,24 @@ export function ProductDetailView({
             </button>
 
             <button
-              onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA")}
-              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
-              title="Ajustar Stock / Traslado Interno"
+              onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA", initialMatchedVariant?.id)}
+              className={`inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold rounded-xl transition-all border shadow-2xs active:scale-95 whitespace-nowrap shrink-0 ${
+                initialMatchedVariant
+                  ? "text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border-emerald-400 ring-2 ring-emerald-500/40"
+                  : "text-slate-900 bg-emerald-100 hover:bg-emerald-200/80 border-emerald-300"
+              }`}
+              title={
+                initialMatchedVariant
+                  ? `Ajustar Stock: Talle ${initialMatchedVariant.size} (${initialMatchedVariant.color})`
+                  : "Ajustar Stock / Traslado Interno"
+              }
             >
               <ArrowRightLeft className="w-4 h-4 text-emerald-800 shrink-0" />
-              <span className="hidden xl:inline">Ajustar Stock / Traslado</span>
+              <span className="hidden xl:inline">
+                {initialMatchedVariant
+                  ? `Ajustar Stock (${initialMatchedVariant.size})`
+                  : "Ajustar Stock / Traslado"}
+              </span>
             </button>
 
             <button
@@ -1725,11 +1753,15 @@ export function ProductDetailView({
                 <p className="text-xs text-slate-500">Control individual de códigos de barra por talle y color.</p>
               </div>
               <button
-                onClick={() => setIsStockModalOpen(true)}
+                onClick={() => handleOpenStockModal("TRANSFERENCIA_INTERNA", initialMatchedVariant?.id)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-xl transition-colors border border-emerald-300 cursor-pointer"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-800" />
-                <span>Ajustar Stock</span>
+                <span>
+                  {initialMatchedVariant
+                    ? `Ajustar Stock (${initialMatchedVariant.size})`
+                    : "Ajustar Stock"}
+                </span>
               </button>
             </div>
 
