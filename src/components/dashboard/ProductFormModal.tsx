@@ -13,6 +13,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   Upload,
   Image as ImageIcon,
@@ -120,6 +121,8 @@ export function ProductFormModal({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [generatingBarcodeIndex, setGeneratingBarcodeIndex] = useState<number | null>(null);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
+  const initialSnapshotRef = useRef<string | null>(null);
 
   const fulfillFieldError = useCallback((fieldKey: string, messageKeyword?: string) => {
     setFieldErrors((prev) => {
@@ -368,6 +371,51 @@ export function ProductFormModal({
           }))
         );
       }
+
+      // Snapshot inicial para detección de cambios al editar
+      const editImagesSnapshot =
+        productToEdit.images && productToEdit.images.length > 0
+          ? productToEdit.images.map((img, idx) => ({
+              url: img.url,
+              color: img.color || "General",
+              isPrimary: img.isPrimary ?? (idx === 0),
+            }))
+          : productToEdit.imageUrl
+          ? [{ url: productToEdit.imageUrl, color: "General", isPrimary: true }]
+          : [];
+
+      const editVariantsSnapshot = (productToEdit.variants || []).map((v) => ({
+        size: v.size.trim(),
+        color: v.color.trim(),
+        sku: (v.sku || "").trim(),
+        barcode: (v.barcode || "").trim(),
+        stockStore: Number(v.stockStore) || 0,
+        stockWarehouse: Number(v.stockWarehouse) || 0,
+        minStoreStock:
+          v.minStoreStock !== undefined && v.minStoreStock !== null
+            ? Number(v.minStoreStock)
+            : productToEdit.minStoreStock ?? 1,
+        minStock:
+          v.minStock !== undefined && v.minStock !== null
+            ? Number(v.minStock)
+            : productToEdit.minStock || 2,
+        price: v.price !== null && v.price !== undefined ? Number(v.price) : "",
+      }));
+
+      initialSnapshotRef.current = JSON.stringify({
+        name: productToEdit.name.trim(),
+        description: (productToEdit.description || "").trim(),
+        discipline: (productToEdit.discipline || "").trim().toLowerCase(),
+        category: (productToEdit.category || "").trim().toLowerCase(),
+        brand: (productToEdit.brand || "").trim().toLowerCase(),
+        costPrice:
+          productToEdit.costPrice !== null && productToEdit.costPrice !== undefined
+            ? Number(productToEdit.costPrice)
+            : 0,
+        price: Number(productToEdit.price) || 0,
+        images: editImagesSnapshot,
+        variants: editVariantsSnapshot,
+      });
     } else if (isOpen) {
       // Limpiar formulario en modo creación
       setName("");
@@ -394,7 +442,37 @@ export function ProductFormModal({
         },
       ]);
       setErrorMessage(null);
+
+      initialSnapshotRef.current = JSON.stringify({
+        name: "",
+        description: "",
+        discipline: "",
+        category: "",
+        brand: "",
+        costPrice: 0,
+        price: 0,
+        images: [],
+        variants: [
+          {
+            size: "Único",
+            color: "Negro",
+            sku: "",
+            barcode: "",
+            stockStore: 1,
+            stockWarehouse: 0,
+            minStoreStock: 1,
+            minStock: 2,
+            price: "",
+          },
+        ],
+      });
     }
+
+    if (!isOpen) {
+      initialSnapshotRef.current = null;
+      setShowUnsavedChangesDialog(false);
+    }
+
     setFieldErrors({});
     setQuickCreateType(null);
     setQuickCreateValue("");
@@ -426,6 +504,103 @@ export function ProductFormModal({
   const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name || "";
   const selectedDisciplineName = disciplines.find((d) => d.id === disciplineId)?.name || "";
   const selectedBrandName = brands.find((b) => b.id === brandId)?.name || "";
+
+  // Constructor de fotografía (snapshot) para detectar modificaciones en tiempo real
+  const buildSnapshot = useCallback(
+    (
+      pName: string,
+      pDesc: string,
+      pDisc: string,
+      pCat: string,
+      pBrand: string,
+      pCost: number | string,
+      pPrice: number | string,
+      pImages: FormProductImage[],
+      pVariants: FormVariant[]
+    ) => {
+      return JSON.stringify({
+        name: pName.trim(),
+        description: pDesc.trim(),
+        discipline: pDisc.trim().toLowerCase(),
+        category: pCat.trim().toLowerCase(),
+        brand: pBrand.trim().toLowerCase(),
+        costPrice: typeof pCost === "number" ? pCost : parseFloat(String(pCost)) || 0,
+        price: typeof pPrice === "number" ? pPrice : parseFloat(String(pPrice)) || 0,
+        images: pImages.map((img) => ({
+          url: img.url,
+          color: img.color || "General",
+          isPrimary: !!img.isPrimary,
+        })),
+        variants: pVariants.map((v) => ({
+          size: v.size.trim(),
+          color: v.color.trim(),
+          sku: (v.sku || "").trim(),
+          barcode: (v.barcode || "").trim(),
+          stockStore: Number(v.stockStore) || 0,
+          stockWarehouse: Number(v.stockWarehouse) || 0,
+          minStoreStock: Number(v.minStoreStock) || 0,
+          minStock: Number(v.minStock) || 0,
+          price: v.price === "" ? "" : Number(v.price) || 0,
+        })),
+      });
+    },
+    []
+  );
+
+  const currentSnapshot = useMemo(() => {
+    return buildSnapshot(
+      name,
+      description,
+      selectedDisciplineName,
+      selectedCategoryName,
+      selectedBrandName,
+      costPrice,
+      price,
+      productImages,
+      variants
+    );
+  }, [
+    name,
+    description,
+    selectedDisciplineName,
+    selectedCategoryName,
+    selectedBrandName,
+    costPrice,
+    price,
+    productImages,
+    variants,
+    buildSnapshot,
+  ]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialSnapshotRef.current) return false;
+    return currentSnapshot !== initialSnapshotRef.current;
+  }, [currentSnapshot]);
+
+  // Manejador centralizado de intentos de cierre (para activar diálogo estilo Word si hay cambios)
+  const handleRequestClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  }, [hasUnsavedChanges, onClose]);
+
+  // Interceptar tecla Escape para el diálogo o cierre
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showUnsavedChangesDialog) {
+          setShowUnsavedChangesDialog(false);
+        } else if (!quickCreateType) {
+          handleRequestClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, showUnsavedChangesDialog, quickCreateType, handleRequestClose]);
 
   const previewModelCode = useMemo(() => {
     if (!name.trim()) return "";
@@ -479,24 +654,31 @@ export function ProductFormModal({
 
   // Manejar variantes
   const handleAddVariant = () => {
-    const lastColor = variants[variants.length - 1]?.color || "Negro";
-    const lastMinStore = variants[variants.length - 1]?.minStoreStock ?? 1;
-    const lastMinStock = variants[variants.length - 1]?.minStock ?? 2;
-
-    setVariants((prev) => [
-      ...prev,
-      {
-        size: "",
-        color: lastColor,
-        sku: "",
-        barcode: "",
-        stockStore: 1,
-        stockWarehouse: 0,
-        minStoreStock: lastMinStore,
-        minStock: lastMinStock,
-        price: "", // Por defecto hereda el precio base general configurado arriba
-      },
-    ]);
+    const referenceVariant = variants[0] || variants[variants.length - 1];
+    const lastColor = referenceVariant?.color || "Negro";
+    const lastMinStore = referenceVariant?.minStoreStock ?? 1;
+    const lastMinStock = referenceVariant?.minStock ?? 2;
+    const newVariant: FormVariant = {
+      size: "",
+      color: lastColor,
+      sku: "",
+      barcode: "",
+      stockStore: 1,
+      stockWarehouse: 0,
+      minStoreStock: lastMinStore,
+      minStock: lastMinStock,
+      price: "",
+    };
+    // Insertar la nueva variante al principio del array (índice 0)
+    setVariants((prev) => [newVariant, ...prev]);
+    // Enfocar automáticamente el campo Talle de la nueva variante agregada arriba
+    setTimeout(() => {
+      const firstInput = document.getElementById("variant-size-0") as HTMLInputElement | null;
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select();
+      }
+    }, 50);
   };
 
   // Replicar los umbrales de stock mínimo de la primera variante a todas las demás
@@ -730,10 +912,16 @@ export function ProductFormModal({
     handleVariantChange(index, "size", cleanValue);
   };
 
-  // Enviar formulario (Guardar o Actualizar)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Ejecución centralizada de guardado (desde el formulario o desde el diálogo de confirmación)
+  const executeSubmit = async () => {
     setErrorMessage(null);
+
+    // Validación de modificaciones previas en modo edición
+    if (isEditing && !hasUnsavedChanges) {
+      setErrorMessage("No se detectaron modificaciones en el producto para guardar.");
+      setShowUnsavedChangesDialog(false);
+      return;
+    }
 
     // Validaciones de campos obligatorios
     const errors: Record<string, boolean> = {};
@@ -992,7 +1180,9 @@ export function ProductFormModal({
         }
       }
 
-      // Éxito: cerrar y refrescar tabla
+      // Éxito: limpiar snapshot, cerrar diálogo y refrescar tabla
+      initialSnapshotRef.current = null;
+      setShowUnsavedChangesDialog(false);
       onSuccess(Boolean(isEditing && productToEdit));
       onClose();
     } catch (err) {
@@ -1003,10 +1193,28 @@ export function ProductFormModal({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSubmit();
+  };
+
+  const handleConfirmSave = async () => {
+    await executeSubmit();
+  };
+
+  const handleDiscardAndClose = () => {
+    setShowUnsavedChangesDialog(false);
+    initialSnapshotRef.current = null;
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div
+      onClick={handleRequestClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+    >
       <div
         className="relative bg-white w-full max-w-5xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
@@ -1030,7 +1238,8 @@ export function ProductFormModal({
           </div>
 
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleRequestClose}
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
@@ -1276,22 +1485,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Disciplina <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("discipline");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -1387,22 +1584,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Categoría <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("category");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -1498,22 +1683,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Marca <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("brand");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -2068,7 +2241,7 @@ export function ProductFormModal({
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
             >
@@ -2094,6 +2267,94 @@ export function ProductFormModal({
           </div>
         </form>
       </div>
+
+      {/* Diálogo de Confirmación de Cambios sin Guardar (Estilo Word) */}
+      {showUnsavedChangesDialog && (
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowUnsavedChangesDialog(false);
+          }}
+        >
+          <div
+            className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Barra superior estilo ventana */}
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5 text-emerald-600" />
+                Matacos Deportes — Guardar cambios
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowUnsavedChangesDialog(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-md transition-colors"
+                title="Cerrar (Cancelar)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Cuerpo del Diálogo */}
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200/70 shrink-0">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                    ¿Desea guardar los cambios en &ldquo;{name.trim() || productToEdit?.name || "este producto"}&rdquo;?
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Si elige &ldquo;No guardar&rdquo;, se descartarán todas las modificaciones realizadas en este producto y se restaurará su estado anterior.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Botonera de 3 opciones estilo Word */}
+            <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar"
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDiscardAndClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition-all"
+              >
+                No guardar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowUnsavedChangesDialog(false)}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
