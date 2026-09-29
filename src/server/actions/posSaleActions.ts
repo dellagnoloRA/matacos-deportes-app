@@ -24,6 +24,16 @@ import {
 } from "@/server/services/receiptService";
 
 
+export interface PendingSaleSummaryResult {
+  saleId: string;
+  ticketCode: string | null;
+  customerName: string | null;
+  subtotalGross: number;
+  totalDiscount: number;
+  totalNet: number;
+  itemsCount: number;
+}
+
 function serializeData<T>(obj: any): T {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "object" && typeof obj.toNumber === "function") {
@@ -280,7 +290,7 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
       // Ignored outside Next.js request context (e.g. testing scripts)
     }
 
-    return { success: true, data: serializeData(result) };
+    return { success: true, data: serializeData<PendingSaleSummaryResult>(result) };
   } catch (error: any) {
     console.error("Error en createPendingSale:", error);
     return { success: false, error: error.message || "Error al generar la preventa" };
@@ -433,7 +443,7 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
       // Ignored outside Next.js request context
     }
 
-    return { success: true, data: serializeData(result) };
+    return { success: true, data: serializeData<PendingSaleSummaryResult>(result) };
   } catch (error: any) {
     console.error("Error en updatePendingSale:", error);
     return { success: false, error: error.message || "Error al modificar la preventa" };
@@ -898,3 +908,88 @@ export async function cancelPendingSale(saleId: string, reason?: string) {
     return { success: false, error: error.message || "Error al cancelar preventa" };
   }
 }
+
+export interface PosSyncPulseResult {
+  lastSaleUpdatedAt: string | null;
+  lastMovementCreatedAt: string | null;
+  pendingSalesCount: number;
+}
+
+/**
+ * Obtener pulso ultra-liviano de sincronización para terminales POS (RF-08 / Terminal 1 y 2)
+ * Devuelve timestamps de última modificación y conteo de preventas para detección de cambios.
+ */
+export async function getPosSyncPulse(): Promise<{
+  success: boolean;
+  data?: PosSyncPulseResult;
+  error?: string;
+}> {
+  try {
+    const [lastSale, lastMovement, pendingSalesCount] = await Promise.all([
+      prisma.sale.findFirst({
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      }),
+      prisma.inventoryMovement.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      prisma.sale.count({
+        where: { status: "PENDIENTE_PAGO" },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        lastSaleUpdatedAt: lastSale?.updatedAt ? lastSale.updatedAt.toISOString() : null,
+        lastMovementCreatedAt: lastMovement?.createdAt ? lastMovement.createdAt.toISOString() : null,
+        pendingSalesCount,
+      },
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error al obtener pulso de sincronización";
+    return { success: false, error: msg };
+  }
+}
+
+export interface VariantStockSnapshotItem {
+  id: string;
+  stockStore: number;
+  stockWarehouse: number;
+  stockReserved: number;
+}
+
+/**
+ * Obtener snapshot rápido del stock de todas las variantes para actualizar el catálogo sin recargar productos completos
+ */
+export async function getPosVariantStockSnapshot(): Promise<{
+  success: boolean;
+  data?: VariantStockSnapshotItem[];
+  error?: string;
+}> {
+  try {
+    const variants = await prisma.productVariant.findMany({
+      select: {
+        id: true,
+        stockStore: true,
+        stockWarehouse: true,
+        stockReserved: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: variants.map((v) => ({
+        id: v.id,
+        stockStore: v.stockStore,
+        stockWarehouse: v.stockWarehouse,
+        stockReserved: v.stockReserved || 0,
+      })),
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error al obtener snapshot de stock";
+    return { success: false, error: msg };
+  }
+}
+
