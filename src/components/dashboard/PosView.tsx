@@ -40,6 +40,8 @@ import {
   CircleDollarSign,
   PanelLeft,
   Split,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
@@ -55,6 +57,14 @@ import {
   completePendingSale,
   cancelPendingSale,
 } from "@/server/actions/posSaleActions";
+import { getCurrentCashShift } from "@/server/actions/cashShiftActions";
+import {
+  OpenCashShiftModal,
+  CashMovementModal,
+  CloseCashShiftModal,
+  CashShiftTicketModal,
+} from "./CashShiftModals";
+import { CashShiftTicketReceipt } from "@/server/services/cashShiftService";
 import { BarcodeSvg } from "./BarcodeSvg";
 import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
 import {
@@ -126,8 +136,8 @@ export interface PendingSaleItemSummary {
 
 interface PosViewProps {
   initialProducts?: DetailedProductItem[];
-  subView?: "preventa" | "cobrar" | "historial";
-  onNavigateSubView?: (subView: "preventa" | "cobrar" | "historial") => void;
+  subView?: "preventa" | "cobrar" | "historial" | "arqueo";
+  onNavigateSubView?: (subView: "preventa" | "cobrar" | "historial" | "arqueo") => void;
   onPendingCountChange?: (count: number) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
@@ -226,6 +236,48 @@ export function PosView({
     payments: Array<{ method: string; amount: number }>;
     items: any[];
   } | null>(null);
+
+  // ----------------------------------------------------------------------
+  // Estado de Turno de Caja (RF-11)
+  // ----------------------------------------------------------------------
+  const [terminalId, setTerminalId] = useState<string>("TERMINAL_2_CAJA");
+  const [activeShift, setActiveShift] = useState<any | null>(null);
+  const [activeShiftTotals, setActiveShiftTotals] = useState<any | null>(null);
+  const [isLoadingShift, setIsLoadingShift] = useState<boolean>(true);
+
+  // Modales de Turno de Caja
+  const [isOpenShiftModalOpen, setIsOpenShiftModalOpen] = useState(false);
+  const [isCashMovementModalOpen, setIsCashMovementModalOpen] = useState(false);
+  const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState(false);
+  const [closingReceipt, setClosingReceipt] = useState<CashShiftTicketReceipt | null>(null);
+
+  const fetchActiveShift = useCallback(async () => {
+    setIsLoadingShift(true);
+    try {
+      const res = await getCurrentCashShift(terminalId);
+      if (res.success) {
+        setActiveShift(res.activeShift);
+        setActiveShiftTotals(res.totals);
+      }
+    } catch (e) {
+      console.error("Error al cargar turno de caja:", e);
+    } finally {
+      setIsLoadingShift(false);
+    }
+  }, [terminalId]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedTerminal = localStorage.getItem("matacos_pos_terminal");
+      if (savedTerminal) {
+        setTerminalId(savedTerminal);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchActiveShift();
+  }, [fetchActiveShift]);
 
   // ----------------------------------------------------------------------
   // Notificación tipo Toast en pantalla
@@ -830,6 +882,15 @@ export function PosView({
   const handleProcessCashierCheckout = async () => {
     if (!activeCheckoutSale) return;
 
+    if (!activeShift) {
+      showToast(
+        "No se puede procesar el cobro: La caja se encuentra cerrada en esta terminal. Debe abrir el turno primero.",
+        "error"
+      );
+      setIsOpenShiftModalOpen(true);
+      return;
+    }
+
     const totalToPay = activeCheckoutSale.total;
 
     if (!isSplitPayment) {
@@ -844,6 +905,8 @@ export function PosView({
       try {
         const payload = {
           saleId: activeCheckoutSale.id,
+          cashShiftId: activeShift.id,
+          terminalId,
           payments: [
             {
               method: cashierPaymentMethod,
@@ -880,6 +943,7 @@ export function PosView({
 
         setActiveCheckoutSale(null);
         fetchPendingSalesList();
+        fetchActiveShift();
       } catch (err: any) {
         console.error("Error al cobrar:", err);
         showToast(err.message || "Error al procesar el cobro", "error");
@@ -922,6 +986,8 @@ export function PosView({
       try {
         const payload = {
           saleId: activeCheckoutSale.id,
+          cashShiftId: activeShift.id,
+          terminalId,
           payments: [
             {
               method: splitPayment1Method,
@@ -967,6 +1033,7 @@ export function PosView({
 
         setActiveCheckoutSale(null);
         fetchPendingSalesList();
+        fetchActiveShift();
       } catch (err: any) {
         console.error("Error al cobrar con pagos mixtos:", err);
         showToast(err.message || "Error al procesar el cobro", "error");
@@ -977,16 +1044,94 @@ export function PosView({
   };
 
   // ----------------------------------------------------------------------
+  // Modales compartidos y Toast para todas las sub-vistas del POS (RF-11)
+  // ----------------------------------------------------------------------
+  const renderSharedModalsAndToast = () => (
+    <>
+      {/* ============================================================ */}
+      {/* TOAST FLOTANTE                                               */}
+      {/* ============================================================ */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200 pointer-events-none">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 pointer-events-auto ${
+              toastMessage.type === "error"
+                ? "bg-rose-900 text-rose-100 border-rose-700"
+                : toastMessage.type === "warning"
+                ? "bg-amber-900 text-amber-100 border-amber-700"
+                : "bg-slate-900 text-white border-slate-800"
+            }`}
+          >
+            {toastMessage.type === "error" ? (
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* Modales de Control de Caja (RF-11: Apertura, Arqueo y Cierre) */}
+      {/* ============================================================ */}
+      <OpenCashShiftModal
+        isOpen={isOpenShiftModalOpen}
+        onClose={() => setIsOpenShiftModalOpen(false)}
+        terminalId={terminalId}
+        onSuccess={() => {
+          fetchActiveShift();
+          showToast("Turno de caja abierto correctamente con fondo de cambio", "success");
+        }}
+      />
+
+      <CashMovementModal
+        isOpen={isCashMovementModalOpen}
+        onClose={() => setIsCashMovementModalOpen(false)}
+        cashShiftId={activeShift?.id || ""}
+        currentAvailableCash={
+          activeShiftTotals?.currentAvailableCash ?? Number(activeShift?.initialAmount ?? 0)
+        }
+        onSuccess={() => {
+          fetchActiveShift();
+          showToast("Movimiento de caja registrado exitosamente", "success");
+        }}
+        defaultPerformedBy={activeShift?.user?.name || "Cajero"}
+      />
+
+      <CloseCashShiftModal
+        isOpen={isCloseShiftModalOpen}
+        onClose={() => setIsCloseShiftModalOpen(false)}
+        cashShiftId={activeShift?.id || ""}
+        terminalId={terminalId}
+        onSuccess={(receipt) => {
+          setClosingReceipt(receipt);
+          fetchActiveShift();
+          showToast("Turno de caja cerrado y arqueo asentado con éxito", "success");
+        }}
+      />
+
+      <CashShiftTicketModal
+        receipt={closingReceipt}
+        onClose={() => setClosingReceipt(null)}
+      />
+    </>
+  );
+
+  // ----------------------------------------------------------------------
   // Render: SUB-VISTA HISTORIAL DE TRANSACCIONES POS
   // ----------------------------------------------------------------------
   if (subView === "historial") {
     return (
-      <PosTransactionHistoryView
-        onNavigateToPreventa={() => onNavigateSubView?.("preventa")}
-        onNavigateToCobrar={() => onNavigateSubView?.("cobrar")}
-        onToggleSidebar={onToggleSidebar}
-        pendingSalesCount={pendingSales.length}
-      />
+      <>
+        <PosTransactionHistoryView
+          onNavigateToPreventa={() => onNavigateSubView?.("preventa")}
+          onNavigateToCobrar={() => onNavigateSubView?.("cobrar")}
+          onToggleSidebar={onToggleSidebar}
+          pendingSalesCount={pendingSales.length}
+        />
+        {renderSharedModalsAndToast()}
+      </>
     );
   }
 
@@ -995,7 +1140,8 @@ export function PosView({
   // ----------------------------------------------------------------------
   if (subView === "cobrar") {
     return (
-      <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
+      <>
+        <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
         {/* Top Header Barra */}
         <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-3">
@@ -1024,6 +1170,63 @@ export function PosView({
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Widget de Control de Turno de Caja (RF-11) */}
+            {activeShift ? (
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300/80 px-3 py-1.5 rounded-xl shadow-2xs">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="flex flex-col text-left">
+                  <span className="text-[11px] font-bold text-emerald-950 leading-tight flex items-center gap-1">
+                    <span>🟢 Caja Abierta:</span>
+                    <strong className="text-emerald-800">{activeShift.user?.name || "Cajero"}</strong>
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-mono">
+                    Fondo: {formatCurrency(Number(activeShift.initialAmount))} • Disp:{" "}
+                    <strong>
+                      {formatCurrency(
+                        activeShiftTotals?.currentAvailableCash ?? Number(activeShift.initialAmount)
+                      )}
+                    </strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 ml-1.5">
+                  <button
+                    onClick={() => setIsCashMovementModalOpen(true)}
+                    className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold border border-emerald-300 shadow-2xs transition"
+                    title="Registrar retiro, gasto menor o aporte de cambio"
+                  >
+                    Movimiento
+                  </button>
+                  <button
+                    onClick={() => setIsCloseShiftModalOpen(true)}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold shadow-2xs transition flex items-center gap-1"
+                    title="Cerrar turno y realizar arqueo ciego"
+                  >
+                    <Lock className="w-3 h-3 text-emerald-400" />
+                    Arqueo
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                <div className="flex flex-col text-left">
+                  <span className="text-[11px] font-bold text-rose-900 leading-tight">
+                    🔴 Caja Cerrada
+                  </span>
+                  <span className="text-[10px] text-rose-700">
+                    Abra turno para habilitar cobros
+                  </span>
+                </div>
+                <button
+                  onClick={() => setIsOpenShiftModalOpen(true)}
+                  className="ml-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  Abrir Caja
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => onNavigateSubView?.("preventa")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
@@ -1654,7 +1857,9 @@ export function PosView({
             </div>
           </div>
         )}
-      </div>
+        </div>
+        {renderSharedModalsAndToast()}
+      </>
     );
   }
 
@@ -1714,6 +1919,29 @@ export function PosView({
                 <Receipt className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Historial POS</span>
               </button>
+
+              {/* Indicador y Apertura rápida de Turno de Caja (RF-11) */}
+              {activeShift ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigateSubView?.("cobrar")}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-[11px] font-bold text-emerald-800 transition shadow-2xs"
+                  title="Caja abierta. Click para ir al mostrador"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Caja abierta ({activeShift.user?.name || "Cajero"})</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsOpenShiftModalOpen(true)}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-xl text-[11px] font-bold text-amber-800 transition shadow-2xs"
+                  title="Caja cerrada. Click para abrir turno"
+                >
+                  <Unlock className="w-3 h-3 text-amber-600" />
+                  <span>Abrir Caja</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2653,29 +2881,7 @@ export function PosView({
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* TOAST FLOTANTE                                               */}
-      {/* ============================================================ */}
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
-          <div
-            className={`px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 ${
-              toastMessage.type === "error"
-                ? "bg-rose-900 text-rose-100 border-rose-700"
-                : toastMessage.type === "warning"
-                ? "bg-amber-900 text-amber-100 border-amber-700"
-                : "bg-slate-900 text-white border-slate-800"
-            }`}
-          >
-            {toastMessage.type === "error" ? (
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            )}
-            <span>{toastMessage.text}</span>
-          </div>
-        </div>
-      )}
+      {renderSharedModalsAndToast()}
     </div>
   );
 }
