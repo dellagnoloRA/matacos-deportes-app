@@ -833,7 +833,8 @@ export function PosView({
     const totalToPay = activeCheckoutSale.total;
 
     if (!isSplitPayment) {
-      const receivedNum = parseFloat(cashierReceivedAmount) || totalToPay;
+      const parsedRec = parseFloat(cashierReceivedAmount);
+      const receivedNum = !isNaN(parsedRec) ? parsedRec : totalToPay;
 
       if (cashierPaymentMethod === "EFECTIVO" && receivedNum < totalToPay - 0.05) {
         showToast("El monto en efectivo ingresado no cubre el total de la venta", "error");

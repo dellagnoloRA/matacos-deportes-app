@@ -611,6 +611,10 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
 
   } catch (error: any) {
     console.error("Error en completePendingSale:", error);
+    if (error?.issues && Array.isArray(error.issues)) {
+      const messages = error.issues.map((i: any) => i.message).join(", ");
+      return { success: false, error: messages };
+    }
     return { success: false, error: error.message || "Error al procesar el cobro" };
   }
 }

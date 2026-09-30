@@ -72,10 +72,10 @@ export const SalePaymentSchema = z.object({
   method: PaymentMethodEnum,
   amount: z
     .number({ invalid_type_error: "El monto a pagar debe ser un número" })
-    .positive("El monto a pagar debe ser mayor a 0"),
+    .min(0, "El monto a pagar no puede ser negativo"),
   receivedAmount: z
     .number({ invalid_type_error: "El monto con el que pagó debe ser un número" })
-    .positive("El monto abonado debe ser mayor a 0")
+    .min(0, "El monto abonado no puede ser negativo")
     .optional()
     .nullable(),
   change: z
