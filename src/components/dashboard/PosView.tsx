@@ -21,6 +21,7 @@ import {
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   Clock,
   User,
   Percent,
@@ -42,6 +43,7 @@ import {
   Split,
   Lock,
   Unlock,
+  ArrowLeftRight,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
@@ -54,8 +56,11 @@ import {
 import {
   createPendingSale,
   getPendingSales,
+  updatePendingSale,
   completePendingSale,
   cancelPendingSale,
+  getPosSyncPulse,
+  getPosVariantStockSnapshot,
 } from "@/server/actions/posSaleActions";
 import { getCurrentCashShift } from "@/server/actions/cashShiftActions";
 import {
@@ -65,8 +70,10 @@ import {
   CashShiftTicketModal,
 } from "./CashShiftModals";
 import { CashShiftTicketReceipt } from "@/server/services/cashShiftService";
+import type { UpdatePendingSaleInput } from "@/schemas/sale";
 import { BarcodeSvg } from "./BarcodeSvg";
 import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
+import { PosExchangeModal } from "./PosExchangeModal";
 import {
   PosProductGridCard,
   PosProductListRow,
@@ -154,7 +161,13 @@ export function PosView({
   // ----------------------------------------------------------------------
   // Estado del Catálogo y Filtros
   // ----------------------------------------------------------------------
-  const [products] = useState<DetailedProductItem[]>(initialProducts);
+  const [products, setProducts] = useState<DetailedProductItem[]>(initialProducts);
+
+  useEffect(() => {
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts);
+    }
+  }, [initialProducts]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDiscipline, setSelectedDiscipline] = useState<string>("Todas");
   const [viewLayout, setViewLayout] = useState<"grid" | "list">("grid");
@@ -186,6 +199,18 @@ export function PosView({
     itemsCount: number;
     items: PosCartItem[];
   } | null>(null);
+
+  // Estado para Modal de Devolución / Cambio de Talle
+  const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
+
+  // Modal de confirmación personalizado para cancelar preventa (sin window.confirm)
+  const [confirmCancelModal, setConfirmCancelModal] = useState<{
+    saleId: string;
+    ticketCode: string | null;
+    origin: "caja" | "salon";
+  } | null>(null);
+  const [isCancelingPending, setIsCancelingPending] = useState(false);
+  const [isUpdatingPendingSaleItems, setIsUpdatingPendingSaleItems] = useState(false);
 
   // ----------------------------------------------------------------------
   // Modal de Descuento (RF-08)
@@ -318,11 +343,193 @@ export function PosView({
     }
   }, [onPendingCountChange]);
 
+  // ----------------------------------------------------------------------
+  // Sincronización Reactiva de Stock en Catálogo (Deltas y Snapshot)
+  // ----------------------------------------------------------------------
+  const applyVariantStockDeltas = useCallback(
+    (
+      deltas: Array<{
+        variantId: string;
+        stockStoreDelta?: number;
+        stockReservedDelta?: number;
+      }>
+    ) => {
+      setProducts((prev) => {
+        const deltaMap = new Map(deltas.map((d) => [d.variantId, d]));
+        return prev.map((prod) => {
+          let hasChanges = false;
+          const updatedVariants = prod.variants.map((v) => {
+            const d = deltaMap.get(v.id || "");
+            if (!d) return v;
+            hasChanges = true;
+            const newReserved = Math.max(
+              0,
+              (v.stockReserved || 0) + (d.stockReservedDelta || 0)
+            );
+            const newStore = Math.max(0, v.stockStore + (d.stockStoreDelta || 0));
+            return {
+              ...v,
+              stockReserved: newReserved,
+              stockStore: newStore,
+            };
+          });
+          if (!hasChanges) return prod;
+          const newStockLocal = updatedVariants.reduce((sum, v) => sum + v.stockStore, 0);
+          return {
+            ...prod,
+            stockLocal: newStockLocal,
+            variants: updatedVariants,
+          };
+        });
+      });
+    },
+    []
+  );
+
+  const refreshCatalogStock = useCallback(async () => {
+    try {
+      const res = await getPosVariantStockSnapshot();
+      if (!res.success || !res.data) return;
+
+      const snapshotMap = new Map(res.data.map((item) => [item.id, item]));
+      setProducts((prev) => {
+        return prev.map((prod) => {
+          let hasChanges = false;
+          const updatedVariants = prod.variants.map((v) => {
+            const snap = snapshotMap.get(v.id || "");
+            if (!snap) return v;
+            if (
+              v.stockStore !== snap.stockStore ||
+              (v.stockReserved || 0) !== snap.stockReserved ||
+              v.stockWarehouse !== snap.stockWarehouse
+            ) {
+              hasChanges = true;
+              return {
+                ...v,
+                stockStore: snap.stockStore,
+                stockReserved: snap.stockReserved,
+                stockWarehouse: snap.stockWarehouse,
+              };
+            }
+            return v;
+          });
+
+          if (!hasChanges) return prod;
+          const newStockLocal = updatedVariants.reduce((sum, v) => sum + v.stockStore, 0);
+          return {
+            ...prod,
+            stockLocal: newStockLocal,
+            variants: updatedVariants,
+          };
+        });
+      });
+    } catch (err) {
+      console.error("Error al refrescar snapshot de stock:", err);
+    }
+  }, []);
+
+  // Emisor de Eventos inter-pestañas / ventanas (Capa 1: 0 ms)
+  const broadcastSyncEvent = useCallback(
+    (event: {
+      type: "TICKET_CREATED" | "TICKET_UPDATED" | "TICKET_CANCELLED" | "SALE_COMPLETED";
+      saleId?: string;
+      ticketCode?: string | null;
+      deltas?: Array<{
+        variantId: string;
+        stockStoreDelta?: number;
+        stockReservedDelta?: number;
+      }>;
+    }) => {
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const channel = new BroadcastChannel("matacos_pos_sync");
+          channel.postMessage(event);
+          channel.close();
+        }
+      } catch {
+        // Ignorar si el navegador no soporta BroadcastChannel
+      }
+    },
+    []
+  );
+
+  // Receptor de Eventos inter-pestañas / ventanas (Capa 1: 0 ms)
   useEffect(() => {
+    if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
+
+    const channel = new BroadcastChannel("matacos_pos_sync");
+    channel.onmessage = (event) => {
+      const data = event.data;
+      if (!data || !data.type) return;
+
+      // 1. Refrescar preventas pendientes en caja
+      fetchPendingSalesList();
+
+      // 2. Si vienen deltas de stock precisos, aplicarlos al catálogo en 0 ms
+      if (Array.isArray(data.deltas) && data.deltas.length > 0) {
+        applyVariantStockDeltas(data.deltas);
+      } else {
+        refreshCatalogStock();
+      }
+    };
+
+    return () => {
+      channel.close();
+    };
+  }, [fetchPendingSalesList, applyVariantStockDeltas, refreshCatalogStock]);
+
+  // Sincronización Multi-Dispositivo en Red Local Saavedra 241 (Capa 2: Pulso cada 4 segundos)
+  const lastSyncRef = useRef<{
+    lastSaleUpdatedAt: string | null;
+    lastMovementCreatedAt: string | null;
+    pendingSalesCount: number;
+  }>({
+    lastSaleUpdatedAt: null,
+    lastMovementCreatedAt: null,
+    pendingSalesCount: 0,
+  });
+
+  useEffect(() => {
+    // Carga inicial
     fetchPendingSalesList();
-    const interval = setInterval(fetchPendingSalesList, 15000); // Polling suave cada 15 seg
-    return () => clearInterval(interval);
-  }, [fetchPendingSalesList]);
+
+    const checkSyncPulse = async () => {
+      try {
+        const res = await getPosSyncPulse();
+        if (!res.success || !res.data) return;
+
+        const pulse = res.data;
+        const prev = lastSyncRef.current;
+
+        // Primer chequeo: solo registrar el estado base
+        if (prev.lastSaleUpdatedAt === null) {
+          lastSyncRef.current = pulse;
+          return;
+        }
+
+        const salesChanged =
+          prev.lastSaleUpdatedAt !== pulse.lastSaleUpdatedAt ||
+          prev.pendingSalesCount !== pulse.pendingSalesCount;
+
+        const movementsChanged =
+          prev.lastMovementCreatedAt !== pulse.lastMovementCreatedAt;
+
+        if (salesChanged) {
+          fetchPendingSalesList();
+          refreshCatalogStock();
+        } else if (movementsChanged) {
+          refreshCatalogStock();
+        }
+
+        lastSyncRef.current = pulse;
+      } catch (err) {
+        console.error("Error en pulso de sincronización POS:", err);
+      }
+    };
+
+    const pulseInterval = setInterval(checkSyncPulse, 4000);
+    return () => clearInterval(pulseInterval);
+  }, [fetchPendingSalesList, refreshCatalogStock]);
 
   // ----------------------------------------------------------------------
   // Disciplinas Únicas para Chips de Filtrado
@@ -821,6 +1028,21 @@ export function PosView({
         items: [...cart],
       });
 
+      // Aplicar reserva de stock inmediatamente en el catálogo local (0 ms)
+      const stockDeltas = cart.map((i) => ({
+        variantId: i.variantId,
+        stockReservedDelta: i.quantity,
+      }));
+      applyVariantStockDeltas(stockDeltas);
+
+      // Notificar a otras terminales / pestañas (Caja y otros salones)
+      broadcastSyncEvent({
+        type: "TICKET_CREATED",
+        saleId: resData.saleId,
+        ticketCode: resData.ticketCode,
+        deltas: stockDeltas,
+      });
+
       // Limpiar preventa actual
       setCart([]);
       setCustomerName("");
@@ -857,26 +1079,190 @@ export function PosView({
     setSplitPayment2Received(rest.toString());
   };
 
-  const handleCancelPending = async (saleId: string, ticketCode: string | null) => {
-    if (
-      !window.confirm(
-        `¿Confirmas la cancelación del Ticket ${ticketCode || "Preventa"}? El stock reservado se liberará inmediatamente para la venta.`
-      )
-    ) {
-      return;
-    }
+  const handleCancelPending = (saleId: string, ticketCode: string | null) => {
+    setConfirmCancelModal({
+      saleId,
+      ticketCode,
+      origin: "caja",
+    });
+  };
+
+  const handleExecuteCancelPending = async () => {
+    if (!confirmCancelModal) return;
+
+    const { saleId, ticketCode, origin } = confirmCancelModal;
+    setIsCancelingPending(true);
 
     try {
-      const res = await cancelPendingSale(saleId, "Cancelado desde Terminal de Cobro");
+      const reason =
+        origin === "salon"
+          ? "Cancelado por el cliente en salón"
+          : "Cancelado desde Terminal de Cobro";
+      const res = await cancelPendingSale(saleId, reason);
       if (res.success) {
-        showToast(`Ticket ${ticketCode} cancelado. Stock liberado.`, "success");
+        showToast(`Ticket ${ticketCode || "Preventa"} cancelado. Stock liberado.`, "success");
+        if (activeCheckoutSale?.id === saleId) {
+          setActiveCheckoutSale(null);
+        }
+        if (preventaSuccessData?.saleId === saleId) {
+          setPreventaSuccessData(null);
+        }
+
+        // Obtener ítems para liberar reserva de stock en el catálogo inmediatamente
+        const targetSale = pendingSales.find((s) => s.id === saleId);
+        const stockDeltas = targetSale
+          ? targetSale.items.map((it) => ({
+              variantId: it.variant.id,
+              stockReservedDelta: -it.quantity,
+            }))
+          : preventaSuccessData && preventaSuccessData.saleId === saleId
+          ? preventaSuccessData.items.map((it) => ({
+              variantId: it.variantId,
+              stockReservedDelta: -it.quantity,
+            }))
+          : [];
+
+        if (stockDeltas.length > 0) {
+          applyVariantStockDeltas(stockDeltas);
+        } else {
+          refreshCatalogStock();
+        }
+
+        broadcastSyncEvent({
+          type: "TICKET_CANCELLED",
+          saleId,
+          ticketCode,
+          deltas: stockDeltas,
+        });
+
+        setConfirmCancelModal(null);
         fetchPendingSalesList();
       } else {
         showToast(res.error || "Error al cancelar preventa", "error");
       }
-    } catch (err: any) {
-      showToast(err.message || "Error de conexión", "error");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error de conexión";
+      showToast(msg, "error");
+    } finally {
+      setIsCancelingPending(false);
     }
+  };
+
+  // ----------------------------------------------------------------------
+  // Modificar o retirar prendas de una preventa en mostrador (RF-08)
+  // ----------------------------------------------------------------------
+  const executePendingSaleItemsUpdate = async (
+    updatedItems: PendingSaleItemSummary["items"]
+  ) => {
+    if (!activeCheckoutSale) return;
+
+    setIsUpdatingPendingSaleItems(true);
+    try {
+      const payload: UpdatePendingSaleInput = {
+        saleId: activeCheckoutSale.id,
+        customerName: activeCheckoutSale.customerName || undefined,
+        items: updatedItems.map((it) => ({
+          variantId: it.variant.id,
+          quantity: it.quantity,
+          originalPrice: it.originalPrice ?? it.unitPrice,
+          discountAmount: it.discount ?? 0,
+          unitPrice: it.unitPrice,
+        })),
+      };
+
+      const res = await updatePendingSale(payload);
+      if (!res.success || !res.data) {
+        showToast(res.error || "No se pudo actualizar el ticket de preventa", "error");
+        return;
+      }
+
+      const newTotal = res.data.totalNet;
+      const newSubtotal = res.data.subtotalGross;
+      const newDiscount = res.data.totalDiscount;
+
+      // Actualizar activeCheckoutSale en memoria
+      setActiveCheckoutSale({
+        ...activeCheckoutSale,
+        total: newTotal,
+        subtotalGross: newSubtotal,
+        discount: newDiscount,
+        items: updatedItems,
+      });
+
+      // Ajustar campos de pago si es pago único
+      setCashierReceivedAmount(newTotal.toString());
+
+      // Si es pago mixto, recalcular 50/50
+      const half = Math.round((newTotal / 2) * 100) / 100;
+      const rest = Math.round((newTotal - half) * 100) / 100;
+      setSplitPayment1Amount(half.toString());
+      setSplitPayment1Received(half.toString());
+      setSplitPayment2Amount(rest.toString());
+      setSplitPayment2Received(rest.toString());
+
+      // Calcular deltas de stock reservado
+      const oldMap = new Map(activeCheckoutSale.items.map((i) => [i.variant.id, i.quantity]));
+      const newMap = new Map(updatedItems.map((i) => [i.variant.id, i.quantity]));
+      const allVariantIds = Array.from(new Set([...oldMap.keys(), ...newMap.keys()]));
+      const deltas = allVariantIds.map((vId) => {
+        const oldQ = oldMap.get(vId) || 0;
+        const newQ = newMap.get(vId) || 0;
+        return {
+          variantId: vId,
+          stockReservedDelta: newQ - oldQ,
+        };
+      });
+
+      applyVariantStockDeltas(deltas);
+
+      broadcastSyncEvent({
+        type: "TICKET_UPDATED",
+        saleId: activeCheckoutSale.id,
+        ticketCode: activeCheckoutSale.ticketCode,
+        deltas,
+      });
+
+      showToast(`Prenda modificada. Stock liberado y nuevo total: ${formatCurrency(newTotal)}`, "success");
+      fetchPendingSalesList();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al actualizar preventa";
+      showToast(msg, "error");
+    } finally {
+      setIsUpdatingPendingSaleItems(false);
+    }
+  };
+
+  const handleRemoveItemFromPendingSale = async (saleItemId: string) => {
+    if (!activeCheckoutSale) return;
+
+    if (activeCheckoutSale.items.length <= 1) {
+      showToast(
+        "El ticket no puede quedar vacío. Si el cliente no llevará nada, utiliza 'Cancelar Preventa'.",
+        "warning"
+      );
+      return;
+    }
+
+    const updatedItems = activeCheckoutSale.items.filter((it) => it.id !== saleItemId);
+    await executePendingSaleItemsUpdate(updatedItems);
+  };
+
+  const handleUpdateItemQuantityInPendingSale = async (saleItemId: string, delta: number) => {
+    if (!activeCheckoutSale) return;
+
+    const targetItem = activeCheckoutSale.items.find((it) => it.id === saleItemId);
+    if (!targetItem) return;
+
+    const newQty = targetItem.quantity + delta;
+    if (newQty <= 0) {
+      await handleRemoveItemFromPendingSale(saleItemId);
+      return;
+    }
+
+    const updatedItems = activeCheckoutSale.items.map((it) =>
+      it.id === saleItemId ? { ...it, quantity: newQty, subtotal: newQty * it.unitPrice } : it
+    );
+    await executePendingSaleItemsUpdate(updatedItems);
   };
 
   const handleProcessCashierCheckout = async () => {
@@ -940,6 +1326,21 @@ export function PosView({
           change: changeGiven,
           payments: [{ method: cashierPaymentMethod, amount: totalToPay }],
           items: activeCheckoutSale.items,
+        });
+
+        // Descontar stock definitivamente y liberar reserva en el catálogo
+        const soldDeltas = activeCheckoutSale.items.map((it) => ({
+          variantId: it.variant.id,
+          stockStoreDelta: -it.quantity,
+          stockReservedDelta: -it.quantity,
+        }));
+        applyVariantStockDeltas(soldDeltas);
+
+        broadcastSyncEvent({
+          type: "SALE_COMPLETED",
+          saleId: activeCheckoutSale.id,
+          ticketCode: activeCheckoutSale.ticketCode,
+          deltas: soldDeltas,
         });
 
         setActiveCheckoutSale(null);
@@ -1032,6 +1433,21 @@ export function PosView({
           items: activeCheckoutSale.items,
         });
 
+        // Descontar stock definitivamente y liberar reserva en el catálogo
+        const soldDeltas = activeCheckoutSale.items.map((it) => ({
+          variantId: it.variant.id,
+          stockStoreDelta: -it.quantity,
+          stockReservedDelta: -it.quantity,
+        }));
+        applyVariantStockDeltas(soldDeltas);
+
+        broadcastSyncEvent({
+          type: "SALE_COMPLETED",
+          saleId: activeCheckoutSale.id,
+          ticketCode: activeCheckoutSale.ticketCode,
+          deltas: soldDeltas,
+        });
+
         setActiveCheckoutSale(null);
         fetchPendingSalesList();
         fetchActiveShift();
@@ -1116,6 +1532,78 @@ export function PosView({
         receipt={closingReceipt}
         onClose={() => setClosingReceipt(null)}
       />
+
+      {/* Modal de Devolución / Cambio de Talle */}
+      <PosExchangeModal
+        isOpen={isExchangeModalOpen}
+        onClose={() => setIsExchangeModalOpen(false)}
+        products={products}
+        onExchangeSuccess={(msg) => {
+          showToast(msg, "success");
+          refreshCatalogStock();
+          broadcastSyncEvent({ type: "TICKET_UPDATED" });
+        }}
+      />
+
+      {/* Modal de Confirmación de Cancelación de Preventa */}
+      {confirmCancelModal && (
+        <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-in zoom-in-95 duration-150 border border-slate-200">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200/80 flex items-center justify-center text-rose-600 shrink-0 shadow-inner">
+                <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  ¿Confirmas la cancelación del Ticket {confirmCancelModal.ticketCode || "Preventa"}?
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  El ticket pasará a estado <span className="font-bold text-rose-700">CANCELADA</span> y las prendas reservadas se liberarán inmediatamente para la venta.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-bold block text-amber-950">Acción irreversible</span>
+                <p className="text-[11px] text-amber-800">
+                  Esta operación devolverá el stock al salón y no se podrá reabrir este comprobante.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmCancelModal(null)}
+                disabled={isCancelingPending}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteCancelPending}
+                disabled={isCancelingPending}
+                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                {isCancelingPending ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Cancelando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Sí, Cancelar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -1243,6 +1731,15 @@ export function PosView({
               <span>Historial Transacciones</span>
             </button>
             <button
+              type="button"
+              onClick={() => setIsExchangeModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-2xs transition-all"
+              title="Cambio de prendas y devoluciones de clientes en mostrador"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-sky-700" />
+              <span>Devolución / Cambio</span>
+            </button>
+            <button
               onClick={fetchPendingSalesList}
               disabled={isLoadingPendingSales}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all"
@@ -1306,7 +1803,7 @@ export function PosView({
                 >
                   <div className="p-4 border-b border-slate-100 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-base font-black tracking-tight text-slate-900 bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded-lg border border-amber-200/60 font-mono">
+                      <span className="text-base font-black tracking-tight bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded-lg border border-amber-200/60 font-mono">
                         {sale.ticketCode || "#000"}
                       </span>
                       <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
@@ -1357,10 +1854,11 @@ export function PosView({
                       </button>
                       <button
                         onClick={() => handleCancelPending(sale.id, sale.ticketCode)}
-                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                        className="py-2.5 px-3 text-slate-500 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
                         title="Cancelar preventa y liberar stock"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <span className="hidden sm:inline">Cancelar</span>
                       </button>
                     </div>
                   </div>
@@ -1421,6 +1919,79 @@ export function PosView({
                     <p className="text-3xl font-black text-emerald-700 mt-0.5 font-mono">
                       {formatCurrency(activeCheckoutSale.total)}
                     </p>
+                  </div>
+
+                  {/* Desglose Interactivo de Prendas del Ticket (RF-08 / updatePendingSale) */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
+                        Prendas del Ticket ({activeCheckoutSale.items.length})
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Al retirar prendas, el stock se libera inmediatamente
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto divide-y divide-slate-200/60 pr-1">
+                      {activeCheckoutSale.items.map((it) => (
+                        <div key={it.id} className="pt-1.5 first:pt-0 flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 truncate">
+                              {it.variant.product.name}
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              Talle {it.variant.size}
+                              {it.variant.color ? ` • ${it.variant.color}` : ""}
+                              {" • "}
+                              <span className="font-mono text-slate-700">{formatCurrency(it.unitPrice)} c/u</span>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Control de cantidad */}
+                            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                              <button
+                                type="button"
+                                disabled={isUpdatingPendingSaleItems}
+                                onClick={() => handleUpdateItemQuantityInPendingSale(it.id, -1)}
+                                className="p-1 text-slate-500 hover:text-rose-600 disabled:opacity-40 rounded transition-colors"
+                                title="Disminuir cantidad (libera stock en salón)"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="px-1.5 font-mono font-bold text-xs text-slate-900 min-w-4 text-center">
+                                {it.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isUpdatingPendingSaleItems}
+                                onClick={() => handleUpdateItemQuantityInPendingSale(it.id, 1)}
+                                className="p-1 text-slate-500 hover:text-emerald-600 disabled:opacity-40 rounded transition-colors"
+                                title="Aumentar cantidad (reserva stock)"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
+                              {formatCurrency(it.unitPrice * it.quantity)}
+                            </span>
+
+                            {/* Botón de quitar renglón completo */}
+                            <button
+                              type="button"
+                              disabled={isUpdatingPendingSaleItems}
+                              onClick={() => handleRemoveItemFromPendingSale(it.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Retirar prenda del ticket y devolver stock al salón"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Selector Segmentado: 1 Método vs 2 Métodos */}
@@ -1776,6 +2347,26 @@ export function PosView({
                       </>
                     )}
                   </button>
+
+                  {/* Acciones Secundarias: Cerrar o Cancelar Preventa */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCheckoutSale(null)}
+                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                    >
+                      Cerrar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCancelPending(activeCheckoutSale.id, activeCheckoutSale.ticketCode)}
+                      className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                      title="Cancelar la preventa y liberar el stock reservado inmediatamente"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Cancelar Preventa</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1901,6 +2492,15 @@ export function PosView({
 
             {/* Subview Pill & Cashier Link */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsExchangeModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-2xs transition-all"
+                title="Cambio de prendas y devoluciones de clientes en mostrador"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5 text-sky-700" />
+                <span>Devolución / Cambio</span>
+              </button>
               <button
                 onClick={() => onNavigateSubView?.("cobrar")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
@@ -2875,6 +3475,25 @@ export function PosView({
                   className="flex-1 py-3 bg-[#00D615] hover:bg-[#00be13] text-slate-950 font-black rounded-xl text-xs transition-colors"
                 >
                   Nueva Preventa
+                </button>
+              </div>
+
+              {/* Botón para cancelar preventa si el cliente desiste en salón */}
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmCancelModal({
+                      saleId: preventaSuccessData.saleId,
+                      ticketCode: preventaSuccessData.ticketCode,
+                      origin: "salon",
+                    });
+                  }}
+                  className="w-full py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-rose-200/60"
+                  title="Cancelar preventa y liberar stock reservado"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Cancelar Preventa y Liberar Stock</span>
                 </button>
               </div>
             </div>

@@ -13,6 +13,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   Upload,
   Image as ImageIcon,
@@ -21,6 +22,11 @@ import {
   Check,
   Wand2,
   Star,
+  Search,
+  ChevronDown,
+  Palette,
+  Ruler,
+  Store,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -120,6 +126,105 @@ export function ProductFormModal({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [generatingBarcodeIndex, setGeneratingBarcodeIndex] = useState<number | null>(null);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
+  const initialSnapshotRef = useRef<string | null>(null);
+
+  // Estados para búsqueda y filtrado de variantes en el formulario
+  const [variantSearchQuery, setVariantSearchQuery] = useState("");
+  const [selectedColorFilter, setSelectedColorFilter] = useState("ALL");
+  const [selectedSizeFilter, setSelectedSizeFilter] = useState("ALL");
+  const [selectedStockFilter, setSelectedStockFilter] = useState<
+    "ALL" | "IN_STOCK" | "STORE_STOCK" | "WAREHOUSE_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK"
+  >("ALL");
+
+  // Estado para el banner informativo plegable (cerrado por defecto al abrir)
+  const [isInfoBannerExpanded, setIsInfoBannerExpanded] = useState<boolean>(false);
+
+  // Opciones disponibles de color y talle en base a las variantes actuales para los filtros
+  const filterAvailableColors = useMemo(() => {
+    const map = new Map<string, number>();
+    variants.forEach((v) => {
+      const c = (v.color || "").trim();
+      if (c) {
+        map.set(c, (map.get(c) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).map(([color, count]) => ({ color, count }));
+  }, [variants]);
+
+  const filterAvailableSizes = useMemo(() => {
+    const map = new Map<string, number>();
+    variants.forEach((v) => {
+      const s = (v.size || "").trim();
+      if (s) {
+        map.set(s, (map.get(s) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).map(([size, count]) => ({ size, count }));
+  }, [variants]);
+
+  const hasActiveVariantFilters = useMemo(() => {
+    return (
+      variantSearchQuery.trim() !== "" ||
+      selectedColorFilter !== "ALL" ||
+      selectedSizeFilter !== "ALL" ||
+      selectedStockFilter !== "ALL"
+    );
+  }, [variantSearchQuery, selectedColorFilter, selectedSizeFilter, selectedStockFilter]);
+
+  // Variantes filtradas preservando su índice original para no alterar handleVariantChange(idx, ...)
+  const filteredIndexedVariants = useMemo(() => {
+    return variants
+      .map((variant, originalIndex) => ({ variant, originalIndex }))
+      .filter(({ variant }) => {
+        // 1. Filtro por color
+        if (
+          selectedColorFilter !== "ALL" &&
+          (variant.color || "").toLowerCase().trim() !== selectedColorFilter.toLowerCase().trim()
+        ) {
+          return false;
+        }
+
+        // 2. Filtro por talle
+        if (
+          selectedSizeFilter !== "ALL" &&
+          (variant.size || "").toLowerCase().trim() !== selectedSizeFilter.toLowerCase().trim()
+        ) {
+          return false;
+        }
+
+        // 3. Filtro por disponibilidad de stock
+        const salonStock = Number(variant.stockStore) || 0;
+        const depStock = Number(variant.stockWarehouse) || 0;
+        const totalStock = salonStock + depStock;
+        const minSalon = Number(variant.minStoreStock) || 0;
+        const minDep = Number(variant.minStock) || 0;
+
+        if (selectedStockFilter === "IN_STOCK" && totalStock <= 0) return false;
+        if (selectedStockFilter === "STORE_STOCK" && salonStock <= 0) return false;
+        if (selectedStockFilter === "WAREHOUSE_STOCK" && depStock <= 0) return false;
+        if (selectedStockFilter === "OUT_OF_STOCK" && totalStock > 0) return false;
+        if (selectedStockFilter === "LOW_STOCK") {
+          const isCriticalSalon = salonStock <= minSalon && minSalon > 0;
+          const isCriticalDep = totalStock <= minDep && minDep > 0;
+          if (!isCriticalSalon && !isCriticalDep) return false;
+        }
+
+        // 4. Búsqueda textual (talle, color, código de barras, SKU)
+        if (variantSearchQuery.trim()) {
+          const q = variantSearchQuery.toLowerCase().trim();
+          const matchSize = (variant.size || "").toLowerCase().includes(q);
+          const matchColor = (variant.color || "").toLowerCase().includes(q);
+          const matchBarcode = (variant.barcode || "").toLowerCase().includes(q);
+          const matchSku = (variant.sku || "").toLowerCase().includes(q);
+          if (!matchSize && !matchColor && !matchBarcode && !matchSku) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+  }, [variants, variantSearchQuery, selectedColorFilter, selectedSizeFilter, selectedStockFilter]);
 
   const fulfillFieldError = useCallback((fieldKey: string, messageKeyword?: string) => {
     setFieldErrors((prev) => {
@@ -311,6 +416,13 @@ export function ProductFormModal({
 
   // Precargar datos si se está editando
   useEffect(() => {
+    // Al abrir el modal, el banner siempre inicia cerrado y los filtros limpios
+    setIsInfoBannerExpanded(false);
+    setVariantSearchQuery("");
+    setSelectedColorFilter("ALL");
+    setSelectedSizeFilter("ALL");
+    setSelectedStockFilter("ALL");
+
     if (productToEdit && isOpen) {
       setName(productToEdit.name);
       setDescription(productToEdit.description || "");
@@ -368,6 +480,51 @@ export function ProductFormModal({
           }))
         );
       }
+
+      // Snapshot inicial para detección de cambios al editar
+      const editImagesSnapshot =
+        productToEdit.images && productToEdit.images.length > 0
+          ? productToEdit.images.map((img, idx) => ({
+              url: img.url,
+              color: img.color || "General",
+              isPrimary: img.isPrimary ?? (idx === 0),
+            }))
+          : productToEdit.imageUrl
+          ? [{ url: productToEdit.imageUrl, color: "General", isPrimary: true }]
+          : [];
+
+      const editVariantsSnapshot = (productToEdit.variants || []).map((v) => ({
+        size: v.size.trim(),
+        color: v.color.trim(),
+        sku: (v.sku || "").trim(),
+        barcode: (v.barcode || "").trim(),
+        stockStore: Number(v.stockStore) || 0,
+        stockWarehouse: Number(v.stockWarehouse) || 0,
+        minStoreStock:
+          v.minStoreStock !== undefined && v.minStoreStock !== null
+            ? Number(v.minStoreStock)
+            : productToEdit.minStoreStock ?? 1,
+        minStock:
+          v.minStock !== undefined && v.minStock !== null
+            ? Number(v.minStock)
+            : productToEdit.minStock || 2,
+        price: v.price !== null && v.price !== undefined ? Number(v.price) : "",
+      }));
+
+      initialSnapshotRef.current = JSON.stringify({
+        name: productToEdit.name.trim(),
+        description: (productToEdit.description || "").trim(),
+        discipline: (productToEdit.discipline || "").trim().toLowerCase(),
+        category: (productToEdit.category || "").trim().toLowerCase(),
+        brand: (productToEdit.brand || "").trim().toLowerCase(),
+        costPrice:
+          productToEdit.costPrice !== null && productToEdit.costPrice !== undefined
+            ? Number(productToEdit.costPrice)
+            : 0,
+        price: Number(productToEdit.price) || 0,
+        images: editImagesSnapshot,
+        variants: editVariantsSnapshot,
+      });
     } else if (isOpen) {
       // Limpiar formulario en modo creación
       setName("");
@@ -394,7 +551,37 @@ export function ProductFormModal({
         },
       ]);
       setErrorMessage(null);
+
+      initialSnapshotRef.current = JSON.stringify({
+        name: "",
+        description: "",
+        discipline: "",
+        category: "",
+        brand: "",
+        costPrice: 0,
+        price: 0,
+        images: [],
+        variants: [
+          {
+            size: "Único",
+            color: "Negro",
+            sku: "",
+            barcode: "",
+            stockStore: 1,
+            stockWarehouse: 0,
+            minStoreStock: 1,
+            minStock: 2,
+            price: "",
+          },
+        ],
+      });
     }
+
+    if (!isOpen) {
+      initialSnapshotRef.current = null;
+      setShowUnsavedChangesDialog(false);
+    }
+
     setFieldErrors({});
     setQuickCreateType(null);
     setQuickCreateValue("");
@@ -426,6 +613,103 @@ export function ProductFormModal({
   const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name || "";
   const selectedDisciplineName = disciplines.find((d) => d.id === disciplineId)?.name || "";
   const selectedBrandName = brands.find((b) => b.id === brandId)?.name || "";
+
+  // Constructor de fotografía (snapshot) para detectar modificaciones en tiempo real
+  const buildSnapshot = useCallback(
+    (
+      pName: string,
+      pDesc: string,
+      pDisc: string,
+      pCat: string,
+      pBrand: string,
+      pCost: number | string,
+      pPrice: number | string,
+      pImages: FormProductImage[],
+      pVariants: FormVariant[]
+    ) => {
+      return JSON.stringify({
+        name: pName.trim(),
+        description: pDesc.trim(),
+        discipline: pDisc.trim().toLowerCase(),
+        category: pCat.trim().toLowerCase(),
+        brand: pBrand.trim().toLowerCase(),
+        costPrice: typeof pCost === "number" ? pCost : parseFloat(String(pCost)) || 0,
+        price: typeof pPrice === "number" ? pPrice : parseFloat(String(pPrice)) || 0,
+        images: pImages.map((img) => ({
+          url: img.url,
+          color: img.color || "General",
+          isPrimary: !!img.isPrimary,
+        })),
+        variants: pVariants.map((v) => ({
+          size: v.size.trim(),
+          color: v.color.trim(),
+          sku: (v.sku || "").trim(),
+          barcode: (v.barcode || "").trim(),
+          stockStore: Number(v.stockStore) || 0,
+          stockWarehouse: Number(v.stockWarehouse) || 0,
+          minStoreStock: Number(v.minStoreStock) || 0,
+          minStock: Number(v.minStock) || 0,
+          price: v.price === "" ? "" : Number(v.price) || 0,
+        })),
+      });
+    },
+    []
+  );
+
+  const currentSnapshot = useMemo(() => {
+    return buildSnapshot(
+      name,
+      description,
+      selectedDisciplineName,
+      selectedCategoryName,
+      selectedBrandName,
+      costPrice,
+      price,
+      productImages,
+      variants
+    );
+  }, [
+    name,
+    description,
+    selectedDisciplineName,
+    selectedCategoryName,
+    selectedBrandName,
+    costPrice,
+    price,
+    productImages,
+    variants,
+    buildSnapshot,
+  ]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialSnapshotRef.current) return false;
+    return currentSnapshot !== initialSnapshotRef.current;
+  }, [currentSnapshot]);
+
+  // Manejador centralizado de intentos de cierre (para activar diálogo estilo Word si hay cambios)
+  const handleRequestClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  }, [hasUnsavedChanges, onClose]);
+
+  // Interceptar tecla Escape para el diálogo o cierre
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showUnsavedChangesDialog) {
+          setShowUnsavedChangesDialog(false);
+        } else if (!quickCreateType) {
+          handleRequestClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, showUnsavedChangesDialog, quickCreateType, handleRequestClose]);
 
   const previewModelCode = useMemo(() => {
     if (!name.trim()) return "";
@@ -479,24 +763,31 @@ export function ProductFormModal({
 
   // Manejar variantes
   const handleAddVariant = () => {
-    const lastColor = variants[variants.length - 1]?.color || "Negro";
-    const lastMinStore = variants[variants.length - 1]?.minStoreStock ?? 1;
-    const lastMinStock = variants[variants.length - 1]?.minStock ?? 2;
-
-    setVariants((prev) => [
-      ...prev,
-      {
-        size: "",
-        color: lastColor,
-        sku: "",
-        barcode: "",
-        stockStore: 1,
-        stockWarehouse: 0,
-        minStoreStock: lastMinStore,
-        minStock: lastMinStock,
-        price: "", // Por defecto hereda el precio base general configurado arriba
-      },
-    ]);
+    const referenceVariant = variants[0] || variants[variants.length - 1];
+    const lastColor = referenceVariant?.color || "Negro";
+    const lastMinStore = referenceVariant?.minStoreStock ?? 1;
+    const lastMinStock = referenceVariant?.minStock ?? 2;
+    const newVariant: FormVariant = {
+      size: "",
+      color: lastColor,
+      sku: "",
+      barcode: "",
+      stockStore: 1,
+      stockWarehouse: 0,
+      minStoreStock: lastMinStore,
+      minStock: lastMinStock,
+      price: "",
+    };
+    // Insertar la nueva variante al principio del array (índice 0)
+    setVariants((prev) => [newVariant, ...prev]);
+    // Enfocar automáticamente el campo Talle de la nueva variante agregada arriba
+    setTimeout(() => {
+      const firstInput = document.getElementById("variant-size-0") as HTMLInputElement | null;
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select();
+      }
+    }, 50);
   };
 
   // Replicar los umbrales de stock mínimo de la primera variante a todas las demás
@@ -730,10 +1021,16 @@ export function ProductFormModal({
     handleVariantChange(index, "size", cleanValue);
   };
 
-  // Enviar formulario (Guardar o Actualizar)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Ejecución centralizada de guardado (desde el formulario o desde el diálogo de confirmación)
+  const executeSubmit = async () => {
     setErrorMessage(null);
+
+    // Validación de modificaciones previas en modo edición
+    if (isEditing && !hasUnsavedChanges) {
+      setErrorMessage("No se detectaron modificaciones en el producto para guardar.");
+      setShowUnsavedChangesDialog(false);
+      return;
+    }
 
     // Validaciones de campos obligatorios
     const errors: Record<string, boolean> = {};
@@ -992,7 +1289,9 @@ export function ProductFormModal({
         }
       }
 
-      // Éxito: cerrar y refrescar tabla
+      // Éxito: limpiar snapshot, cerrar diálogo y refrescar tabla
+      initialSnapshotRef.current = null;
+      setShowUnsavedChangesDialog(false);
       onSuccess(Boolean(isEditing && productToEdit));
       onClose();
     } catch (err) {
@@ -1003,10 +1302,28 @@ export function ProductFormModal({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSubmit();
+  };
+
+  const handleConfirmSave = async () => {
+    await executeSubmit();
+  };
+
+  const handleDiscardAndClose = () => {
+    setShowUnsavedChangesDialog(false);
+    initialSnapshotRef.current = null;
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div
+      onClick={handleRequestClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+    >
       <div
         className="relative bg-white w-full max-w-5xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
@@ -1030,7 +1347,8 @@ export function ProductFormModal({
           </div>
 
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleRequestClose}
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
@@ -1276,22 +1594,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Disciplina <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("discipline");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -1387,22 +1693,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Categoría <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("category");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -1498,22 +1792,10 @@ export function ProductFormModal({
                   <label className="block text-slate-700 font-semibold text-xs">
                     Marca <span className="text-rose-500">*</span>
                   </label>
-                  {isLoadingOptions ? (
+                  {isLoadingOptions && (
                     <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                       <Loader2 className="w-2.5 h-2.5 animate-spin" /> Cargando...
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickCreateType("brand");
-                        setQuickCreateValue("");
-                      }}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
-                      <span>Nueva...</span>
-                    </button>
                   )}
                 </div>
 
@@ -1739,37 +2021,215 @@ export function ProductFormModal({
               </div>
             </div>
 
-            {/* Banner Informativo: Precios Diferenciales y Alertas de Stock Mínimo por Ubicación */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-950">
-              <Tag className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-900 text-xs">
+            {/* Banner Informativo: Precios Diferenciales y Alertas de Stock Mínimo por Ubicación (Plegable / Cerrado por defecto) */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl overflow-hidden text-xs text-emerald-950 transition-all shadow-2xs">
+              {/* Header clicable con icono, título y botón estilo acordeón */}
+              <button
+                type="button"
+                onClick={() => setIsInfoBannerExpanded((prev) => !prev)}
+                className="w-full p-3 flex items-center justify-between gap-2.5 hover:bg-emerald-100/50 transition-colors text-left cursor-pointer select-none"
+                aria-expanded={isInfoBannerExpanded}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Tag className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-emerald-900 text-xs truncate">
                     Precios Diferenciales y Alertas de Stock Mínimo por Ubicación:
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
-                  Todos los talles adoptan por defecto el <strong>Precio de Venta Base ({priceNum > 0 ? formatCurrency(priceNum) : "$ 0,00"})</strong>. Podés configurar umbrales de alerta independientes para cada ubicación física:
-                </p>
-                <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-emerald-200/60">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
-                    <div>
-                      <strong className="text-emerald-900">Mín. Local (Salón):</strong> Alerta de reposición interna cuando el salón tiene existencias iguales o inferiores a este valor y aún queda stock en depósito.
+                <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[11px] shrink-0 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs transition-colors">
+                  <span>{isInfoBannerExpanded ? "Ocultar ayuda" : "¿Cómo funciona?"}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isInfoBannerExpanded ? "rotate-180 text-emerald-900" : "text-emerald-700"
+                    }`}
+                  />
+                </div>
+              </button>
+
+              {/* Contenido desplegable (Cerrado por defecto) */}
+              {isInfoBannerExpanded && (
+                <div className="px-3.5 pb-3.5 pt-0 border-t border-emerald-200/50 mt-1 animate-in fade-in duration-150">
+                  <p className="text-[11px] text-emerald-800 mt-2 leading-relaxed">
+                    Todos los talles adoptan por defecto el <strong>Precio de Venta Base ({priceNum > 0 ? formatCurrency(priceNum) : "$ 0,00"})</strong>. Podés configurar umbrales de alerta independientes para cada ubicación física:
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-emerald-200/60">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                      <div>
+                        <strong className="text-emerald-900">Mín. Local (Salón):</strong> Alerta de reposición interna cuando el salón tiene existencias iguales o inferiores a este valor y aún queda stock en depósito.
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-amber-200/60">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 mt-1 shrink-0" />
-                    <div>
-                      <strong className="text-amber-900">Mín. Depósito (Proveedor):</strong> Alerta crítica de compra a proveedor cuando las existencias totales (Salón + Depósito) alcanzan o caen por debajo de este valor.
+                    <div className="flex items-start gap-1.5 bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 mt-1 shrink-0" />
+                      <div>
+                        <strong className="text-amber-900">Mín. Depósito (Proveedor):</strong> Alerta crítica de compra a proveedor cuando las existencias totales (Salón + Depósito) alcanzan o caen por debajo de este valor.
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Barra de Búsqueda y Filtros de Variantes (idéntica a ProductDetailView) */}
+            <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 space-y-2.5 shadow-2xs select-none">
+              {/* Fila 1: Input de Búsqueda Omnibox con soporte lector de barras USB */}
+              <div className="relative w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={variantSearchQuery}
+                  onChange={(e) => setVariantSearchQuery(e.target.value)}
+                  placeholder="Buscar por talle, color, cód. de barra (pistola USB) o SKU..."
+                  className="w-full text-xs text-slate-800 placeholder-slate-400 pl-9 pr-9 py-2 rounded-xl border border-slate-200 bg-white focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 transition-all shadow-2xs focus:outline-none"
+                  aria-label="Buscar variantes"
+                />
+                {variantSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setVariantSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-md transition-colors cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+
+              {/* Fila 2: Filtros Facetados (Color, Talle, Stock) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Filtro por Color */}
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-2xs ${
+                    selectedColorFilter !== "ALL"
+                      ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[11px] font-semibold text-slate-500 shrink-0">Color:</span>
+                  <select
+                    value={selectedColorFilter}
+                    onChange={(e) => setSelectedColorFilter(e.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+                    aria-label="Filtrar por color"
+                  >
+                    <option value="ALL">Todos ({filterAvailableColors.length})</option>
+                    {filterAvailableColors.map((c) => (
+                      <option key={c.color} value={c.color}>
+                        {c.color} ({c.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro por Talle */}
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-2xs ${
+                    selectedSizeFilter !== "ALL"
+                      ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <Ruler className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[11px] font-semibold text-slate-500 shrink-0">Talle:</span>
+                  <select
+                    value={selectedSizeFilter}
+                    onChange={(e) => setSelectedSizeFilter(e.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+                    aria-label="Filtrar por talle"
+                  >
+                    <option value="ALL">Todos ({filterAvailableSizes.length})</option>
+                    {filterAvailableSizes.map((s) => (
+                      <option key={s.size} value={s.size}>
+                        Talle {s.size} ({s.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro por Estado de Stock */}
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-2xs ${
+                    selectedStockFilter !== "ALL"
+                      ? "border-emerald-500 bg-emerald-50/90 ring-1 ring-emerald-400/40"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[11px] font-semibold text-slate-500 shrink-0">Stock:</span>
+                  <select
+                    value={selectedStockFilter}
+                    onChange={(e) =>
+                      setSelectedStockFilter(
+                        e.target.value as
+                          | "ALL"
+                          | "IN_STOCK"
+                          | "STORE_STOCK"
+                          | "WAREHOUSE_STOCK"
+                          | "LOW_STOCK"
+                          | "OUT_OF_STOCK"
+                      )
+                    }
+                    className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer min-w-0"
+                    aria-label="Filtrar por disponibilidad de stock"
+                  >
+                    <option value="ALL">Todos los estados</option>
+                    <option value="IN_STOCK">🟢 Con stock (&gt;0)</option>
+                    <option value="STORE_STOCK">🏬 Salón Saavedra</option>
+                    <option value="WAREHOUSE_STOCK">📦 En depósito</option>
+                    <option value="LOW_STOCK">⚠️ Stock crítico</option>
+                    <option value="OUT_OF_STOCK">❌ Agotados (0)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Fila 3: Resumen de Filtros Activos */}
+              {hasActiveVariantFilters && (
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200/60 text-xs animate-in fade-in duration-150">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Mostrando <strong>{filteredIndexedVariants.length}</strong> de <strong>{variants.length}</strong> variantes
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVariantSearchQuery("");
+                      setSelectedColorFilter("ALL");
+                      setSelectedSizeFilter("ALL");
+                      setSelectedStockFilter("ALL");
+                    }}
+                    className="text-emerald-700 hover:text-emerald-800 font-bold text-[11px] hover:underline cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2.5">
-              {variants.map((variant, idx) => (
+              {filteredIndexedVariants.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-300 text-xs space-y-2 select-none">
+                  <Search className="w-6 h-6 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-800">
+                    No se encontraron variantes que coincidan con los filtros
+                  </p>
+                  <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
+                    Probá cambiando los términos de búsqueda o limpiá los filtros para volver a ver todas las variantes del producto.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVariantSearchQuery("");
+                      setSelectedColorFilter("ALL");
+                      setSelectedSizeFilter("ALL");
+                      setSelectedStockFilter("ALL");
+                    }}
+                    className="mt-2 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              ) : (
+                filteredIndexedVariants.map(({ variant, originalIndex: idx }) => (
                 <div
                   key={idx}
                   className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-start gap-2.5"
@@ -2060,15 +2520,16 @@ export function ProductFormModal({
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+              ))
+            )}
+          </div>
           </div>
 
           {/* Footer del Formulario */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
             >
@@ -2094,6 +2555,94 @@ export function ProductFormModal({
           </div>
         </form>
       </div>
+
+      {/* Diálogo de Confirmación de Cambios sin Guardar (Estilo Word) */}
+      {showUnsavedChangesDialog && (
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowUnsavedChangesDialog(false);
+          }}
+        >
+          <div
+            className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Barra superior estilo ventana */}
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5 text-emerald-600" />
+                Matacos Deportes — Guardar cambios
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowUnsavedChangesDialog(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-md transition-colors"
+                title="Cerrar (Cancelar)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Cuerpo del Diálogo */}
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200/70 shrink-0">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                    ¿Desea guardar los cambios en &ldquo;{name.trim() || productToEdit?.name || "este producto"}&rdquo;?
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Si elige &ldquo;No guardar&rdquo;, se descartarán todas las modificaciones realizadas en este producto y se restaurará su estado anterior.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Botonera de 3 opciones estilo Word */}
+            <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar"
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDiscardAndClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition-all"
+              >
+                No guardar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowUnsavedChangesDialog(false)}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

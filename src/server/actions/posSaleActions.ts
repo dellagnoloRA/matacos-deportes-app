@@ -18,11 +18,22 @@ import {
 } from "@/lib/discounts";
 import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { formatCurrency } from "@/lib/utils";
 import {
   getNextOfficialInvoiceNumber,
   buildReceiptPayloadFromSaleRecord,
 } from "@/server/services/receiptService";
 
+
+export interface PendingSaleSummaryResult {
+  saleId: string;
+  ticketCode: string | null;
+  customerName: string | null;
+  subtotalGross: number;
+  totalDiscount: number;
+  totalNet: number;
+  itemsCount: number;
+}
 
 function serializeData<T>(obj: any): T {
   if (obj === null || obj === undefined) return obj;
@@ -280,7 +291,7 @@ export async function createPendingSale(input: CreatePendingSaleInput) {
       // Ignored outside Next.js request context (e.g. testing scripts)
     }
 
-    return { success: true, data: serializeData(result) };
+    return { success: true, data: serializeData<PendingSaleSummaryResult>(result) };
   } catch (error: any) {
     console.error("Error en createPendingSale:", error);
     return { success: false, error: error.message || "Error al generar la preventa" };
@@ -433,7 +444,7 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
       // Ignored outside Next.js request context
     }
 
-    return { success: true, data: serializeData(result) };
+    return { success: true, data: serializeData<PendingSaleSummaryResult>(result) };
   } catch (error: any) {
     console.error("Error en updatePendingSale:", error);
     return { success: false, error: error.message || "Error al modificar la preventa" };
@@ -942,3 +953,372 @@ export async function cancelPendingSale(saleId: string, reason?: string) {
     return { success: false, error: error.message || "Error al cancelar preventa" };
   }
 }
+
+export interface PosSyncPulseResult {
+  lastSaleUpdatedAt: string | null;
+  lastMovementCreatedAt: string | null;
+  pendingSalesCount: number;
+}
+
+/**
+ * Obtener pulso ultra-liviano de sincronización para terminales POS (RF-08 / Terminal 1 y 2)
+ * Devuelve timestamps de última modificación y conteo de preventas para detección de cambios.
+ */
+export async function getPosSyncPulse(): Promise<{
+  success: boolean;
+  data?: PosSyncPulseResult;
+  error?: string;
+}> {
+  try {
+    const [lastSale, lastMovement, pendingSalesCount] = await Promise.all([
+      prisma.sale.findFirst({
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      }),
+      prisma.inventoryMovement.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+      prisma.sale.count({
+        where: { status: "PENDIENTE_PAGO" },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        lastSaleUpdatedAt: lastSale?.updatedAt ? lastSale.updatedAt.toISOString() : null,
+        lastMovementCreatedAt: lastMovement?.createdAt ? lastMovement.createdAt.toISOString() : null,
+        pendingSalesCount,
+      },
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error al obtener pulso de sincronización";
+    return { success: false, error: msg };
+  }
+}
+
+export interface VariantStockSnapshotItem {
+  id: string;
+  stockStore: number;
+  stockWarehouse: number;
+  stockReserved: number;
+}
+
+/**
+ * Obtener snapshot rápido del stock de todas las variantes para actualizar el catálogo sin recargar productos completos
+ */
+export async function getPosVariantStockSnapshot(): Promise<{
+  success: boolean;
+  data?: VariantStockSnapshotItem[];
+  error?: string;
+}> {
+  try {
+    const variants = await prisma.productVariant.findMany({
+      select: {
+        id: true,
+        stockStore: true,
+        stockWarehouse: true,
+        stockReserved: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: variants.map((v) => ({
+        id: v.id,
+        stockStore: v.stockStore,
+        stockWarehouse: v.stockWarehouse,
+        stockReserved: v.stockReserved || 0,
+      })),
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error al obtener snapshot de stock";
+    return { success: false, error: msg };
+  }
+}
+
+export interface PosProductExchangeInput {
+  returnVariantId: string;
+  exchangeVariantId: string;
+  quantity: number;
+  reason: string;
+  settlementType: "EQUAL" | "PAY_DIFFERENCE" | "STORE_CREDIT_VOUCHER" | "CASH_REFUND";
+  differenceAmount: number;
+  paymentMethod?: PaymentMethod;
+  receivedAmount?: number | null;
+  change?: number | null;
+  cardBrand?: string | null;
+  cardVoucher?: string | null;
+  installments?: number | null;
+  referenceCode?: string | null;
+  customerName?: string | null;
+  customerDni?: string | null;
+  voucherCode?: string | null;
+  cashShiftId?: string | null;
+  cashierId?: string | null;
+}
+
+export interface PosProductExchangeResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  settlementType?: "EQUAL" | "PAY_DIFFERENCE" | "STORE_CREDIT_VOUCHER" | "CASH_REFUND";
+  invoiceNumber?: string | null;
+  saleId?: string | null;
+  voucher?: {
+    code: string;
+    amount: number;
+    customerName?: string | null;
+    customerDni?: string | null;
+  } | null;
+}
+
+/**
+ * Procesar un cambio de producto con liquidación económica atómica en mostrador (Opción B)
+ * Maneja reingreso y egreso de stock, cobro de diferencias en caja registradora, vales de compra y reintegros.
+ */
+export async function processPosProductExchange(
+  input: PosProductExchangeInput
+): Promise<PosProductExchangeResult> {
+  try {
+    if (!input.returnVariantId || !input.exchangeVariantId) {
+      return {
+        success: false,
+        error: "Debes seleccionar tanto la prenda a devolver como la prenda a entregar.",
+      };
+    }
+    if (input.returnVariantId === input.exchangeVariantId) {
+      return {
+        success: false,
+        error: "La prenda devuelta y la prenda a entregar no pueden ser el mismo talle y color.",
+      };
+    }
+    const qty = Math.max(1, input.quantity || 1);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener variantes con sus productos
+      const [returnVariant, exchangeVariant] = await Promise.all([
+        tx.productVariant.findUnique({
+          where: { id: input.returnVariantId },
+          include: { product: true },
+        }),
+        tx.productVariant.findUnique({
+          where: { id: input.exchangeVariantId },
+          include: { product: true },
+        }),
+      ]);
+
+      if (!returnVariant) {
+        throw new Error("La variante a reingresar (devuelta) no existe en la base de datos.");
+      }
+      if (!exchangeVariant) {
+        throw new Error("La variante a entregar no existe en la base de datos.");
+      }
+
+      // 2. Verificar disponibilidad de stock en salón
+      if (exchangeVariant.stockStore < qty) {
+        throw new Error(
+          `No hay suficiente stock en Salón Saavedra para entregar el Talle ${exchangeVariant.size}. Disponible: ${exchangeVariant.stockStore} un., Solicitado: ${qty} un.`
+        );
+      }
+
+      // 3. Movimiento de inventario: Reingreso de la prenda devuelta
+      const newReturnStore = returnVariant.stockStore + qty;
+      const totalReturnAfter = newReturnStore + returnVariant.stockWarehouse;
+
+      await tx.productVariant.update({
+        where: { id: returnVariant.id },
+        data: { stockStore: newReturnStore },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: returnVariant.id,
+          type: "DEVOLUCION_CLIENTE",
+          quantity: qty,
+          stockAfter: totalReturnAfter,
+          location: "STORE",
+          reason: `Cambio de producto (Reingreso ${returnVariant.product.name} Talle ${returnVariant.size}): Se entrega ${exchangeVariant.product.name} Talle ${exchangeVariant.size}. Motivo: ${input.reason}`,
+        },
+      });
+
+      // 4. Movimiento de inventario: Egreso de la prenda entregada
+      const newExchangeStore = exchangeVariant.stockStore - qty;
+      const totalExchangeAfter = newExchangeStore + exchangeVariant.stockWarehouse;
+
+      await tx.productVariant.update({
+        where: { id: exchangeVariant.id },
+        data: { stockStore: newExchangeStore },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: exchangeVariant.id,
+          type: "AJUSTE_EGRESO",
+          quantity: qty,
+          stockAfter: totalExchangeAfter,
+          location: "STORE",
+          reason: `Cambio de producto (Egreso ${exchangeVariant.product.name} Talle ${exchangeVariant.size}): Por devolución de ${returnVariant.product.name} Talle ${returnVariant.size}. Motivo: ${input.reason}`,
+        },
+      });
+
+      // 5. Determinar turno de caja activo para asentar operaciones monetarias
+      let targetCashShiftId = input.cashShiftId ?? null;
+      if (!targetCashShiftId) {
+        const activeShift = await tx.cashShift.findFirst({
+          where: { status: "ABIERTA" },
+          orderBy: { openedAt: "desc" },
+        });
+        if (activeShift) {
+          targetCashShiftId = activeShift.id;
+        }
+      }
+
+      let invoiceNumber: string | null = null;
+      let saleId: string | null = null;
+      let voucherData: PosProductExchangeResult["voucher"] = null;
+
+      // 6. Manejo según el tipo de liquidación económica
+      if (input.settlementType === "PAY_DIFFERENCE") {
+        const diffAmount = Math.abs(input.differenceAmount);
+        if (diffAmount <= 0) {
+          throw new Error("El monto de la diferencia a cobrar debe ser mayor a cero.");
+        }
+        if (!input.paymentMethod) {
+          throw new Error("Debes especificar el medio de pago para cobrar la diferencia.");
+        }
+
+        const nextNumber = await getNextOfficialInvoiceNumber(tx);
+        invoiceNumber = nextNumber.invoiceNumber;
+
+        const saleRecord = await tx.sale.create({
+          data: {
+            invoiceNumber,
+            ticketCode: `CAMBIO-${Math.floor(100 + Math.random() * 900)}`,
+            channel: "MOSTRADOR",
+            status: "COMPLETADA",
+            subtotalGross: new Prisma.Decimal(diffAmount),
+            discount: new Prisma.Decimal(0),
+            total: new Prisma.Decimal(diffAmount),
+            notes: `Diferencia cobrada por cambio de producto: Reingresó ${returnVariant.product.name} (${returnVariant.size}) y se entregó ${exchangeVariant.product.name} (${exchangeVariant.size}). Motivo: ${input.reason}`,
+            cashierId: input.cashierId ?? null,
+            cashShiftId: targetCashShiftId,
+          },
+        });
+        saleId = saleRecord.id;
+
+        await tx.saleItem.create({
+          data: {
+            saleId: saleRecord.id,
+            variantId: exchangeVariant.id,
+            quantity: qty,
+            originalPrice: new Prisma.Decimal(diffAmount),
+            discount: new Prisma.Decimal(0),
+            unitPrice: new Prisma.Decimal(diffAmount),
+            price: new Prisma.Decimal(diffAmount),
+            subtotal: new Prisma.Decimal(diffAmount),
+          },
+        });
+
+        await tx.salePayment.create({
+          data: {
+            saleId: saleRecord.id,
+            method: input.paymentMethod,
+            amount: new Prisma.Decimal(diffAmount),
+            receivedAmount: input.receivedAmount ? new Prisma.Decimal(input.receivedAmount) : null,
+            change: input.change ? new Prisma.Decimal(input.change) : null,
+            cardBrand: input.cardBrand ?? null,
+            cardVoucher: input.cardVoucher ?? null,
+            installments: input.installments ?? null,
+            referenceCode: input.referenceCode ?? null,
+          },
+        });
+      } else if (input.settlementType === "STORE_CREDIT_VOUCHER") {
+        const creditAmount = Math.abs(input.differenceAmount);
+        const code =
+          input.voucherCode ||
+          `VALE-${Date.now().toString().slice(-4)}-${Math.floor(1000 + Math.random() * 9000)}`;
+        voucherData = {
+          code,
+          amount: creditAmount,
+          customerName: input.customerName?.trim() || "Cliente Mostrador",
+          customerDni: input.customerDni?.trim() || null,
+        };
+
+        const nextNumber = await getNextOfficialInvoiceNumber(tx);
+        const voucherSale = await tx.sale.create({
+          data: {
+            invoiceNumber: nextNumber.invoiceNumber,
+            ticketCode: code,
+            channel: "MOSTRADOR",
+            status: "COMPLETADA",
+            subtotalGross: new Prisma.Decimal(0),
+            discount: new Prisma.Decimal(0),
+            total: new Prisma.Decimal(0),
+            notes: `VALE DE COMPRA EMITIDO (${code}): Saldo a favor $ ${creditAmount.toFixed(
+              2
+            )} por cambio de producto (${returnVariant.product.name} por ${
+              exchangeVariant.product.name
+            }). Cliente: ${voucherData.customerName}. Sin vencimiento.`,
+            cashierId: input.cashierId ?? null,
+            cashShiftId: targetCashShiftId,
+          },
+        });
+        saleId = voucherSale.id;
+        invoiceNumber = nextNumber.invoiceNumber;
+      } else if (input.settlementType === "CASH_REFUND") {
+        const refundAmount = Math.abs(input.differenceAmount);
+        if (targetCashShiftId) {
+          await tx.cashMovement.create({
+            data: {
+              cashShiftId: targetCashShiftId,
+              type: "GASTO_MENOR",
+              amount: new Prisma.Decimal(refundAmount),
+              reason: `Reintegro en efectivo por cambio de producto (${returnVariant.product.name} por ${exchangeVariant.product.name}). Motivo: ${input.reason}`,
+              performedBy: input.cashierId ? "Cajero ID " + input.cashierId : "Cajero Mostrador",
+            },
+          });
+        }
+      }
+
+      return {
+        success: true,
+        settlementType: input.settlementType,
+        invoiceNumber,
+        saleId,
+        voucher: voucherData,
+      };
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/");
+    revalidatePath("/pos");
+
+    const message =
+      result.settlementType === "PAY_DIFFERENCE"
+        ? `Cambio completado. Se cobró la diferencia de $ ${formatCurrency(
+            Math.abs(input.differenceAmount)
+          )} y se emitió el comprobante ${result.invoiceNumber || ""}.`
+        : result.settlementType === "STORE_CREDIT_VOUCHER"
+        ? `Cambio completado. Se generó el Vale de Compra ${
+            result.voucher?.code || ""
+          } por $ ${formatCurrency(result.voucher?.amount || 0)} sin vencimiento.`
+        : result.settlementType === "CASH_REFUND"
+        ? `Cambio completado. Se registró el reintegro de $ ${formatCurrency(
+            Math.abs(input.differenceAmount)
+          )} en la caja registradora.`
+        : "Cambio mano a mano completado exitosamente.";
+
+    return {
+      ...result,
+      message,
+    };
+  } catch (error: unknown) {
+    console.error("Error al procesar cambio de producto en POS:", error);
+    const msg =
+      error instanceof Error ? error.message : "Error inesperado al procesar el cambio en POS";
+    return { success: false, error: msg };
+  }
+}
+
