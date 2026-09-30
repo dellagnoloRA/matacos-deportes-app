@@ -23,13 +23,13 @@ Permite estructurar, generar y emitir los datos de comprobantes de venta tanto e
 ## 2. Tecnologías, Herramientas y Librerías
 
 - **Next.js 15 (Server Actions & Route Handlers):**
-  - Server Action [`getReceiptData(saleId)`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/posReceiptActions.ts) para invocación directa desde componentes React en caja.
-  - Server Action [`getReceiptByTicketCode(ticketCode)`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/posReceiptActions.ts) para consultar preventas de salón.
+  - Server Action [`getReceiptData(saleId)`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/posReceiptActions.ts) para invocación directa desde componentes React en caja.
+  - Server Action [`getReceiptByTicketCode(ticketCode)`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/posReceiptActions.ts) para consultar preventas de salón.
   - Route Handler `GET /api/pos/receipt/[saleId]` para interoperabilidad con microservicios o demonios de impresión en red local.
 - **PostgreSQL 16 & Prisma ORM 6:** Consulta relacional de la venta, variantes de productos, marcas, medios de pago y usuarios con correlatividad atómica secuencial por Punto de Venta dentro de `prisma.$transaction`.
 - **Node.js Crypto API (`crypto.createHash`):** Generación de firma criptográfica SHA-256 de 16 caracteres (`XXXX-XXXX-XXXX-XXXX`) para antifraude y verificación rápida con lector de código de barras.
-- **Zod 3 & TypeScript 5 (Modo Estricto):** Esquemas de validación y tipado formal del contrato de datos de tickets ([`src/schemas/receipt.ts`](file:///C:/Users/della/matacos-deportes-app/src/schemas/receipt.ts)).
-- **Configuración Desacoplada y Segura:** Parametrización en [`src/config/company.ts`](file:///C:/Users/della/matacos-deportes-app/src/config/company.ts) mediante variables de entorno protegidas en `.gitignore` ([`.env`](file:///C:/Users/della/matacos-deportes-app/.env) y documentadas en [`.env.example`](file:///C:/Users/della/matacos-deportes-app/.env.example)).
+- **Zod 3 & TypeScript 5 (Modo Estricto):** Esquemas de validación y tipado formal del contrato de datos de tickets ([`src/schemas/receipt.ts`](file:///C:/Proyectos/matacos-deportes-app/src/schemas/receipt.ts)).
+- **Configuración Desacoplada y Segura:** Parametrización en [`src/config/company.ts`](file:///C:/Proyectos/matacos-deportes-app/src/config/company.ts) mediante variables de entorno protegidas en `.gitignore` ([`.env`](file:///C:/Proyectos/matacos-deportes-app/.env) y documentadas en [`.env.example`](file:///C:/Proyectos/matacos-deportes-app/.env.example)).
 - **Helpers de Formato y Zona Horaria:** `formatCurrency(amount)` en Pesos Argentinos (ARS) y zona horaria `America/Argentina/Buenos_Aires`.
 
 ---
@@ -37,18 +37,18 @@ Permite estructurar, generar y emitir los datos de comprobantes de venta tanto e
 ## 3. Archivos Involucrados en el Requerimiento
 
 ### Backend, Servicios y Acciones
-- [`src/config/company.ts`](file:///C:/Users/della/matacos-deportes-app/src/config/company.ts): Parametrización centralizada de datos fiscales, comerciales, punto de venta dinámico, canales y políticas de cambio.
-- [`.env.example`](file:///C:/Users/della/matacos-deportes-app/.env.example): Plantilla de variables de entorno seguras para desarrollo y producción.
-- [`src/server/services/receiptService.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/services/receiptService.ts): Núcleo de formateo de tickets, cálculo de IVA al 21%, hash de seguridad SHA-256, QR oficial AFIP en Base64 y correlatividad oficial `PPPPP-NNNNNNNN`.
-- [`src/server/actions/posReceiptActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/posReceiptActions.ts): Server Actions para consultar tickets por `saleId` o `ticketCode`.
-- [`src/server/actions/posSaleActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/posSaleActions.ts): Integración de numeración secuencial oficial en `completePendingSale` y `createDirectSale`, retornando el payload `receipt` listo para impresión inmediata.
-- [`src/app/api/pos/receipt/[saleId]/route.ts`](file:///C:/Users/della/matacos-deportes-app/src/app/api/pos/receipt/%5BsaleId%5D/route.ts): Endpoint REST para consumo de herramientas externas de impresión comandera.
+- [`src/config/company.ts`](file:///C:/Proyectos/matacos-deportes-app/src/config/company.ts): Parametrización centralizada de datos fiscales, comerciales, punto de venta dinámico, canales y políticas de cambio.
+- [`.env.example`](file:///C:/Proyectos/matacos-deportes-app/.env.example): Plantilla de variables de entorno seguras para desarrollo y producción.
+- [`src/server/services/receiptService.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/services/receiptService.ts): Núcleo de formateo de tickets, cálculo de IVA al 21%, hash de seguridad SHA-256, QR oficial AFIP en Base64 y correlatividad oficial `PPPPP-NNNNNNNN`.
+- [`src/server/actions/posReceiptActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/posReceiptActions.ts): Server Actions para consultar tickets por `saleId` o `ticketCode`.
+- [`src/server/actions/posSaleActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/posSaleActions.ts): Integración de numeración secuencial oficial en `completePendingSale` y `createDirectSale`, retornando el payload `receipt` listo para impresión inmediata.
+- [`src/app/api/pos/receipt/[saleId]/route.ts`](file:///C:/Proyectos/matacos-deportes-app/src/app/api/pos/receipt/%5BsaleId%5D/route.ts): Endpoint REST para consumo de herramientas externas de impresión comandera.
 
 ### Esquemas y Tipado
-- [`src/schemas/receipt.ts`](file:///C:/Users/della/matacos-deportes-app/src/schemas/receipt.ts): Contrato de datos Zod y tipos TypeScript (`ReceiptData`, `ReceiptItem`, `ReceiptPayment`, `ReceiptTotals`, `ReceiptFiscal`, `ReceiptFooter`).
+- [`src/schemas/receipt.ts`](file:///C:/Proyectos/matacos-deportes-app/src/schemas/receipt.ts): Contrato de datos Zod y tipos TypeScript (`ReceiptData`, `ReceiptItem`, `ReceiptPayment`, `ReceiptTotals`, `ReceiptFiscal`, `ReceiptFooter`).
 
 ### Pruebas Automatizadas (QA)
-- [`scripts/test-rf10-receipts.ts`](file:///C:/Users/della/matacos-deportes-app/scripts/test-rf10-receipts.ts): Banco integral de 30 pruebas automatizadas para validar Transparencia Fiscal, hash SHA-256, QR AFIP, zona horaria y contratos Zod.
+- [`scripts/test-rf10-receipts.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/test-rf10-receipts.ts): Banco integral de 30 pruebas automatizadas para validar Transparencia Fiscal, hash SHA-256, QR AFIP, zona horaria y contratos Zod.
 
 ---
 
