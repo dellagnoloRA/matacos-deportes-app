@@ -473,11 +473,11 @@ export function PosExchangeModal({
 
   return (
     <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-3xl max-w-2xl sm:max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col min-h-[500px] max-h-[92vh] animate-in zoom-in-95 duration-150">
         {/* Encabezado */}
-        <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white flex items-center justify-between border-b border-sky-800/30 shrink-0">
+        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 shadow-inner">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold shadow-inner">
               <ArrowLeftRight className="w-5 h-5" />
             </div>
             <div>
@@ -485,7 +485,7 @@ export function PosExchangeModal({
                 <h3 className="text-base font-black text-white tracking-tight">
                   Devolución / Cambio de Productos
                 </h3>
-                <span className="bg-sky-500/20 text-sky-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-sky-400/30 uppercase">
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-500/30 uppercase tracking-wider">
                   Salón Saavedra 241
                 </span>
               </div>
@@ -497,20 +497,43 @@ export function PosExchangeModal({
           <button
             type="button"
             onClick={handleClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Cuerpo del Formulario con Scroll */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
-          {errorMessage && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+        {/* Stepper Visual de Progreso */}
+        <div className="bg-slate-100/90 px-6 py-2.5 border-b border-slate-200/80 grid grid-cols-3 gap-2 shrink-0 select-none">
+          <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant ? "text-emerald-700" : "text-slate-900"}`}>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"}`}>
+              {selectedReturnVariant ? <Check className="w-3 h-3 stroke-[3]" /> : "1"}
+            </span>
+            <span className="truncate">Prenda Devuelta</span>
+          </div>
+          <div className={`flex items-center gap-2 text-xs font-bold ${selectedExchangeVariant ? "text-emerald-700" : selectedReturnVariant ? "text-slate-900" : "text-slate-400"}`}>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedExchangeVariant ? "bg-emerald-600 text-white" : selectedReturnVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
+              {selectedExchangeVariant ? <Check className="w-3 h-3 stroke-[3]" /> : "2"}
+            </span>
+            <span className="truncate">Prenda a Entregar</span>
+          </div>
+          <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant && selectedExchangeVariant ? "text-slate-900" : "text-slate-400"}`}>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant && selectedExchangeVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
+              3
+            </span>
+            <span className="truncate">Liquidación</span>
+          </div>
+        </div>
+
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+            {errorMessage && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
           {/* ========================================================= */}
           {/* PASO 1: PRENDA DEVUELTA */}
@@ -533,7 +556,7 @@ export function PosExchangeModal({
                     setSelectedReturnProduct(null);
                     setSelectedReturnVariant(null);
                   }}
-                  className="text-xs text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer"
+                  className="text-xs text-emerald-700 hover:text-emerald-800 font-bold hover:underline cursor-pointer"
                 >
                   Cambiar producto
                 </button>
@@ -549,7 +572,7 @@ export function PosExchangeModal({
                     value={returnSearch}
                     onChange={(e) => handleReturnSearchChange(e.target.value)}
                     placeholder="Escanear código de barras de la prenda (USB) o buscar por nombre / SKU..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all placeholder:text-slate-400 shadow-2xs"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-slate-400 shadow-2xs"
                     autoFocus
                   />
                 </div>
@@ -561,7 +584,7 @@ export function PosExchangeModal({
                         key={prod.id}
                         type="button"
                         onClick={() => handleSelectReturnProduct(prod)}
-                        className="w-full p-2.5 text-left hover:bg-sky-50/60 flex items-center justify-between transition-colors text-xs cursor-pointer"
+                        className="w-full p-2.5 text-left hover:bg-emerald-50/60 flex items-center justify-between transition-colors text-xs cursor-pointer"
                       >
                         <div>
                           <p className="font-bold text-slate-900">{prod.name}</p>
@@ -603,7 +626,7 @@ export function PosExchangeModal({
                         value={returnVariantSearch}
                         onChange={(e) => setReturnVariantSearch(e.target.value)}
                         placeholder="Buscar talle, color, SKU..."
-                        className="w-full pl-8 pr-3 py-1.5 bg-white text-xs text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-sky-500"
+                        className="w-full pl-8 pr-3 py-1.5 bg-white text-xs text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-500"
                       />
                     </div>
 
@@ -686,6 +709,35 @@ export function PosExchangeModal({
             )}
           </div>
 
+          {/* Guía visual de pasos pendientes cuando aún no se seleccionó la prenda devuelta */}
+          {!selectedReturnVariant && (
+            <div className="space-y-3 pt-1 animate-in fade-in duration-200">
+              <div className="border border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/70 flex items-center gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-200/80 text-slate-500 flex items-center justify-center shrink-0 font-bold text-xs font-mono">
+                  2
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-slate-700">Prenda a entregar al cliente</h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Se habilitará automáticamente tras escanear o seleccionar el producto y variante devuelta arriba.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border border-dashed border-slate-200 rounded-2xl p-4 bg-slate-50/40 flex items-center gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-200/60 text-slate-400 flex items-center justify-center shrink-0 font-bold text-xs font-mono">
+                  3
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-slate-500">Liquidación económica y comprobante</h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Cálculo de diferencia (mismo valor, cobro en caja o emisión de vale de compra).
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ========================================================= */}
           {/* PASO 2: PRENDA A ENTREGAR */}
           {/* ========================================================= */}
@@ -715,7 +767,7 @@ export function PosExchangeModal({
                       setExchangeSizeFilter("ALL");
                       setExchangeStockFilter("ALL");
                     }}
-                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
                   />
                   <span>Cambiar por otro modelo</span>
                 </label>
@@ -731,7 +783,7 @@ export function PosExchangeModal({
                       value={exchangeSearch}
                       onChange={(e) => handleExchangeSearchChange(e.target.value)}
                       placeholder="Escanear código de barras USB o buscar modelo a entregar..."
-                      className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all placeholder:text-slate-400 shadow-2xs"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-slate-400 shadow-2xs"
                     />
                   </div>
 
@@ -750,7 +802,7 @@ export function PosExchangeModal({
                             setExchangeSizeFilter("ALL");
                             setExchangeStockFilter("ALL");
                           }}
-                          className="w-full p-2.5 text-left hover:bg-sky-50/60 flex items-center justify-between transition-colors text-xs cursor-pointer"
+                          className="w-full p-2.5 text-left hover:bg-emerald-50/60 flex items-center justify-between transition-colors text-xs cursor-pointer"
                         >
                           <div>
                             <p className="font-bold text-slate-900">{prod.name}</p>
@@ -783,7 +835,7 @@ export function PosExchangeModal({
                           setSelectedExchangeProduct(null);
                           setSelectedExchangeVariant(null);
                         }}
-                        className="text-xs text-sky-600 font-bold hover:underline cursor-pointer"
+                        className="text-xs text-emerald-700 font-bold hover:underline cursor-pointer"
                       >
                         Cambiar modelo
                       </button>
@@ -801,7 +853,7 @@ export function PosExchangeModal({
                           value={exchangeVariantSearch}
                           onChange={(e) => setExchangeVariantSearch(e.target.value)}
                           placeholder="Buscar talle, color, SKU..."
-                          className="w-full pl-8 pr-3 py-1.5 bg-white text-xs text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-sky-500"
+                          className="w-full pl-8 pr-3 py-1.5 bg-white text-xs text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
@@ -919,7 +971,7 @@ export function PosExchangeModal({
           {selectedReturnVariant && selectedExchangeVariant && (
             <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 animate-in fade-in">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 font-black text-xs flex items-center justify-center">
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-800 font-black text-xs flex items-center justify-center font-mono">
                   3
                 </div>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
@@ -938,7 +990,7 @@ export function PosExchangeModal({
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                       reason === r
-                        ? "bg-sky-600 text-white border-sky-600 shadow-2xs"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                     }`}
                   >
@@ -950,7 +1002,7 @@ export function PosExchangeModal({
                   onClick={() => setReason("Otro")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                     reason === "Otro"
-                      ? "bg-sky-600 text-white border-sky-600 shadow-2xs"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                   }`}
                 >
@@ -964,7 +1016,7 @@ export function PosExchangeModal({
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   placeholder="Escribí el motivo del cambio..."
-                  className="w-full px-3.5 py-2 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none"
+                  className="w-full px-3.5 py-2 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   autoFocus
                 />
               )}
@@ -1346,15 +1398,17 @@ export function PosExchangeModal({
             </div>
           )}
 
+          </div>
+
           {/* ========================================================= */}
-          {/* FOOTER ACTIONS */}
+          {/* FOOTER ACTIONS - PINNED TOOLBAR                           */}
           {/* ========================================================= */}
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-200 shrink-0">
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 select-none">
             <button
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 transition-colors cursor-pointer shadow-2xs"
             >
               Cancelar
             </button>
@@ -1366,20 +1420,32 @@ export function PosExchangeModal({
                 !selectedExchangeVariant ||
                 (isCheaper && resolutionType === "CASH_REFUND" && !showCashRefundConfirm)
               }
-              className={`flex-1 py-2.5 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                isMoreExpensive
-                  ? "bg-blue-600 hover:bg-blue-700"
+              className={`flex-1 py-3 font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-2 ${
+                !selectedReturnVariant || !selectedExchangeVariant
+                  ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  : isMoreExpensive
+                  ? "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
                   : isCheaper && resolutionType === "STORE_CREDIT_VOUCHER"
-                  ? "bg-purple-600 hover:bg-purple-700"
+                  ? "bg-purple-600 hover:bg-purple-700 text-white cursor-pointer"
                   : isCheaper && resolutionType === "CASH_REFUND"
-                  ? "bg-rose-700 hover:bg-rose-800"
-                  : "bg-emerald-600 hover:bg-emerald-700"
+                  ? "bg-rose-700 hover:bg-rose-800 text-white cursor-pointer"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
               }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   <span>Procesando cambio...</span>
+                </>
+              ) : !selectedReturnVariant ? (
+                <>
+                  <Search className="w-4 h-4" />
+                  <span>Paso 1: Selecciona la prenda a devolver</span>
+                </>
+              ) : !selectedExchangeVariant ? (
+                <>
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>Paso 2: Selecciona la prenda a entregar</span>
                 </>
               ) : (
                 <>
