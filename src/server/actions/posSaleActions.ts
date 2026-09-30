@@ -1291,9 +1291,13 @@ export async function processPosProductExchange(
       };
     });
 
-    revalidatePath("/admin");
-    revalidatePath("/");
-    revalidatePath("/pos");
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/");
+      revalidatePath("/pos");
+    } catch {
+      // Ignorado fuera del contexto de solicitud Next.js
+    }
 
     const message =
       result.settlementType === "PAY_DIFFERENCE"
