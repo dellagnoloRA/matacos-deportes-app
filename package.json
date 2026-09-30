@@ -15,7 +15,8 @@
     "db:seed": "prisma db seed",
     "db:clean": "tsx scripts/clean-database.ts",
     "db:studio": "prisma studio",
-    "test:backend": "tsx scripts/run-all-backend-tests.ts"
+    "test:backend": "tsx scripts/run-all-backend-tests.ts",
+    "test:rf11": "tsx scripts/test-rf11-cash-shifts.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -469,15 +469,35 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         throw new Error(`La venta ya se encuentra en estado ${sale.status}`);
       }
 
-      // 2. Validar turno de caja si fue especificado
-      if (validated.cashShiftId) {
+      // 2. Validar o resolver turno de caja activo (RF-11: Bloqueo de cobro sin caja abierta)
+      let resolvedCashShiftId = validated.cashShiftId ?? null;
+      let shiftUserId: string | null = null;
+
+      if (resolvedCashShiftId) {
         const shift = await tx.cashShift.findUnique({
-          where: { id: validated.cashShiftId },
+          where: { id: resolvedCashShiftId },
         });
-        if (!shift) throw new Error("Turno de caja no encontrado");
+        if (!shift) throw new Error("Turno de caja no encontrado.");
         if (shift.status !== "ABIERTA") {
           throw new Error("El turno de caja especificado ya se encuentra cerrado.");
         }
+        shiftUserId = shift.userId;
+      } else {
+        const activeShift = await tx.cashShift.findFirst({
+          where: {
+            ...(validated.terminalId ? { terminalId: validated.terminalId } : {}),
+            status: "ABIERTA",
+          },
+          orderBy: { openedAt: "desc" },
+        });
+
+        if (!activeShift) {
+          throw new Error(
+            "No se puede procesar el cobro: La caja se encuentra cerrada en el mostrador. Debe abrir el turno de caja antes de cobrar."
+          );
+        }
+        resolvedCashShiftId = activeShift.id;
+        shiftUserId = activeShift.userId;
       }
 
       // 3. Validar que la suma de pagos cubra el total neto
@@ -562,8 +582,8 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         data: {
           invoiceNumber,
           status: "COMPLETADA",
-          cashierId: validated.cashierId ?? null,
-          cashShiftId: validated.cashShiftId ?? null,
+          cashierId: validated.cashierId ?? shiftUserId ?? null,
+          cashShiftId: resolvedCashShiftId,
         },
         include: {
           items: {
@@ -628,12 +648,32 @@ export async function createDirectSale(input: CreateSaleInput) {
     const validated = CreateSaleSchema.parse(input);
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Verificar turno de caja si fue provisto
-      if (validated.cashShiftId) {
-        const shift = await tx.cashShift.findUnique({ where: { id: validated.cashShiftId } });
+      // 1. Verificar o resolver turno de caja activo (RF-11: Bloqueo de cobro sin caja abierta)
+      let resolvedCashShiftId = validated.cashShiftId ?? null;
+      let shiftUserId: string | null = null;
+
+      if (resolvedCashShiftId) {
+        const shift = await tx.cashShift.findUnique({ where: { id: resolvedCashShiftId } });
         if (!shift || shift.status !== "ABIERTA") {
           throw new Error("El turno de caja especificado se encuentra cerrado o no existe.");
         }
+        shiftUserId = shift.userId;
+      } else {
+        const activeShift = await tx.cashShift.findFirst({
+          where: {
+            ...(validated.terminalId ? { terminalId: validated.terminalId } : {}),
+            status: "ABIERTA",
+          },
+          orderBy: { openedAt: "desc" },
+        });
+
+        if (!activeShift) {
+          throw new Error(
+            "No se puede procesar el cobro: La caja se encuentra cerrada en el mostrador. Debe abrir el turno de caja antes de cobrar."
+          );
+        }
+        resolvedCashShiftId = activeShift.id;
+        shiftUserId = activeShift.userId;
       }
 
       // 2. Verificar disponibilidad de stock en salón
@@ -687,8 +727,8 @@ export async function createDirectSale(input: CreateSaleInput) {
           invoiceNumber,
           offlineId: validated.offlineId ?? null,
           sellerId: validated.sellerId ?? validated.userId ?? null,
-          cashierId: validated.cashierId ?? validated.userId ?? null,
-          cashShiftId: validated.cashShiftId ?? null,
+          cashierId: validated.cashierId ?? validated.userId ?? shiftUserId ?? null,
+          cashShiftId: resolvedCashShiftId,
           customerName: validated.customerName || "Cliente Mostrador",
           channel: validated.channel || "MOSTRADOR",
           status: "COMPLETADA",

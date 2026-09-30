@@ -98,6 +98,7 @@ export const CreateSaleSchema = z
     sellerId: z.string().uuid("ID de vendedor inválido").optional().nullable(),
     cashierId: z.string().uuid("ID de cajero inválido").optional().nullable(),
     cashShiftId: z.string().uuid("ID de turno de caja inválido").optional().nullable(),
+    terminalId: z.string().optional().nullable(),
     customerName: z.string().optional().nullable(),
     channel: z.string().default("MOSTRADOR"),
     discount: z
@@ -210,6 +211,7 @@ export const CompletePendingSaleSchema = z
     saleId: z.string().uuid("ID de venta inválido"),
     cashierId: z.string().uuid("ID de cajero inválido").optional().nullable(),
     cashShiftId: z.string().uuid("ID de turno de caja inválido").optional().nullable(),
+    terminalId: z.string().optional().nullable(),
     payments: z
       .array(SalePaymentSchema)
       .min(1, "Debe registrar al menos un método de pago"),

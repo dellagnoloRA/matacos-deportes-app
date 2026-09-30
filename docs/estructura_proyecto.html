@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estructura del Proyecto - Matacos Deportes</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #222222;
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    h1 {
+      font-size: 20pt;
+      color: #1a365d;
+      border-bottom: 2px solid #2b6cb0;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 14pt;
+      color: #2b6cb0;
+      margin-top: 24px;
+      margin-bottom: 8px;
+    }
+    h3 {
+      font-size: 12pt;
+      color: #2d3748;
+      margin-top: 16px;
+      margin-bottom: 6px;
+    }
+    p {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    ul {
+      margin-top: 0;
+      margin-bottom: 12px;
+      padding-left: 24px;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+    strong {
+      color: #1a202c;
+    }
+    pre {
+      background-color: #f7fafc;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      padding: 14px;
+      font-family: 'Consolas', 'Courier New', Courier, monospace;
+      font-size: 10pt;
+      line-height: 1.45;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .destacado {
+      background-color: #ebf8ff;
+      border-left: 4px solid #3182ce;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      border-radius: 0 4px 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Estructura del Proyecto — Matacos Deportes</h1>
+  <p><strong>Proyecto:</strong> Sistema Integral de Gestión, Punto de Venta (POS) Offline y E-commerce.<br>
+  <strong>Comercio:</strong> Saavedra 241, Formosa Capital.</p>
+
+  <div class="destacado">
+    <strong>Propósito:</strong> Este documento detalla la distribución de carpetas del proyecto y justifica su diseño de forma simple para facilitar su inclusión en la documentación técnica y funcional.
+  </div>
+
+  <h2>1. Esquema General de Carpetas</h2>
+
+  <pre>
+matacos-deportes-app/
+├── contexto/                         # Requerimientos funcionales (RF), actas de reunión y decisiones de arquitectura
+│   └── Planificación POS VENTA/      # Documentos de diseño y planificación de la terminal de mostrador
+├── docs/                             # Manuales de usuario, guías de despliegue y documentación operativa
+│   └── imagenes/                     # Capturas y diagramas utilizados en los manuales
+├── init-scripts/                     # Scripts de inicialización para Docker y base de datos
+├── prisma/                           # Definición del modelo relacional con Prisma ORM
+│   └── migrations/                   # Historial de versiones y migraciones SQL en PostgreSQL
+├── public/                           # Recursos estáticos de acceso público servidos por Next.js
+│   └── uploads/                      # Archivos multimedia subidos al sistema
+│       └── products/                 # Imágenes almacenadas de productos y variantes
+├── scripts/                          # Scripts de utilidad, normalización de datos y tests de RF backend
+├── src/                              # Código fuente principal de la aplicación
+│   ├── app/                          # Enrutador de páginas y endpoints (Next.js 15 App Router)
+│   │   ├── admin/                    # Módulo administrativo (gestión de stock, catálogo y precios)
+│   │   ├── api/                      # Endpoints y Route Handlers HTTP
+│   │   │   ├── pos/                  # Endpoints del Punto de Venta
+│   │   │   │   ├── receipt/          # Generación y consulta de recibos de venta
+│   │   │   │   ├── search/           # Búsqueda ágil de productos para el mostrador
+│   │   │   │   └── tickets/          # Endpoints de consulta de tickets emitidos
+│   │   │   ├── stock/                # Endpoints de control de inventario
+│   │   │   │   └── alerts/           # Monitoreo y avisos de stock mínimo/crítico
+│   │   │   └── upload/               # Endpoint para subida de imágenes
+│   │   └── pos/                      # Vistas del frontend para Punto de Venta
+│   │       └── tickets/              # Flujo de comprobantes de venta
+│   │           └── [saleId]/print/   # Vista de renderizado e impresión térmica (80mm/58mm)
+│   ├── components/                   # Componentes modulares y reutilizables de UI (React 19)
+│   │   └── dashboard/                # Vistas del mostrador, modales operativos, tablas y KPIs
+│   ├── config/                       # Constantes de negocio (datos fiscales, empresa, sucursal)
+│   ├── lib/                          # Módulos transversales (Prisma client, Dexie.js IndexedDB, formateos)
+│   ├── schemas/                      # Esquemas de validación Zod (fuente única de verdad para tipos)
+│   ├── server/                       # Capa backend de lógica de negocio en servidor
+│   │   ├── actions/                  # Next.js Server Actions con transacciones atómicas
+│   │   └── services/                 # Servicios desacoplados de dominio (turnos de caja, recibos)
+│   └── types/                        # Definición de tipos e interfaces TypeScript
+├── .agents/                          # Skills y directivas de asistencia para agentes de IA
+└── .vscode/                          # Configuración del entorno de trabajo en Visual Studio Code
+  </pre>
+
+  <h2>2. Justificación y Explicación de Cada Carpeta</h2>
+
+  <h3>src/ (Código Fuente Principal)</h3>
+  <p>Es la carpeta central donde vive todo el funcionamiento del sistema:</p>
+  <ul>
+    <li><strong>app/:</strong> Contiene las páginas y pantallas visibles para el usuario mediante Next.js 15.
+      <ul>
+        <li><strong>admin/:</strong> Pantalla de administración para consultar stock, catálogo, proveedores y cambios masivos de precio.</li>
+        <li><strong>pos/:</strong> Pantalla rápida para el mostrador de ventas, incluyendo la plantilla especial para imprimir tickets térmicos de 80mm y 58mm.</li>
+        <li><strong>api/:</strong> Enlaces internos que responden datos en formato JSON para búsquedas rápidas de productos, alertas de stock y subida de fotos.</li>
+      </ul>
+    </li>
+    <li><strong>components/dashboard/:</strong> Los bloques visuales con los que interactúa el usuario (botones, tablas de stock, tarjetas de métricas y ventanas emergentes como la carga masiva de Excel o ajustes manuales).</li>
+    <li><strong>server/:</strong> El "cerebro" del sistema que se ejecuta de forma segura en el servidor:
+      <ul>
+        <li><strong>actions/:</strong> Acciones que guardan ventas o descuentan stock asegurando que si ocurre un corte de luz o error a mitad de camino, la base de datos no quede corrupta ni con stock negativo.</li>
+        <li><strong>services/:</strong> Módulos para cálculos específicos, como apertura/cierre de turnos de caja y cálculo de comprobantes fiscales.</li>
+      </ul>
+    </li>
+    <li><strong>schemas/:</strong> Reglas escritas con Zod para garantizar que ningún dato llegue vacío o con formato erróneo (por ejemplo: que un precio siempre sea un número positivo o que un código de barras sea válido).</li>
+    <li><strong>lib/:</strong> Herramientas auxiliares y conexiones:
+      <ul>
+        <li><strong>dexie.ts:</strong> Base de datos local que guarda las ventas en la computadora de mostrador si se corta internet (enfoque Offline-First).</li>
+        <li><strong>prisma.ts:</strong> Conexión con la base de datos principal PostgreSQL.</li>
+        <li><strong>utils.ts:</strong> Funciones comunes, como dar formato de moneda en pesos argentinos ($ 45.000,00) y manejar la hora oficial de Argentina.</li>
+      </ul>
+    </li>
+    <li><strong>config/ y types/:</strong> Datos fijos del negocio (nombre del local, CUIT, dirección Saavedra 241) y definiciones técnicas para que el código sea seguro y ordenado.</li>
+  </ul>
+
+  <h3>prisma/ (Base de Datos)</h3>
+  <p>Administra la estructura de la base de datos PostgreSQL:</p>
+  <ul>
+    <li><strong>schema.prisma:</strong> El plano donde se definen las tablas (productos, variantes por talle/color, ventas, movimientos de stock y cajas).</li>
+    <li><strong>migrations/:</strong> El historial registrado de cada cambio hecho en las tablas de la base de datos a lo largo del tiempo.</li>
+    <li><strong>seed.ts:</strong> Datos iniciales para que el sistema empiece a funcionar con categorías y configuraciones de prueba.</li>
+  </ul>
+
+  <h3>public/ (Archivos Estáticos y Multimedia)</h3>
+  <p>Almacena los recursos que no cambian o que se muestran directamente en pantalla:</p>
+  <ul>
+    <li><strong>uploads/products/:</strong> Carpeta donde se guardan las fotografías de los productos y zapatillas subidas por los usuarios.</li>
+    <li><strong>Logos y plantillas:</strong> El logo oficial de Matacos Deportes y las planillas Excel oficiales de carga de stock descargables.</li>
+  </ul>
+
+  <h3>scripts/ (Pruebas y Mantenimiento)</h3>
+  <p>Herramientas automáticas para el equipo técnico:</p>
+  <ul>
+    <li>Permiten probar que las ventas, los descuentos, el código de barras y el inventario funcionen correctamente sin tener que probar todo a mano en la pantalla cada vez que se hace un cambio.</li>
+  </ul>
+
+  <h3>contexto/ y docs/ (Documentación y Requerimientos)</h3>
+  <p>Respaldan el trabajo académico y operativo del proyecto:</p>
+  <ul>
+    <li><strong>contexto/:</strong> Requisitos solicitados por el dueño del comercio, actas de reuniones y análisis de arquitectura.</li>
+    <li><strong>docs/:</strong> Manuales de uso sencillos para los empleados del local y guías paso a paso para instalar o reparar el sistema en caso de cambiar de computadora.</li>
+  </ul>
+
+  <h3>Archivos en la Raíz (Infraestructura y Ejecución)</h3>
+  <ul>
+    <li><strong>docker-compose.yml y Dockerfile:</strong> Permiten que el sistema y su base de datos arranquen en cualquier computadora de manera idéntica y aislada sin instalaciones complicadas.</li>
+    <li><strong>iniciar-sistema.bat:</strong> Acceso directo para que el personal de mostrador pueda encender todo el sistema con un solo doble clic en Windows.</li>
+  </ul>
+
+</body>
+</html>

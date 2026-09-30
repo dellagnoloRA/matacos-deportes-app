@@ -13,6 +13,18 @@ Operación de cobro definitiva ejecutada por un cajero. Consume medios de pago, 
 ### Tique Fiscal / Comprobante de Entrega (RF-10)
 Documento estructurado en bobina térmica de 80mm entregado al comprador. Contiene la identificación tributaria del emisor (parametrizada de forma segura vía variables de entorno), numeración formal oficial (`00008-00026445`), desglose de variantes (producto, talle, color), descuentos unitarios y globales (RF-08), medios de pago y vuelto (RF-09), Transparencia Fiscal con IVA al 21% discriminado, hash de seguridad y código QR interoperable según normativa AFIP/ARCA.
 
+### Comprobante Interno (Ticket X / Control de Venta)
+Documento no fiscal emitido en mostrador destinado al control diario interno de ventas y como comprobante de cambio para el cliente. No posee validez tributaria ante AFIP/ARCA, no se computa en el Libro IVA Ventas y lleva obligatoriamente la leyenda legal "DOCUMENTO NO VÁLIDO COMO FACTURA". Mantiene trazabilidad operativa y descuenta stock exactamente igual que un comprobante fiscal.
+
+### Regla de Bancarización Obligatoria (Trazabilidad AFIP)
+Restricción de negocio por la cual toda venta que incluya medios de pago electrónicos o bancarizados (`DEBITO`, `CREDITO`, `QR_MERCADOPAGO`) exige obligatoriamente la emisión de un comprobante fiscal para evitar inconsistencias por cruces automáticos de información impositiva. Los comprobantes internos quedan reservados exclusivamente para pagos en `EFECTIVO` o `TRANSFERENCIA` no bancarizada comercialmente.
+
+### Arqueo Unificado y Métrica Dual
+Mecanismo de control de caja donde el arqueo físico de turno (`CashShift`) audita la totalidad del dinero en efectivo presente en el cajón (consolidando ventas fiscales e internas para evitar faltantes de caja), mientras que la capa de reportes de gestión presenta una métrica dual discriminando "Ventas Fiscales Declaradas" vs "Ventas Operativas Totales".
+
+### Venta Dividida (Split Fiscal)
+Mecanismo que permite fraccionar una transacción comercial de mostrador con medios de pago mixtos en dos comprobantes independientes: un Comprobante Fiscal por la porción bancarizada y un Comprobante Interno (Ticket X) por la porción en efectivo/no fiscal.
+
 ### Punto de Venta (P.V.)
 Identificador numérico de 5 dígitos (ej. `00008`) correspondiente al punto de emisión. Es desacoplado y configurable mediante variable de entorno (`POS_POINT_OF_SALE`), permitiendo migrar de controladores fiscales físicos a nuevos puntos de venta de Facturación Electrónica sin alterar la base de datos.
 
@@ -34,4 +46,22 @@ Cadena de datos codificada en Base64 bajo el esquema oficial de AFIP (`https://w
 - **Cambio 1 a 1 (Mismo producto por talle/color o artículo de igual valor):** Se realiza directo sin costo adicional para el cliente. Si el precio del producto subió en el catálogo general desde el día de la compra, se respeta el valor y no se cobra diferencia alguna.
 - **Cambio por artículo de Mayor Valor:** El cliente abona únicamente la diferencia neta entre el valor acreditado y el nuevo producto.
 - **Devolución / Saldo a Favor ("Vale de Compra"):** El comercio no realiza devoluciones de dinero en efectivo. En su lugar, se emite un **Vale de Compra** (saldo a favor del cliente) imputable a una compra futura en el local.
+
+## 3. Control de Caja, Turnos y Arqueo (RF-11)
+
+### Turno de Caja (CashShift)
+Sesión de cobranza operativa delimitada entre una apertura explícita y un cierre formal, vinculada a una terminal física específica (`terminalId`, ej. `TERMINAL_1`, `TERMINAL_2` o terminal asignada) y bajo la responsabilidad de un usuario cajero (`userId`). Cualquier puesto de trabajo puede operar como terminal de caja y realizar su respectivo arqueo, manteniendo un registro de auditoría estricto e inmutable de cada sesión. Es condición mandatoria para procesar cobros en el mostrador.
+
+### Fondo de Cambio Inicial (`initialAmount`)
+Monto en efectivo con el que se inicia un turno de caja para disponer de cambio y dar vuelto a los clientes. Es el punto de partida del arqueo contable.
+
+### Arqueo Ciego ("Blind Audit")
+Protocolo de cierre de turno en el cual el cajero declara los valores físicos contados en el cajón (efectivo y cupones de medios electrónicos) sin tener a la vista las cifras esperadas calculadas por el sistema. El sistema compara posteriormente lo declarado contra lo computado para determinar sobrantes o faltantes (`differenceCash`).
+
+### Movimiento de Caja (`CashMovement`)
+Registro auditable de ingresos extraordinarios o egresos no derivados de ventas directas (ej. retiros de seguridad a caja fuerte, adelantos, fletes de mercadería, gastos de librería/limpieza). Exige motivo obligatorio, número de comprobante de respaldo y validación de saldo disponible en efectivo al momento del retiro.
+
+### Tique de Arqueo y Cierre de Turno
+Comprobante estructurado impreso en bobina térmica de 80mm al finalizar la jornada. Detalla totales por medio de pago, lista de egresos/ingresos intermedios, fondo inicial, total esperado, total real contado y diferencia neta, destinado a graparse con el sobre de recaudación física.
+
 

@@ -17,6 +17,7 @@ import {
   ArrowRightLeft,
   Tag,
   Receipt,
+  Lock,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -264,6 +265,28 @@ export function SidebarLeft({
                 Cobro
               </span>
             )}
+          </button>
+
+          {/* 5. Cajas y Arqueos (Historial y Auditoría RF-11) */}
+          <button
+            onClick={() => handleItemClick("pos-arqueo")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              activeItem === "pos-arqueo"
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Lock className={`w-4 h-4 ${activeItem === "pos-arqueo" ? "text-slate-950" : "text-emerald-300"}`} />
+              <span>Arqueos de Caja</span>
+            </div>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                activeItem === "pos-arqueo" ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
+              }`}
+            >
+              Auditoría
+            </span>
           </button>
 
           {/* 5. E-commerce (Bloqueado) */}
