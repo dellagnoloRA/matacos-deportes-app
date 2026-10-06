@@ -46,7 +46,7 @@ export function OpenCashShiftModal({
   onClose,
   terminalId,
   onSuccess,
-  defaultCashiers = ["Nahir Fornari", "Ricardo Dellagnolo", "Lourdes Bordón", "Cajero 1"],
+  defaultCashiers = ["Cajero 1", "Cajero Mostrador"],
 }: OpenCashShiftModalProps) {
   const [cashierName, setCashierName] = useState(defaultCashiers[0] || "");
   const [isCustomName, setIsCustomName] = useState(false);

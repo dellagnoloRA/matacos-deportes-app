@@ -87,7 +87,7 @@ export function CashShiftHistoryView() {
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Lock className="w-5 h-5 text-indigo-600" />
-            Historial de Cajas y Arqueos (RF-11)
+            Historial de Cajas y Arqueos
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Registro inmutable de turnos de caja, fondo inicial, ventas y conciliación física.

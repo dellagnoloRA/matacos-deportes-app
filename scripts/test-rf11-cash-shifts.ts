@@ -104,7 +104,7 @@ async function runTests() {
   console.log("1. Apertura de Turno de Caja (Fondo Inicial)");
   const openRes = await openCashShift({
     terminalId: TERMINAL_TEST,
-    userName: "Nahir Fornari",
+    userName: "Cajero 1",
     initialAmount: 15000, // $ 15.000,00 de fondo de cambio
     notes: "Apertura turno mañana Saavedra 241",
   });
@@ -119,8 +119,8 @@ async function runTests() {
     "Fondo inicial registrado correctamente ($ 15.000,00)"
   );
   assert(
-    openRes.data?.user?.name === "Nahir Fornari",
-    "Cajero asignado y auditado nominalmente: Nahir Fornari"
+    openRes.data?.user?.name === "Cajero 1",
+    "Cajero asignado y auditado nominalmente: Cajero 1"
   );
 
   const activeShiftId = openRes.data?.id!;
@@ -131,7 +131,7 @@ async function runTests() {
   console.log("\n2. Bloqueo de Apertura Concurrente en la misma Terminal");
   const concurrentOpenRes = await openCashShift({
     terminalId: TERMINAL_TEST,
-    userName: "Ricardo Dellagnolo",
+    userName: "Cajero Mostrador",
     initialAmount: 20000,
   });
 
@@ -273,7 +273,7 @@ async function runTests() {
     type: "GASTO_MENOR",
     amount: 90000, // $ 90.000 supera los $ 45.000 en cajón
     reason: "Retiro excesivo imposible",
-    performedBy: "Nahir Fornari",
+    performedBy: "Cajero 1",
   });
 
   assert(
@@ -292,7 +292,7 @@ async function runTests() {
     amount: 5000,
     reason: "Pago de flete encomienda Topper",
     receiptNumber: "FAC-B-0001-00049281",
-    performedBy: "Nahir Fornari",
+    performedBy: "Cajero 1",
   });
 
   assert(validExpenseRes.success, "Egreso válido registrado ($ 5.000,00 flete)", validExpenseRes.error);
@@ -370,7 +370,7 @@ async function runTests() {
     type: "GASTO_MENOR",
     amount: 1000,
     reason: "Gasto posterior no permitido",
-    performedBy: "Nahir Fornari",
+    performedBy: "Cajero 1",
   });
 
   assert(
@@ -390,7 +390,7 @@ async function runTests() {
     "Comprobante incluye datos oficiales de la empresa"
   );
   assert(
-    receipt.shift.cashierName === "Nahir Fornari",
+    receipt.shift.cashierName === "Cajero 1",
     "Comprobante audita el nombre del cajero"
   );
   assert(

@@ -421,12 +421,8 @@ export async function getCashiersList() {
     });
 
     const defaultNames = [
-      "Nahir Fornari",
-      "Ricardo Dellagnolo",
-      "Lourdes Bordón",
-      "Eugenia González",
-      "Cajero Mostrador 1",
-      "Cajero Mostrador 2",
+      "Cajero 1",
+      "Cajero Mostrador",
     ];
 
     return {
