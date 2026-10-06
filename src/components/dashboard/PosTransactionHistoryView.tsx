@@ -24,6 +24,7 @@ import {
   DollarSign,
   Layers,
   ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getSaleHistory } from "@/server/actions/saleActions";
@@ -350,24 +351,11 @@ export function PosTransactionHistoryView({
           {/* Quick Sub-Navigation Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={onNavigateToPreventa}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Preventa Salón</span>
-            </button>
-
-            <button
               onClick={onNavigateToCobrar}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all relative"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
             >
-              <Store className="w-3.5 h-3.5 text-amber-600" />
-              <span>Caja Cobrar</span>
-              {pendingSalesCount > 0 && (
-                <span className="ml-1 bg-amber-500 text-white font-black text-[10px] px-1.5 py-0.2 rounded-full">
-                  {pendingSalesCount}
-                </span>
-              )}
+              <ArrowLeft className="w-3.5 h-3.5 text-amber-700" />
+              <span>Volver a Caja</span>
             </button>
 
             <button
