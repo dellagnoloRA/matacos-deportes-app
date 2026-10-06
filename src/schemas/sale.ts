@@ -49,21 +49,34 @@ export const DiscountSchema = z
 /**
  * Esquema para un ítem individual dentro de una venta
  */
-export const SaleItemSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
-  quantity: z
-    .number({ invalid_type_error: "La cantidad debe ser un número" })
-    .int("La cantidad debe ser un número entero")
-    .positive("La cantidad debe ser mayor a 0"),
-  price: z
-    .number({ invalid_type_error: "El precio unitario debe ser un número" })
-    .min(0, "El precio unitario no puede ser negativo"),
-  originalPrice: z.number().min(0).optional(),
-  discount: z.number().min(0).optional().default(0),
-  discountType: DiscountTypeEnum.optional().nullable(),
-  discountValue: z.number().min(0).optional().nullable(),
-  unitPrice: z.number().min(0).optional(),
-});
+export const SaleItemSchema = z
+  .object({
+    variantId: z.string().uuid("ID de variante inválido"),
+    quantity: z
+      .number({ invalid_type_error: "La cantidad debe ser un número" })
+      .int("La cantidad debe ser un número entero")
+      .positive("La cantidad debe ser mayor a 0"),
+    price: z
+      .number({ invalid_type_error: "El precio unitario debe ser un número" })
+      .min(0, "El precio unitario no puede ser negativo"),
+    originalPrice: z.number().min(0).optional(),
+    discount: z.number().min(0).optional().default(0),
+    discountType: DiscountTypeEnum.optional().nullable(),
+    discountValue: z.number().min(0).optional().nullable(),
+    unitPrice: z.number().min(0).optional(),
+  })
+  .refine(
+    (item) => {
+      if (item.discountType === "PERCENTAGE" && item.discountValue !== null && item.discountValue !== undefined) {
+        return item.discountValue <= 100;
+      }
+      return true;
+    },
+    {
+      message: "El descuento porcentual de un ítem no puede superar el 100%",
+      path: ["discountValue"],
+    }
+  );
 
 /**
  * Esquema para un método de pago aplicado a la venta (soporta pagos divididos)
@@ -157,23 +170,39 @@ export const CreateSaleSchema = z
   );
 
 /**
+ * Esquema para un ítem de Preventa (Terminal 1 Salón y Modificación en Caja)
+ */
+export const PendingSaleItemSchema = z
+  .object({
+    variantId: z.string().uuid("ID de variante inválido"),
+    quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
+    originalPrice: z.number().min(0, "El precio no puede ser negativo"),
+    discountType: DiscountTypeEnum.optional().nullable(),
+    discountValue: z.number().min(0).optional().nullable(),
+    discountAmount: z.number().min(0).default(0),
+    unitPrice: z.number().min(0, "El precio unitario no puede ser negativo"),
+  })
+  .refine(
+    (item) => {
+      if (item.discountType === "PERCENTAGE" && item.discountValue !== null && item.discountValue !== undefined) {
+        return item.discountValue <= 100;
+      }
+      return true;
+    },
+    {
+      message: "El descuento porcentual de un ítem no puede superar el 100%",
+      path: ["discountValue"],
+    }
+  );
+
+/**
  * Esquema para Crear Preventa en Salón de Ventas (Terminal 1)
  */
 export const CreatePendingSaleSchema = z.object({
   sellerId: z.string().uuid("ID de vendedor inválido").optional().nullable(),
   customerName: z.string().min(1, "El nombre o alias del cliente es requerido").max(100),
   items: z
-    .array(
-      z.object({
-        variantId: z.string().uuid("ID de variante inválido"),
-        quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
-        originalPrice: z.number().min(0, "El precio no puede ser negativo"),
-        discountType: DiscountTypeEnum.optional().nullable(),
-        discountValue: z.number().min(0).optional().nullable(),
-        discountAmount: z.number().min(0).default(0),
-        unitPrice: z.number().min(0, "El precio unitario no puede ser negativo"),
-      })
-    )
+    .array(PendingSaleItemSchema)
     .min(1, "La preventa debe contener al menos un producto"),
   globalDiscount: DiscountSchema.optional().nullable(),
   notes: z.string().max(300).optional().nullable(),
@@ -187,17 +216,7 @@ export const UpdatePendingSaleSchema = z.object({
   saleId: z.string().uuid("ID de venta inválido"),
   customerName: z.string().min(1).max(100).optional(),
   items: z
-    .array(
-      z.object({
-        variantId: z.string().uuid("ID de variante inválido"),
-        quantity: z.number().int().positive(),
-        originalPrice: z.number().min(0),
-        discountType: DiscountTypeEnum.optional().nullable(),
-        discountValue: z.number().min(0).optional().nullable(),
-        discountAmount: z.number().min(0).default(0),
-        unitPrice: z.number().min(0),
-      })
-    )
+    .array(PendingSaleItemSchema)
     .min(1, "La preventa debe contener al menos un producto"),
   globalDiscount: DiscountSchema.optional().nullable(),
   notes: z.string().max(300).optional().nullable(),

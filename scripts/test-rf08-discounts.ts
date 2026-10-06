@@ -11,7 +11,7 @@
  */
 
 import { calculateItemDiscount, calculateSaleTotals } from "../src/lib/discounts";
-import { DiscountSchema } from "../src/schemas/sale";
+import { DiscountSchema, PendingSaleItemSchema } from "../src/schemas/sale";
 
 interface TestResult {
   suite: string;
@@ -62,6 +62,41 @@ assert(!zodNegative.success, "Zod Schema", "Rechaza monto fijo negativo (-$500)"
 // Caso 1.5: Descuento fijo válido
 const zodValidFixed = DiscountSchema.safeParse({ type: "FIXED", value: 5000, reason: "Promoción contado" });
 assert(zodValidFixed.success, "Zod Schema", "Acepta descuento fijo válido con motivo");
+
+// Caso 1.6: Ítem con descuento porcentual válido (20%)
+const itemValidPercent = PendingSaleItemSchema.safeParse({
+  variantId: "123e4567-e89b-12d3-a456-426614174000",
+  quantity: 1,
+  originalPrice: 45000,
+  discountType: "PERCENTAGE",
+  discountValue: 20,
+  discountAmount: 9000,
+  unitPrice: 36000,
+});
+assert(itemValidPercent.success, "Zod Schema Ítem", "Acepta ítem con 20% de descuento");
+
+// Caso 1.7: Ítem con descuento porcentual absurdo (> 100%, ej: 150% o 5000%)
+const itemRidiculousPercent = PendingSaleItemSchema.safeParse({
+  variantId: "123e4567-e89b-12d3-a456-426614174000",
+  quantity: 1,
+  originalPrice: 45000,
+  discountType: "PERCENTAGE",
+  discountValue: 150,
+  discountAmount: 45000,
+  unitPrice: 0,
+});
+assert(!itemRidiculousPercent.success, "Zod Schema Ítem", "Rechaza ítem con descuento porcentual > 100% (150%)");
+
+const itemCarriedOverPesos = PendingSaleItemSchema.safeParse({
+  variantId: "123e4567-e89b-12d3-a456-426614174000",
+  quantity: 1,
+  originalPrice: 45000,
+  discountType: "PERCENTAGE",
+  discountValue: 5000,
+  discountAmount: 45000,
+  unitPrice: 0,
+});
+assert(!itemCarriedOverPesos.success, "Zod Schema Ítem", "Rechaza ítem con valor traspasado de pesos a % (5000%)");
 
 
 // ==========================================
