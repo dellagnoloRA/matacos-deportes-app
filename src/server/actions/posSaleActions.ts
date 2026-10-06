@@ -16,6 +16,7 @@ import {
   RawSaleItemInput,
   DiscountConfig,
 } from "@/lib/discounts";
+import { CreateQuickPosProductSchema, CreateQuickPosProductInput } from "@/schemas/product";
 import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { formatCurrency } from "@/lib/utils";
@@ -33,6 +34,7 @@ export interface PendingSaleSummaryResult {
   totalDiscount: number;
   totalNet: number;
   itemsCount: number;
+  sale?: any;
 }
 
 function serializeData<T>(obj: any): T {
@@ -116,6 +118,18 @@ export async function searchPosProducts(query: string) {
             price: true,
             brand: { select: { name: true } },
             category: { select: { name: true } },
+            variants: {
+              select: {
+                id: true,
+                size: true,
+                color: true,
+                sku: true,
+                barcode: true,
+                stockStore: true,
+                stockReserved: true,
+                price: true,
+              },
+            },
           },
         },
       },
@@ -140,6 +154,16 @@ export async function searchPosProducts(query: string) {
         stockReserved: v.stockReserved,
         stockAvailable,
         imageUrl: v.product.imageUrl,
+        availableVariants: v.product.variants.map((sv) => ({
+          id: sv.id,
+          size: sv.size,
+          color: sv.color,
+          sku: sv.sku,
+          barcode: sv.barcode,
+          stockStore: sv.stockStore,
+          stockReserved: sv.stockReserved,
+          price: sv.price ? Number(sv.price) : Number(v.product.price),
+        })),
       };
     });
 
@@ -378,13 +402,21 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
 
       // 4. Recalcular importes y descuentos
       const totals = calculateSaleTotals(
-        validated.items.map((i) => ({
-          variantId: i.variantId,
-          quantity: i.quantity,
-          originalPrice: i.originalPrice,
-          discountType: i.discountType,
-          discountValue: i.discountValue,
-        })),
+        validated.items.map((i) => {
+          let dType = i.discountType;
+          let dVal = i.discountValue;
+          if (!dType && !dVal && i.unitPrice !== undefined && i.unitPrice < i.originalPrice) {
+            dType = "FIXED";
+            dVal = Math.round((i.originalPrice - i.unitPrice) * 100) / 100;
+          }
+          return {
+            variantId: i.variantId,
+            quantity: i.quantity,
+            originalPrice: i.originalPrice,
+            discountType: dType,
+            discountValue: dVal,
+          };
+        }),
         validated.globalDiscount
       );
 
@@ -426,6 +458,54 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
         },
       });
 
+      const fullUpdatedSale = await tx.sale.findUnique({
+        where: { id: existingSale.id },
+        include: {
+          seller: {
+            select: { id: true, name: true },
+          },
+          items: {
+            include: {
+              variant: {
+                select: {
+                  id: true,
+                  size: true,
+                  color: true,
+                  sku: true,
+                  barcode: true,
+                  stockStore: true,
+                  stockWarehouse: true,
+                  stockReserved: true,
+                  price: true,
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                      imageUrl: true,
+                      price: true,
+                      brand: { select: { name: true } },
+                      category: { select: { name: true } },
+                      variants: {
+                        select: {
+                          id: true,
+                          size: true,
+                          color: true,
+                          sku: true,
+                          barcode: true,
+                          stockStore: true,
+                          stockReserved: true,
+                          price: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
       return {
         saleId: updated.id,
         ticketCode: updated.ticketCode,
@@ -434,6 +514,7 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
         totalDiscount: totals.totalDiscount,
         totalNet: totals.totalNet,
         itemsCount: totals.items.length,
+        sale: fullUpdatedSale,
       };
     });
 
@@ -880,12 +961,29 @@ export async function getPendingSales() {
                 sku: true,
                 barcode: true,
                 stockStore: true,
+                stockWarehouse: true,
+                stockReserved: true,
+                price: true,
                 product: {
                   select: {
                     id: true,
                     name: true,
+                    imageUrl: true,
+                    price: true,
                     brand: { select: { name: true } },
                     category: { select: { name: true } },
+                    variants: {
+                      select: {
+                        id: true,
+                        size: true,
+                        color: true,
+                        sku: true,
+                        barcode: true,
+                        stockStore: true,
+                        stockReserved: true,
+                        price: true,
+                      },
+                    },
                   },
                 },
               },
@@ -1322,6 +1420,219 @@ export async function processPosProductExchange(
     console.error("Error al procesar cambio de producto en POS:", error);
     const msg =
       error instanceof Error ? error.message : "Error inesperado al procesar el cambio en POS";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Carga Rápida de Producto para Casos de Emergencia (POS / Preventa Mostrador)
+ * Permite dar de alta un producto no catalogado en stock, asignar stock inicial en salón
+ * y retornarlo listo para agregarse inmediatamente a la preventa.
+ */
+export async function createQuickPosProduct(input: CreateQuickPosProductInput) {
+  try {
+    const validated = CreateQuickPosProductSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Validar código de barras si se especificó
+      if (validated.barcode && validated.barcode.trim()) {
+        const barcodeTrimmed = validated.barcode.trim();
+        const existingWithBarcode = await tx.productVariant.findFirst({
+          where: { barcode: barcodeTrimmed },
+          include: { product: { select: { name: true } } },
+        });
+
+        if (existingWithBarcode) {
+          throw new Error(
+            `El código de barras "${barcodeTrimmed}" ya está registrado en el producto "${existingWithBarcode.product.name}" (Talle ${existingWithBarcode.size}).`
+          );
+        }
+      }
+
+      // 2. Resolver o crear Disciplina
+      const discName = (validated.disciplineName?.trim() || "Multideporte");
+      const discSlug = discName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let discipline = await tx.discipline.findFirst({
+        where: {
+          OR: [
+            { name: { equals: discName, mode: "insensitive" } },
+            { slug: { equals: discSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!discipline) {
+        discipline = await tx.discipline.create({
+          data: { name: discName, slug: discSlug || "multideporte" },
+        });
+      }
+
+      // 3. Resolver o crear Categoría
+      const catName = (validated.categoryName?.trim() || "General");
+      const catSlug = catName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let category = await tx.category.findFirst({
+        where: {
+          OR: [
+            { name: { equals: catName, mode: "insensitive" } },
+            { slug: { equals: catSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!category) {
+        category = await tx.category.create({
+          data: { name: catName, slug: catSlug || "general" },
+        });
+      }
+
+      // 4. Resolver o crear Marca
+      const brName = (validated.brandName?.trim() || "Genérica");
+      const brSlug = brName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let brand = await tx.brand.findFirst({
+        where: {
+          OR: [
+            { name: { equals: brName, mode: "insensitive" } },
+            { slug: { equals: brSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!brand) {
+        brand = await tx.brand.create({
+          data: { name: brName, slug: brSlug || "generica" },
+        });
+      }
+
+      // 5. Generar SKU único para la variante
+      const cleanSize = validated.size.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const generatedSku = `EMG-${Date.now().toString().slice(-6)}-${cleanSize || "U"}`;
+
+      // 6. Crear Producto
+      const product = await tx.product.create({
+        data: {
+          name: validated.name.trim(),
+          price: new Prisma.Decimal(validated.price),
+          costPrice: validated.costPrice ? new Prisma.Decimal(validated.costPrice) : null,
+          disciplineId: discipline.id,
+          categoryId: category.id,
+          brandId: brand.id,
+          active: true,
+          description: "Carga rápida de emergencia desde mostrador",
+          modelCode: `EMG-${Date.now().toString().slice(-6)}`,
+        },
+      });
+
+      // 7. Crear Variante con stock en salón
+      const variant = await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          size: validated.size.trim(),
+          color: validated.color?.trim() || "Único",
+          sku: generatedSku,
+          barcode: validated.barcode?.trim() || null,
+          stockStore: validated.initialStock || 1,
+          stockWarehouse: 0,
+          stockReserved: 0,
+          minStoreStock: 1,
+          minStock: 2,
+        },
+      });
+
+      // 8. Crear Movimiento inicial de inventario
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: variant.id,
+          type: "INGRESO_INICIAL",
+          quantity: validated.initialStock || 1,
+          stockAfter: validated.initialStock || 1,
+          location: "STORE",
+          reason: "Carga rápida de emergencia desde Preventa Salón",
+        },
+      });
+
+      function getDisciplineGradient(dName: string): string {
+        const d = dName.toLowerCase();
+        if (d.includes("nataci") || d.includes("acu")) return "from-cyan-500 to-blue-600";
+        if (d.includes("vóley") || d.includes("voley")) return "from-amber-500 to-orange-600";
+        if (d.includes("running") || d.includes("atlet")) return "from-emerald-500 to-teal-700";
+        if (d.includes("fútbol") || d.includes("futbol")) return "from-green-600 to-emerald-800";
+        if (d.includes("basquet") || d.includes("básquet")) return "from-orange-500 to-red-600";
+        if (d.includes("pádel") || d.includes("padel") || d.includes("tenis")) return "from-lime-500 to-green-700";
+        return "from-slate-700 to-slate-900";
+      }
+
+      const mappedProduct = {
+        id: product.id,
+        name: product.name,
+        description: product.description || "",
+        brand: brand.name,
+        discipline: discipline.name,
+        category: category.name,
+        subcategory: category.name,
+        modelCode: product.modelCode || generatedSku,
+        sku: variant.sku,
+        barcode: variant.barcode || "",
+        costPrice: product.costPrice ? Number(product.costPrice) : null,
+        price: Number(product.price),
+        stockLocal: variant.stockStore,
+        stockWeb: 0,
+        minStock: 2,
+        minStoreStock: 1,
+        active: true,
+        updatedAt: new Date().toISOString(),
+        iconBg: getDisciplineGradient(discipline.name),
+        variants: [
+          {
+            id: variant.id,
+            size: variant.size,
+            color: variant.color,
+            barcode: variant.barcode || "",
+            sku: variant.sku,
+            stockStore: variant.stockStore,
+            stockWarehouse: 0,
+            stockReserved: 0,
+            minStoreStock: 1,
+            minStock: 2,
+            price: null,
+          },
+        ],
+      };
+
+      const mappedVariant = {
+        id: variant.id,
+        size: variant.size,
+        color: variant.color,
+        barcode: variant.barcode || "",
+        sku: variant.sku,
+        stockStore: variant.stockStore,
+        stockWarehouse: 0,
+        stockReserved: 0,
+        minStoreStock: 1,
+        minStock: 2,
+        price: null,
+      };
+
+      return {
+        product: mappedProduct,
+        variant: mappedVariant,
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+      revalidatePath("/");
+    } catch {
+      // Ignorado fuera del contexto de solicitud
+    }
+
+    return {
+      success: true,
+      product: result.product,
+      variant: result.variant,
+      message: `Producto "${result.product.name}" cargado exitosamente.`,
+    };
+  } catch (error: unknown) {
+    console.error("Error en createQuickPosProduct:", error);
+    const msg =
+      error instanceof Error ? error.message : "Error inesperado al crear el producto rápido";
     return { success: false, error: msg };
   }
 }

@@ -44,6 +44,9 @@ import {
   Lock,
   Unlock,
   ArrowLeftRight,
+  Edit3,
+  Barcode,
+  Zap,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
@@ -74,6 +77,9 @@ import type { UpdatePendingSaleInput } from "@/schemas/sale";
 import { BarcodeSvg } from "./BarcodeSvg";
 import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
 import { PosExchangeModal } from "./PosExchangeModal";
+import { EditPendingTicketModal } from "./EditPendingTicketModal";
+import { PriceStockCheckerModal } from "./PriceStockCheckerModal";
+import { QuickProductModal } from "./QuickProductModal";
 import {
   PosProductGridCard,
   PosProductListRow,
@@ -114,6 +120,9 @@ export interface PendingSaleItemSummary {
   total: number;
   subtotalGross: number;
   discount: number;
+  discountType?: DiscountType | null;
+  discountValue?: number | null;
+  notes?: string | null;
   createdAt: string;
   seller?: { id: string; name: string } | null;
   items: Array<{
@@ -124,6 +133,8 @@ export interface PendingSaleItemSummary {
     subtotal: number;
     originalPrice?: number;
     discount?: number;
+    discountType?: DiscountType | null;
+    discountValue?: number | null;
     variant: {
       id: string;
       size: string;
@@ -131,11 +142,26 @@ export interface PendingSaleItemSummary {
       sku?: string;
       barcode?: string;
       stockStore: number;
+      stockWarehouse?: number;
+      stockReserved?: number;
+      price?: number | null;
       product: {
         id: string;
         name: string;
+        imageUrl?: string | null;
+        price?: number;
         brand: { name: string };
         category: { name: string };
+        variants?: Array<{
+          id: string;
+          size: string;
+          color: string;
+          sku?: string;
+          barcode?: string;
+          stockStore: number;
+          stockReserved?: number;
+          price?: number | null;
+        }>;
       };
     };
   }>;
@@ -203,6 +229,13 @@ export function PosView({
   // Estado para Modal de Devolución / Cambio de Talle
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
 
+  // Estado para Modal de Carga Rápida de Producto (Emergencia)
+  const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
+  const [quickProductQuery, setQuickProductQuery] = useState("");
+
+  // Estado para Modal Verificador de Precios y Stock (Modo Consulta - F3)
+  const [isPriceCheckerOpen, setIsPriceCheckerOpen] = useState(false);
+
   // Modal de confirmación personalizado para cancelar preventa (sin window.confirm)
   const [confirmCancelModal, setConfirmCancelModal] = useState<{
     saleId: string;
@@ -238,6 +271,7 @@ export function PosView({
     | "TRANSFERENCIA";
 
   const [activeCheckoutSale, setActiveCheckoutSale] = useState<PendingSaleItemSummary | null>(null);
+  const [editingTicket, setEditingTicket] = useState<PendingSaleItemSummary | null>(null);
   const [cashierPaymentMethod, setCashierPaymentMethod] = useState<CashierPaymentMethodType>("EFECTIVO");
   const [cashierReceivedAmount, setCashierReceivedAmount] = useState<string>("");
 
@@ -542,6 +576,22 @@ export function PosView({
     return ["Todas", ...Array.from(list)];
   }, [products]);
 
+  const availableCategories = useMemo(() => {
+    const list = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) list.add(p.category);
+    });
+    return Array.from(list);
+  }, [products]);
+
+  const availableBrands = useMemo(() => {
+    const list = new Set<string>();
+    products.forEach((p) => {
+      if (p.brand) list.add(p.brand);
+    });
+    return Array.from(list);
+  }, [products]);
+
   const [isCategoriesDropdownOpen, setIsCategoriesDropdownOpen] = useState(false);
   const categoriesDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -719,15 +769,22 @@ export function PosView({
   }, [cart, globalDiscount]);
 
   // ----------------------------------------------------------------------
-  // Atajo F2 y Lector de Códigos de Barras USB
+  // Atajo F2, F3 y Lector de Códigos de Barras USB
   // ----------------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // F2: enfocar búsqueda
+      // F2: enfocar búsqueda en catálogo
       if (e.key === "F2") {
         e.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
+        return;
+      }
+
+      // F3: abrir/cerrar Verificador de Precios y Stock (Modo Consulta)
+      if (e.key === "F3") {
+        e.preventDefault();
+        setIsPriceCheckerOpen((prev) => !prev);
         return;
       }
     };
@@ -744,6 +801,9 @@ export function PosView({
     if (!isUsbScannerActive) return;
 
     const handleWindowKeyPress = (e: KeyboardEvent) => {
+      // Si el verificador de precios está abierto, delegar el escaneo exclusivamente a él
+      if (isPriceCheckerOpen) return;
+
       // Si el foco está en un input normal (excepto si fue por escaneo)
       const targetTag = (e.target as HTMLElement)?.tagName;
       const isInputFocused = targetTag === "INPUT" || targetTag === "TEXTAREA";
@@ -776,7 +836,7 @@ export function PosView({
 
     window.addEventListener("keydown", handleWindowKeyPress);
     return () => window.removeEventListener("keydown", handleWindowKeyPress);
-  }, [isUsbScannerActive, products]);
+  }, [isUsbScannerActive, products, isPriceCheckerOpen]);
 
   const handleBarcodeScanned = (code: string) => {
     for (const prod of products) {
@@ -867,6 +927,22 @@ export function PosView({
     });
   };
 
+  const handleProductCreatedFromQuickModal = (
+    newProduct: DetailedProductItem,
+    newVariant: ProductVariantItem
+  ) => {
+    // 1. Agregar a la lista de catálogo para que figure en la vista
+    setProducts((prev) => [newProduct, ...prev]);
+    // 2. Agregar directamente al carrito
+    handleAddVariantToCart(newProduct, newVariant);
+    // 3. Limpiar buscador para volver a vista limpia con el carrito cargado
+    setSearchQuery("");
+    showToast(
+      `Producto "${newProduct.name}" (Talle ${newVariant.size}) creado y sumado a la preventa.`,
+      "success"
+    );
+  };
+
   const handleUpdateQuantity = (variantId: string, delta: number) => {
     setCart((prevCart) => {
       return prevCart
@@ -940,20 +1016,34 @@ export function PosView({
     isGlobal: boolean,
     targetRowId?: string
   ) => {
+    let sanitizedValue = Math.max(0, Number(value) || 0);
+    if (type === "PERCENTAGE") {
+      sanitizedValue = Math.min(100, Math.round(sanitizedValue * 100) / 100);
+    } else if (type === "FIXED") {
+      sanitizedValue = Math.round(sanitizedValue * 100) / 100;
+    }
+
     if (isGlobal) {
-      if (value <= 0) {
+      if (type === "FIXED") {
+        sanitizedValue = Math.min(saleTotals.subtotalAfterItems, sanitizedValue);
+      }
+      if (sanitizedValue <= 0) {
         setGlobalDiscount(null);
       } else {
-        setGlobalDiscount({ type, value });
+        setGlobalDiscount({ type, value: sanitizedValue });
       }
     } else if (targetRowId) {
       setCart((prevCart) =>
         prevCart.map((item) => {
           if (item.rowId === targetRowId) {
+            const finalVal =
+              type === "FIXED"
+                ? Math.min(item.originalPrice, sanitizedValue)
+                : sanitizedValue;
             return {
               ...item,
-              discountType: value > 0 ? type : null,
-              discountValue: value > 0 ? value : null,
+              discountType: finalVal > 0 ? type : null,
+              discountValue: finalVal > 0 ? finalVal : null,
             };
           }
           return item;
@@ -1545,6 +1635,61 @@ export function PosView({
         }}
       />
 
+      {/* Modal Verificador de Precios y Stock (Modo Consulta - F3) */}
+      <PriceStockCheckerModal
+        isOpen={isPriceCheckerOpen}
+        onClose={() => setIsPriceCheckerOpen(false)}
+        products={products}
+        onAddToCart={(product, variant) => {
+          handleAddVariantToCart(product, variant);
+        }}
+      />
+
+      {/* Modal de Carga Rápida de Producto para Preventa (Emergencia) */}
+      <QuickProductModal
+        isOpen={isQuickProductModalOpen}
+        onClose={() => setIsQuickProductModalOpen(false)}
+        initialSearchQuery={quickProductQuery}
+        disciplines={disciplineOptions.filter((d) => d !== "Todas")}
+        categories={availableCategories}
+        brands={availableBrands}
+        onProductCreated={handleProductCreatedFromQuickModal}
+      />
+
+      {/* Modal de Modificación de Artículos de Ticket en Caja */}
+      {editingTicket && (
+        <EditPendingTicketModal
+          isOpen={!!editingTicket}
+          onClose={() => setEditingTicket(null)}
+          ticket={editingTicket}
+          catalogProducts={products}
+          onSaveSuccess={(updatedSale, autoOpenCheckout) => {
+            showToast(
+              `Ticket ${updatedSale.ticketCode || ""} actualizado correctamente.`,
+              "success"
+            );
+            setEditingTicket(null);
+            fetchPendingSalesList();
+            refreshCatalogStock();
+            broadcastSyncEvent({
+              type: "TICKET_UPDATED",
+              saleId: updatedSale.id,
+              ticketCode: updatedSale.ticketCode,
+            });
+
+            if (autoOpenCheckout) {
+              handleOpenCheckoutModal(updatedSale);
+            } else if (activeCheckoutSale?.id === updatedSale.id) {
+              handleOpenCheckoutModal(updatedSale);
+            }
+          }}
+          onCancelTicket={(saleId, ticketCode) => {
+            setEditingTicket(null);
+            handleCancelPending(saleId, ticketCode);
+          }}
+        />
+      )}
+
       {/* Modal de Confirmación de Cancelación de Preventa */}
       {confirmCancelModal && (
         <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
@@ -1632,62 +1777,59 @@ export function PosView({
       <>
         <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
         {/* Top Header Barra */}
-        <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
-          <div className="flex items-center gap-3">
+        <div className="bg-white border-b border-slate-200 px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-20 shadow-2xs gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             {onToggleSidebar && (
               <button
                 onClick={onToggleSidebar}
-                className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg shrink-0"
               >
                 <PanelLeft className="w-5 h-5" />
               </button>
             )}
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-amber-500" />
+                <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2 whitespace-nowrap">
+                  <Receipt className="w-5 h-5 text-amber-500 shrink-0" />
                   <span>Caja Mostrador • Cobro de Preventas</span>
                 </h1>
-                <span className="bg-amber-100 text-amber-800 text-[11px] font-extrabold px-2 py-0.5 rounded-full border border-amber-300/60">
-                  Terminal 2
-                </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 truncate hidden sm:block">
                 Selecciona una preventa emitida desde los salones para procesar el pago y emitir comprobante.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Widget de Control de Turno de Caja (RF-11) */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Widget de Control de Turno de Caja (Prioridad Alta) */}
             {activeShift ? (
-              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <div className="flex flex-col text-left">
-                  <span className="text-[11px] font-bold text-emerald-950 leading-tight flex items-center gap-1">
-                    <span>🟢 Caja Abierta:</span>
+              <div className="flex items-center gap-2.5 bg-emerald-50/90 border border-emerald-300/80 px-3 h-10 rounded-xl shadow-2xs shrink-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <div className="flex flex-col text-left justify-center">
+                  <span className="text-[11px] font-bold text-emerald-950 leading-tight flex items-center gap-1 whitespace-nowrap">
+                    <span>Turno:</span>
                     <strong className="text-emerald-800">{activeShift.user?.name || "Cajero"}</strong>
                   </span>
-                  <span className="text-[10px] text-emerald-700 font-mono">
-                    Fondo: {formatCurrency(Number(activeShift.initialAmount))} • Disp:{" "}
-                    <strong>
+                  <span className="text-[10px] text-emerald-700 font-mono leading-tight whitespace-nowrap">
+                    Disp:{" "}
+                    <strong className="text-emerald-900">
                       {formatCurrency(
                         activeShiftTotals?.currentAvailableCash ?? Number(activeShift.initialAmount)
                       )}
                     </strong>
                   </span>
                 </div>
-                <div className="flex items-center gap-1 ml-1.5">
+                <div className="flex items-center gap-1.5 ml-1.5 border-l border-emerald-200/80 pl-2">
                   <button
                     onClick={() => setIsCashMovementModalOpen(true)}
-                    className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold border border-emerald-300 shadow-2xs transition"
+                    className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-300 shadow-2xs transition active:scale-95 whitespace-nowrap"
                     title="Registrar retiro, gasto menor o aporte de cambio"
                   >
                     Movimiento
                   </button>
                   <button
                     onClick={() => setIsCloseShiftModalOpen(true)}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold shadow-2xs transition flex items-center gap-1"
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold shadow-2xs transition flex items-center gap-1 active:scale-95 whitespace-nowrap"
                     title="Cerrar turno y realizar arqueo ciego"
                   >
                     <Lock className="w-3 h-3 text-emerald-400" />
@@ -1696,55 +1838,62 @@ export function PosView({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl shadow-2xs">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <div className="flex flex-col text-left">
-                  <span className="text-[11px] font-bold text-rose-900 leading-tight">
-                    🔴 Caja Cerrada
-                  </span>
-                  <span className="text-[10px] text-rose-700">
-                    Abra turno para habilitar cobros
-                  </span>
+              <>
+                <div className="flex items-center gap-2 bg-rose-50/90 border border-rose-200 px-3 h-10 rounded-xl shadow-2xs shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                  <div className="flex flex-col text-left justify-center">
+                    <span className="text-[11px] font-bold text-rose-900 leading-tight whitespace-nowrap">
+                      Caja Cerrada
+                    </span>
+                    <span className="text-[10px] text-rose-700 leading-tight whitespace-nowrap">
+                      Abra turno para cobrar
+                    </span>
+                  </div>
                 </div>
+
                 <button
+                  type="button"
                   onClick={() => setIsOpenShiftModalOpen(true)}
-                  className="ml-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1"
+                  className="h-10 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer whitespace-nowrap"
+                  title="Abrir nuevo turno de caja en Saavedra 241"
                 >
-                  <Unlock className="w-3.5 h-3.5" />
-                  Abrir Caja
+                  <Unlock className="w-4 h-4 shrink-0" />
+                  <span>Abrir Caja</span>
                 </button>
-              </div>
+              </>
             )}
 
             <button
-              onClick={() => onNavigateSubView?.("preventa")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Ir a Preventa Salón</span>
-            </button>
-            <button
+              type="button"
               onClick={() => onNavigateSubView?.("historial")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
+              className="h-10 px-3.5 bg-white hover:bg-slate-50 active:scale-95 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-2xs transition-all flex items-center gap-2 shrink-0 cursor-pointer whitespace-nowrap"
+              title="Consultar historial de comprobantes y transacciones cobradas"
             >
-              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+              <Receipt className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>Historial Transacciones</span>
             </button>
+
             <button
               type="button"
-              onClick={() => setIsExchangeModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-2xs transition-all"
-              title="Cambio de prendas y devoluciones de clientes en mostrador"
+              onClick={() => setIsPriceCheckerOpen(true)}
+              className="h-10 px-3 bg-white hover:bg-slate-50 active:scale-95 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
+              title="Consultar precio y stock de producto (F3)"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-sky-700" />
-              <span>Devolución / Cambio</span>
+              <Barcode className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="hidden sm:inline">Verificador</span>
+              <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-500">
+                F3
+              </span>
             </button>
+
             <button
+              type="button"
               onClick={fetchPendingSalesList}
               disabled={isLoadingPendingSales}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all"
+              className="h-10 px-3.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer whitespace-nowrap"
+              title="Actualizar lista de preventas pendientes"
             >
-              <RotateCcw className={`w-3.5 h-3.5 ${isLoadingPendingSales ? "animate-spin" : ""}`} />
+              <RotateCcw className={`w-4 h-4 shrink-0 ${isLoadingPendingSales ? "animate-spin" : ""}`} />
               <span>Actualizar</span>
             </button>
           </div>
@@ -1770,8 +1919,59 @@ export function PosView({
             </div>
           </div>
 
-          {/* List of Pending Sales */}
-          {isLoadingPendingSales && pendingSales.length === 0 ? (
+          {/* List of Pending Sales or Closed Cash Register State */}
+          {!activeShift ? (
+            <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-amber-200/80 shadow-xs max-w-xl mx-auto my-6 space-y-5">
+              <div className="w-16 h-16 bg-amber-50 border border-amber-200/60 rounded-2xl flex items-center justify-center text-amber-600 mx-auto shadow-2xs">
+                <Lock className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                  Turno de Caja Cerrado
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                  Para registrar cobros de mostrador, emitir comprobantes y habilitar la gaveta de efectivo en Saavedra 241, debe realizar la apertura de turno e ingresar el fondo inicial.
+                </p>
+              </div>
+
+              {pendingSales.length > 0 ? (
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-left gap-3 max-w-md mx-auto">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">
+                      {pendingSales.length}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-950">
+                        {pendingSales.length === 1 ? "1 preventa en espera" : `${pendingSales.length} preventas en espera`}
+                      </p>
+                      <p className="text-[11px] text-emerald-700">
+                        Total acumulado: {formatCurrency(pendingSales.reduce((acc, s) => acc + Number(s.total), 0))}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-md shrink-0">
+                    En Salón
+                  </span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl text-xs text-slate-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  <span>Sin preventas pendientes en este momento</span>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOpenShiftModalOpen(true)}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-sm font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                >
+                  <Unlock className="w-4 h-4" />
+                  <span>Abrir Turno de Caja</span>
+                </button>
+              </div>
+            </div>
+          ) : isLoadingPendingSales && pendingSales.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
               <div className="inline-block animate-spin text-slate-400 mb-3">
                 <RotateCcw className="w-8 h-8" />
@@ -1785,14 +1985,8 @@ export function PosView({
               </div>
               <h3 className="text-base font-bold text-slate-900">No hay preventas pendientes</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                No hay clientes esperando en caja en este momento.
+                No hay clientes esperando en caja en este momento. Las preventas emitidas desde el salón aparecerán aquí automáticamente.
               </p>
-              <button
-                onClick={() => onNavigateSubView?.("preventa")}
-                className="mt-5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs"
-              >
-                Abrir Terminal Preventa
-              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1844,21 +2038,28 @@ export function PosView({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleOpenCheckoutModal(sale)}
                         className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-transform"
                       >
                         <Banknote className="w-4 h-4" />
-                        <span>Cobrar Ticket</span>
+                        <span>Cobrar</span>
+                      </button>
+                      <button
+                        onClick={() => setEditingTicket(sale)}
+                        className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs active:scale-98"
+                        title="Modificar artículos, talles, cantidades o descuentos del ticket"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Modificar</span>
                       </button>
                       <button
                         onClick={() => handleCancelPending(sale.id, sale.ticketCode)}
-                        className="py-2.5 px-3 text-slate-500 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
+                        className="p-2.5 text-slate-500 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center transition-colors"
                         title="Cancelar preventa y liberar stock"
                       >
                         <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                        <span className="hidden sm:inline">Cancelar</span>
                       </button>
                     </div>
                   </div>
@@ -1928,9 +2129,15 @@ export function PosView({
                         <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
                         Prendas del Ticket ({activeCheckoutSale.items.length})
                       </span>
-                      <span className="text-[10px] text-slate-400">
-                        Al retirar prendas, el stock se libera inmediatamente
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTicket(activeCheckoutSale)}
+                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-xl flex items-center gap-1.5 transition-colors shadow-2xs"
+                        title="Añadir nuevas prendas, cambiar talles o editar artículos"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Añadir / Modificar Artículos</span>
+                      </button>
                     </div>
 
                     <div className="space-y-1.5 max-h-40 overflow-y-auto divide-y divide-slate-200/60 pr-1">
@@ -1960,9 +2167,19 @@ export function PosView({
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="px-1.5 font-mono font-bold text-xs text-slate-900 min-w-4 text-center">
-                                {it.quantity}
-                              </span>
+                              <input
+                                type="number"
+                                min="1"
+                                disabled={isUpdatingPendingSaleItems}
+                                value={it.quantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  if (!isNaN(val) && val > 0 && val !== it.quantity) {
+                                    handleUpdateItemQuantityInPendingSale(it.id, val - it.quantity);
+                                  }
+                                }}
+                                className="w-9 text-center font-mono font-bold text-xs text-slate-900 focus:outline-none"
+                              />
                               <button
                                 type="button"
                                 disabled={isUpdatingPendingSaleItems}
@@ -2484,65 +2701,49 @@ export function PosView({
                 <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                   Salón
                 </h1>
-                <span className="hidden sm:inline-flex bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-300/50">
-                  Notebook Salón 1
-                </span>
               </div>
             </div>
 
-            {/* Subview Pill & Cashier Link */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Acciones de Preventa: Carga Rápida, Consultar Precios/Stock y Devolución / Cambio */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickProductQuery(searchQuery.trim());
+                  setIsQuickProductModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                title="Carga de emergencia de producto no catalogado en stock"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Carga Rápida</span>
+                <span className="sm:hidden">Rápida</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPriceCheckerOpen(true)}
+                className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl border border-emerald-300/90 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 text-xs font-bold shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                title="Verificador de Precios y Stock (F3)"
+              >
+                <Barcode className="w-4 h-4 text-emerald-700" />
+                <span className="hidden md:inline">Consultar Precio</span>
+                <span className="md:hidden">Consultar</span>
+                <span className="hidden sm:inline-block text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded font-mono font-bold">
+                  F3
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsExchangeModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-2xs transition-all"
-                title="Cambio de prendas y devoluciones de clientes en mostrador"
+                className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-bold shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                title="Iniciar solicitud de cambio de prenda o devolución de cliente"
               >
                 <ArrowLeftRight className="w-3.5 h-3.5 text-sky-700" />
-                <span>Devolución / Cambio</span>
+                <span className="hidden sm:inline">Devolución / Cambio</span>
+                <span className="sm:hidden">Cambio</span>
               </button>
-              <button
-                onClick={() => onNavigateSubView?.("cobrar")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
-              >
-                <CircleDollarSign className="w-3.5 h-3.5 text-amber-700" />
-                <span>Caja</span>
-                {pendingSales.length > 0 && (
-                  <span className="ml-1 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                    {pendingSales.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => onNavigateSubView?.("historial")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all"
-              >
-                <Receipt className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Historial POS</span>
-              </button>
-
-              {/* Indicador y Apertura rápida de Turno de Caja (RF-11) */}
-              {activeShift ? (
-                <button
-                  type="button"
-                  onClick={() => onNavigateSubView?.("cobrar")}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-[11px] font-bold text-emerald-800 transition shadow-2xs"
-                  title="Caja abierta. Click para ir al mostrador"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Caja abierta ({activeShift.user?.name || "Cajero"})</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsOpenShiftModalOpen(true)}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-xl text-[11px] font-bold text-amber-800 transition shadow-2xs"
-                  title="Caja cerrada. Click para abrir turno"
-                >
-                  <Unlock className="w-3 h-3 text-amber-600" />
-                  <span>Abrir Caja</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -2718,21 +2919,45 @@ export function PosView({
         {/* Product Catalog Grid / List */}
         <main className="p-4 sm:p-6">
           {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-slate-300 max-w-md mx-auto my-12">
-              <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-sm font-bold text-slate-800">No se encontraron productos</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Intenta con otro término de búsqueda o limpia los filtros.
-              </p>
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedDiscipline("Todas");
-                }}
-                className="mt-4 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
-              >
-                Limpiar filtros
-              </button>
+            <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-dashed border-slate-300 max-w-md mx-auto my-12 space-y-4">
+              <div>
+                <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-slate-800">No se encontraron productos</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Intenta con otro término de búsqueda o limpia los filtros.
+                </p>
+              </div>
+
+              {searchQuery.trim() && (
+                <div className="pt-3 border-t border-slate-100 flex flex-col items-center">
+                  <p className="text-xs text-amber-800 font-medium mb-2">
+                    ¿Es un producto nuevo que aún no está cargado en stock?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickProductQuery(searchQuery.trim());
+                      setIsQuickProductModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Cargar "{searchQuery.trim().slice(0, 16)}" en Carga Rápida</span>
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedDiscipline("Todas");
+                  }}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
             </div>
           ) : viewLayout === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 sm:gap-4">
@@ -3165,196 +3390,273 @@ export function PosView({
       {/* ============================================================ */}
       {/* MODAL DE DESCUENTO (RF-08): Ítem o Global                   */}
       {/* ============================================================ */}
-      {discountModalConfig && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-900">
-                  {discountModalConfig.isGlobal ? "Descuento Global del Ticket" : "Descuento por Ítem"}
-                </h3>
-              </div>
-              <button
-                onClick={() => setDiscountModalConfig(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {discountModalConfig && (() => {
+        const isPercentage = discountModalConfig.currentType === "PERCENTAGE";
+        const val = Number(discountModalConfig.currentValue) || 0;
+        const isOverPercentage = isPercentage && val > 100;
+        const isOverFixed = !isPercentage && val > discountModalConfig.originalAmount;
+        const hasValidationError = isOverPercentage || isOverFixed;
 
-            <div className="space-y-4">
-              <p className="text-xs text-slate-500 font-medium">
-                Aplicar a: <span className="font-bold text-slate-800">{discountModalConfig.productName}</span>
-              </p>
+        let calculatedDiscount = 0;
+        if (isPercentage) {
+          const clamped = Math.min(100, Math.max(0, val));
+          calculatedDiscount = Math.round(((discountModalConfig.originalAmount * clamped) / 100) * 100) / 100;
+        } else {
+          calculatedDiscount = Math.min(discountModalConfig.originalAmount, Math.max(0, val));
+        }
+        const finalPrice = Math.max(0, Math.round((discountModalConfig.originalAmount - calculatedDiscount) * 100) / 100);
 
-              {/* Selector de Tipo: Porcentaje vs Monto Fijo */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+        return (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-base font-bold text-slate-900">
+                    {discountModalConfig.isGlobal ? "Descuento Global del Ticket" : "Descuento por Ítem"}
+                  </h3>
+                </div>
                 <button
-                  type="button"
-                  onClick={() =>
-                    setDiscountModalConfig({
-                      ...discountModalConfig,
-                      currentType: "PERCENTAGE",
-                    })
-                  }
-                  className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    discountModalConfig.currentType === "PERCENTAGE"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
+                  onClick={() => setDiscountModalConfig(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
                 >
-                  <Percent className="w-3.5 h-3.5" />
-                  <span>Porcentaje (%)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDiscountModalConfig({
-                      ...discountModalConfig,
-                      currentType: "FIXED",
-                    })
-                  }
-                  className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                    discountModalConfig.currentType === "FIXED"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <DollarSign className="w-3.5 h-3.5" />
-                  <span>Monto Fijo ($ ARS)</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Input de Valor */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  {discountModalConfig.currentType === "PERCENTAGE"
-                    ? "Porcentaje de descuento (0 a 100%):"
-                    : "Monto en pesos a descontar:"}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
-                    {discountModalConfig.currentType === "PERCENTAGE" ? "%" : "$"}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={discountModalConfig.currentType === "PERCENTAGE" ? "100" : undefined}
-                    value={discountModalConfig.currentValue || ""}
-                    onChange={(e) =>
-                      setDiscountModalConfig({
-                        ...discountModalConfig,
-                        currentValue: Math.max(0, parseFloat(e.target.value) || 0),
-                      })
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 font-medium">
+                  Aplicar a: <span className="font-bold text-slate-800">{discountModalConfig.productName}</span>
+                </p>
+
+                {/* Selector de Tipo: Porcentaje vs Monto Fijo */}
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (discountModalConfig.currentType !== "PERCENTAGE") {
+                        setDiscountModalConfig({
+                          ...discountModalConfig,
+                          currentType: "PERCENTAGE",
+                          currentValue: 0,
+                        });
+                      }
+                    }}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      isPercentage
+                        ? "bg-white text-emerald-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Percent className="w-3.5 h-3.5" />
+                    <span>Porcentaje (%)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (discountModalConfig.currentType !== "FIXED") {
+                        setDiscountModalConfig({
+                          ...discountModalConfig,
+                          currentType: "FIXED",
+                          currentValue: 0,
+                        });
+                      }
+                    }}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      !isPercentage
+                        ? "bg-white text-emerald-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>Monto Fijo ($ ARS)</span>
+                  </button>
+                </div>
+
+                {/* Input de Valor */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">
+                      {isPercentage
+                        ? "Porcentaje de descuento (0 a 100%):"
+                        : "Monto en pesos a descontar:"}
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-medium font-mono">
+                      Base: {formatCurrency(discountModalConfig.originalAmount)}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                      {isPercentage ? "%" : "$"}
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max={isPercentage ? "100" : discountModalConfig.originalAmount}
+                      value={discountModalConfig.currentValue || ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setDiscountModalConfig({
+                            ...discountModalConfig,
+                            currentValue: 0,
+                          });
+                          return;
+                        }
+                        const parsed = parseFloat(raw);
+                        setDiscountModalConfig({
+                          ...discountModalConfig,
+                          currentValue: isNaN(parsed) ? 0 : Math.max(0, parsed),
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (!hasValidationError && val > 0) {
+                            handleApplyDiscount(
+                              discountModalConfig.currentType,
+                              val,
+                              discountModalConfig.isGlobal,
+                              discountModalConfig.targetRowId
+                            );
+                          }
+                        }
+                      }}
+                      placeholder="0"
+                      className={`w-full pl-8 pr-3.5 py-2.5 bg-slate-50 rounded-xl border font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:bg-white transition-all ${
+                        hasValidationError
+                          ? "border-rose-400 focus:ring-rose-500 text-rose-700 bg-rose-50/30"
+                          : "border-slate-300 focus:ring-emerald-500"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Mensajes de Validación en Vivo */}
+                  {isOverPercentage && (
+                    <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>El porcentaje de descuento no puede ser mayor al 100%.</span>
+                    </div>
+                  )}
+
+                  {isOverFixed && (
+                    <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>El descuento fijo no puede superar el precio base ({formatCurrency(discountModalConfig.originalAmount)}).</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botones Preset Rápidos */}
+                {isPercentage ? (
+                  <div className="flex gap-2">
+                    {[5, 10, 15, 20].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() =>
+                          setDiscountModalConfig({
+                            ...discountModalConfig,
+                            currentValue: pct,
+                          })
+                        }
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                          val === pct
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {[1000, 2000, 5000, 10000]
+                      .filter((amt) => amt <= discountModalConfig.originalAmount)
+                      .map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() =>
+                            setDiscountModalConfig({
+                              ...discountModalConfig,
+                              currentValue: amt,
+                            })
+                          }
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors font-mono ${
+                            val === amt
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          ${amt >= 1000 ? `${amt / 1000}k` : amt}
+                        </button>
+                      ))}
+                  </div>
+                )}
+
+                {/* Preview del descuento */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Precio base:</span>
+                    <span className="font-mono font-semibold">
+                      {formatCurrency(discountModalConfig.originalAmount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>Descuento estimado:</span>
+                    <span className="font-mono">
+                      - {formatCurrency(calculatedDiscount)}
+                    </span>
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-200 flex justify-between font-bold text-slate-900">
+                    <span>Total con descuento:</span>
+                    <span className="font-mono text-sm text-emerald-700">
+                      {formatCurrency(finalPrice)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botones de Acción */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleApplyDiscount(
+                        discountModalConfig.currentType,
+                        0,
+                        discountModalConfig.isGlobal,
+                        discountModalConfig.targetRowId
+                      )
                     }
-                    placeholder="0"
-                    className="w-full pl-8 pr-3 py-2.5 bg-slate-50 rounded-xl border border-slate-300 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+                    className="px-4 py-2.5 text-slate-500 hover:text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-50 transition-colors"
+                  >
+                    Quitar Descuento
+                  </button>
+                  <button
+                    type="button"
+                    disabled={hasValidationError || val <= 0}
+                    onClick={() =>
+                      handleApplyDiscount(
+                        discountModalConfig.currentType,
+                        val,
+                        discountModalConfig.isGlobal,
+                        discountModalConfig.targetRowId
+                      )
+                    }
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                  >
+                    Aplicar Descuento
+                  </button>
                 </div>
-              </div>
-
-              {/* Botones Preset Rápidos */}
-              {discountModalConfig.currentType === "PERCENTAGE" ? (
-                <div className="flex gap-2">
-                  {[5, 10, 15, 20].map((pct) => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() =>
-                        setDiscountModalConfig({
-                          ...discountModalConfig,
-                          currentValue: pct,
-                        })
-                      }
-                      className="flex-1 py-1.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 rounded-lg text-xs font-bold text-slate-700 border border-slate-200 transition-colors"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  {[1000, 2000, 5000, 10000].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() =>
-                        setDiscountModalConfig({
-                          ...discountModalConfig,
-                          currentValue: amt,
-                        })
-                      }
-                      className="flex-1 py-1.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 rounded-lg text-xs font-bold text-slate-700 border border-slate-200 transition-colors font-mono"
-                    >
-                      ${amt / 1000}k
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Preview del descuento */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs space-y-1">
-                <div className="flex justify-between text-slate-500">
-                  <span>Precio base:</span>
-                  <span className="font-mono font-semibold">
-                    {formatCurrency(discountModalConfig.originalAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-emerald-700 font-bold">
-                  <span>Descuento estimado:</span>
-                  <span className="font-mono">
-                    -{" "}
-                    {formatCurrency(
-                      discountModalConfig.currentType === "PERCENTAGE"
-                        ? (discountModalConfig.originalAmount *
-                            Math.min(100, discountModalConfig.currentValue)) /
-                            100
-                        : Math.min(
-                            discountModalConfig.originalAmount,
-                            discountModalConfig.currentValue
-                          )
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {/* Botones de Acción */}
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleApplyDiscount(
-                      discountModalConfig.currentType,
-                      0,
-                      discountModalConfig.isGlobal,
-                      discountModalConfig.targetRowId
-                    )
-                  }
-                  className="px-4 py-2.5 text-slate-500 hover:text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-50 transition-colors"
-                >
-                  Quitar Descuento
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleApplyDiscount(
-                      discountModalConfig.currentType,
-                      discountModalConfig.currentValue,
-                      discountModalConfig.isGlobal,
-                      discountModalConfig.targetRowId
-                    )
-                  }
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
-                >
-                  Aplicar Descuento
-                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ============================================================ */}
       {/* MODAL PREVENTA ENVIADA CON ÉXITO (TICKET TÉRMICO PREVIEW)    */}
