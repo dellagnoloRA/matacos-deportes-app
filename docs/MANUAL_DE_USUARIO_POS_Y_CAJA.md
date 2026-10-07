@@ -18,16 +18,18 @@ Este documento está pensado para que cualquier integrante del mostrador (vended
    - 3.2. [Selección de Talles y armado del carrito](#32-selección-de-talles-y-armado-del-carrito)
    - 3.3. [Cómo aplicar Descuentos Manuales (% o $)](#33-cómo-aplicar-descuentos-manuales)
    - 3.4. [Generar la Preventa para mandar a Caja](#34-generar-la-preventa-para-mandar-a-caja)
+   - 3.5. [Verificador Rápido de Precios y Stock (Atajo F3)](#35-verificador-rápido-de-precios-y-stock-atajo-f3)
+   - 3.6. [Carga Rápida de Producto (Modo Emergencia en Salón)](#36-carga-rápida-de-producto-modo-emergencia)
 4. [Cobro en Caja y Medios de Pago (Registro Interno)](#4-cobro-en-caja-y-medios-de-pago)
-   - 4.1. [Cobrar una Preventa pendiente](#41-cobrar-una-preventa-pendiente)
+   - 4.1. [Cobrar una Preventa pendiente (y Edición Dinámica en Caja)](#41-cobrar-una-preventa-pendiente)
    - 4.2. [Venta Directa en Caja (Cobro rápido sin preventa)](#42-venta-directa-en-caja)
    - 4.3. [Modalidades de Cobro: Pago Único y Dividido (2 Medios)](#43-modalidades-de-cobro-pago-único-y-pago-dividido)
    - 4.4. [Cálculo automático de vuelto en Efectivo](#44-cálculo-automático-de-vuelto)
    - 4.5. [Emisión e Impresión del Ticket Comprobante](#45-emisión-e-impresión-del-ticket)
-5. [Cambios y Devoluciones (Prendas a Favor)](#5-cambios-y-devoluciones)
-6. [Historial de Ventas y Reimpresión de Tickets](#6-historial-de-ventas-y-reimpresión-de-tickets)
+5. [Cambios y Devoluciones (Prendas a Favor y Liquidación Económica)](#5-cambios-y-devoluciones)
+6. [Historial de Ventas, Reimpresión y Retorno Rápido a Caja](#6-historial-de-ventas-y-reimpresión-de-tickets)
 7. [¿Qué pasa si se corta Internet en el local? (Modo Offline)](#7-qué-pasa-si-se-corta-internet)
-8. [Preguntas Frecuentes y Solución Rápida de Dudas](#8-preguntas-frecuentes)
+8. [Preguntas Frecuentes, Atajos de Teclado y Solución Rápida de Dudas](#8-preguntas-frecuentes)
 
 ---
 
@@ -61,7 +63,7 @@ El control de caja reemplaza por completo el viejo cuaderno manual de anotacione
 1. En el menú superior o lateral, hacé clic en la pestaña **"Caja"** (o en el botón con candado **"Abrir Caja"**).
 2. Se abrirá la ventana **"Apertura de Turno de Caja"**:
    * **Terminal:** Verificá que indique la caja correcta (ej: `Terminal 1 - Salón Saavedra`).
-   * **Cajero Responsable:** Seleccioná tu nombre en la lista desplegable (ej: *Nahir Fornari*, *Ricardo Dellagnolo*, *Lourdes Bordón*).
+   * **Cajero Responsable:** Seleccioná o tipea tu nombre en la lista desplegable (opciones por defecto: *Cajero 1*, *Cajero Mostrador*, o podés tipear tu nombre personal).
    * **Fondo Inicial de Efectivo (Cambio de Arranque):** Ingresá el dinero físico con el que arranca el cajón para dar vuelto (por ejemplo, `$ 10.000,00` o `$ 20.000,00`).
    * **Notas:** Opcional (ej: *"Turno mañana - cambio en billetes de $1000 y $2000"*).
 3. Hacé clic en el botón verde **"Abrir Turno de Caja"**.
@@ -146,6 +148,7 @@ Si el cliente cuenta con un descuento especial, promoción bancaria o atención 
    * **Porcentaje (`%`):** Por ejemplo, un `10%` o `15%`. También podés usar los botones rápidos `5%`, `10%`, `15%` o `20%`.
    * **Monto Fijo (`$`):** Por ejemplo, rebajar `$ 5.000,00` directos del total.
 4. Hacé clic en **"Aplicar Descuento"**. El carrito se recalculará automáticamente mostrando el precio original tachado y el descuento en color esmeralda.
+> **💡 Validación de Seguridad:** Los descuentos porcentuales cuentan con un tope máximo del 100% por ítem o ticket para evitar valores negativos accidentales.
 
 ---
 
@@ -155,6 +158,38 @@ Si el cliente cuenta con un descuento especial, promoción bancaria o atención 
 3. El sistema te mostrará una confirmación con el código asignado (ejemplo: `PRV-0492`):
    * La mercadería queda apartada y reservada en el sistema.
    * El cliente ya puede acercarse a la caja a abonar.
+
+---
+
+### 3.5. Verificador Rápido de Precios y Stock (Atajo F3)
+Cuando un cliente te consulte el precio o disponibilidad de un artículo y no sabés si va a llevarlo:
+* **¿Cómo se abre?** Presioná la tecla rápida **`F3`** en el teclado o hacé clic en el botón con ícono de lupa y código de barras en la barra de preventa.
+* **Consulta aislada sin tocar el carrito:** No altera ni vacía el carrito actual del cliente que estés armando.
+* **Escaneo con pistola USB:** Con el verificador en pantalla, podés disparar directamente sobre la etiqueta térmica del producto y el sistema lo localizará al instante.
+* **Información 360° en pantalla:**
+  * Nombre, marca, precio unitario de lista y código de barras/SKU.
+  * Stock físico disponible en el salón de Saavedra 241 y stock almacenado en el depósito interno.
+  * Talles y colores disponibles en tiempo real.
+* **Filtros rápidos (ideal para artículos con muchas variantes como Crocs):** Podés filtrar por color, talle o activar el filtro *"Solo con stock en salón"*.
+* **Botón "Agregar al Carrito":** Si tras la consulta el cliente decide llevarse la prenda, hacé clic directo en **"Agregar al Carrito"** para incorporarla a la preventa sin tener que volver a buscarla. Para salir de la consulta, presioná `ESC` o hacé clic en la cruz.
+
+---
+
+### 3.6. Carga Rápida de Producto (Modo Emergencia en Salón)
+Si estás atendiendo en mostrador y encontrás una prenda física que aún no fue cargada en el inventario general (por ejemplo, mercadería que acaba de llegar en una encomienda):
+* **¿Cómo acceder?**  
+  1. Hacé clic en el botón **"Carga Rápida"** (ícono de rayo ⚡) en la barra de herramientas de preventa.  
+  2. O bien, si buscás un producto en la barra superior y no existe, el sistema te ofrecerá directamente el botón:  
+     `➕ Cargar "[término buscado]" en Carga Rápida`.
+* **Datos requeridos (se completa en 10 segundos):**
+  * **Nombre del producto:** (ej: *"Muñequera Topper Elástica"*).
+  * **Disciplina y Categoría:** Seleccioná con un clic entre las opciones comunes (*Tenis/Pádel, Fitness, Fútbol, Accesorios, Indumentaria, etc.*).
+  * **Marca:** Elegí de la lista (*Topper, Adidas, Puma, Speedo, Wilson, etc.*) o tipea una nueva.
+  * **Talle y Color:** (ej: *Talle Único*, *Azul Marino*).
+  * **Precio de Venta ($):** El valor de venta al público en Pesos Argentinos.
+  * **Stock Inicial de Salón:** Cantidad física exhibida en el local para la venta inmediata (ej: `3 un.`).
+  * **Código de Barras (Opcional):** Podés disparar con la lectora USB sobre la etiqueta física del artículo o dejarlo en blanco para que el sistema le asigne un código automático.
+* **Resultado:** Al presionar **"Crear y Agregar al Carrito"**, el producto queda guardado en la base de datos oficial y se suma automáticamente a la preventa en curso sin tener que salir al módulo de inventario ni demorar la fila.
 
 ---
 
@@ -171,11 +206,21 @@ Este módulo es operado por el cajero en la terminal de cobro (Terminal 2 de Saa
 > * ❌ **NO solicita número de cupón ni código de autorización de posnet.**  
 > Las gestiones con tarjeta se pasan por la terminal posnet física del local, los pagos QR se verifican en la app de cobros y las transferencias se constatan en la cuenta bancaria del negocio. En el sistema solo se selecciona el medio de pago correspondiente para imputar el ingreso a la caja y descontar el stock.
 
-### 4.1. Cobrar una Preventa pendiente
+### 4.1. Cobrar una Preventa pendiente (y Edición Dinámica en Caja)
 1. En la pantalla del POS, ingresá a la pestaña **"Caja"** (o **"Cobrar"**).
 2. En la lista de **Preventas Pendientes** verás todas las compras que los vendedores enviaron desde el salón:
    * Muestra el código (ej: `PRV-0492`), nombre del cliente, cantidad de prendas y total a pagar.
-3. Hacé clic sobre la preventa que querés cobrar: se abrirá la ventana modal de cobro con el total y el desglose de prendas (si el cliente decide cambiar talles, sumar o retirar artículos de último momento, podés hacer clic en **"Añadir / Modificar Artículos"**).
+3. Hacé clic sobre la preventa que querés cobrar: se abrirá la ventana modal de cobro con el total y el desglose de prendas.
+4. **Modificación interactiva en mostrador de caja (Añadir / Modificar Artículos):**  
+   Si el cliente en la fila de cobro decide cambiar de talle, sumar otra prenda que agarró del mostrador o desistir de un producto:
+   * Hacé clic en el botón esmeralda **"Añadir / Modificar Artículos"**.
+   * Se abrirá el **Editor de Preventas en Caja**, donde podés:
+     * 🔍 **Escanear o buscar nuevas prendas:** Dispará con la pistola lectora USB sobre la etiqueta de la nueva prenda y se sumará al ticket en tiempo real reservando stock.
+     * 🔄 **Cambiar talle / variante:** Modificá el talle de un renglón sin necesidad de borrarlo y cargarlo de nuevo.
+     * 🔢 **Ajustar cantidades (`+` / `-`):** Aumentá o disminuí unidades con recálculo atómico de la reserva de stock.
+     * 🗑️ **Retirar prendas:** Si el cliente deja una prenda, tocalo para quitarla del ticket; el sistema liberará inmediatamente la reserva para que vuelva a estar disponible en el salón.
+     * 🏷️ **Aplicar o retocar descuentos:** Podés añadir descuentos individuales por prenda (% o $) o aplicar un descuento global a todo el ticket (con tope máximo de seguridad del 100%).
+   * Al presionar **"Guardar Cambios"**, el ticket se actualiza en la base de datos y volvés automáticamente al modal de cobro con el nuevo total listo para liquidar.
 
 ---
 
@@ -249,38 +294,46 @@ Cuando el cliente abona en efectivo con billetes de mayor denominación:
 
 ---
 
-## 5. Cambios y Devoluciones (Prendas a Favor)
+## 5. Cambios y Devoluciones (Prendas a Favor y Liquidación Económica)
 
 En Saavedra 241 los clientes pueden realizar cambios de talle o modelo dentro de los 30 días posteriores a la compra.
 
-1. En la pantalla del POS, hacé clic en el botón **"Cambio / Devolución"**.
-2. **Paso 1 (Lo que el cliente devuelve):**  
-   Buscá la prenda que el cliente trajo de regreso (ej: *"Remera Nike Talle M"* con valor de `$ 25.000,00`).
-   * Esa unidad reingresará de inmediato al stock del local para que vuelva a estar disponible para la venta.
-   * El cliente tendrá un **Saldo a Favor de $ 25.000,00**.
-3. **Paso 2 (Lo que el cliente se lleva):**  
-   Seleccioná la nueva prenda que el cliente elige (ej: *"Remera Nike Talle L"* o unas zapatillas de mayor valor).
-   * **Si sale lo mismo:** La diferencia es `$ 0,00` y el cambio se concreta sin mover dinero.
-   * **Si la nueva prenda es más cara (ej: $ 32.000,00):** La pantalla indicará una **Diferencia a Cobrar de $ 7.000,00**, la cual cobrarás por cualquier medio de pago habitual.
-   * **Si la nueva prenda es de menor valor:** Quedará registrado el saldo restante a favor del cliente.
-4. Confirmá la operación y se emitirá el nuevo ticket actualizado.
+1. En la barra del mostrador o menú POS, hacé clic en el botón con doble flecha **"Cambio / Devolución"**.
+2. **Paso 1: Prenda que el cliente devuelve:**  
+   * Podés buscarla por nombre o, de forma inmediata, **disparar con la pistola lectora USB sobre el código de barras de la etiqueta térmica de la prenda devuelta**: el sistema detectará el producto, su talle y su color automáticamente.
+   * Indicá la cantidad (habitualmente `1`) y el motivo del cambio (*Talle chico, Talle grande, Preferencia de color, Regalo, Falla de fábrica / defecto* o motivo personalizado).
+   * El sistema calcula el valor a favor del cliente según el precio oficial vigente de esa variante.
+3. **Paso 2: Nueva prenda a entregar:**  
+   * Por defecto, te mostrará las variantes disponibles del **mismo producto** (ej: cambiar de talle 40 a talle 41).
+   * Si el cliente desea llevar un **artículo diferente**, activá la casilla *"Elegir un producto diferente"* y buscalo con la lectora o teclado.
+   * Utilizá los **filtros facetados** de color, talle y disponibilidad (*Solo con stock en salón*) para seleccionar con total certeza la variante que le vas a entregar.
+4. **Paso 3: Balance Económico y Liquidación en Caja:**  
+   En la parte inferior de la ventana verás el balance financiero calculado en tiempo real:
+   * 🟢 **Mismo Valor ($ 0,00):** Cambio directo mano a mano sin movimiento de dinero.
+   * 🔵 **Prenda de Mayor Valor (+):** El sistema calcula la **Diferencia a Cobrar** (ej: `Diferencia a cobrar: $ 7.000,00`).
+   * 🟡 **Prenda de Menor Valor (-):** Queda registrado el **Saldo a Favor** del cliente.
+5. Ingresá el nombre del cliente y hacé clic en **"Generar Ticket de Cambio para Caja"**:
+   * La mercadería devuelta reingresa al stock de Saavedra 241 de forma automática.
+   * La prenda nueva entregada se descuenta del stock.
+   * Se genera un ticket de cambio (`PRV-...`) que pasa a la terminal de Caja para emitir el nuevo comprobante oficial y cobrar la diferencia si corresponde.
 
 ---
 
-## 6. Historial de Ventas y Reimpresión de Tickets
+## 6. Historial de Ventas, Reimpresión y Retorno Rápido a Caja
 
-Si necesitás buscar una venta anterior o un ticket se trabó en la impresora térmica:
+Si necesitás buscar una venta anterior, auditar una operación o reimprimir un ticket de la comandera térmica:
 
 1. Ingresá a la pestaña **"Transacciones"** (o **"Historial de Ventas"**).
-2. Podés localizar cualquier comprobante usando:
+2. **Retorno Rápido a Caja:** En la parte superior contás con el botón directo **"Volver a Caja / POS"** para retornar a la pantalla de cobro en un solo clic sin perder tiempo.
+3. Podés localizar cualquier comprobante usando:
    * El número de ticket (ej: `TKT-00004921`).
    * Nombre del cliente.
    * Filtro por fecha (Hoy, Esta semana, Este mes).
-   * Filtro por medio de pago (Efectivo, Mercado Pago, etc.).
-3. En la fila de la venta encontrarás:
-   * 🖨️ **Botón "Reimprimir":** Abre directamente el ticket térmico para volver a imprimirlo.
-   * 👁️ **Botón "Ver Detalle":** Muestra qué productos se llevaron, qué cajero cobró y a qué hora exacta.
-   * 🚫 **Botón "Anular":** Permite anular una venta errónea (restituye el stock al local y descuenta el ingreso de la caja).
+   * Filtro por medio de pago (Efectivo, Débito, Crédito, QR, Transferencia).
+4. En la fila de cada venta encontrarás:
+   * 🖨️ **Botón "Reimprimir":** Abre directamente la vista previa del ticket térmico de 80mm listo para enviar a la impresora.
+   * 👁️ **Botón "Ver Detalle":** Muestra el detalle completo de prendas, talles, descuentos aplicados, desglose de pagos, cajero responsable y hora exacta.
+   * 🚫 **Botón "Anular":** Permite anular una venta registrada por error (restituye el stock al salón y descuenta el ingreso de dinero del turno de caja).
 
 ---
 
@@ -302,16 +355,24 @@ En Saavedra 241 el comercio **nunca debe parar por caídas de internet o problem
 
 ---
 
-## 8. Preguntas Frecuentes y Solución Rápida
+## 8. Preguntas Frecuentes, Atajos de Teclado y Solución Rápida
+
+### ⌨️ Atajos de Teclado Rápidos en Mostrador
+Para maximizar la velocidad de atención al cliente sin depender continuamente del mouse:
+* **`F3`:** Abre y cierra instantáneamente el **Verificador Rápido de Precios y Stock** (los disparos de la pistola lectora USB se dirigen directo al verificador mientras esté en pantalla).
+* **`Enter`:** En la vista previa del ticket térmico, envía la impresión directa a la impresora de 80mm.
+* **`ESC`:** Cierra cualquier ventana modal o emergente abierta (*Verificador, Carga Rápida, Selector de Talles, Cobro*) cancelando la acción sin guardar.
+
+---
 
 ### ❓ La caja no me deja cobrar y me muestra un aviso de error
-* **Causa:** El turno de caja aún no ha sido abierto.
-* **Solución:** Andá a la pestaña **Caja**, tocá **"Abrir Caja"**, seleccioná tu nombre, ingresá el cambio inicial en efectivo y presioná confirmar.
+* **Causa:** El turno de caja aún no ha sido abierto en esa terminal.
+* **Solución:** Andá a la pestaña **Caja**, tocá **"Abrir Caja"**, seleccioná tu usuario (*Cajero 1*, *Cajero Mostrador* o tu nombre), ingresá el cambio inicial en efectivo y presioná confirmar.
 
 ### ❓ La pistola lectora de código de barras no agrega el producto
 1. Asegurate de que el cable USB del lector esté bien enchufado a la computadora.
-2. Hacé un clic con el mouse sobre el casillero de búsqueda para que el cursor titile adentro antes de disparar.
-3. Si el código está roto o borroso, recordá que podés tipear las primeras letras del nombre o del modelo en el teclado.
+2. Hacé un clic con el mouse sobre el casillero de búsqueda para que el cursor titile adentro antes de disparar (o presioná `F3` si querías solo consultar precio).
+3. Si el código físico de la prenda está roto o borroso, recordá que podés tipear las primeras letras del nombre o del modelo en el teclado.
 
 ### ❓ El cliente quiere pagar mitad en efectivo y mitad con tarjeta de débito
 1. En la ventana de cobro, seleccioná la pestaña **"Dividir Pago (2 Medios)"**.
