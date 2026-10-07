@@ -3259,7 +3259,7 @@ export function PosView({
                   <div className="absolute left-0 sm:left-auto right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-2xl p-3 min-w-[280px] max-w-[340px] animate-in fade-in zoom-in-95 duration-150 space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
                       <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                        Todas las Categorías ({disciplineOptions.length})
+                        Todas las Disciplinas ({disciplineOptions.length})
                       </span>
                       <button
                         type="button"
