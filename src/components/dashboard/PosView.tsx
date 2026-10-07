@@ -48,7 +48,7 @@ import {
   Barcode,
   Zap,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
   calculateSaleTotals,
@@ -654,24 +654,35 @@ export function PosView({
 
     const rawQ = searchQuery.trim().toLowerCase();
     if (rawQ) {
-      const terms = rawQ.split(/\s+/).filter(Boolean);
-      const rawQNoSpaces = rawQ.replace(/\s+/g, "");
+      const tokens = normalizeSearch(rawQ).split(/\s+/).filter(Boolean);
+      const termNoSpaces = normalizeSearch(rawQ).replace(/\s+/g, "");
 
       result = result.filter((p) => {
-        const allText = [
+        const productFields = [
           p.name,
           p.brand,
           p.category,
           p.discipline || "",
           p.modelCode || "",
           p.sku || "",
-          ...p.variants.flatMap(v => [v.size, v.color, v.sku || "", v.barcode])
-        ].join(" ").toLowerCase();
+        ].map(normalizeSearch);
 
+        const variantFields = p.variants.flatMap((v) =>
+          [v.size, v.color, v.sku || "", v.barcode].map(normalizeSearch)
+        );
+
+        const allFields = [...productFields, ...variantFields];
+        const allText = allFields.join(" ");
         const allTextNoSpaces = allText.replace(/\s+/g, "");
 
-        const matchesAllTokens = terms.every(term => allText.includes(term));
-        const matchesFuzzySpaces = rawQNoSpaces.length > 0 && allTextNoSpaces.includes(rawQNoSpaces);
+        // Cada token debe aparecer en al menos un campo (tolerante a guiones y tildes)
+        const matchesAllTokens = tokens.every((token) =>
+          allFields.some((field) => field.includes(token)) || allText.includes(token)
+        );
+
+        // Búsqueda sin espacios: "gelrocket" encuentra "gel-rocket" / "gel rocket"
+        const matchesFuzzySpaces =
+          termNoSpaces.length > 0 && allTextNoSpaces.includes(termNoSpaces);
 
         return matchesAllTokens || matchesFuzzySpaces;
       });

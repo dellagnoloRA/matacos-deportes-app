@@ -35,7 +35,7 @@ import {
   Layers,
 } from "lucide-react";
 import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
 import { ProductFormModal } from "./ProductFormModal";
@@ -1298,25 +1298,38 @@ export function InventoryView({
 
           matchesSearch = matchesMainBarcode || matchesVariantBarcode || Boolean(matchesSku);
         } else {
-          // Búsqueda en todos los campos con tolerancia a espacios y tokens múltiples
-          const tokens = term.split(/\s+/).filter(Boolean);
-          const termNoSpaces = term.replace(/\s+/g, "");
+          // Búsqueda tolerante: tildes, guiones, espacios, tokens múltiples
+          const tokens = normalizeSearch(term).split(/\s+/).filter(Boolean);
+          const termNoSpaces = normalizeSearch(term).replace(/\s+/g, "");
 
-          const allText = [
+          // Campos del producto + variantes, normalizados
+          const productFields = [
             item.name,
             item.brand,
             item.sku || "",
-            item.discipline,
-            ...(item.variants?.map((v) => v.sku || "") || []),
-          ].join(" ").toLowerCase();
+            item.discipline || "",
+            item.category || "",
+            item.subcategory || "",
+          ].map(normalizeSearch);
 
+          const variantFields = (item.variants ?? []).flatMap((v) => [
+            v.sku || "",
+            v.color || "",
+            v.size || "",
+          ].map(normalizeSearch));
+
+          const allFields = [...productFields, ...variantFields];
+          const allText = allFields.join(" ");
           const allTextNoSpaces = allText.replace(/\s+/g, "");
 
-          // Condición 1: Todos los tokens están en el texto (ej: "croc ban" -> "crocband" tiene "croc" y "ban")
-          const matchesAllTokens = tokens.every(token => allText.includes(token));
-          
-          // Condición 2: El término sin espacios está en el texto sin espacios (ej: "air max" -> "airmax")
-          const matchesFuzzySpaces = termNoSpaces.length > 0 && allTextNoSpaces.includes(termNoSpaces);
+          // Cada token debe aparecer en algún campo (o en el texto concatenado)
+          const matchesAllTokens = tokens.every((token) =>
+            allFields.some((field) => field.includes(token)) || allText.includes(token)
+          );
+
+          // Término sin espacios vs texto sin espacios (ej: "airmax" → "air max")
+          const matchesFuzzySpaces =
+            termNoSpaces.length > 0 && allTextNoSpaces.includes(termNoSpaces);
 
           matchesSearch =
             matchesMainBarcode ||
