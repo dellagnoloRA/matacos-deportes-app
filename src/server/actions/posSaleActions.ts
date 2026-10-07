@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import {
   CreatePendingSaleSchema,
   CreatePendingSaleInput,
+  CreatePendingExchangeSaleSchema,
+  CreatePendingExchangeSaleInput,
   UpdatePendingSaleSchema,
   UpdatePendingSaleInput,
   CompletePendingSaleSchema,
@@ -70,52 +72,16 @@ export async function searchPosProducts(query: string) {
 
   try {
     const words = q.split(/\s+/).filter(Boolean);
-    const variants = await prisma.productVariant.findMany({
+
+    // 1. Verificar si hay coincidencia exacta por código de barras o SKU
+    const exactVariant = await prisma.productVariant.findFirst({
       where: {
         product: { active: true },
-        ...(words.length === 1
-          ? {
-              OR: [
-                { barcode: q },
-                { sku: q },
-                { product: { name: { contains: q, mode: "insensitive" } } },
-                { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
-                { color: { contains: q, mode: "insensitive" } },
-                { size: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {
-              AND: words.map((w) => ({
-                OR: [
-                  { barcode: { contains: w, mode: "insensitive" } },
-                  { sku: { contains: w, mode: "insensitive" } },
-                  { color: { contains: w, mode: "insensitive" } },
-                  { size: { contains: w, mode: "insensitive" } },
-                  { product: { name: { contains: w, mode: "insensitive" } } },
-                  { product: { brand: { name: { contains: w, mode: "insensitive" } } } },
-                  { product: { category: { name: { contains: w, mode: "insensitive" } } } },
-                ],
-              })),
-            }),
+        OR: [{ barcode: q }, { sku: q }],
       },
-      take: 20,
-      orderBy: [{ stockStore: "desc" }],
-      select: {
-        id: true,
-        size: true,
-        color: true,
-        sku: true,
-        barcode: true,
-        stockStore: true,
-        stockWarehouse: true,
-        stockReserved: true,
-        price: true,
+      include: {
         product: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-            price: true,
+          include: {
             brand: { select: { name: true } },
             category: { select: { name: true } },
             variants: {
@@ -126,6 +92,7 @@ export async function searchPosProducts(query: string) {
                 sku: true,
                 barcode: true,
                 stockStore: true,
+                stockWarehouse: true,
                 stockReserved: true,
                 price: true,
               },
@@ -135,37 +102,138 @@ export async function searchPosProducts(query: string) {
       },
     });
 
-    const items = variants.map((v) => {
-      const effectivePrice = Number(v.price ?? v.product.price);
-      const stockAvailable = Math.max(0, v.stockStore - v.stockReserved);
+    // 2. Buscar productos que coincidan por nombre, marca, categoría o variantes
+    const products = await prisma.product.findMany({
+      where: {
+        active: true,
+        ...(words.length === 1
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { brand: { name: { contains: q, mode: "insensitive" } } },
+                { category: { name: { contains: q, mode: "insensitive" } } },
+                { variants: { some: { barcode: q } } },
+                { variants: { some: { sku: { contains: q, mode: "insensitive" } } } },
+                { variants: { some: { color: { contains: q, mode: "insensitive" } } } },
+                { variants: { some: { size: { contains: q, mode: "insensitive" } } } },
+              ],
+            }
+          : {
+              AND: words.map((w) => ({
+                OR: [
+                  { name: { contains: w, mode: "insensitive" } },
+                  { brand: { name: { contains: w, mode: "insensitive" } } },
+                  { category: { name: { contains: w, mode: "insensitive" } } },
+                  { variants: { some: { barcode: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { sku: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { color: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { size: { contains: w, mode: "insensitive" } } } },
+                ],
+              })),
+            }),
+      },
+      take: 20,
+      orderBy: [{ name: "asc" }],
+      include: {
+        brand: { select: { name: true } },
+        category: { select: { name: true } },
+        variants: {
+          select: {
+            id: true,
+            size: true,
+            color: true,
+            sku: true,
+            barcode: true,
+            stockStore: true,
+            stockWarehouse: true,
+            stockReserved: true,
+            price: true,
+          },
+        },
+      },
+    });
+
+    const items = products.map((prod) => {
+      const totalStockStore = prod.variants.reduce(
+        (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
+        0
+      );
+
       return {
-        variantId: v.id,
-        productId: v.product.id,
-        name: v.product.name,
-        brand: v.product.brand.name,
-        category: v.product.category.name,
-        size: v.size,
-        color: v.color,
-        barcode: v.barcode,
-        sku: v.sku,
-        price: effectivePrice,
-        stockStore: v.stockStore,
-        stockWarehouse: v.stockWarehouse,
-        stockReserved: v.stockReserved,
-        stockAvailable,
-        imageUrl: v.product.imageUrl,
-        availableVariants: v.product.variants.map((sv) => ({
-          id: sv.id,
-          size: sv.size,
-          color: sv.color,
-          sku: sv.sku,
-          barcode: sv.barcode,
-          stockStore: sv.stockStore,
-          stockReserved: sv.stockReserved,
-          price: sv.price ? Number(sv.price) : Number(v.product.price),
+        productId: prod.id,
+        name: prod.name,
+        brand: prod.brand.name,
+        category: prod.category.name,
+        price: Number(prod.price),
+        imageUrl: prod.imageUrl,
+        totalStockStore,
+        variantsCount: prod.variants.length,
+        isExactBarcodeMatch: exactVariant && exactVariant.product.id === prod.id,
+        exactVariant:
+          exactVariant && exactVariant.product.id === prod.id
+            ? {
+                id: exactVariant.id,
+                size: exactVariant.size,
+                color: exactVariant.color,
+                sku: exactVariant.sku,
+                barcode: exactVariant.barcode,
+                stockStore: exactVariant.stockStore,
+                stockReserved: exactVariant.stockReserved || 0,
+                price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+              }
+            : undefined,
+        availableVariants: prod.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          sku: v.sku,
+          barcode: v.barcode,
+          stockStore: v.stockStore,
+          stockReserved: v.stockReserved || 0,
+          price: v.price ? Number(v.price) : Number(prod.price),
         })),
       };
     });
+
+    // Si hubo coincidencia exacta y no estaba en la lista, anteponerla
+    if (exactVariant && !items.some((it) => it.productId === exactVariant.product.id)) {
+      const prod = exactVariant.product;
+      const totalStockStore = prod.variants.reduce(
+        (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
+        0
+      );
+      items.unshift({
+        productId: prod.id,
+        name: prod.name,
+        brand: prod.brand.name,
+        category: prod.category.name,
+        price: Number(prod.price),
+        imageUrl: prod.imageUrl,
+        totalStockStore,
+        variantsCount: prod.variants.length,
+        isExactBarcodeMatch: true,
+        exactVariant: {
+          id: exactVariant.id,
+          size: exactVariant.size,
+          color: exactVariant.color,
+          sku: exactVariant.sku,
+          barcode: exactVariant.barcode,
+          stockStore: exactVariant.stockStore,
+          stockReserved: exactVariant.stockReserved || 0,
+          price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+        },
+        availableVariants: prod.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          sku: v.sku,
+          barcode: v.barcode,
+          stockStore: v.stockStore,
+          stockReserved: v.stockReserved || 0,
+          price: v.price ? Number(v.price) : Number(prod.price),
+        })),
+      });
+    }
 
     return { success: true, items };
   } catch (error) {
@@ -633,6 +701,40 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
             reason: `Venta Mostrador ${invoiceNumber} (Ticket ${sale.ticketCode || "Salón"})`,
           },
         });
+      }
+
+      // 5.1 Reingreso de prenda devuelta si la preventa provino de un Cambio / Devolución
+      const exchangeMatch = sale.notes?.match(/\[CAMBIO:returnVariantId=([^:]+):qty=(\d+)(?::reason=([^\]]*))?\]/);
+      if (exchangeMatch) {
+        const returnVariantId = exchangeMatch[1];
+        const returnQty = parseInt(exchangeMatch[2], 10);
+        const rawReason = exchangeMatch[3] ? decodeURIComponent(exchangeMatch[3]) : "Cambio de producto";
+
+        const returnVariant = await tx.productVariant.findUnique({
+          where: { id: returnVariantId },
+          include: { product: true },
+        });
+
+        if (returnVariant) {
+          const newReturnStore = returnVariant.stockStore + returnQty;
+          const totalReturnAfter = newReturnStore + returnVariant.stockWarehouse;
+
+          await tx.productVariant.update({
+            where: { id: returnVariant.id },
+            data: { stockStore: newReturnStore },
+          });
+
+          await tx.inventoryMovement.create({
+            data: {
+              variantId: returnVariant.id,
+              type: "DEVOLUCION_CLIENTE",
+              quantity: returnQty,
+              stockAfter: totalReturnAfter,
+              location: "STORE",
+              reason: `Reingreso por cambio de prenda (Ticket ${sale.ticketCode || "Salón"} - Comprobante ${invoiceNumber}): Devuelto por ${sale.customerName || "Cliente"}. Motivo: ${rawReason}`,
+            },
+          });
+        }
       }
 
       // 6. Registrar los medios de pago con cálculo de vuelto
@@ -1132,6 +1234,186 @@ export async function getPosVariantStockSnapshot(): Promise<{
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error al obtener snapshot de stock";
+    return { success: false, error: msg };
+  }
+}
+
+export interface CreatePendingExchangeSaleResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: {
+    saleId: string;
+    ticketCode: string;
+    customerName: string;
+    subtotalGross: number;
+    totalDiscount: number;
+    totalNet: number;
+    balance: number;
+    stockDeltas: Array<{
+      variantId: string;
+      stockReservedDelta: number;
+    }>;
+  };
+}
+
+/**
+ * Generar Preventa de Cambio de Producto hacia Caja Mostrador (Pase de Ticket a Caja)
+ * Reserva stock de la prenda entregada y emite ticket correlativo pendiente en Caja,
+ * sin ejecutar la devolución física ni emitir ticket definitivo hasta que Caja complete el cobro.
+ */
+export async function createPendingExchangeSale(
+  input: CreatePendingExchangeSaleInput
+): Promise<CreatePendingExchangeSaleResult> {
+  try {
+    const validated = CreatePendingExchangeSaleSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const [returnVariant, exchangeVariant] = await Promise.all([
+        tx.productVariant.findUnique({
+          where: { id: validated.returnVariantId },
+          include: {
+            product: { select: { id: true, name: true, price: true, active: true } },
+          },
+        }),
+        tx.productVariant.findUnique({
+          where: { id: validated.exchangeVariantId },
+          include: {
+            product: { select: { id: true, name: true, price: true, active: true } },
+          },
+        }),
+      ]);
+
+      if (!returnVariant) {
+        throw new Error("La variante a devolver no existe en la base de datos.");
+      }
+      if (!exchangeVariant) {
+        throw new Error("La variante a entregar no existe en la base de datos.");
+      }
+      if (returnVariant.id === exchangeVariant.id) {
+        throw new Error("La prenda devuelta y la prenda a entregar no pueden ser el mismo talle y color.");
+      }
+      if (!exchangeVariant.product.active) {
+        throw new Error(`El producto "${exchangeVariant.product.name}" se encuentra inactivo.`);
+      }
+
+      const qty = validated.quantity;
+      const stockAvailable = exchangeVariant.stockStore - (exchangeVariant.stockReserved || 0);
+      if (stockAvailable < qty) {
+        throw new Error(
+          `Stock insuficiente en salón para "${exchangeVariant.product.name}" (Talle ${exchangeVariant.size}). Disponible: ${stockAvailable}, Solicitado: ${qty}`
+        );
+      }
+
+      const returnPrice =
+        returnVariant.price !== null && returnVariant.price !== undefined && Number(returnVariant.price) > 0
+          ? Number(returnVariant.price)
+          : Number(returnVariant.product.price);
+
+      const exchangePrice =
+        exchangeVariant.price !== null && exchangeVariant.price !== undefined && Number(exchangeVariant.price) > 0
+          ? Number(exchangeVariant.price)
+          : Number(exchangeVariant.product.price);
+
+      const totalReturn = Math.round(returnPrice * qty * 100) / 100;
+      const totalExchange = Math.round(exchangePrice * qty * 100) / 100;
+      const balance = Math.round((totalExchange - totalReturn) * 100) / 100;
+      const totalNet = Math.max(0, balance);
+      const totalDiscount = Math.min(totalExchange, totalReturn);
+
+      // Generar código de ticket correlativo del día (#001, #002...)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const countToday = await tx.sale.count({
+        where: { createdAt: { gte: todayStart } },
+      });
+      const ticketCode = `#${String(countToday + 1).padStart(3, "0")}`;
+      const invoiceNumber = `PRV-CAMBIO-${Date.now().toString().slice(-6)}`;
+
+      const customerLabel = validated.customerName?.trim() || "Consumidor Final";
+      const returnDesc = `${returnVariant.product.name} (Talle ${returnVariant.size}${returnVariant.color ? ` • ${returnVariant.color}` : ""})`;
+      const exchangeDesc = `${exchangeVariant.product.name} (Talle ${exchangeVariant.size}${exchangeVariant.color ? ` • ${exchangeVariant.color}` : ""})`;
+
+      const notes =
+        `[CAMBIO:returnVariantId=${returnVariant.id}:qty=${qty}:reason=${encodeURIComponent(validated.reason)}] ` +
+        `Devuelve: ${returnDesc} x${qty}. ` +
+        `Entrega: ${exchangeDesc} x${qty}. ` +
+        (balance > 0
+          ? `Diferencia a cobrar: $ ${balance.toFixed(2)}.`
+          : balance < 0
+          ? `Saldo a favor del cliente: $ ${Math.abs(balance).toFixed(2)}.`
+          : `Cambio directo sin diferencia ($ 0,00).`);
+
+      const sale = await tx.sale.create({
+        data: {
+          ticketCode,
+          invoiceNumber,
+          sellerId: validated.sellerId ?? null,
+          customerName: customerLabel,
+          channel: "MOSTRADOR",
+          status: "PENDIENTE_PAGO",
+          subtotalGross: new Prisma.Decimal(totalExchange),
+          discount: new Prisma.Decimal(totalDiscount),
+          discountType: "FIXED",
+          discountValue: new Prisma.Decimal(totalDiscount),
+          total: new Prisma.Decimal(totalNet),
+          notes,
+        },
+      });
+
+      await tx.saleItem.create({
+        data: {
+          saleId: sale.id,
+          variantId: exchangeVariant.id,
+          quantity: qty,
+          originalPrice: new Prisma.Decimal(exchangePrice),
+          discount: new Prisma.Decimal(Math.round((totalDiscount / qty) * 100) / 100),
+          discountType: "FIXED",
+          discountValue: new Prisma.Decimal(Math.round((totalDiscount / qty) * 100) / 100),
+          unitPrice: new Prisma.Decimal(Math.round((totalNet / qty) * 100) / 100),
+          price: new Prisma.Decimal(Math.round((totalNet / qty) * 100) / 100),
+          subtotal: new Prisma.Decimal(totalNet),
+        },
+      });
+
+      // Reservar preventivamente la prenda a entregar en salón
+      await tx.productVariant.update({
+        where: { id: exchangeVariant.id },
+        data: { stockReserved: { increment: qty } },
+      });
+
+      return {
+        saleId: sale.id,
+        ticketCode,
+        customerName: sale.customerName || customerLabel,
+        subtotalGross: totalExchange,
+        totalDiscount,
+        totalNet,
+        balance,
+        stockDeltas: [
+          {
+            variantId: exchangeVariant.id,
+            stockReservedDelta: qty,
+          },
+        ],
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+    } catch {
+      // Ignorado fuera del contexto Next.js
+    }
+
+    return {
+      success: true,
+      message: `Ticket de cambio generado (${result.ticketCode}). Pasado a Caja para su cobro.`,
+      data: serializeData(result),
+    };
+  } catch (error: unknown) {
+    console.error("Error en createPendingExchangeSale:", error);
+    const msg = error instanceof Error ? error.message : "Error al generar ticket de cambio para caja";
     return { success: false, error: msg };
   }
 }

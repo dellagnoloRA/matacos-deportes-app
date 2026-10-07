@@ -15,18 +15,13 @@ import {
   Palette,
   Ruler,
   Store,
-  DollarSign,
-  CreditCard,
-  QrCode,
-  Ticket,
-  AlertTriangle,
   Receipt,
-  HelpCircle,
+  User,
+  Info,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
-import { processPosProductExchange } from "@/server/actions/posSaleActions";
+import { createPendingExchangeSale } from "@/server/actions/posSaleActions";
 import { formatCurrency } from "@/lib/utils";
-import { PaymentMethod } from "@prisma/client";
 
 interface PosExchangeModalProps {
   isOpen: boolean;
@@ -87,21 +82,9 @@ export function PosExchangeModal({
   const [customReason, setCustomReason] = useState("");
 
   // -------------------------------------------------------------
-  // ESTADOS - PASO 3: LIQUIDACIÓN ECONÓMICA Y MEDIOS DE PAGO
+  // ESTADOS - PASO 3: DESTINO Y DATOS DE PREVENTA
   // -------------------------------------------------------------
-  // Escenario B: Cobro de diferencia
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
-  const [receivedAmount, setReceivedAmount] = useState("");
-  const [cardBrand, setCardBrand] = useState("VISA");
-  const [cardVoucher, setCardVoucher] = useState("");
-  const [installments, setInstallments] = useState(1);
-  const [referenceCode, setReferenceCode] = useState("");
-
-  // Escenario C: Saldo a favor del cliente
-  const [resolutionType, setResolutionType] = useState<"STORE_CREDIT_VOUCHER" | "CASH_REFUND">("STORE_CREDIT_VOUCHER");
   const [customerName, setCustomerName] = useState("");
-  const [customerDni, setCustomerDni] = useState("");
-  const [showCashRefundConfirm, setShowCashRefundConfirm] = useState(false);
 
   // Estado de envío y feedback
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -309,13 +292,6 @@ export function PosExchangeModal({
   const isCheaper = balance < -0.01;
   const absDifference = Math.abs(balance);
 
-  // Vuelto en efectivo para Escenario B
-  const cashChange = useMemo(() => {
-    if (paymentMethod !== "EFECTIVO" || !isMoreExpensive) return 0;
-    const received = parseFloat(receivedAmount) || 0;
-    return Math.max(0, received - balance);
-  }, [paymentMethod, isMoreExpensive, receivedAmount, balance]);
-
   if (!isOpen) return null;
 
   // -------------------------------------------------------------
@@ -360,16 +336,7 @@ export function PosExchangeModal({
     setQuantity(1);
     setReason("Talle chico");
     setCustomReason("");
-    setPaymentMethod("EFECTIVO");
-    setReceivedAmount("");
-    setCardBrand("VISA");
-    setCardVoucher("");
-    setInstallments(1);
-    setReferenceCode("");
-    setResolutionType("STORE_CREDIT_VOUCHER");
     setCustomerName("");
-    setCustomerDni("");
-    setShowCashRefundConfirm(false);
     setErrorMessage(null);
   };
 
@@ -379,7 +346,7 @@ export function PosExchangeModal({
   };
 
   // -------------------------------------------------------------
-  // ENVÍO DEL FORMULARIO CON PROCESAMIENTO ATÓMICO EN SERVIDOR
+  // ENVÍO DE TICKET DE CAMBIO A CAJA (SIN EJECUTAR DEVOLUCIÓN DIRECTA)
   // -------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -398,7 +365,7 @@ export function PosExchangeModal({
       return;
     }
 
-    const availableStock = selectedExchangeVariant.stockStore;
+    const availableStock = selectedExchangeVariant.stockStore - (selectedExchangeVariant.stockReserved || 0);
     if (availableStock < quantity) {
       setErrorMessage(
         `No hay suficiente stock en Salón Saavedra para entregar el Talle ${selectedExchangeVariant.size}. Disponible: ${availableStock} un., Solicitado: ${quantity} un.`
@@ -412,56 +379,26 @@ export function PosExchangeModal({
       return;
     }
 
-    // Validaciones de liquidación económica
-    if (isMoreExpensive) {
-      if (paymentMethod === "EFECTIVO") {
-        const received = parseFloat(receivedAmount) || 0;
-        if (received < balance - 0.05) {
-          setErrorMessage(`El monto recibido ($ ${received.toFixed(2)}) es menor a la diferencia a cobrar ($ ${balance.toFixed(2)}).`);
-          return;
-        }
-      }
-    }
-
-    if (isCheaper && resolutionType === "CASH_REFUND" && !showCashRefundConfirm) {
-      setErrorMessage("Por favor confirma la autorización de reintegro en efectivo de la caja registradora.");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const settlementType = isSamePrice
-        ? "EQUAL"
-        : isMoreExpensive
-        ? "PAY_DIFFERENCE"
-        : resolutionType;
-
-      const res = await processPosProductExchange({
+      const res = await createPendingExchangeSale({
         returnVariantId: selectedReturnVariant.id,
         exchangeVariantId: selectedExchangeVariant.id,
         quantity,
         reason: finalReason,
-        settlementType,
-        differenceAmount: balance,
-        paymentMethod: isMoreExpensive ? paymentMethod : undefined,
-        receivedAmount: isMoreExpensive && paymentMethod === "EFECTIVO" ? (parseFloat(receivedAmount) || balance) : undefined,
-        change: isMoreExpensive && paymentMethod === "EFECTIVO" ? cashChange : undefined,
-        cardBrand: isMoreExpensive ? cardBrand : undefined,
-        cardVoucher: isMoreExpensive ? cardVoucher : undefined,
-        installments: isMoreExpensive ? installments : undefined,
-        referenceCode: isMoreExpensive ? referenceCode : undefined,
-        customerName: isCheaper ? customerName : undefined,
-        customerDni: isCheaper ? customerDni : undefined,
-        cashShiftId,
-        cashierId,
+        customerName: customerName.trim() || undefined,
+        sellerId: cashierId ?? undefined,
       });
 
-      if (!res.success) {
-        setErrorMessage(res.error || "Ocurrió un error al procesar el cambio.");
+      if (!res.success || !res.data) {
+        setErrorMessage(res.error || "Ocurrió un error al generar el ticket de cambio para Caja.");
         return;
       }
 
-      onExchangeSuccess?.(res.message || "Cambio procesado exitosamente.", res);
+      onExchangeSuccess?.(
+        res.message || `Ticket de cambio ${res.data.ticketCode} pasado a Caja exitosamente.`,
+        res.data
+      );
       handleClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error inesperado al conectar con el servidor.";
@@ -486,11 +423,11 @@ export function PosExchangeModal({
                   Devolución / Cambio de Productos
                 </h3>
                 <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-500/30 uppercase tracking-wider">
-                  Salón Saavedra 241
+                  Pase a Caja
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Intercambio de prendas con liquidación económica (mismo valor, mayor valor o vales de compra)
+                Selección de prendas y cálculo de saldo para cobro y resolución en Caja
               </p>
             </div>
           </div>
@@ -517,11 +454,11 @@ export function PosExchangeModal({
             </span>
             <span className="truncate">Prenda a Entregar</span>
           </div>
-          <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant && selectedExchangeVariant ? "text-slate-900" : "text-slate-400"}`}>
+          <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant && selectedExchangeVariant ? "text-emerald-700" : "text-slate-400"}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant && selectedExchangeVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
               3
             </span>
-            <span className="truncate">Liquidación</span>
+            <span className="truncate">Saldo y Destino Caja</span>
           </div>
         </div>
 
@@ -1043,6 +980,23 @@ export function PosExchangeModal({
                 </span>
               </div>
 
+              {/* Nombre / Alias del Cliente */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Nombre o Alias del Cliente (para identificar el ticket en Caja):
+                </label>
+                <div className="relative">
+                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Ej. Carlos Gómez o Consumidor Final"
+                    className="w-full pl-9 pr-3.5 py-2 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-900 font-semibold rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
               {/* Comparador de Precios */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs items-center p-3 bg-slate-50 rounded-xl border border-slate-200/80">
                 <div>
@@ -1062,7 +1016,7 @@ export function PosExchangeModal({
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance Neto</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Saldo Neto</span>
                   <p
                     className={`font-mono font-black text-base ${
                       isSamePrice
@@ -1078,323 +1032,50 @@ export function PosExchangeModal({
                     {isSamePrice
                       ? "Mismo valor (Mano a mano)"
                       : isMoreExpensive
-                      ? "A favor del negocio"
+                      ? "A cobrar en Caja"
                       : "A favor del cliente"}
                   </span>
                 </div>
               </div>
 
-              {/* ESCENARIO A: MISMO VALOR */}
+              {/* Tarjetas Informativas de Liquidación hacia Caja */}
               {isSamePrice && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-900 text-xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3]" />
-                  <span>
-                    <strong>Cambio mano a mano:</strong> Las dos prendas tienen el mismo valor de lista. No hay movimiento de dinero en caja.
-                  </span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-900 text-xs">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3] mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Cambio mano a mano ($ 0,00):</strong> Las dos prendas tienen el mismo valor de lista.
+                    Se enviará el ticket a la Caja Mostrador sin saldo a abonar. En Caja se confirmará la entrega del nuevo talle y se emitirá el comprobante oficial.
+                  </div>
                 </div>
               )}
 
-              {/* ESCENARIO B: PRODUCTO NUEVO MÁS CARO (COBRO DE DIFERENCIA) */}
               {isMoreExpensive && (
-                <div className="space-y-3.5 p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-blue-950 font-bold text-xs">
-                      <DollarSign className="w-4 h-4 text-blue-600" />
-                      <span>Cobro de Diferencia al Cliente:</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-blue-800 bg-blue-100/80 px-2.5 py-0.5 rounded-lg border border-blue-200">
-                      {formatCurrency(balance)}
-                    </span>
+                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-2.5 text-blue-900 text-xs">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Diferencia a cobrar en Caja ({formatCurrency(balance)}):</strong> El ticket se enviará a la lista de espera de Caja Mostrador.
+                    El cliente abonará la diferencia allí mediante el medio de pago que elija (Efectivo, Tarjeta Débito/Crédito, QR o Transferencia).
                   </div>
-
-                  {/* Selector de Medio de Pago */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                    {(
-                      [
-                        { id: "EFECTIVO", label: "Efectivo", icon: DollarSign },
-                        { id: "DEBITO", label: "Débito", icon: CreditCard },
-                        { id: "CREDITO", label: "Crédito", icon: CreditCard },
-                        { id: "TRANSFERENCIA", label: "Transferencia", icon: ArrowLeftRight },
-                        { id: "QR_MERCADOPAGO", label: "QR Mercado Pago", icon: QrCode },
-                      ] as const
-                    ).map((m) => {
-                      const Icon = m.icon;
-                      const isSelected = paymentMethod === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(m.id)}
-                          className={`p-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-1 cursor-pointer ${
-                            isSelected
-                              ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="text-[11px] truncate">{m.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Detalle si es Efectivo: cálculo de vuelto */}
-                  {paymentMethod === "EFECTIVO" && (
-                    <div className="bg-white p-3 rounded-xl border border-blue-200/80 space-y-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                            Monto recibido del cliente:
-                          </label>
-                          <div className="relative">
-                            <span className="text-xs font-bold text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">
-                              $
-                            </span>
-                            <input
-                              type="number"
-                              step="any"
-                              value={receivedAmount}
-                              onChange={(e) => setReceivedAmount(e.target.value)}
-                              placeholder={balance.toString()}
-                              className="w-full pl-7 pr-3 py-1.5 bg-slate-50 text-xs font-bold text-slate-900 rounded-lg border border-slate-200 focus:bg-white focus:border-blue-500 focus:outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
-                          <span className="text-[10px] uppercase font-bold text-emerald-700 block">
-                            Vuelto a entregar
-                          </span>
-                          <span className="text-base font-black font-mono text-emerald-800">
-                            {formatCurrency(cashChange)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Atajos de billetes rápidos */}
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Rápido:</span>
-                        <button
-                          type="button"
-                          onClick={() => setReceivedAmount(balance.toString())}
-                          className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                        >
-                          Exacto
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setReceivedAmount((Math.ceil(balance / 1000) * 1000).toString())
-                          }
-                          className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                        >
-                          Redondeo $1.000
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setReceivedAmount((Math.ceil(balance / 5000) * 5000).toString())
-                          }
-                          className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                        >
-                          Redondeo $5.000
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Detalle si es Tarjeta */}
-                  {(paymentMethod === "DEBITO" || paymentMethod === "CREDITO") && (
-                    <div className="bg-white p-3 rounded-xl border border-blue-200/80 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-600 block mb-1">Tarjeta:</label>
-                        <select
-                          value={cardBrand}
-                          onChange={(e) => setCardBrand(e.target.value)}
-                          className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200"
-                        >
-                          <option value="VISA">Visa</option>
-                          <option value="MASTERCARD">Mastercard</option>
-                          <option value="CABAL">Cabal</option>
-                          <option value="AMEX">American Express</option>
-                          <option value="OTRA">Otra</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-600 block mb-1">Nº Cupón / Lote:</label>
-                        <input
-                          type="text"
-                          value={cardVoucher}
-                          onChange={(e) => setCardVoucher(e.target.value)}
-                          placeholder="Ej: 048219"
-                          className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-600 block mb-1">Cuotas:</label>
-                        <select
-                          value={installments}
-                          onChange={(e) => setInstallments(Number(e.target.value))}
-                          className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200"
-                        >
-                          <option value={1}>1 Cuota</option>
-                          <option value={3}>3 Cuotas</option>
-                          <option value={6}>6 Cuotas</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Detalle si es Transferencia o QR */}
-                  {(paymentMethod === "TRANSFERENCIA" || paymentMethod === "QR_MERCADOPAGO") && (
-                    <div className="bg-white p-3 rounded-xl border border-blue-200/80">
-                      <label className="text-[10px] font-bold text-slate-600 block mb-1">
-                        Código de Referencia / Comprobante:
-                      </label>
-                      <input
-                        type="text"
-                        value={referenceCode}
-                        onChange={(e) => setReferenceCode(e.target.value)}
-                        placeholder="Ej: MP-98124801 o Nº Transferencia"
-                        className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200"
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* ESCENARIO C: PRODUCTO NUEVO MÁS BARATO (SALDO A FAVOR DEL CLIENTE) */}
               {isCheaper && (
-                <div className="space-y-3.5 p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-purple-950 font-bold text-xs">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                      <span>Saldo a Favor del Cliente:</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-purple-800 bg-purple-100/80 px-2.5 py-0.5 rounded-lg border border-purple-200">
-                      {formatCurrency(absDifference)}
-                    </span>
+                <div className="p-3 bg-purple-50/80 border border-purple-200 rounded-xl flex items-start gap-2.5 text-purple-900 text-xs">
+                  <RotateCcw className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Saldo a favor del cliente ({formatCurrency(absDifference)}):</strong> La prenda nueva tiene un valor menor.
+                    El ticket pasará a la Caja Mostrador indicando el crédito a favor para que el cajero resuelva el saldo según la política del local.
                   </div>
-
-                  {/* Selector de Resolución */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setResolutionType("STORE_CREDIT_VOUCHER");
-                        setShowCashRefundConfirm(false);
-                      }}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        resolutionType === "STORE_CREDIT_VOUCHER"
-                          ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Ticket className="w-4 h-4" />
-                        <span className="font-bold text-xs">Emitir Vale de Compra</span>
-                        <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-extrabold ml-auto">
-                          Recomendado
-                        </span>
-                      </div>
-                      <p
-                        className={`text-[11px] leading-relaxed ${
-                          resolutionType === "STORE_CREDIT_VOUCHER" ? "text-purple-100" : "text-slate-500"
-                        }`}
-                      >
-                        Voucher térmico con código único sin vencimiento. No retira dinero de la caja física.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setResolutionType("CASH_REFUND")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        resolutionType === "CASH_REFUND"
-                          ? "bg-rose-700 text-white border-rose-700 shadow-2xs"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <DollarSign className="w-4 h-4" />
-                        <span className="font-bold text-xs">Reintegrar Efectivo</span>
-                        <span className="text-[10px] bg-rose-200/50 text-rose-900 px-1.5 py-0.2 rounded font-extrabold ml-auto">
-                          Excepcional
-                        </span>
-                      </div>
-                      <p
-                        className={`text-[11px] leading-relaxed ${
-                          resolutionType === "CASH_REFUND" ? "text-rose-100" : "text-slate-500"
-                        }`}
-                      >
-                        Entrega dinero físico al cliente. Registra egreso formal en el arqueo del turno.
-                      </p>
-                    </button>
-                  </div>
-
-                  {/* Panel de Datos para Vale de Compra */}
-                  {resolutionType === "STORE_CREDIT_VOUCHER" && (
-                    <div className="bg-white p-3 rounded-xl border border-purple-200/80 space-y-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block mb-1">
-                            Nombre del Cliente (Opcional):
-                          </label>
-                          <input
-                            type="text"
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            placeholder="Ej. Juan Pérez"
-                            className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200 focus:bg-white focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block mb-1">
-                            DNI del Cliente (Opcional):
-                          </label>
-                          <input
-                            type="text"
-                            value={customerDni}
-                            onChange={(e) => setCustomerDni(e.target.value)}
-                            placeholder="Ej. 38192842"
-                            className="w-full p-1.5 bg-slate-50 text-xs font-bold rounded-lg border border-slate-200 focus:bg-white focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-purple-900 bg-purple-50 p-2 rounded-lg">
-                        <Check className="w-3.5 h-3.5 text-purple-600 shrink-0 stroke-[3]" />
-                        <span>
-                          El vale se imprimirá con código de barras y <strong>sin fecha de vencimiento</strong> para su canje en mostrador.
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Panel de Advertencia para Reintegro en Efectivo */}
-                  {resolutionType === "CASH_REFUND" && (
-                    <div className="bg-rose-50 p-3.5 rounded-xl border border-rose-200 space-y-2">
-                      <div className="flex items-start gap-2.5 text-rose-900 text-xs">
-                        <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                        <div>
-                          <strong className="block font-bold">⚠️ Advertencia de Caja Registradora:</strong>
-                          <p className="mt-0.5 leading-relaxed text-rose-800">
-                            Estás a punto de retirar dinero en efectivo (<strong>{formatCurrency(absDifference)}</strong>) de la caja registradora de Saavedra 241. Esta operación quedará registrada en el turno actual como egreso y se descontará del arqueo final.
-                          </p>
-                        </div>
-                      </div>
-                      <label className="flex items-center gap-2 pt-1 text-xs font-bold text-rose-950 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={showCashRefundConfirm}
-                          onChange={(e) => setShowCashRefundConfirm(e.target.checked)}
-                          className="rounded border-rose-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
-                        />
-                        <span>Confirmo la entrega física de dinero de la caja registradora</span>
-                      </label>
-                    </div>
-                  )}
                 </div>
               )}
+
+              {/* Aviso operativo */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-500 flex items-center gap-2">
+                <Info className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>
+                  Al presionar <strong>Pasar Ticket a Caja</strong>, la prenda a entregar quedará reservada y la operación se procesará en Caja sin emitir tickets definitivos en salón.
+                </span>
+              </div>
             </div>
           )}
 
@@ -1417,25 +1098,22 @@ export function PosExchangeModal({
               disabled={
                 isSubmitting ||
                 !selectedReturnVariant ||
-                !selectedExchangeVariant ||
-                (isCheaper && resolutionType === "CASH_REFUND" && !showCashRefundConfirm)
+                !selectedExchangeVariant
               }
               className={`flex-1 py-3 font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-2 ${
                 !selectedReturnVariant || !selectedExchangeVariant
                   ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                   : isMoreExpensive
-                  ? "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
-                  : isCheaper && resolutionType === "STORE_CREDIT_VOUCHER"
-                  ? "bg-purple-600 hover:bg-purple-700 text-white cursor-pointer"
-                  : isCheaper && resolutionType === "CASH_REFUND"
-                  ? "bg-rose-700 hover:bg-rose-800 text-white cursor-pointer"
-                  : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                  ? "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer active:scale-[0.99]"
+                  : isCheaper
+                  ? "bg-purple-700 hover:bg-purple-800 text-white cursor-pointer active:scale-[0.99]"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-[0.99]"
               }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Procesando cambio...</span>
+                  <span>Pasando ticket a Caja...</span>
                 </>
               ) : !selectedReturnVariant ? (
                 <>
@@ -1449,15 +1127,13 @@ export function PosExchangeModal({
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4 stroke-[3]" />
+                  <Receipt className="w-4 h-4 stroke-[2.5]" />
                   <span>
                     {isSamePrice
-                      ? "Confirmar Cambio de Prenda ($ 0,00)"
+                      ? "Pasar Ticket a Caja ($ 0,00)"
                       : isMoreExpensive
-                      ? `Cobrar ${formatCurrency(balance)} y Confirmar Cambio`
-                      : resolutionType === "STORE_CREDIT_VOUCHER"
-                      ? `Emitir Vale por ${formatCurrency(absDifference)} y Confirmar`
-                      : `Reintegrar ${formatCurrency(absDifference)} en Efectivo y Confirmar`}
+                      ? `Pasar Ticket a Caja (Cobrar ${formatCurrency(balance)})`
+                      : `Pasar Ticket a Caja (Saldo a favor ${formatCurrency(absDifference)})`}
                   </span>
                 </>
               )}

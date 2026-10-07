@@ -237,6 +237,18 @@ export const CompletePendingSaleSchema = z
   });
 
 /**
+ * Esquema para Generar Preventa de Cambio de Producto hacia Caja Mostrador
+ */
+export const CreatePendingExchangeSaleSchema = z.object({
+  returnVariantId: z.string().uuid("ID de variante devuelta inválido"),
+  exchangeVariantId: z.string().uuid("ID de variante a entregar inválido"),
+  quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
+  reason: z.string().min(1, "El motivo del cambio es obligatorio"),
+  customerName: z.string().max(100).optional().nullable(),
+  sellerId: z.string().uuid().optional().nullable(),
+});
+
+/**
  * Esquema para Sincronización por Lote Offline (RF-12)
  */
 export const SyncOfflineSalesSchema = z.object({
@@ -251,6 +263,8 @@ export type SaleItemInput = z.input<typeof SaleItemSchema>;
 export type SalePaymentInput = z.input<typeof SalePaymentSchema>;
 export type CreateSaleInput = z.input<typeof CreateSaleSchema>;
 export type CreatePendingSaleInput = z.input<typeof CreatePendingSaleSchema>;
+export type CreatePendingExchangeSaleInput = z.input<typeof CreatePendingExchangeSaleSchema>;
 export type UpdatePendingSaleInput = z.input<typeof UpdatePendingSaleSchema>;
 export type CompletePendingSaleInput = z.input<typeof CompletePendingSaleSchema>;
 export type SyncOfflineSalesInput = z.input<typeof SyncOfflineSalesSchema>;
+
