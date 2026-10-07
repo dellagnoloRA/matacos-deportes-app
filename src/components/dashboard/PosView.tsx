@@ -599,6 +599,23 @@ export function PosView({
     return Array.from(list);
   }, [products]);
 
+  // Filtros adicionales por marca y categoría
+  const [selectedBrand, setSelectedBrand] = useState<string>("Todas");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
+
+  const brandFilterOptions = useMemo(() => {
+    const list = new Set<string>();
+    products.forEach((p) => {
+      if (p.brand?.trim()) list.add(p.brand.trim());
+    });
+    return Array.from(list).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [products]);
+
+  const categoryFilterOptions = useMemo(
+    () => [...availableCategories].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
+    [availableCategories]
+  );
+
   const availableBrands = useMemo(() => {
     const list = new Set<string>();
     products.forEach((p) => {
@@ -652,6 +669,16 @@ export function PosView({
       );
     }
 
+    if (selectedBrand !== "Todas") {
+      const b = selectedBrand.toLowerCase();
+      result = result.filter((p) => (p.brand ?? "").trim().toLowerCase() === b);
+    }
+
+    if (selectedCategory !== "Todas") {
+      const c = selectedCategory.toLowerCase();
+      result = result.filter((p) => (p.category ?? "").trim().toLowerCase() === c);
+    }
+
     const rawQ = searchQuery.trim().toLowerCase();
     if (rawQ) {
       const tokens = normalizeSearch(rawQ).split(/\s+/).filter(Boolean);
@@ -689,12 +716,12 @@ export function PosView({
     }
 
     return result;
-  }, [products, selectedDiscipline, searchQuery]);
+  }, [products, selectedDiscipline, selectedBrand, selectedCategory, searchQuery]);
 
   // Resetear paginación al cambiar filtros o búsqueda
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedDiscipline]);
+  }, [searchQuery, selectedDiscipline, selectedBrand, selectedCategory]);
 
   // Cálculos de Paginación del Catálogo POS
   const totalItems = filteredProducts.length;
@@ -3270,6 +3297,61 @@ export function PosView({
                 )}
               </div>
             )}
+
+            {/* Filtros por Marca y Categoría */}
+            <div className="flex items-center gap-1.5 sm:ml-auto shrink-0">
+              <div className="relative">
+                <select
+                  value={selectedBrand}
+                  onChange={(e) => setSelectedBrand(e.target.value)}
+                  title="Filtrar por marca"
+                  className={`appearance-none pl-3 pr-7 py-1 rounded-full text-xs font-semibold border cursor-pointer outline-none transition-all max-w-[150px] truncate ${
+                    selectedBrand !== "Todas"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <option value="Todas" className="bg-white text-slate-900">Todas las marcas</option>
+                  {brandFilterOptions.map((b) => (
+                    <option key={b} value={b} className="bg-white text-slate-900">{b}</option>
+                  ))}
+                </select>
+                <ChevronDown className={`w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${selectedBrand !== "Todas" ? "text-white" : "text-slate-400"}`} />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  title="Filtrar por categoría"
+                  className={`appearance-none pl-3 pr-7 py-1 rounded-full text-xs font-semibold border cursor-pointer outline-none transition-all max-w-[170px] truncate ${
+                    selectedCategory !== "Todas"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <option value="Todas" className="bg-white text-slate-900">Todas las categorías</option>
+                  {categoryFilterOptions.map((c) => (
+                    <option key={c} value={c} className="bg-white text-slate-900">{c}</option>
+                  ))}
+                </select>
+                <ChevronDown className={`w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${selectedCategory !== "Todas" ? "text-white" : "text-slate-400"}`} />
+              </div>
+
+              {(selectedBrand !== "Todas" || selectedCategory !== "Todas") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBrand("Todas");
+                    setSelectedCategory("Todas");
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer"
+                  title="Quitar filtros de marca y categoría"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -3309,6 +3391,8 @@ export function PosView({
                   onClick={() => {
                     setSearchQuery("");
                     setSelectedDiscipline("Todas");
+                    setSelectedBrand("Todas");
+                    setSelectedCategory("Todas");
                   }}
                   className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                 >
