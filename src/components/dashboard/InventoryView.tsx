@@ -1298,21 +1298,31 @@ export function InventoryView({
 
           matchesSearch = matchesMainBarcode || matchesVariantBarcode || Boolean(matchesSku);
         } else {
-          // Búsqueda en todos los campos (código de barra, nombre, marca, SKU, disciplina)
-          const matchesName = item.name.toLowerCase().includes(term);
-          const matchesBrand = item.brand.toLowerCase().includes(term);
-          const matchesSku =
-            (item.sku && item.sku.toLowerCase().includes(term)) ||
-            item.variants?.some((v) => v.sku && v.sku.toLowerCase().includes(term));
-          const matchesDisciplineText = item.discipline.toLowerCase().includes(term);
+          // Búsqueda en todos los campos con tolerancia a espacios y tokens múltiples
+          const tokens = term.split(/\s+/).filter(Boolean);
+          const termNoSpaces = term.replace(/\s+/g, "");
+
+          const allText = [
+            item.name,
+            item.brand,
+            item.sku || "",
+            item.discipline,
+            ...(item.variants?.map((v) => v.sku || "") || []),
+          ].join(" ").toLowerCase();
+
+          const allTextNoSpaces = allText.replace(/\s+/g, "");
+
+          // Condición 1: Todos los tokens están en el texto (ej: "croc ban" -> "crocband" tiene "croc" y "ban")
+          const matchesAllTokens = tokens.every(token => allText.includes(token));
+          
+          // Condición 2: El término sin espacios está en el texto sin espacios (ej: "air max" -> "airmax")
+          const matchesFuzzySpaces = termNoSpaces.length > 0 && allTextNoSpaces.includes(termNoSpaces);
 
           matchesSearch =
             matchesMainBarcode ||
             matchesVariantBarcode ||
-            matchesName ||
-            matchesBrand ||
-            Boolean(matchesSku) ||
-            matchesDisciplineText;
+            matchesAllTokens ||
+            matchesFuzzySpaces;
         }
       }
 

@@ -285,6 +285,19 @@ export function PosView({
   const [splitPayment2Amount, setSplitPayment2Amount] = useState<string>("");
   const [splitPayment2Received, setSplitPayment2Received] = useState<string>("");
 
+  // Card Details State
+  const [cashierCardBrand, setCashierCardBrand] = useState<string>("");
+  const [cashierCardVoucher, setCashierCardVoucher] = useState<string>("");
+  const [cashierInstallments, setCashierInstallments] = useState<number>(1);
+
+  const [splitPayment1CardBrand, setSplitPayment1CardBrand] = useState<string>("");
+  const [splitPayment1CardVoucher, setSplitPayment1CardVoucher] = useState<string>("");
+  const [splitPayment1Installments, setSplitPayment1Installments] = useState<number>(1);
+
+  const [splitPayment2CardBrand, setSplitPayment2CardBrand] = useState<string>("");
+  const [splitPayment2CardVoucher, setSplitPayment2CardVoucher] = useState<string>("");
+  const [splitPayment2Installments, setSplitPayment2Installments] = useState<number>(1);
+
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedSaleResult, setCompletedSaleResult] = useState<{
     invoiceNumber: string;
@@ -642,31 +655,25 @@ export function PosView({
     const rawQ = searchQuery.trim().toLowerCase();
     if (rawQ) {
       const terms = rawQ.split(/\s+/).filter(Boolean);
+      const rawQNoSpaces = rawQ.replace(/\s+/g, "");
+
       result = result.filter((p) => {
-        return terms.every((term) => {
-          const matchName = p.name.toLowerCase().includes(term);
-          const matchBrand = p.brand.toLowerCase().includes(term);
-          const matchCategory = p.category.toLowerCase().includes(term);
-          const matchDiscipline = p.discipline?.toLowerCase().includes(term);
-          const matchModel =
-            p.modelCode?.toLowerCase().includes(term) ||
-            p.sku?.toLowerCase().includes(term);
-          const matchVariants = p.variants.some(
-            (v) =>
-              v.size.toLowerCase().includes(term) ||
-              v.color.toLowerCase().includes(term) ||
-              v.sku?.toLowerCase().includes(term) ||
-              v.barcode.toLowerCase().includes(term)
-          );
-          return (
-            matchName ||
-            matchBrand ||
-            matchCategory ||
-            matchDiscipline ||
-            matchModel ||
-            matchVariants
-          );
-        });
+        const allText = [
+          p.name,
+          p.brand,
+          p.category,
+          p.discipline || "",
+          p.modelCode || "",
+          p.sku || "",
+          ...p.variants.flatMap(v => [v.size, v.color, v.sku || "", v.barcode])
+        ].join(" ").toLowerCase();
+
+        const allTextNoSpaces = allText.replace(/\s+/g, "");
+
+        const matchesAllTokens = terms.every(term => allText.includes(term));
+        const matchesFuzzySpaces = rawQNoSpaces.length > 0 && allTextNoSpaces.includes(rawQNoSpaces);
+
+        return matchesAllTokens || matchesFuzzySpaces;
       });
     }
 
@@ -1160,6 +1167,9 @@ export function PosView({
     setIsSplitPayment(false);
     setCashierPaymentMethod("EFECTIVO");
     setCashierReceivedAmount(sale.total.toString());
+    setCashierCardBrand("");
+    setCashierCardVoucher("");
+    setCashierInstallments(1);
 
     // Inicializar valores para pago mixto por defecto (50% / 50%)
     const half = Math.round((sale.total / 2) * 100) / 100;
@@ -1167,9 +1177,16 @@ export function PosView({
     setSplitPayment1Method("EFECTIVO");
     setSplitPayment1Amount(half.toString());
     setSplitPayment1Received(half.toString());
+    setSplitPayment1CardBrand("");
+    setSplitPayment1CardVoucher("");
+    setSplitPayment1Installments(1);
+    
     setSplitPayment2Method("DEBITO");
     setSplitPayment2Amount(rest.toString());
     setSplitPayment2Received(rest.toString());
+    setSplitPayment2CardBrand("");
+    setSplitPayment2CardVoucher("");
+    setSplitPayment2Installments(1);
   };
 
   const handleCancelPending = (saleId: string, ticketCode: string | null) => {
@@ -1392,6 +1409,9 @@ export function PosView({
               method: cashierPaymentMethod,
               amount: totalToPay,
               receivedAmount: cashierPaymentMethod === "EFECTIVO" ? receivedNum : undefined,
+              cardBrand: ["DEBITO", "CREDITO"].includes(cashierPaymentMethod) ? cashierCardBrand || undefined : undefined,
+              cardVoucher: ["DEBITO", "CREDITO"].includes(cashierPaymentMethod) ? cashierCardVoucher || undefined : undefined,
+              installments: cashierPaymentMethod === "CREDITO" ? cashierInstallments : undefined,
             },
           ],
         };
@@ -1491,11 +1511,17 @@ export function PosView({
               method: splitPayment1Method,
               amount: amt1,
               receivedAmount: splitPayment1Method === "EFECTIVO" ? rec1 : undefined,
+              cardBrand: ["DEBITO", "CREDITO"].includes(splitPayment1Method) ? splitPayment1CardBrand || undefined : undefined,
+              cardVoucher: ["DEBITO", "CREDITO"].includes(splitPayment1Method) ? splitPayment1CardVoucher || undefined : undefined,
+              installments: splitPayment1Method === "CREDITO" ? splitPayment1Installments : undefined,
             },
             {
               method: splitPayment2Method,
               amount: amt2,
               receivedAmount: splitPayment2Method === "EFECTIVO" ? rec2 : undefined,
+              cardBrand: ["DEBITO", "CREDITO"].includes(splitPayment2Method) ? splitPayment2CardBrand || undefined : undefined,
+              cardVoucher: ["DEBITO", "CREDITO"].includes(splitPayment2Method) ? splitPayment2CardVoucher || undefined : undefined,
+              installments: splitPayment2Method === "CREDITO" ? splitPayment2Installments : undefined,
             },
           ],
         };
@@ -2428,6 +2454,65 @@ export function PosView({
                               )}
                             </div>
                           )}
+
+                          {/* Detalles de Tarjeta (Débito/Crédito) */}
+                          {(cashierPaymentMethod === "DEBITO" || cashierPaymentMethod === "CREDITO") && (
+                            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                              <div>
+                                <label className="text-xs font-bold text-slate-700 block mb-2">Marca de Tarjeta:</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {["Visa", "Mastercard", "Cabal", ...(cashierPaymentMethod === "CREDITO" ? ["Naranja"] : []), "Otra"].map(brand => (
+                                    <button
+                                      key={brand}
+                                      type="button"
+                                      onClick={() => setCashierCardBrand(brand)}
+                                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                                        cashierCardBrand === brand
+                                          ? "bg-slate-900 text-white border-slate-900"
+                                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                      }`}
+                                    >
+                                      {brand}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {cashierPaymentMethod === "CREDITO" && (
+                                <div>
+                                  <label className="text-xs font-bold text-slate-700 block mb-2">Cuotas:</label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {(cashierCardBrand === "Naranja" 
+                                      ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                      : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                    ).map(inst => (
+                                      <button
+                                        key={inst.v}
+                                        type="button"
+                                        onClick={() => setCashierInstallments(inst.v)}
+                                        className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                                          cashierInstallments === inst.v
+                                            ? "bg-slate-900 text-white border-slate-900"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        {inst.l}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <label className="text-xs font-bold text-slate-700 block mb-1">Nº de Operación / Lote (Opcional):</label>
+                                <input
+                                  type="text"
+                                  placeholder="Ej: 123456"
+                                  value={cashierCardVoucher}
+                                  onChange={(e) => setCashierCardVoucher(e.target.value)}
+                                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -2546,6 +2631,65 @@ export function PosView({
                                 Vuelto Método 1: {formatCurrency(splitChange1)}
                               </div>
                             )}
+                            
+                            {/* Detalles de Tarjeta 1 (Débito/Crédito) */}
+                            {(splitPayment1Method === "DEBITO" || splitPayment1Method === "CREDITO") && (
+                              <div className="pt-2 border-t border-slate-200 mt-2 space-y-2">
+                                <div>
+                                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Marca de Tarjeta:</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {["Visa", "Mastercard", "Cabal", ...(splitPayment1Method === "CREDITO" ? ["Naranja"] : []), "Otra"].map(brand => (
+                                      <button
+                                        key={brand}
+                                        type="button"
+                                        onClick={() => setSplitPayment1CardBrand(brand)}
+                                        className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
+                                          splitPayment1CardBrand === brand
+                                            ? "bg-slate-900 text-white border-slate-900"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        {brand}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {splitPayment1Method === "CREDITO" && (
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Cuotas:</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(splitPayment1CardBrand === "Naranja" 
+                                        ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                        : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                      ).map(inst => (
+                                        <button
+                                          key={inst.v}
+                                          type="button"
+                                          onClick={() => setSplitPayment1Installments(inst.v)}
+                                          className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
+                                            splitPayment1Installments === inst.v
+                                              ? "bg-slate-900 text-white border-slate-900"
+                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                          }`}
+                                        >
+                                          {inst.l}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Nº Operación / Lote (Opcional):</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Ej: 123456"
+                                    value={splitPayment1CardVoucher}
+                                    onChange={(e) => setSplitPayment1CardVoucher(e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white rounded-md border border-slate-300 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Tarjeta Método 2 */}
@@ -2625,6 +2769,65 @@ export function PosView({
                             {splitPayment2Method === "EFECTIVO" && splitChange2 > 0 && (
                               <div className="text-right text-[11px] font-bold text-emerald-700 font-mono">
                                 Vuelto Método 2: {formatCurrency(splitChange2)}
+                              </div>
+                            )}
+                            
+                            {/* Detalles de Tarjeta 2 (Débito/Crédito) */}
+                            {(splitPayment2Method === "DEBITO" || splitPayment2Method === "CREDITO") && (
+                              <div className="pt-2 border-t border-slate-200 mt-2 space-y-2">
+                                <div>
+                                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Marca de Tarjeta:</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {["Visa", "Mastercard", "Cabal", ...(splitPayment2Method === "CREDITO" ? ["Naranja"] : []), "Otra"].map(brand => (
+                                      <button
+                                        key={brand}
+                                        type="button"
+                                        onClick={() => setSplitPayment2CardBrand(brand)}
+                                        className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
+                                          splitPayment2CardBrand === brand
+                                            ? "bg-slate-900 text-white border-slate-900"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        {brand}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {splitPayment2Method === "CREDITO" && (
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Cuotas:</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(splitPayment2CardBrand === "Naranja" 
+                                        ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                        : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
+                                      ).map(inst => (
+                                        <button
+                                          key={inst.v}
+                                          type="button"
+                                          onClick={() => setSplitPayment2Installments(inst.v)}
+                                          className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
+                                            splitPayment2Installments === inst.v
+                                              ? "bg-slate-900 text-white border-slate-900"
+                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                          }`}
+                                        >
+                                          {inst.l}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Nº Operación / Lote (Opcional):</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Ej: 123456"
+                                    value={splitPayment2CardVoucher}
+                                    onChange={(e) => setSplitPayment2CardVoucher(e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white rounded-md border border-slate-300 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>
