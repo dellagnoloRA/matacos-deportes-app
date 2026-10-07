@@ -24,6 +24,7 @@ import {
   DollarSign,
   Sparkles,
   Layers,
+  ChevronDown,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
@@ -39,6 +40,7 @@ import {
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import type { PendingSaleItemSummary } from "./PosView";
 import type { UpdatePendingSaleInput } from "@/schemas/sale";
+import { VariantSelectorModal, VariantOption } from "./VariantSelectorModal";
 
 export interface EditPendingTicketModalProps {
   isOpen: boolean;
@@ -79,6 +81,55 @@ interface EditableItem {
   }>;
 }
 
+/**
+ * Ordena las variantes naturalmente por talle (numérico o indumentaria estándar)
+ * y luego alfabéticamente por color para facilitar la selección inmediata en mostrador.
+ */
+function sortVariantsBySizeAndColor<
+  T extends { size: string; color?: string | null }
+>(variants: T[]): T[] {
+  const sizeOrder: Record<string, number> = {
+    xxs: 1,
+    xs: 2,
+    s: 3,
+    m: 4,
+    l: 5,
+    xl: 6,
+    xxl: 7,
+    "2xl": 7,
+    xxxl: 8,
+    "3xl": 8,
+    "4xl": 9,
+    unico: 10,
+    único: 10,
+    u: 10,
+  };
+
+  return [...variants].sort((a, b) => {
+    const sA = (a.size || "").trim().toLowerCase();
+    const sB = (b.size || "").trim().toLowerCase();
+
+    // 1. Ambos son numéricos (ej. calzados: 36, 37, 38, 38.5, 39...)
+    const numA = parseFloat(sA.replace(",", "."));
+    const numB = parseFloat(sB.replace(",", "."));
+    if (!isNaN(numA) && !isNaN(numB)) {
+      if (numA !== numB) return numA - numB;
+    } else if (sizeOrder[sA] && sizeOrder[sB]) {
+      // 2. Ambos son talles estándar de indumentaria
+      if (sizeOrder[sA] !== sizeOrder[sB]) return sizeOrder[sA] - sizeOrder[sB];
+    } else if (sA !== sB) {
+      // 3. Alfanumérico natural
+      const cmp = sA.localeCompare(sB, "es", { numeric: true });
+      if (cmp !== 0) return cmp;
+    }
+
+    // 4. Si el talle es el mismo, ordenar alfabéticamente por color
+    const cA = (a.color || "").trim().toLowerCase();
+    const cB = (b.color || "").trim().toLowerCase();
+    return cA.localeCompare(cB, "es");
+  });
+}
+
 export function EditPendingTicketModal({
   isOpen,
   onClose,
@@ -117,6 +168,20 @@ export function EditPendingTicketModal({
     originalAmount: number;
     currentType: DiscountType;
     currentValue: number;
+  } | null>(null);
+
+  // Modal interactivo de Selección Visual de Talle y Color
+  const [variantModalConfig, setVariantModalConfig] = useState<{
+    isOpen: boolean;
+    productName: string;
+    brandName?: string;
+    basePrice?: number;
+    variants: VariantOption[];
+    currentVariantId?: string;
+    originalReservedInTicket?: number;
+    targetRowId?: string;
+    targetProductItem?: any;
+    mode: "change" | "add";
   } | null>(null);
 
   // Estado de guardado y feedback
@@ -183,6 +248,25 @@ export function EditPendingTicketModal({
       }
 
       const origPrice = Number(it.originalPrice || it.unitPrice);
+
+      // Asegurar que la variante actual del ítem esté siempre presente en las opciones
+      const hasCurrent = siblingVariants.some((v) => v.id === it.variant.id);
+      if (!hasCurrent) {
+        siblingVariants.push({
+          id: it.variant.id,
+          size: it.variant.size,
+          color: it.variant.color,
+          sku: it.variant.sku,
+          barcode: it.variant.barcode,
+          stockStore: it.variant.stockStore,
+          stockReserved: it.variant.stockReserved || 0,
+          price: origPrice,
+        });
+      }
+
+      // Ordenar talles y colores de manera natural
+      siblingVariants = sortVariantsBySizeAndColor(siblingVariants);
+
       const unitP = Number(it.unitPrice);
 
       let dType: DiscountType | null = it.discountType || null;
@@ -261,37 +345,88 @@ export function EditPendingTicketModal({
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // 1. Filtrar primero en catálogo local en memoria (ultra rápido)
         const lowerQ = q.toLowerCase();
+        const words = lowerQ.split(/\s+/).filter(Boolean);
         const localMatches: any[] = [];
 
+        // 1. Coincidencia exacta por código de barras o SKU en catálogo local
+        let exactBarcodeMatch: any = null;
         for (const prod of catalogProducts) {
           for (const variant of prod.variants) {
-            const isBarcodeMatch = variant.barcode && variant.barcode === q;
-            const isSkuMatch = variant.sku && variant.sku.toLowerCase() === lowerQ;
-            const isNameMatch = prod.name.toLowerCase().includes(lowerQ);
-            const isBrandMatch = prod.brand.toLowerCase().includes(lowerQ);
-            const isSizeMatch = variant.size.toLowerCase() === lowerQ;
-            const isColorMatch = variant.color.toLowerCase().includes(lowerQ);
-
-            if (isBarcodeMatch || isSkuMatch || isNameMatch || isBrandMatch || isSizeMatch || isColorMatch) {
-              const effPrice = variant.price ? Number(variant.price) : Number(prod.price);
-              const avail = Math.max(0, variant.stockStore - (variant.stockReserved || 0));
-              localMatches.push({
-                variantId: variant.id || "",
+            if (variant.barcode === q || (variant.sku && variant.sku.toLowerCase() === lowerQ)) {
+              exactBarcodeMatch = {
                 productId: prod.id,
                 name: prod.name,
                 brand: prod.brand,
                 category: prod.category,
-                size: variant.size,
-                color: variant.color,
-                barcode: variant.barcode,
-                sku: variant.sku,
-                price: effPrice,
-                stockStore: variant.stockStore,
-                stockReserved: variant.stockReserved || 0,
-                stockAvailable: avail,
-                availableVariants: prod.variants.map((v) => ({
+                price: variant.price ? Number(variant.price) : Number(prod.price),
+                isExactBarcodeMatch: true,
+                exactVariant: {
+                  id: variant.id || "",
+                  size: variant.size,
+                  color: variant.color,
+                  sku: variant.sku,
+                  barcode: variant.barcode,
+                  stockStore: variant.stockStore,
+                  stockReserved: variant.stockReserved || 0,
+                  price: variant.price ? Number(variant.price) : Number(prod.price),
+                },
+                availableVariants: sortVariantsBySizeAndColor(
+                  prod.variants.map((v) => ({
+                    id: v.id || "",
+                    size: v.size,
+                    color: v.color,
+                    sku: v.sku,
+                    barcode: v.barcode,
+                    stockStore: v.stockStore,
+                    stockReserved: v.stockReserved || 0,
+                    price: v.price ? Number(v.price) : Number(prod.price),
+                  }))
+                ),
+              };
+              break;
+            }
+          }
+          if (exactBarcodeMatch) break;
+        }
+
+        if (exactBarcodeMatch) {
+          localMatches.push(exactBarcodeMatch);
+        }
+
+        // 2. Coincidencia por producto (agrupada para evitar que un producto con 100+ variantes tape a los demás)
+        for (const prod of catalogProducts) {
+          if (exactBarcodeMatch && prod.id === exactBarcodeMatch.productId) continue;
+
+          const prodMatches = words.every((w) => {
+            const inName = prod.name.toLowerCase().includes(w);
+            const inBrand = prod.brand.toLowerCase().includes(w);
+            const inCategory = (prod.category || "").toLowerCase().includes(w);
+            const inVariants = prod.variants.some((v) =>
+              (v.size && v.size.toLowerCase().includes(w)) ||
+              (v.color && v.color.toLowerCase().includes(w)) ||
+              (v.sku && v.sku.toLowerCase().includes(w)) ||
+              (v.barcode && v.barcode.includes(w))
+            );
+            return inName || inBrand || inCategory || inVariants;
+          });
+
+          if (prodMatches) {
+            const totalStockStore = prod.variants.reduce(
+              (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
+              0
+            );
+
+            localMatches.push({
+              productId: prod.id,
+              name: prod.name,
+              brand: prod.brand,
+              category: prod.category,
+              price: Number(prod.price),
+              totalStockStore,
+              variantsCount: prod.variants.length,
+              availableVariants: sortVariantsBySizeAndColor(
+                prod.variants.map((v) => ({
                   id: v.id || "",
                   size: v.size,
                   color: v.color,
@@ -300,22 +435,28 @@ export function EditPendingTicketModal({
                   stockStore: v.stockStore,
                   stockReserved: v.stockReserved || 0,
                   price: v.price ? Number(v.price) : Number(prod.price),
-                })),
-              });
-            }
+                }))
+              ),
+            });
           }
         }
 
         if (localMatches.length > 0) {
-          setSearchResults(localMatches.slice(0, 15));
+          setSearchResults(localMatches.slice(0, 20));
           setIsSearching(false);
           return;
         }
 
-        // 2. Si no encontró en catálogo local, consultar base de datos en servidor
+        // 3. Si no encontró en catálogo local, consultar base de datos en servidor
         const res = await searchPosProducts(q);
         if (res.success && res.items) {
-          setSearchResults(res.items);
+          const formattedItems = res.items.map((it: any) => ({
+            ...it,
+            availableVariants: it.availableVariants
+              ? sortVariantsBySizeAndColor(it.availableVariants)
+              : undefined,
+          }));
+          setSearchResults(formattedItems);
         } else {
           setSearchResults([]);
         }
@@ -338,8 +479,12 @@ export function EditPendingTicketModal({
     if (e.key === "Enter") {
       e.preventDefault();
       if (searchResults.length > 0) {
-        // Añadir el primer resultado
-        handleAddItemFromSearch(searchResults[0]);
+        const first = searchResults[0];
+        if (first.isExactBarcodeMatch && first.exactVariant) {
+          handleAddItemDirectly(first, first.exactVariant);
+        } else {
+          handleOpenVariantModalForAdd(first);
+        }
       }
     }
   };
@@ -348,19 +493,54 @@ export function EditPendingTicketModal({
   // ACCIONES SOBRE LOS ÍTEMS DEL TICKET
   // -------------------------------------------------------------
 
-  // Añadir ítem desde el buscador
-  const handleAddItemFromSearch = (productItem: any) => {
-    const variantId = productItem.variantId;
+  // Abrir modal de selección visual para cambiar talle/color de un renglón existente
+  const handleOpenVariantModalForChange = (item: EditableItem) => {
+    setVariantModalConfig({
+      isOpen: true,
+      productName: item.name,
+      brandName: item.brand,
+      basePrice: item.originalPrice,
+      variants: item.availableVariants,
+      currentVariantId: item.variantId,
+      originalReservedInTicket: item.originalReservedInTicket,
+      targetRowId: item.rowId,
+      mode: "change",
+    });
+  };
+
+  // Abrir modal de selección visual para añadir una nueva prenda desde la búsqueda
+  const handleOpenVariantModalForAdd = (productItem: any) => {
+    // Si tiene 1 sola variante, agregar directo sin modal
+    if (productItem.availableVariants && productItem.availableVariants.length === 1) {
+      handleAddItemDirectly(productItem, productItem.availableVariants[0]);
+      return;
+    }
+
+    setVariantModalConfig({
+      isOpen: true,
+      productName: productItem.name,
+      brandName: productItem.brand,
+      basePrice: productItem.price,
+      variants: productItem.availableVariants || [],
+      targetProductItem: productItem,
+      mode: "add",
+    });
+  };
+
+  // Añadir variante directamente al ticket (desde escáner o confirmación de modal)
+  const handleAddItemDirectly = (productItem: any, chosenVariant: VariantOption) => {
+    const variantId = chosenVariant.id;
     const existingIndex = items.findIndex((i) => i.variantId === variantId);
 
     // Calcular disponibilidad considerando lo ya reservado en este ticket
     const currentQtyInTicket = existingIndex >= 0 ? items[existingIndex].quantity : 0;
     const origReserved = existingIndex >= 0 ? items[existingIndex].originalReservedInTicket : 0;
-    const maxAvailable = productItem.stockStore - productItem.stockReserved + origReserved;
+    const maxAvailable = chosenVariant.stockStore - (chosenVariant.stockReserved || 0) + origReserved;
 
     if (currentQtyInTicket + 1 > maxAvailable) {
+      const variantDesc = `Talle ${chosenVariant.size}${chosenVariant.color ? ` (${chosenVariant.color})` : ""}`;
       setSaveError(
-        `No hay más stock disponible en salón para "${productItem.name}" (Talle ${productItem.size}). Máximo: ${maxAvailable}`
+        `No hay más stock disponible en salón para "${productItem.name}" (${variantDesc}). Máximo: ${maxAvailable}`
       );
       return;
     }
@@ -373,37 +553,26 @@ export function EditPendingTicketModal({
         )
       );
     } else {
-      // Insertar nuevo ítem al inicio
+      const effPrice = chosenVariant.price ? Number(chosenVariant.price) : Number(productItem.price);
       const newItem: EditableItem = {
         rowId: `new-${variantId}-${Date.now()}`,
         variantId: variantId,
-        productId: productItem.productId,
+        productId: productItem.productId || productItem.id || "",
         name: productItem.name,
         brand: productItem.brand,
         category: productItem.category,
-        size: productItem.size,
-        color: productItem.color,
-        sku: productItem.sku,
-        barcode: productItem.barcode,
-        stockStore: productItem.stockStore,
-        stockReserved: productItem.stockReserved,
-        originalPrice: productItem.price,
+        size: chosenVariant.size,
+        color: chosenVariant.color,
+        sku: chosenVariant.sku,
+        barcode: chosenVariant.barcode,
+        stockStore: chosenVariant.stockStore,
+        stockReserved: chosenVariant.stockReserved || 0,
+        originalPrice: effPrice,
         quantity: 1,
         discountType: null,
         discountValue: null,
         originalReservedInTicket: 0,
-        availableVariants: productItem.availableVariants || [
-          {
-            id: variantId,
-            size: productItem.size,
-            color: productItem.color,
-            sku: productItem.sku,
-            barcode: productItem.barcode,
-            stockStore: productItem.stockStore,
-            stockReserved: productItem.stockReserved,
-            price: productItem.price,
-          },
-        ],
+        availableVariants: productItem.availableVariants || [chosenVariant],
       };
       setItems((prev) => [newItem, ...prev]);
     }
@@ -411,7 +580,17 @@ export function EditPendingTicketModal({
     setSearchQuery("");
     setSearchResults([]);
     setSaveError(null);
+    setVariantModalConfig(null);
     searchInputRef.current?.focus();
+  };
+
+  // Añadir ítem desde el buscador (compatibilidad con selección directa)
+  const handleAddItemFromSearch = (productItem: any) => {
+    if (productItem.isExactBarcodeMatch && productItem.exactVariant) {
+      handleAddItemDirectly(productItem, productItem.exactVariant);
+    } else {
+      handleOpenVariantModalForAdd(productItem);
+    }
   };
 
   // Cambiar cantidad (+, -, o valor numérico)
@@ -427,8 +606,9 @@ export function EditPendingTicketModal({
 
         const maxAvailable = it.stockStore - it.stockReserved + it.originalReservedInTicket;
         if (newQuantity > maxAvailable) {
+          const variantDesc = `Talle ${it.size}${it.color ? ` (${it.color})` : ""}`;
           setSaveError(
-            `Stock insuficiente en salón para "${it.name}" (Talle ${it.size}). Disponible: ${maxAvailable}`
+            `Stock insuficiente en salón para "${it.name}" (${variantDesc}). Disponible: ${maxAvailable}`
           );
           return it;
         }
@@ -447,11 +627,13 @@ export function EditPendingTicketModal({
     const targetVariant = item.availableVariants.find((v) => v.id === newVariantId);
     if (!targetVariant) return;
 
+    const variantDesc = `Talle ${targetVariant.size}${targetVariant.color ? ` (${targetVariant.color})` : ""}`;
+
     // Verificar si esta variante ya está en otro renglón
     const duplicateRow = items.find((i) => i.variantId === newVariantId && i.rowId !== rowId);
     if (duplicateRow) {
       setSaveError(
-        `El talle ${targetVariant.size} ya está en el ticket. Modifica la cantidad en ese renglón.`
+        `La variante ${variantDesc} ya está en el ticket. Modifica la cantidad en ese renglón.`
       );
       return;
     }
@@ -462,7 +644,7 @@ export function EditPendingTicketModal({
 
     if (maxAvailable <= 0) {
       setSaveError(
-        `El talle ${targetVariant.size} no tiene stock disponible en salón (0 un.).`
+        `La variante ${variantDesc} no tiene stock disponible en salón (0 un.).`
       );
       return;
     }
@@ -806,30 +988,123 @@ export function EditPendingTicketModal({
                   </div>
                 ) : (
                   searchResults.map((resItem) => {
-                    const isOutOfStock = resItem.stockAvailable <= 0;
+                    // Caso A: Coincidencia exacta de código de barras
+                    if (resItem.isExactBarcodeMatch && resItem.exactVariant) {
+                      const avail =
+                        resItem.exactVariant.stockStore -
+                        (resItem.exactVariant.stockReserved || 0);
+                      const isOutOfStock = avail <= 0;
+
+                      return (
+                        <div
+                          key={`exact-${resItem.exactVariant.id}`}
+                          className={`p-3.5 flex items-center justify-between gap-3 text-xs bg-emerald-50/70 border-l-4 border-emerald-500 hover:bg-emerald-50 transition-colors ${
+                            isOutOfStock ? "opacity-70" : ""
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 truncate text-[13px]">
+                                {resItem.name}
+                              </span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                                Código de barras exacto
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-600 mt-1 flex-wrap">
+                              <span className="font-bold text-slate-800">
+                                Talle {resItem.exactVariant.size}
+                              </span>
+                              <span>•</span>
+                              <span className="font-bold text-slate-800">
+                                {resItem.exactVariant.color}
+                              </span>
+                              {resItem.exactVariant.barcode && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono text-slate-500">
+                                    Cód: {resItem.exactVariant.barcode}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right">
+                              <span className="font-mono font-bold text-slate-900 block">
+                                {formatCurrency(
+                                  resItem.exactVariant.price || resItem.price
+                                )}
+                              </span>
+                              <span
+                                className={`text-[10px] font-semibold ${
+                                  isOutOfStock ? "text-rose-600" : "text-emerald-700"
+                                }`}
+                              >
+                                {isOutOfStock ? "Sin stock salón" : `${avail} disp. salón`}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={isOutOfStock}
+                              onClick={() =>
+                                handleAddItemDirectly(resItem, resItem.exactVariant)
+                              }
+                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Añadir</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Caso B: Producto agrupado (muestra nombre de producto y permite abrir el selector de talles)
+                    const totalStore = resItem.totalStockStore || 0;
+                    const isOutOfStock = totalStore <= 0;
+                    const variantsCount =
+                      resItem.variantsCount ||
+                      (resItem.availableVariants ? resItem.availableVariants.length : 0);
+
                     return (
                       <div
-                        key={resItem.variantId}
-                        className={`p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors ${
+                        key={resItem.productId}
+                        className={`p-3.5 flex items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors ${
                           isOutOfStock ? "opacity-60 bg-slate-50/50" : ""
                         }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 truncate">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 text-sm truncate">
                               {resItem.name}
                             </span>
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">
-                              {resItem.brand}
-                            </span>
+                            {resItem.brand && (
+                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
+                                {resItem.brand}
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                            <span className="font-semibold text-slate-700">
-                              Talle {resItem.size}
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                            <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {variantsCount} talles/colores
                             </span>
-                            {resItem.color && <span>• Color {resItem.color}</span>}
-                            <span>• SKU: {resItem.sku || "N/A"}</span>
-                            {resItem.barcode && <span>• Barcode: {resItem.barcode}</span>}
+                            <span>•</span>
+                            <span
+                              className={`font-bold ${
+                                isOutOfStock ? "text-rose-600" : "text-emerald-700"
+                              }`}
+                            >
+                              {isOutOfStock ? "Sin stock en salón" : `${totalStore} un. en salón`}
+                            </span>
+                            {resItem.category && (
+                              <>
+                                <span>•</span>
+                                <span>{resItem.category}</span>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -838,25 +1113,15 @@ export function EditPendingTicketModal({
                             <span className="font-mono font-bold text-slate-900 block">
                               {formatCurrency(resItem.price)}
                             </span>
-                            <span
-                              className={`text-[10px] font-semibold ${
-                                isOutOfStock ? "text-rose-600" : "text-emerald-700"
-                              }`}
-                            >
-                              {isOutOfStock
-                                ? "Sin stock salón"
-                                : `${resItem.stockAvailable} disp. salón`}
-                            </span>
                           </div>
 
                           <button
                             type="button"
-                            disabled={isOutOfStock}
-                            onClick={() => handleAddItemFromSearch(resItem)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-2xs transition-colors"
+                            onClick={() => handleOpenVariantModalForAdd(resItem)}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
-                            <span>Añadir</span>
+                            <span>Elegir Talle / Añadir</span>
                           </button>
                         </div>
                       </div>
@@ -901,8 +1166,12 @@ export function EditPendingTicketModal({
                           {it.brand}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-                        {it.color && <span>Color: {it.color} •</span>}
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                        {it.color && (
+                          <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            Color: {it.color}
+                          </span>
+                        )}
                         <span>Precio lista: {formatCurrency(it.originalPrice)}</span>
                         {hasDiscount && (
                           <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
@@ -915,28 +1184,26 @@ export function EditPendingTicketModal({
                     {/* SELECTOR DE TALLE / VARIANTE */}
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Talle</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Talle / Color</span>
                         {it.availableVariants && it.availableVariants.length > 1 ? (
-                          <select
-                            value={it.variantId}
-                            onChange={(e) => handleSwapVariant(it.rowId, e.target.value)}
-                            className="text-xs font-bold bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            title="Cambiar talle por otra variante del mismo producto"
+                          <button
+                            type="button"
+                            onClick={() => handleOpenVariantModalForChange(it)}
+                            className="text-xs font-bold bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 flex items-center gap-1.5 transition-all shadow-2xs group cursor-pointer"
+                            title="Abrir selector visual para cambiar talle o color de esta prenda"
                           >
-                            {it.availableVariants.map((v) => {
-                              const origRes = v.id === it.variantId ? it.originalReservedInTicket : 0;
-                              const avail = v.stockStore - (v.stockReserved || 0) + origRes;
-                              const isCur = v.id === it.variantId;
-                              return (
-                                <option key={v.id} value={v.id} disabled={avail <= 0 && !isCur}>
-                                  Talle {v.size} ({avail} disp. {isCur ? "• Actual" : ""})
-                                </option>
-                              );
-                            })}
-                          </select>
+                            <span className="font-mono">Talle {it.size}</span>
+                            {it.color && (
+                              <span className="text-slate-600 group-hover:text-emerald-700 font-medium">
+                                • {it.color}
+                              </span>
+                            )}
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 ml-0.5" />
+                          </button>
                         ) : (
-                          <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-lg text-slate-800 border border-slate-200">
-                            Talle {it.size}
+                          <span className="text-xs font-bold bg-slate-100 px-2.5 py-1.5 rounded-lg text-slate-800 border border-slate-200 inline-flex items-center gap-1.5">
+                            <span>Talle {it.size}</span>
+                            {it.color && <span className="text-slate-500 font-medium">• {it.color}</span>}
                           </span>
                         )}
                       </div>
@@ -1194,6 +1461,29 @@ export function EditPendingTicketModal({
           config={discountModalConfig}
           onClose={() => setDiscountModalConfig(null)}
           onApply={handleApplyDiscountFromModal}
+        />
+      )}
+
+      {/* MODAL INTERACTIVO DE SELECCIÓN DE TALLE Y COLOR */}
+      {variantModalConfig && (
+        <VariantSelectorModal
+          isOpen={variantModalConfig.isOpen}
+          onClose={() => setVariantModalConfig(null)}
+          productName={variantModalConfig.productName}
+          brandName={variantModalConfig.brandName}
+          basePrice={variantModalConfig.basePrice}
+          variants={variantModalConfig.variants}
+          currentVariantId={variantModalConfig.currentVariantId}
+          originalReservedInTicket={variantModalConfig.originalReservedInTicket}
+          mode={variantModalConfig.mode}
+          onSelectVariant={(chosenVariant) => {
+            if (variantModalConfig.mode === "change" && variantModalConfig.targetRowId) {
+              handleSwapVariant(variantModalConfig.targetRowId, chosenVariant.id);
+            } else if (variantModalConfig.mode === "add" && variantModalConfig.targetProductItem) {
+              handleAddItemDirectly(variantModalConfig.targetProductItem, chosenVariant);
+            }
+            setVariantModalConfig(null);
+          }}
         />
       )}
     </div>
