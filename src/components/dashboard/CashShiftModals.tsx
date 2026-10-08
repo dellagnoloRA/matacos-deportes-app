@@ -744,7 +744,7 @@ export function CloseCashShiftModal({
           {/* Observaciones / Justificación */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Observaciones del Cierre (Mandatorio si hay diferencia &gt; $500)
+              Observaciones del Cierre (Mandatorio si hay diferencia &gt; $5.000)
             </label>
             <textarea
               rows={2}
@@ -870,13 +870,40 @@ export function CashShiftTicketModal({ receipt, onClose }: CashShiftTicketModalP
           {/* Resumen de Ventas por Medio de Pago */}
           <div className="py-2.5 border-b border-dashed border-slate-300">
             <div className="font-bold pb-1 text-slate-700">VENTAS POR MEDIO DE PAGO:</div>
-            <div className="space-y-1">
-              {receipt.summary.byPaymentMethod.map((pm) => (
-                <div key={pm.method} className="flex justify-between">
-                  <span>{pm.label}:</span>
-                  <span className="font-bold">{pm.expectedFormatted}</span>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              {receipt.summary.byPaymentMethod.map((pm) => {
+                const hasDiff =
+                  typeof pm.difference === "number"
+                    ? Math.abs(pm.difference) > 0.05
+                    : pm.expectedFormatted !== pm.actualFormatted;
+                const isDiffPositive =
+                  typeof pm.difference === "number"
+                    ? pm.difference > 0
+                    : !pm.differenceFormatted.startsWith("-");
+
+                return (
+                  <div key={pm.method} className="space-y-0.5">
+                    <div className="flex justify-between items-center">
+                      <span>{pm.label}:</span>
+                      <span className="font-bold">{pm.expectedFormatted}</span>
+                    </div>
+                    {hasDiff && pm.method !== "EFECTIVO" && (
+                      <div className="flex justify-between items-center text-[10px] pl-2 text-slate-500 font-mono">
+                        <span>Declarado: {pm.actualFormatted}</span>
+                        <span
+                          className={`font-bold ${
+                            isDiffPositive ? "text-blue-600" : "text-rose-600"
+                          }`}
+                        >
+                          {isDiffPositive
+                            ? `(+${pm.differenceFormatted})`
+                            : `(${pm.differenceFormatted})`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex justify-between pt-1 font-extrabold border-t border-slate-200 mt-1">
               <span>TOTAL VENTAS ({receipt.summary.salesCount} ops):</span>

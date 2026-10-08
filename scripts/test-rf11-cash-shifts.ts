@@ -319,14 +319,14 @@ async function runTests() {
   );
 
   // -------------------------------------------------------------------
-  // TEST 8: Arqueo Ciego ("Blind Audit") y Umbral de Justificación
+  // TEST 8: Arqueo Ciego ("Blind Audit") y Umbral de Justificación ($ 5.000)
   // -------------------------------------------------------------------
   console.log("\n8. Cierre de Turno y Arqueo Ciego");
 
-  // 8.1 Intento de cierre con desvío > $500 SIN justificación (Debe exigir notas)
+  // 8.1 Intento de cierre con desvío > $5.000 SIN justificación (Debe exigir notas)
   const blindWithoutNotesRes = await closeCashShift({
     cashShiftId: activeShiftId,
-    actualCash: 38000, // Faltante de $ 2.000 ($40.000 esperado vs $38.000 contado)
+    actualCash: 34000, // Faltante de $ 6.000 ($40.000 esperado vs $34.000 contado)
     actualDebit: 30000,
     actualCredit: 0,
     actualTransfer: 0,
@@ -336,29 +336,29 @@ async function runTests() {
 
   assert(
     !blindWithoutNotesRes.success,
-    "Rechazo de cierre con diferencia > $500 sin justificación"
+    "Rechazo de cierre con diferencia > $5.000 sin justificación"
   );
   assert(
     blindWithoutNotesRes.error?.includes("Es obligatorio ingresar una justificación"),
-    "Validación de campo notas obligatorio ante desvíos"
+    "Validación de campo notas obligatorio ante desvíos superiores a $ 5.000"
   );
 
   // 8.2 Cierre exitoso con arqueo ciego y justificación asentada
   const closeRes = await closeCashShift({
     cashShiftId: activeShiftId,
-    actualCash: 39500, // Faltante de $ 500
+    actualCash: 34000, // Faltante de $ 6.000
     actualDebit: 30000,
     actualCredit: 0,
     actualTransfer: 0,
     actualQr: 15000,
-    notes: "Diferencia de $ 500 atribuible a cambio de monedas y redondeo en mostrador",
+    notes: "Diferencia de $ 6.000 atribuible a diferencia en cambio de billetes grandes en mostrador",
   });
 
   assert(closeRes.success, "Cierre de turno y arqueo ciego exitoso", closeRes.error);
   assert(closeRes.data?.status === "CERRADA", "Estado del turno actualizado a CERRADA");
   assert(
-    Number(closeRes.data?.differenceCash) === -500,
-    "Diferencia de caja registrada con precisión: -$ 500,00 (Faltante)"
+    Number(closeRes.data?.differenceCash) === -6000,
+    "Diferencia de caja registrada con precisión: -$ 6.000,00 (Faltante)"
   );
 
   // -------------------------------------------------------------------

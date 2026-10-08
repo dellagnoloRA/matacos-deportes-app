@@ -3411,7 +3411,7 @@ export function PosView({
                       setQuickProductQuery(searchQuery.trim());
                       setIsQuickProductModalOpen(true);
                     }}
-                    className="px-4 py-2 bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     <span>Cargar "{searchQuery.trim().slice(0, 16)}" en Carga Rápida</span>

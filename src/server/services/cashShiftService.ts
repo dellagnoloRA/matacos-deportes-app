@@ -72,6 +72,9 @@ export interface CashShiftTicketReceipt {
     byPaymentMethod: Array<{
       method: string;
       label: string;
+      expected: number;
+      actual: number;
+      difference: number;
       expectedFormatted: string;
       actualFormatted: string;
       differenceFormatted: string;
@@ -295,6 +298,13 @@ export function validateCashWithdrawal(currentAvailableCash: number, requestedAm
 }
 
 /**
+ * Umbral canónico de tolerancia en Pesos Argentinos (ARS) para arqueo ciego.
+ * Si el desvío absoluto en efectivo (|actualCash - expectedCash|) supera este valor,
+ * el sistema exige obligatoriamente una nota justificativa para cerrar la caja.
+ */
+export const CASH_AUDIT_TOLERANCE_THRESHOLD = 5000;
+
+/**
  * Compara los valores reales declarados en el arqueo ciego contra los esperados
  */
 export function compareBlindAudit(
@@ -323,8 +333,8 @@ export function compareBlindAudit(
   const actualQr = actual.actualQr ?? expected.expectedQr;
   const differenceQr = Math.round((actualQr - expected.expectedQr) * 100) / 100;
 
-  // Umbral de tolerancia de $ 500,00 para justificación obligatoria
-  const hasSignificantDifference = Math.abs(differenceCash) > 500;
+  // Umbral de tolerancia de $ 5.000,00 para justificación obligatoria
+  const hasSignificantDifference = Math.abs(differenceCash) > CASH_AUDIT_TOLERANCE_THRESHOLD;
 
   return {
     expectedCash: expected.expectedCash,
@@ -414,6 +424,9 @@ export async function generateCashShiftReceiptPayload(
         {
           method: "EFECTIVO",
           label: "Efectivo en Ventas",
+          expected: totals.cashPaymentsTotal,
+          actual: actualCash,
+          difference: diffCash,
           expectedFormatted: formatCurrency(totals.cashPaymentsTotal),
           actualFormatted: formatCurrency(actualCash),
           differenceFormatted: formatCurrency(diffCash),
@@ -421,6 +434,9 @@ export async function generateCashShiftReceiptPayload(
         {
           method: "DEBITO",
           label: "Tarjeta Débito (Posnet)",
+          expected: totals.expectedDebit,
+          actual: actualDebit,
+          difference: Math.round((actualDebit - totals.expectedDebit) * 100) / 100,
           expectedFormatted: formatCurrency(totals.expectedDebit),
           actualFormatted: formatCurrency(actualDebit),
           differenceFormatted: formatCurrency(actualDebit - totals.expectedDebit),
@@ -428,6 +444,9 @@ export async function generateCashShiftReceiptPayload(
         {
           method: "CREDITO",
           label: "Tarjeta Crédito (Posnet)",
+          expected: totals.expectedCredit,
+          actual: actualCredit,
+          difference: Math.round((actualCredit - totals.expectedCredit) * 100) / 100,
           expectedFormatted: formatCurrency(totals.expectedCredit),
           actualFormatted: formatCurrency(actualCredit),
           differenceFormatted: formatCurrency(actualCredit - totals.expectedCredit),
@@ -435,6 +454,9 @@ export async function generateCashShiftReceiptPayload(
         {
           method: "TRANSFERENCIA",
           label: "Transferencias Bancarias",
+          expected: totals.expectedTransfer,
+          actual: actualTransfer,
+          difference: Math.round((actualTransfer - totals.expectedTransfer) * 100) / 100,
           expectedFormatted: formatCurrency(totals.expectedTransfer),
           actualFormatted: formatCurrency(actualTransfer),
           differenceFormatted: formatCurrency(actualTransfer - totals.expectedTransfer),
@@ -442,6 +464,9 @@ export async function generateCashShiftReceiptPayload(
         {
           method: "QR_MERCADOPAGO",
           label: "QR Mercado Pago",
+          expected: totals.expectedQr,
+          actual: actualQr,
+          difference: Math.round((actualQr - totals.expectedQr) * 100) / 100,
           expectedFormatted: formatCurrency(totals.expectedQr),
           actualFormatted: formatCurrency(actualQr),
           differenceFormatted: formatCurrency(actualQr - totals.expectedQr),

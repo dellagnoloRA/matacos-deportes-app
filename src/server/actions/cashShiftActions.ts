@@ -17,6 +17,7 @@ import {
   validateCashWithdrawal,
   compareBlindAudit,
   generateCashShiftReceiptPayload,
+  CASH_AUDIT_TOLERANCE_THRESHOLD,
 } from "@/server/services/cashShiftService";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -250,13 +251,15 @@ export async function closeCashShift(input: CloseCashShiftInput) {
       // 2. Realizar comparación de arqueo ciego
       const comparison = compareBlindAudit(expectedTotals, validated);
 
-      // 3. Validar observación obligatoria si hay desvío significativo (> $ 500,00)
+      // 3. Validar observación obligatoria si hay desvío significativo (> CASH_AUDIT_TOLERANCE_THRESHOLD)
       if (comparison.hasSignificantDifference && !validated.notes?.trim()) {
         const sign = comparison.differenceCash > 0 ? "sobrante" : "faltante";
         throw new Error(
           `Existe una diferencia de ${sign} de $ ${Math.abs(
             comparison.differenceCash
-          ).toFixed(2)} (superior al límite de tolerancia de $ 500,00). Es obligatorio ingresar una justificación u observación para asentar el cierre.`
+          ).toFixed(2)} (superior al límite de tolerancia de $ ${CASH_AUDIT_TOLERANCE_THRESHOLD.toLocaleString(
+            "es-AR"
+          )},00). Es obligatorio ingresar una justificación u observación para asentar el cierre.`
         );
       }
 
