@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   Zap,
@@ -50,15 +50,18 @@ const COMMON_CATEGORIES = [
 ];
 
 const COMMON_BRANDS = [
+  "Genérica",
   "Topper",
   "Adidas",
-  "Puma Sports",
+  "Asics",
+  "Crocs",
+  "Mikasa",
   "Speedo",
   "Arena",
-  "Mikasa",
   "Wilson",
   "Matacos",
-  "Genérica",
+  "Penalty",
+  "Puma Sports",
 ];
 
 const COMMON_SIZES = [
@@ -94,12 +97,59 @@ export function QuickProductModal({
   const [color, setColor] = useState("Único");
   const [barcode, setBarcode] = useState("");
   const [disciplineName, setDisciplineName] = useState("Multideporte");
+  const [customDiscipline, setCustomDiscipline] = useState("");
   const [categoryName, setCategoryName] = useState("Calzado");
+  const [customCategory, setCustomCategory] = useState("");
   const [brandName, setBrandName] = useState("Genérica");
+  const [customBrand, setCustomBrand] = useState("");
   const [initialStock, setInitialStock] = useState<number>(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Opciones de disciplina consolidadas
+  const disciplineOptions = useMemo(() => {
+    const set = new Set<string>();
+    COMMON_DISCIPLINES.forEach((d) => set.add(d));
+    if (disciplines && disciplines.length > 0) {
+      disciplines.forEach((d) => {
+        if (d && typeof d === "string" && d.trim()) set.add(d.trim());
+      });
+    }
+    return Array.from(set);
+  }, [disciplines]);
+
+  // Opciones de categoría consolidadas
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    COMMON_CATEGORIES.forEach((c) => set.add(c));
+    if (categories && categories.length > 0) {
+      categories.forEach((c) => {
+        if (c && typeof c === "string" && c.trim()) set.add(c.trim());
+      });
+    }
+    return Array.from(set);
+  }, [categories]);
+
+  // Opciones de marca consolidadas y ordenadas alfabéticamente con "Genérica" primero
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>();
+    COMMON_BRANDS.forEach((b) => set.add(b));
+    if (brands && brands.length > 0) {
+      brands.forEach((b) => {
+        if (b && typeof b === "string" && b.trim()) {
+          set.add(b.trim());
+        }
+      });
+    }
+    set.add("Genérica");
+    const arr = Array.from(set);
+    return arr.sort((a, b) => {
+      if (a === "Genérica") return -1;
+      if (b === "Genérica") return 1;
+      return a.localeCompare(b, "es", { sensitivity: "base" });
+    });
+  }, [brands]);
 
   // Inicializar campos según la búsqueda previa
   useEffect(() => {
@@ -125,8 +175,11 @@ export function QuickProductModal({
     setCustomSize("");
     setColor("Único");
     setDisciplineName("Multideporte");
+    setCustomDiscipline("");
     setCategoryName("Calzado");
+    setCustomCategory("");
     setBrandName("Genérica");
+    setCustomBrand("");
     setInitialStock(1);
   }, [isOpen, initialSearchQuery]);
 
@@ -156,6 +209,13 @@ export function QuickProductModal({
 
     const parsedCost = costPrice ? parseFloat(costPrice) : null;
 
+    const finalDiscipline =
+      (disciplineName === "__OTRA__" ? customDiscipline.trim() : disciplineName.trim()) || "Multideporte";
+    const finalCategory =
+      (categoryName === "__OTRA__" ? customCategory.trim() : categoryName.trim()) || "General";
+    const finalBrand =
+      (brandName === "__OTRA__" ? customBrand.trim() : brandName.trim()) || "Genérica";
+
     setIsSubmitting(true);
     try {
       const res = await createQuickPosProduct({
@@ -165,9 +225,9 @@ export function QuickProductModal({
         size: finalSize,
         color: color.trim() || "Único",
         barcode: barcode.trim() || null,
-        disciplineName: disciplineName.trim() || "Multideporte",
-        categoryName: categoryName.trim() || "General",
-        brandName: brandName.trim() || "Genérica",
+        disciplineName: finalDiscipline,
+        categoryName: finalCategory,
+        brandName: finalBrand,
         initialStock: Math.max(1, initialStock || 1),
       });
 
@@ -388,12 +448,24 @@ export function QuickProductModal({
                 onChange={(e) => setDisciplineName(e.target.value)}
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
               >
-                {disciplines.map((d) => (
+                {disciplineOptions.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
                 ))}
+                <option value="__OTRA__">+ Otra disciplina...</option>
               </select>
+              {disciplineName === "__OTRA__" && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Escribir disciplina (ej. Boxeo)"
+                  value={customDiscipline}
+                  onChange={(e) => setCustomDiscipline(e.target.value)}
+                  className="mt-1.5 w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                  autoFocus
+                />
+              )}
             </div>
 
             <div>
@@ -405,31 +477,53 @@ export function QuickProductModal({
                 onChange={(e) => setCategoryName(e.target.value)}
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
               >
-                {categories.map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
+                <option value="__OTRA__">+ Otra categoría...</option>
               </select>
+              {categoryName === "__OTRA__" && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Escribir categoría (ej. Suplementos)"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="mt-1.5 w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                  autoFocus
+                />
+              )}
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1">
                 Marca
               </label>
-              <input
-                type="text"
-                list="brands-list"
+              <select
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
-                placeholder="Marca"
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
-              />
-              <datalist id="brands-list">
-                {brands.map((b) => (
-                  <option key={b} value={b} />
+              >
+                {brandOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
                 ))}
-              </datalist>
+                <option value="__OTRA__">+ Otra marca...</option>
+              </select>
+              {brandName === "__OTRA__" && (
+                <input
+                  type="text"
+                  required
+                  placeholder="Escribir marca"
+                  value={customBrand}
+                  onChange={(e) => setCustomBrand(e.target.value)}
+                  className="mt-1.5 w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                  autoFocus
+                />
+              )}
             </div>
           </div>
 
