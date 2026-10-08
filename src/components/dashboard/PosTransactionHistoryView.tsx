@@ -10,6 +10,7 @@ import {
   QrCode,
   ArrowUpRight,
   Printer,
+  Eye,
   ChevronDown,
   ChevronUp,
   RotateCcw,
@@ -121,6 +122,18 @@ export function PosTransactionHistoryView({
   // Transacción activa para modal de comprobante térmico
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] =
     useState<PosTransactionItem | null>(null);
+
+  // Cerrar modal de comprobante con tecla Escape
+  useEffect(() => {
+    if (!selectedSaleForReceipt) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedSaleForReceipt(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSaleForReceipt]);
 
   // Filas expandidas para ver desglose de artículos en la tabla
   const [expandedSaleIds, setExpandedSaleIds] = useState<Set<string>>(new Set());
@@ -665,14 +678,17 @@ export function PosTransactionHistoryView({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
+                        {/* Botón explícito para VISUALIZAR el Ticket No Fiscal */}
                         <button
                           onClick={() => setSelectedSaleForReceipt(sale)}
-                          className="p-2 text-slate-600 hover:text-slate-950 hover:bg-slate-100 rounded-xl transition-colors"
-                          title="Ver e Imprimir Ticket Térmico"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-[0.98] cursor-pointer"
+                          title="Visualizar ticket no fiscal emitido para esta venta"
                         >
-                          <Printer className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Ver Ticket</span>
                         </button>
+
                         <button
                           onClick={() => toggleExpand(sale.id)}
                           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
@@ -701,6 +717,15 @@ export function PosTransactionHistoryView({
                           <Package className="w-4 h-4 text-indigo-600" />
                           <span>Artículos incluidos en la venta ({sale.items.length} líneas)</span>
                         </h4>
+
+                        <button
+                          onClick={() => setSelectedSaleForReceipt(sale)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 text-[11px] font-bold rounded-lg transition-colors border border-emerald-200/60 cursor-pointer"
+                          title="Visualizar ticket no fiscal de esta venta"
+                        >
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span>Visualizar Ticket No Fiscal</span>
+                        </button>
                       </div>
 
                       <div className="overflow-x-auto">
@@ -786,85 +811,100 @@ export function PosTransactionHistoryView({
               {/* Header Modal */}
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-indigo-600" />
-                  <span className="text-sm font-bold text-slate-900">
-                    Comprobante de Venta Térmico
-                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-slate-900 block leading-tight">
+                      Ticket No Fiscal de Venta
+                    </span>
+                    <span className="text-[10.5px] text-slate-500 font-medium">
+                      Control interno de mostrador • Saavedra 241
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedSaleForReceipt(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  title="Cerrar (Esc)"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Ticket Preview Body */}
+              {/* Ticket Preview Body (80mm Continuo no fiscal) */}
               <div className="p-6 overflow-y-auto font-mono text-xs text-slate-800 space-y-4">
-                {/* Cabecera del Comercio con Datos Reales (Boceto Oficial) */}
-                <div className="border-b border-dashed border-slate-300 pb-3">
-                  <div className="text-center font-black tracking-[0.25em] text-[15px] leading-tight pt-1 text-slate-950">
+                {/* Cabecera del Comercio */}
+                <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                  <div className="font-black tracking-[0.25em] text-base leading-tight pt-1 text-slate-950">
                     M A T A C O S
                   </div>
-                  <div className="text-center font-black tracking-[0.2em] text-[15px] leading-tight mb-2.5 text-slate-950">
+                  <div className="font-black tracking-[0.2em] text-base leading-tight mb-2 text-slate-950">
                     D E P O R T E S
                   </div>
-                  <div className="text-left text-[11px] leading-[1.3] text-neutral-900 space-y-0.5 pt-1">
-                    <div className="font-semibold text-slate-950">MUJICA SANDRA ISABEL</div>
-                    <div>CUIT Nro.: 27-18036080-3</div>
-                    <div>Ing. Brutos 01-2718036080-3</div>
-                    <div>Dirección: SAAVEDRA 241</div>
-                    <div>FORMOSA - CAPITAL</div>
-                    <div>C.P.3600</div>
-                    <div>Inicio de Actividades: 25/07/2007</div>
-                    <div>IVA RESPONSABLE INSCRIPTO</div>
-                    <div className="font-medium pt-0.5">A CONSUMIDOR FINAL</div>
+                  <div className="text-[11px] text-neutral-600 space-y-0.5">
+                    <div>Saavedra 241 — Formosa Capital</div>
+                    <div className="font-semibold text-slate-900 pt-0.5">
+                      Instagram: @matacosdeportes
+                    </div>
                   </div>
                 </div>
 
+                {/* Identificación de Control Operativo */}
                 <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-3">
-                  <div className="text-center text-[12px] space-y-0.5 pb-1">
-                    <div className="font-bold text-[12.5px]">Cód. 083 - TIQUE</div>
-                    <div>
-                      P.V. Nro. {sale.invoiceNumber?.split("-")[0] || "00008"} - Nro. T. {sale.invoiceNumber?.split("-")[1] || sale.ticketCode || "00000001"}
-                    </div>
+                  <div className="text-center pb-1">
+                    <span className="font-bold text-[12px] uppercase tracking-wider block text-slate-900">
+                      COMPROBANTE NO FISCAL
+                    </span>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">
+                      Control Interno de Venta
+                    </span>
                   </div>
+
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-500">Ticket Nro.:</span>
+                    <span className="font-bold text-slate-950 font-mono">
+                      {sale.invoiceNumber || sale.ticketCode || "00008-00000001"}
+                      {sale.ticketCode && sale.invoiceNumber ? ` (${sale.ticketCode})` : ""}
+                    </span>
+                  </div>
+
                   <div className="flex justify-between">
-                    <span>Fecha {formattedDate}</span>
-                    <span>Hora {formattedTime}</span>
+                    <span className="text-slate-500">Fecha y Hora:</span>
+                    <span className="font-medium text-slate-900">
+                      {formattedDate} {formattedTime}
+                    </span>
                   </div>
-                  {sale.customerName && sale.customerName !== "Consumidor Final" && sale.customerName !== "CONSUMIDOR FINAL" && (
-                    <div className="flex justify-between pt-0.5">
-                      <span>Cliente:</span>
-                      <strong className="text-slate-950">{sale.customerName}</strong>
-                    </div>
-                  )}
-                  {sale.cashier?.name && (
-                    <div className="flex justify-between">
-                      <span>Cajero:</span>
-                      <span>{sale.cashier.name}</span>
-                    </div>
-                  )}
+
+                  {sale.customerName &&
+                    sale.customerName !== "Consumidor Final" &&
+                    sale.customerName !== "CONSUMIDOR FINAL" && (
+                      <div className="flex justify-between pt-0.5">
+                        <span className="text-slate-500">Cliente:</span>
+                        <strong className="text-slate-950">{sale.customerName}</strong>
+                      </div>
+                    )}
                 </div>
 
                 {/* Items */}
                 <div className="space-y-2 border-b border-dashed border-slate-300 pb-3">
                   <div className="flex justify-between font-bold text-[11px] text-slate-500 uppercase">
-                    <span>Cant / Descripción</span>
+                    <span>Cant. / Descripción</span>
                     <span>Subtotal</span>
                   </div>
                   {sale.items.map((it) => (
                     <div key={it.id} className="space-y-0.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-bold text-slate-900">
+                      <div className="flex justify-between text-xs gap-2">
+                        <span className="font-bold text-slate-900 break-words flex-1">
                           {it.quantity}x {it.variant.product.name}
                         </span>
-                        <span className="font-bold text-slate-950">
+                        <span className="font-bold text-slate-950 shrink-0 font-mono">
                           {formatCurrency(Number(it.subtotal))}
                         </span>
                       </div>
                       <div className="text-[10.5px] text-slate-500 pl-4">
-                        Talle: {it.variant.size} {it.variant.color ? `(${it.variant.color})` : ""} • P.U: {formatCurrency(Number(it.unitPrice || it.price))}
+                        Talle: {it.variant.size} {it.variant.color ? `• Color: ${it.variant.color}` : ""}
+                        {" • "}P.U: {formatCurrency(Number(it.unitPrice || it.price))}
                       </div>
                     </div>
                   ))}
@@ -878,24 +918,26 @@ export function PosTransactionHistoryView({
                       <span>-{formatCurrency(Number(sale.discount))}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base font-black border-t border-slate-300 pt-1.5">
-                    <span>TOTAL:</span>
-                    <span>{formatCurrency(Number(sale.total))}</span>
+                  <div className="flex justify-between text-base font-black border-y-2 border-slate-900 py-1.5 text-slate-950">
+                    <span className="tracking-wide">TOTAL:</span>
+                    <span className="font-mono">{formatCurrency(Number(sale.total))}</span>
                   </div>
 
                   {/* Medios de Pago */}
-                  <div className="pt-2 space-y-1 text-[11px] border-t border-dashed border-slate-200">
-                    <span className="font-bold text-slate-600 block">Detalle de Pagos:</span>
+                  <div className="pt-2 space-y-1 text-[11px]">
+                    <span className="font-bold text-slate-600 block text-[10px] uppercase tracking-wider">
+                      Detalle de Pagos:
+                    </span>
                     {sale.payments.map((p, idx) => (
                       <div key={idx} className="flex justify-between pl-2">
                         <span>{p.method}:</span>
-                        <span className="font-bold">{formatCurrency(Number(p.amount))}</span>
+                        <span className="font-bold font-mono">{formatCurrency(Number(p.amount))}</span>
                       </div>
                     ))}
                     {sale.payments.some((p) => p.change != null && Number(p.change) > 0) && (
-                      <div className="flex justify-between pl-2 text-emerald-800 font-bold border-t border-slate-200 pt-0.5">
-                        <span>Vuelto Entregado:</span>
-                        <span>
+                      <div className="flex justify-between pl-2 text-emerald-800 font-bold border-t border-slate-200 pt-1 mt-1">
+                        <span>Su Vuelto:</span>
+                        <span className="font-mono">
                           {formatCurrency(
                             sale.payments.reduce((acc, p) => acc + Number(p.change || 0), 0)
                           )}
@@ -905,9 +947,22 @@ export function PosTransactionHistoryView({
                   </div>
                 </div>
 
-                <div className="text-center text-[10px] text-slate-400 pt-2 border-t border-dashed border-slate-300">
-                  <p>¡Gracias por su compra en Matacos Deportes!</p>
-                  <p>Conserve este ticket para cambios (plazo 30 días)</p>
+                {/* Leyenda Legal No Fiscal (RF-10 / Modelo Burger Joint) */}
+                <div className="py-2.5 px-3 bg-slate-100 rounded-xl text-center border border-slate-200">
+                  <span className="font-black text-[11px] text-slate-950 tracking-wider block">
+                    DOCUMENTO NO VALIDO COMO FACTURA
+                  </span>
+                </div>
+
+                {/* Pie de Políticas y Agradecimiento */}
+                <div className="text-center text-[10px] text-slate-500 pt-2 border-t border-dashed border-slate-300 space-y-1">
+                  <p className="font-semibold text-slate-700">
+                    Conserve este ticket para cambios (plazo 30 días)
+                  </p>
+                  <p>Prendas sin uso y con etiquetas originales adheridas.</p>
+                  <p className="font-bold text-slate-900 pt-0.5">
+                    ¡Gracias por su compra en Matacos Deportes!
+                  </p>
                 </div>
               </div>
 
@@ -915,14 +970,14 @@ export function PosTransactionHistoryView({
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs"
+                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Imprimir Ticket</span>
+                  <span>Imprimir Ticket (80mm)</span>
                 </button>
                 <button
                   onClick={() => setSelectedSaleForReceipt(null)}
-                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>

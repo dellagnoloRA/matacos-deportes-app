@@ -83,32 +83,26 @@ export function TicketPrintClient({ receipt, autoPrint = true }: TicketPrintClie
           D E P O R T E S
         </div>
 
-        {/* Datos Comerciales y Fiscales del Emisor */}
-        <div className="text-left text-[11.5px] leading-[1.3] text-neutral-900 space-y-0.5">
-          <div className="font-semibold">{receipt.company.legalName}</div>
-          <div>CUIT Nro.: {receipt.company.cuit}</div>
-          <div>Ing. Brutos {receipt.company.iibb}</div>
-          <div>Dirección: {receipt.company.address}</div>
-          <div>{receipt.company.city}</div>
-          <div>C.P.{receipt.company.postalCode}</div>
-          <div>Inicio de Actividades: {receipt.company.startDate}</div>
-          <div>{receipt.company.vatCondition}</div>
-          <div className="font-medium pt-0.5">{receipt.sale.customerCondition || "A CONSUMIDOR FINAL"}</div>
+        {/* Datos Comerciales del Emisor (No Fiscal) */}
+        <div className="text-center text-[11.5px] leading-[1.3] text-neutral-700 space-y-0.5">
+          <div>Saavedra 241 — Formosa Capital</div>
+          <div className="font-semibold text-black">Instagram: @matacosdeportes</div>
           {receipt.sale.customerName && receipt.sale.customerName !== "CONSUMIDOR FINAL" && (
-            <div className="font-bold pt-0.5">Cliente: {receipt.sale.customerName}</div>
+            <div className="font-bold pt-1 text-black">Cliente: {receipt.sale.customerName}</div>
           )}
         </div>
 
         {/* Separador */}
         <div className="border-t border-dashed border-neutral-300 my-2.5" />
 
-        {/* Identificación del Comprobante */}
+        {/* Identificación del Comprobante No Fiscal */}
         <div className="text-center text-[12px] space-y-0.5">
-          <div className="font-bold text-[13px]">{receipt.sale.voucherType}</div>
-          <div>
+          <div className="font-bold text-[13px] uppercase tracking-wider">COMPROBANTE NO FISCAL</div>
+          <div className="text-[10.5px] text-neutral-500 uppercase font-semibold">Control Interno de Venta</div>
+          <div className="pt-0.5 font-bold">
             P.V. Nro. {receipt.sale.pointOfSale} - Nro. T. {receipt.sale.voucherNumber}
           </div>
-          <div className="flex justify-between items-baseline pt-0.5">
+          <div className="flex justify-between items-baseline pt-1 text-[11.5px]">
             <span>Fecha {receipt.sale.date}</span>
             <span>Hora {receipt.sale.time}</span>
           </div>
@@ -184,45 +178,21 @@ export function TicketPrintClient({ receipt, autoPrint = true }: TicketPrintClie
           </div>
         </div>
 
-        {/* Separador Transparencia Fiscal */}
+        {/* Separador */}
         <div className="border-t border-dashed border-neutral-300 my-2.5" />
 
-        {/* Transparencia Fiscal (RG AFIP 5003) */}
-        <div>
-          <div className="text-center font-bold text-[11.5px] tracking-wider mb-1">
-            TRANSPARENCIA FISCAL
-          </div>
-          <div className="flex justify-between items-baseline text-[12px]">
-            <span>IVA contenido (21%):</span>
-            <span className="font-bold">{receipt.fiscal.formattedVatAmount}</span>
-          </div>
-          <div className="text-right text-[11px] font-bold text-neutral-700 mt-0.5">
-            {receipt.sale.cashierCode || "CAJERO01"}
-          </div>
+        {/* Leyenda Legal No Fiscal Obligatoria */}
+        <div className="py-2 px-1 text-center border-y border-black my-1">
+          <span className="font-black text-[12px] tracking-wider block">
+            DOCUMENTO NO VALIDO COMO FACTURA
+          </span>
         </div>
 
-        {/* Separador Código QR */}
-        <div className="border-t border-dashed border-neutral-300 my-2" />
-
-        {/* Código QR Oficial AFIP */}
-        <div className="flex flex-col items-center justify-center my-2">
-          {receipt.fiscal.qrDataUrl ? (
-            <img
-              src={receipt.fiscal.qrDataUrl}
-              alt="Código QR AFIP"
-              className="w-[145px] h-[145px] object-contain image-rendering-pixelated"
-            />
-          ) : (
-            <div className="w-[145px] h-[145px] border border-dashed border-neutral-400 flex items-center justify-center text-[11px]">
-              [ CÓDIGO QR AFIP ]
-            </div>
-          )}
-        </div>
-
-        {/* Pie de Página Controlador Fiscal */}
-        <div className="border-t border-dotted border-neutral-300 pt-1.5 flex justify-between items-baseline text-[11px] text-neutral-600">
-          <span>CF {receipt.fiscal.fiscalSerialNumber || "SESHRA000022252"}</span>
-          <span>{receipt.fiscal.softwareVersion || "V: 1.02"}</span>
+        {/* Pie de Políticas y Agradecimiento */}
+        <div className="text-center text-[10.5px] text-neutral-600 pt-2 space-y-1">
+          <p className="font-bold text-black">Conserve este ticket para cambios (plazo 30 días)</p>
+          <p>Prendas sin uso y con etiquetas originales adheridas.</p>
+          <p className="font-bold text-black pt-0.5">¡Gracias por su compra en Matacos Deportes!</p>
         </div>
       </div>
 

@@ -50,8 +50,8 @@ export function getCompanyConfig(): CompanyConfig {
     vatCondition: process.env.COMPANY_VAT_CONDITION || "IVA RESPONSABLE INSCRIPTO",
     pointOfSale,
     formattedPointOfSale,
-    voucherTypeCode: "083",
-    voucherTypeName: "TIQUE",
+    voucherTypeCode: "000",
+    voucherTypeName: "COMPROBANTE NO FISCAL",
     vatRate: 0.21,
     vatRatePercentage: "21%",
     phone: process.env.COMPANY_PHONE || "+54 370 4429999",
@@ -60,7 +60,7 @@ export function getCompanyConfig(): CompanyConfig {
     exchangePolicy:
       process.env.COMPANY_EXCHANGE_POLICY ||
       "CAMBIOS: Indispensable presentar este comprobante. El producto debe encontrarse sin uso, sin daños y con sus etiquetas originales adheridas. Prendas íntimas, mallas y medias no tienen cambio.",
-    legalNotice: "Comprobante de Entrega / Tique Mostrador. Válido para control de salida y cambios de mercadería.",
+    legalNotice: "DOCUMENTO NO VALIDO COMO FACTURA",
     fiscalSerialNumber: process.env.COMPANY_FISCAL_SERIAL || "SESHRA000022252",
     softwareVersion: process.env.COMPANY_SOFTWARE_VERSION || "V: 1.02",
     defaultCashierCode: process.env.POS_DEFAULT_CASHIER_CODE || "CAJERO01",
