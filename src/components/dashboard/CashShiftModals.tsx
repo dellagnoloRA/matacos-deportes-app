@@ -259,7 +259,7 @@ export function CashMovementModal({
   onSuccess,
   defaultPerformedBy = "Cajero",
 }: CashMovementModalProps) {
-  const [type, setType] = useState<"GASTO_MENOR" | "RETIRO_CAJA_FUERTE" | "INGRESO_EXTRAORDINARIO">(
+  const [type, setType] = useState<"GASTO_MENOR" | "INGRESO_EXTRAORDINARIO">(
     "GASTO_MENOR"
   );
   const [amount, setAmount] = useState<string>("");
@@ -271,7 +271,7 @@ export function CashMovementModal({
 
   if (!isOpen) return null;
 
-  const isWithdrawal = type === "GASTO_MENOR" || type === "RETIRO_CAJA_FUERTE";
+  const isWithdrawal = type === "GASTO_MENOR";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,7 +332,7 @@ export function CashMovementModal({
             </div>
             <div>
               <h2 className="font-bold text-lg leading-tight">Movimiento de Caja</h2>
-              <p className="text-indigo-100 text-xs">Egresos, Retiros e Ingresos Extraordinarios</p>
+              <p className="text-indigo-100 text-xs">Egresos e Ingresos Extraordinarios</p>
             </div>
           </div>
           <button
@@ -365,42 +365,30 @@ export function CashMovementModal({
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Tipo de Operación
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setType("GASTO_MENOR")}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border flex flex-col items-center gap-1 transition ${
+                className={`py-2.5 px-3 text-xs font-semibold rounded-xl border flex items-center justify-center gap-2 transition ${
                   type === "GASTO_MENOR"
                     ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm"
                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 <TrendingDown className="w-4 h-4 text-rose-500" />
-                <span>Gasto Menor</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("RETIRO_CAJA_FUERTE")}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border flex flex-col items-center gap-1 transition ${
-                  type === "RETIRO_CAJA_FUERTE"
-                    ? "bg-amber-50 border-amber-300 text-amber-700 shadow-sm"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Lock className="w-4 h-4 text-amber-500" />
-                <span>Caja Fuerte</span>
+                <span>Egreso / Gasto Menor</span>
               </button>
               <button
                 type="button"
                 onClick={() => setType("INGRESO_EXTRAORDINARIO")}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border flex flex-col items-center gap-1 transition ${
+                className={`py-2.5 px-3 text-xs font-semibold rounded-xl border flex items-center justify-center gap-2 transition ${
                   type === "INGRESO_EXTRAORDINARIO"
                     ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
-                <span>Ingreso Extra</span>
+                <span>Ingreso Extraordinario</span>
               </button>
             </div>
           </div>

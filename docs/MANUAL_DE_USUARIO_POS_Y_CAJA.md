@@ -76,8 +76,8 @@ Durante el turno pueden surgir gastos menores del local que no son ventas (ej: p
 
 1. En la pantalla de Caja, hacé clic en el botón **"Movimiento de Caja"** (o **"+/- Dinero"**).
 2. Seleccioná el tipo de movimiento:
-   * 🔴 **Egreso (Salida de dinero):** Pago de flete, compras menores, viáticos o retiro a caja fuerte.
-   * 🟢 **Ingreso (Entrada extraordinaria):** Ingreso de más cambio físico aportado por el dueño.
+   * 🔴 **Egreso / Gasto Menor (Salida de dinero):** Pago de flete, compras menores, insumos de limpieza o viáticos.
+   * 🟢 **Ingreso Extraordinario (Entrada de dinero):** Ingreso de más cambio físico aportado por el dueño o encargado.
 3. Ingresá los datos requeridos:
    * **Monto en Pesos ($):** La cantidad exacta (ej: `$ 3.500,00`).
    * **Motivo / Concepto:** Escribí con claridad qué se pagó (ej: *"Pago de flete expreso encomienda de pelotas"*).
