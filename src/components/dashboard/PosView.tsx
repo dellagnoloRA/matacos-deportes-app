@@ -74,7 +74,6 @@ import {
 } from "./CashShiftModals";
 import { CashShiftTicketReceipt } from "@/server/services/cashShiftService";
 import type { UpdatePendingSaleInput } from "@/schemas/sale";
-import { BarcodeSvg } from "./BarcodeSvg";
 import { PosTransactionHistoryView } from "./PosTransactionHistoryView";
 import { PosExchangeModal } from "./PosExchangeModal";
 import { EditPendingTicketModal } from "./EditPendingTicketModal";
@@ -300,6 +299,7 @@ export function PosView({
 
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedSaleResult, setCompletedSaleResult] = useState<{
+    saleId?: string;
     invoiceNumber: string;
     ticketCode: string;
     customerName: string;
@@ -841,6 +841,30 @@ export function PosView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [subView]);
 
+  // Handler para cerrar el modal de preventa exitosa y reenfocar el buscador
+  const handleClosePreventaModal = useCallback(() => {
+    setPreventaSuccessData(null);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 50);
+  }, []);
+
+  // Atajo de teclado para cerrar modal de Preventa Exitosa con ENTER o ESCAPE
+  useEffect(() => {
+    if (!preventaSuccessData) return;
+
+    const handlePreventaModalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleClosePreventaModal();
+      }
+    };
+
+    window.addEventListener("keydown", handlePreventaModalKeyDown, true);
+    return () => window.removeEventListener("keydown", handlePreventaModalKeyDown, true);
+  }, [preventaSuccessData, handleClosePreventaModal]);
+
   // Lector de código de barras USB (acumula caracteres rápidos que terminan en Enter)
   const barcodeBufferRef = useRef<string>("");
   const lastKeyTimeRef = useRef<number>(0);
@@ -849,8 +873,8 @@ export function PosView({
     if (!isUsbScannerActive) return;
 
     const handleWindowKeyPress = (e: KeyboardEvent) => {
-      // Si el verificador de precios está abierto, delegar el escaneo exclusivamente a él
-      if (isPriceCheckerOpen) return;
+      // Si el verificador de precios o el modal de preventa exitosa están abiertos, ignorar escaneo
+      if (isPriceCheckerOpen || preventaSuccessData) return;
 
       // Si el foco está en un input normal (excepto si fue por escaneo)
       const targetTag = (e.target as HTMLElement)?.tagName;
@@ -1470,6 +1494,7 @@ export function PosView({
           cashierPaymentMethod === "EFECTIVO" ? Math.max(0, receivedNum - totalToPay) : 0;
 
         setCompletedSaleResult({
+          saleId: activeCheckoutSale.id,
           invoiceNumber: completed.invoiceNumber,
           ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
           customerName: completed.customerName || "Consumidor Final",
@@ -1581,6 +1606,7 @@ export function PosView({
         const totalChange = change1 + change2;
 
         setCompletedSaleResult({
+          saleId: activeCheckoutSale.id,
           invoiceNumber: completed.invoiceNumber,
           ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
           customerName: completed.customerName || "Consumidor Final",
@@ -3034,15 +3060,22 @@ export function PosView({
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => window.print()}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  onClick={() => {
+                    if (completedSaleResult.saleId) {
+                      window.open(`/pos/tickets/${completedSaleResult.saleId}/print`, "_blank");
+                    } else {
+                      window.print();
+                    }
+                  }}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  title="Imprimir comprobante no fiscal (80mm)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Imprimir Ticket</span>
+                  <span>Imprimir Ticket (80mm)</span>
                 </button>
                 <button
                   onClick={() => setCompletedSaleResult(null)}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors"
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
                 >
                   Continuar
                 </button>
@@ -4117,14 +4150,15 @@ export function PosView({
                 </div>
               </div>
               <button
-                onClick={() => setPreventaSuccessData(null)}
-                className="text-slate-400 hover:text-white p-1"
+                onClick={handleClosePreventaModal}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                title="Cerrar modal (Esc o Enter)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Simulación de Ticket Térmico ESC/POS 80mm */}
+            {/* Resumen Ágil para Salón */}
             <div className="p-6 space-y-4">
               <div className="bg-[#fffdfa] border border-amber-200/80 rounded-2xl p-5 shadow-xs font-mono text-xs text-slate-800 space-y-3">
                 {/* Logo & Header */}
@@ -4134,17 +4168,20 @@ export function PosView({
                   </h4>
                   <p className="text-[10px] text-slate-500">Saavedra 241, Formosa</p>
                   <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                    TICKET DE PREVENTA SALÓN
+                    PREVENTA SALÓN
                   </p>
                 </div>
 
                 {/* Ticket Number & Customer */}
-                <div className="text-center py-2 bg-amber-50 rounded-xl border border-amber-200/60">
-                  <span className="text-[10px] text-amber-800 font-bold block uppercase">
+                <div className="text-center py-2.5 bg-amber-50 rounded-xl border border-amber-200/60">
+                  <span className="text-[10px] text-amber-800 font-bold block uppercase tracking-wider">
                     Número de Ticket para Caja
                   </span>
-                  <span className="text-3xl font-black text-slate-950 font-mono tracking-widest">
+                  <span className="text-4xl font-black text-slate-950 font-mono tracking-widest my-1 block">
                     {preventaSuccessData.ticketCode}
+                  </span>
+                  <span className="text-[10px] text-amber-700 font-medium">
+                    Indique este número al cliente para abonar en caja
                   </span>
                 </div>
 
@@ -4161,13 +4198,13 @@ export function PosView({
                 </div>
 
                 {/* Ítems */}
-                <div className="space-y-1 border-b border-dashed border-slate-300 pb-2 text-[11px]">
+                <div className="space-y-1.5 border-b border-dashed border-slate-300 pb-2 text-[11px] max-h-36 overflow-y-auto pr-1">
                   {preventaSuccessData.items.map((it, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span className="truncate max-w-[200px]" title={`${it.name} - ${it.color || ""} (${it.size})`}>
+                    <div key={idx} className="flex justify-between items-baseline gap-2">
+                      <span className="truncate max-w-[210px]" title={`${it.name} - ${it.color || ""} (${it.size})`}>
                         {it.quantity}x {it.name} ({it.color ? `${it.color} • ` : ""}{it.size})
                       </span>
-                      <span className="font-bold">
+                      <span className="font-bold shrink-0">
                         {formatCurrency(it.originalPrice * it.quantity)}
                       </span>
                     </div>
@@ -4187,37 +4224,20 @@ export function PosView({
                     <span>{formatCurrency(preventaSuccessData.totalNet)}</span>
                   </div>
                 </div>
-
-                {/* Código de barras del Ticket */}
-                <div className="pt-2 flex flex-col items-center justify-center">
-                  <BarcodeSvg
-                    value={preventaSuccessData.ticketCode.replace("#", "PRE-")}
-                    width={180}
-                    height={40}
-                  />
-                  <p className="text-[9px] text-slate-400 mt-1">
-                    Dirija al cliente a la Caja Mostrador con este ticket
-                  </p>
-                </div>
               </div>
 
-              {/* Botones de Acción */}
-              <div className="flex gap-2">
+              {/* Botón Principal: Siguiente Preventa con atajo Enter */}
+              <div>
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  autoFocus
+                  onClick={handleClosePreventaModal}
+                  className="w-full py-3.5 bg-[#00D615] hover:bg-[#00be13] active:scale-[0.99] text-slate-950 font-black rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>Imprimir Ticket</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPreventaSuccessData(null)}
-                  className="flex-1 py-3 bg-[#00D615] hover:bg-[#00be13] text-slate-950 font-black rounded-xl text-xs transition-colors"
-                >
-                  Nueva Preventa
+                  <span>Nueva Preventa</span>
+                  <span className="text-[10px] bg-black/15 text-slate-900 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                    Enter ↵
+                  </span>
                 </button>
               </div>
 
@@ -4232,7 +4252,7 @@ export function PosView({
                       origin: "salon",
                     });
                   }}
-                  className="w-full py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-rose-200/60"
+                  className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-rose-200/60"
                   title="Cancelar preventa y liberar stock reservado"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-600" />
