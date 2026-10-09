@@ -20,6 +20,7 @@ import {
   DollarSign,
   TrendingDown,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import {
   CashShiftTicketModal,
@@ -35,7 +36,7 @@ export function CashShiftHistoryView() {
 
   // Modal de Ticket Térmico
   const [selectedReceipt, setSelectedReceipt] = useState<CashShiftTicketReceipt | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
+  const [loadingShiftId, setLoadingShiftId] = useState<string | null>(null);
 
   const fetchShifts = async () => {
     setLoading(true);
@@ -65,7 +66,7 @@ export function CashShiftHistoryView() {
   }, [terminalFilter, statusFilter]);
 
   const handleViewReceipt = async (shiftId: string) => {
-    setModalLoading(true);
+    setLoadingShiftId(shiftId);
     try {
       const res = await getCashShiftSummary(shiftId);
       if (res.success && res.receipt) {
@@ -76,7 +77,7 @@ export function CashShiftHistoryView() {
     } catch (err: any) {
       alert("Error al cargar comprobante");
     } finally {
-      setModalLoading(false);
+      setLoadingShiftId(null);
     }
   };
 
@@ -253,11 +254,21 @@ export function CashShiftHistoryView() {
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => handleViewReceipt(shift.id)}
-                          disabled={modalLoading}
-                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          title="Ver tique de arqueo térmico"
+                          disabled={loadingShiftId === shift.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-[0.98] cursor-pointer disabled:opacity-60"
+                          title="Visualizar detalle completo y comprobante del turno"
                         >
-                          <Printer className="w-4 h-4" />
+                          {loadingShiftId === shift.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                              <span>Cargando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-indigo-700" />
+                              <span>Ver Detalle</span>
+                            </>
+                          )}
                         </button>
                       </td>
                     </tr>
