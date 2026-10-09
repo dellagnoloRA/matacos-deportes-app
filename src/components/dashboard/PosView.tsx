@@ -2219,13 +2219,71 @@ export function PosView({
           const splitP2 = parseFloat(splitPayment2Amount) || 0;
           const splitTotalAssigned = Math.round((splitP1 + splitP2) * 100) / 100;
           const splitDiff = Math.round((activeCheckoutSale.total - splitTotalAssigned) * 100) / 100;
-          const isSplitBalanced = Math.abs(splitDiff) <= 0.05 && splitP1 > 0 && splitP2 > 0;
 
           const splitRec1 = parseFloat(splitPayment1Received) || splitP1;
           const splitRec2 = parseFloat(splitPayment2Received) || splitP2;
           const splitChange1 = splitPayment1Method === "EFECTIVO" ? Math.max(0, splitRec1 - splitP1) : 0;
           const splitChange2 = splitPayment2Method === "EFECTIVO" ? Math.max(0, splitRec2 - splitP2) : 0;
           const totalSplitChange = splitChange1 + splitChange2;
+
+          const isSplitCash1Valid = splitPayment1Method !== "EFECTIVO" || splitRec1 >= splitP1 - 0.05;
+          const isSplitCash2Valid = splitPayment2Method !== "EFECTIVO" || splitRec2 >= splitP2 - 0.05;
+          const isSplitBalanced =
+            Math.abs(splitDiff) <= 0.05 &&
+            splitP1 > 0 &&
+            splitP2 > 0 &&
+            isSplitCash1Valid &&
+            isSplitCash2Valid;
+
+          // Helper: Asignar saldo restante a Método 2 teniendo en cuenta lo ingresado en Método 1
+          const handleAssignRemainingTo2 = () => {
+            let p1 = parseFloat(splitPayment1Amount) || 0;
+            if (splitPayment1Method === "EFECTIVO" && splitPayment1Received) {
+              const rec1 = parseFloat(splitPayment1Received) || 0;
+              if (
+                rec1 > 0 &&
+                (p1 === 0 ||
+                  p1 === Math.round((activeCheckoutSale.total / 2) * 100) / 100 ||
+                  rec1 < p1)
+              ) {
+                p1 = rec1;
+                setSplitPayment1Amount(splitPayment1Received);
+              }
+            }
+            const rest = Math.max(0, Math.round((activeCheckoutSale.total - p1) * 100) / 100);
+            setSplitPayment2Amount(rest.toString());
+            setSplitPayment2Received(rest.toString());
+          };
+
+          // Helper: Asignar saldo restante a Método 1 teniendo en cuenta lo ingresado en Método 2
+          const handleAssignRemainingTo1 = () => {
+            let p2 = parseFloat(splitPayment2Amount) || 0;
+            if (splitPayment2Method === "EFECTIVO" && splitPayment2Received) {
+              const rec2 = parseFloat(splitPayment2Received) || 0;
+              if (
+                rec2 > 0 &&
+                (p2 === 0 ||
+                  p2 === Math.round((activeCheckoutSale.total / 2) * 100) / 100 ||
+                  rec2 < p2)
+              ) {
+                p2 = rec2;
+                setSplitPayment2Amount(splitPayment2Received);
+              }
+            }
+            const rest = Math.max(0, Math.round((activeCheckoutSale.total - p2) * 100) / 100);
+            setSplitPayment1Amount(rest.toString());
+            setSplitPayment1Received(rest.toString());
+          };
+
+          // Helper: Distribuir 50% y 50%
+          const handleSetFiftyFifty = () => {
+            const half = Math.round((activeCheckoutSale.total / 2) * 100) / 100;
+            const rest = Math.round((activeCheckoutSale.total - half) * 100) / 100;
+            setSplitPayment1Amount(half.toString());
+            setSplitPayment1Received(half.toString());
+            setSplitPayment2Amount(rest.toString());
+            setSplitPayment2Received(rest.toString());
+          };
 
           const cashierPaymentOptions = [
             { id: "EFECTIVO", label: "Efectivo", icon: Banknote },
@@ -2440,13 +2498,17 @@ export function PosView({
                           type="button"
                           onClick={() => {
                             setIsSplitPayment(true);
-                            if (!splitPayment1Amount || parseFloat(splitPayment1Amount) === 0) {
-                              const half = Math.round((activeCheckoutSale.total / 2) * 100) / 100;
-                              const rest = Math.round((activeCheckoutSale.total - half) * 100) / 100;
-                              setSplitPayment1Amount(half.toString());
-                              setSplitPayment1Received(half.toString());
+                            const parsedReceived = parseFloat(cashierReceivedAmount);
+                            if (!isNaN(parsedReceived) && parsedReceived > 0 && parsedReceived < activeCheckoutSale.total) {
+                              const p1 = Math.round(parsedReceived * 100) / 100;
+                              const rest = Math.max(0, Math.round((activeCheckoutSale.total - p1) * 100) / 100);
+                              setSplitPayment1Method(cashierPaymentMethod);
+                              setSplitPayment1Amount(p1.toString());
+                              setSplitPayment1Received(p1.toString());
                               setSplitPayment2Amount(rest.toString());
                               setSplitPayment2Received(rest.toString());
+                            } else if (!splitPayment1Amount || parseFloat(splitPayment1Amount) === 0) {
+                              handleSetFiftyFifty();
                             }
                           }}
                           className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
@@ -2586,32 +2648,27 @@ export function PosView({
                           {/* Accesos rápidos de distribución */}
                           <div className="flex items-center justify-between gap-2 text-xs">
                             <span className="text-slate-500 font-semibold text-[11px]">Distribución rápida:</span>
-                            <div className="flex gap-1.5">
+                            <div className="flex gap-1.5 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const half = Math.round((activeCheckoutSale.total / 2) * 100) / 100;
-                                  const rest = Math.round((activeCheckoutSale.total - half) * 100) / 100;
-                                  setSplitPayment1Amount(half.toString());
-                                  setSplitPayment1Received(half.toString());
-                                  setSplitPayment2Amount(rest.toString());
-                                  setSplitPayment2Received(rest.toString());
-                                }}
+                                onClick={handleSetFiftyFifty}
                                 className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer"
                               >
                                 50% / 50%
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const p1 = parseFloat(splitPayment1Amount) || 0;
-                                  const rest = Math.max(0, Math.round((activeCheckoutSale.total - p1) * 100) / 100);
-                                  setSplitPayment2Amount(rest.toString());
-                                  setSplitPayment2Received(rest.toString());
-                                }}
+                                onClick={handleAssignRemainingTo2}
                                 className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg border border-emerald-200 text-[11px] transition-colors cursor-pointer"
                               >
                                 Restante a Método 2
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleAssignRemainingTo1}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg border border-emerald-200 text-[11px] transition-colors cursor-pointer"
+                              >
+                                Restante a Método 1
                               </button>
                             </div>
                           </div>
@@ -2623,6 +2680,15 @@ export function PosView({
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center font-mono">1</span>
                                 Primer Medio de Pago
                               </span>
+                              <button
+                                type="button"
+                                onClick={handleAssignRemainingTo1}
+                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                                title="Asignar el saldo restante a este medio"
+                              >
+                                <CircleDollarSign className="w-3 h-3 text-emerald-600" />
+                                <span>Asignar Restante</span>
+                              </button>
                             </div>
                             <div className="grid grid-cols-5 gap-1.5">
                               {cashierPaymentOptions.map((m) => {
@@ -2634,8 +2700,12 @@ export function PosView({
                                     type="button"
                                     onClick={() => {
                                       setSplitPayment1Method(m.id as any);
-                                      if (m.id === "EFECTIVO" && !splitPayment1Received) {
-                                        setSplitPayment1Received(splitPayment1Amount);
+                                      if (m.id === "EFECTIVO") {
+                                        const p1 = parseFloat(splitPayment1Amount) || 0;
+                                        const rec1 = parseFloat(splitPayment1Received) || 0;
+                                        if (!splitPayment1Received || rec1 < p1) {
+                                          setSplitPayment1Received(splitPayment1Amount);
+                                        }
                                       }
                                     }}
                                     className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
@@ -2661,9 +2731,21 @@ export function PosView({
                                     value={splitPayment1Amount}
                                     onChange={(e) => {
                                       const val = e.target.value;
+                                      const prevAmt = parseFloat(splitPayment1Amount) || 0;
+                                      const currentRec = parseFloat(splitPayment1Received) || 0;
+                                      const newAmt = parseFloat(val) || 0;
+
                                       setSplitPayment1Amount(val);
+
                                       if (splitPayment1Method === "EFECTIVO") {
-                                        setSplitPayment1Received(val);
+                                        // Solo auto-actualizar si estaba vacío, era pago exacto previo, o si el nuevo monto supera lo recibido
+                                        if (
+                                          splitPayment1Received === "" ||
+                                          currentRec === prevAmt ||
+                                          currentRec < newAmt
+                                        ) {
+                                          setSplitPayment1Received(val);
+                                        }
                                       }
                                     }}
                                     className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -2672,7 +2754,17 @@ export function PosView({
                               </div>
                               {splitPayment1Method === "EFECTIVO" ? (
                                 <div>
-                                  <label className="text-[11px] font-bold text-slate-600 block mb-1">Efectivo Recibido:</label>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[11px] font-bold text-slate-600">Efectivo Entregado:</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSplitPayment1Received(splitPayment1Amount)}
+                                      className="text-[10px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer"
+                                      title="Poner pago exacto sin vuelto"
+                                    >
+                                      Exacto
+                                    </button>
+                                  </div>
                                   <div className="relative">
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
                                     <input
@@ -2680,6 +2772,7 @@ export function PosView({
                                       step="any"
                                       value={splitPayment1Received}
                                       onChange={(e) => setSplitPayment1Received(e.target.value)}
+                                      placeholder="Monto entregado"
                                       className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                     />
                                   </div>
@@ -2763,6 +2856,15 @@ export function PosView({
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center font-mono">2</span>
                                 Segundo Medio de Pago
                               </span>
+                              <button
+                                type="button"
+                                onClick={handleAssignRemainingTo2}
+                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                                title="Asignar el saldo restante a este medio"
+                              >
+                                <CircleDollarSign className="w-3 h-3 text-emerald-600" />
+                                <span>Asignar Restante</span>
+                              </button>
                             </div>
                             <div className="grid grid-cols-5 gap-1.5">
                               {cashierPaymentOptions.map((m) => {
@@ -2774,8 +2876,12 @@ export function PosView({
                                     type="button"
                                     onClick={() => {
                                       setSplitPayment2Method(m.id as any);
-                                      if (m.id === "EFECTIVO" && !splitPayment2Received) {
-                                        setSplitPayment2Received(splitPayment2Amount);
+                                      if (m.id === "EFECTIVO") {
+                                        const p2 = parseFloat(splitPayment2Amount) || 0;
+                                        const rec2 = parseFloat(splitPayment2Received) || 0;
+                                        if (!splitPayment2Received || rec2 < p2) {
+                                          setSplitPayment2Received(splitPayment2Amount);
+                                        }
                                       }
                                     }}
                                     className={`py-1.5 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
@@ -2801,9 +2907,20 @@ export function PosView({
                                     value={splitPayment2Amount}
                                     onChange={(e) => {
                                       const val = e.target.value;
+                                      const prevAmt = parseFloat(splitPayment2Amount) || 0;
+                                      const currentRec = parseFloat(splitPayment2Received) || 0;
+                                      const newAmt = parseFloat(val) || 0;
+
                                       setSplitPayment2Amount(val);
+
                                       if (splitPayment2Method === "EFECTIVO") {
-                                        setSplitPayment2Received(val);
+                                        if (
+                                          splitPayment2Received === "" ||
+                                          currentRec === prevAmt ||
+                                          currentRec < newAmt
+                                        ) {
+                                          setSplitPayment2Received(val);
+                                        }
                                       }
                                     }}
                                     className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -2812,7 +2929,17 @@ export function PosView({
                               </div>
                               {splitPayment2Method === "EFECTIVO" ? (
                                 <div>
-                                  <label className="text-[11px] font-bold text-slate-600 block mb-1">Efectivo Recibido:</label>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[11px] font-bold text-slate-600">Efectivo Entregado:</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSplitPayment2Received(splitPayment2Amount)}
+                                      className="text-[10px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer"
+                                      title="Poner pago exacto sin vuelto"
+                                    >
+                                      Exacto
+                                    </button>
+                                  </div>
                                   <div className="relative">
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
                                     <input
@@ -2820,6 +2947,7 @@ export function PosView({
                                       step="any"
                                       value={splitPayment2Received}
                                       onChange={(e) => setSplitPayment2Received(e.target.value)}
+                                      placeholder="Monto entregado"
                                       className="w-full pl-6 pr-2.5 py-1.5 bg-white rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                     />
                                   </div>
@@ -2901,6 +3029,8 @@ export function PosView({
                             className={`p-3 rounded-2xl border text-xs flex flex-col gap-1.5 ${
                               isSplitBalanced
                                 ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                                : !isSplitCash1Valid || !isSplitCash2Valid
+                                ? "bg-rose-50/80 border-rose-200 text-rose-900"
                                 : splitDiff > 0
                                 ? "bg-amber-50/80 border-amber-200 text-amber-900"
                                 : "bg-rose-50/80 border-rose-200 text-rose-900"
@@ -2916,6 +3046,14 @@ export function PosView({
                               {isSplitBalanced ? (
                                 <span className="text-emerald-700 font-semibold flex items-center gap-1">
                                   <Check className="w-3.5 h-3.5" /> Coincide con el total a cobrar
+                                </span>
+                              ) : !isSplitCash1Valid ? (
+                                <span className="text-rose-700 font-semibold flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Efectivo en Método 1 ({formatCurrency(splitRec1)}) no cubre lo asignado ({formatCurrency(splitP1)})
+                                </span>
+                              ) : !isSplitCash2Valid ? (
+                                <span className="text-rose-700 font-semibold flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Efectivo en Método 2 ({formatCurrency(splitRec2)}) no cubre lo asignado ({formatCurrency(splitP2)})
                                 </span>
                               ) : splitDiff > 0 ? (
                                 <span className="text-amber-700 font-semibold flex items-center gap-1">
