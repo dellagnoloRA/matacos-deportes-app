@@ -26,9 +26,66 @@ import {
   Layers,
   ArrowRight,
   ArrowLeft,
+  ArrowLeftRight,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getSaleHistory } from "@/server/actions/saleActions";
+
+export interface ParsedExchangeData {
+  isExchange: boolean;
+  reason?: string;
+  returnedItem?: string;
+  deliveredItem?: string;
+  financialSummary?: string;
+  rawDetails?: string;
+}
+
+export function parseExchangeDetails(notes?: string | null): ParsedExchangeData | null {
+  if (!notes) return null;
+  const isExchange =
+    notes.includes("[CAMBIO:") ||
+    notes.toLowerCase().includes("cambio de producto") ||
+    notes.toLowerCase().includes("cambio directo") ||
+    notes.includes("VALE DE COMPRA");
+  if (!isExchange) return null;
+
+  let reason = "";
+  const reasonMatch = notes.match(/reason=([^\]]*)/);
+  if (reasonMatch && reasonMatch[1]) {
+    try {
+      reason = decodeURIComponent(reasonMatch[1]);
+    } catch {
+      reason = reasonMatch[1];
+    }
+  }
+
+  // Remover etiqueta interna [CAMBIO:...]
+  const clean = notes.replace(/\[CAMBIO:[^\]]*\]\s*/, "").trim();
+
+  let returnedItem = "";
+  let deliveredItem = "";
+  let financialSummary = "";
+
+  const devuelveMatch = clean.match(/Devuelve:\s*([^.]+)\./i);
+  if (devuelveMatch) returnedItem = devuelveMatch[1].trim();
+
+  const entregaMatch = clean.match(/Entrega:\s*([^.]+)\./i);
+  if (entregaMatch) deliveredItem = entregaMatch[1].trim();
+
+  const diffMatch = clean.match(
+    /(Diferencia a cobrar:[^.]+|Saldo a favor del cliente:[^.]+|Cambio directo sin diferencia[^.]+)/i
+  );
+  if (diffMatch) financialSummary = diffMatch[1].trim();
+
+  return {
+    isExchange: true,
+    reason: reason || undefined,
+    returnedItem: returnedItem || undefined,
+    deliveredItem: deliveredItem || undefined,
+    financialSummary: financialSummary || undefined,
+    rawDetails: clean,
+  };
+}
 
 export interface PosTransactionItem {
   id: string;
@@ -118,6 +175,7 @@ export function PosTransactionHistoryView({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMethod, setSelectedMethod] = useState<string>("ALL");
   const [dateFilter, setDateFilter] = useState<PosDateFilter>("TODAY");
+  const [operationFilter, setOperationFilter] = useState<"ALL" | "SALES" | "EXCHANGES">("ALL");
 
   // Transacción activa para modal de comprobante térmico
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] =
@@ -199,9 +257,16 @@ export function PosTransactionHistoryView({
     fetchSales();
   }, [fetchSales]);
 
-  // Filtrado en memoria por búsqueda y método de pago
+  // Filtrado en memoria por búsqueda, método de pago y tipo de operación
   const filteredSales = useMemo(() => {
     return sales.filter((s) => {
+      // Filtro por tipo de operación (Ventas regulares vs Cambios)
+      if (operationFilter !== "ALL") {
+        const isEx = !!parseExchangeDetails(s.notes);
+        if (operationFilter === "EXCHANGES" && !isEx) return false;
+        if (operationFilter === "SALES" && isEx) return false;
+      }
+
       // Filtro por método de pago
       if (selectedMethod !== "ALL") {
         const hasMethod = s.payments.some((p) => p.method === selectedMethod);
@@ -216,6 +281,8 @@ export function PosTransactionHistoryView({
         const cust = s.customerName?.toLowerCase() || "";
         const seller = s.seller?.name?.toLowerCase() || "";
         const cashier = s.cashier?.name?.toLowerCase() || "";
+        const notes = (s.notes || "").toLowerCase();
+        const matchNotes = notes.includes(q);
         const matchItem = s.items.some(
           (it) =>
             it.variant.product.name.toLowerCase().includes(q) ||
@@ -232,7 +299,8 @@ export function PosTransactionHistoryView({
           !cust.includes(q) &&
           !seller.includes(q) &&
           !cashier.includes(q) &&
-          !matchItem
+          !matchItem &&
+          !matchNotes
         ) {
           return false;
         }
@@ -240,7 +308,7 @@ export function PosTransactionHistoryView({
 
       return true;
     });
-  }, [sales, searchQuery, selectedMethod]);
+  }, [sales, searchQuery, selectedMethod, operationFilter]);
 
   // Métricas agregadas
   const metrics = useMemo(() => {
@@ -465,11 +533,11 @@ export function PosTransactionHistoryView({
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             {/* Buscador */}
-            <div className="md:col-span-6 relative">
+            <div className="md:col-span-4 relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por ticket, comprobante, cliente, prenda o SKU..."
+                placeholder="Buscar por ticket, comprobante, cliente, prenda o motivo..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
@@ -485,8 +553,25 @@ export function PosTransactionHistoryView({
               )}
             </div>
 
-            {/* Filtro por Medio de Pago */}
+            {/* Filtro por Tipo de Operación */}
             <div className="md:col-span-3 relative">
+              <select
+                value={operationFilter}
+                onChange={(e) =>
+                  setOperationFilter(e.target.value as "ALL" | "SALES" | "EXCHANGES")
+                }
+                aria-label="Filtrar por tipo de operación"
+                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none transition-all"
+              >
+                <option value="ALL">Operación: Todas</option>
+                <option value="SALES">Solo Ventas Directas</option>
+                <option value="EXCHANGES">Solo Cambios de Prenda</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Filtro por Medio de Pago */}
+            <div className="md:col-span-2 relative">
               <select
                 value={selectedMethod}
                 onChange={(e) => setSelectedMethod(e.target.value)}
@@ -497,8 +582,8 @@ export function PosTransactionHistoryView({
                 <option value="EFECTIVO">Solo Efectivo</option>
                 <option value="DEBITO">Solo Débito</option>
                 <option value="CREDITO">Solo Crédito</option>
-                <option value="QR_MERCADOPAGO">Solo QR Mercado Pago</option>
-                <option value="TRANSFERENCIA">Solo Transferencia</option>
+                <option value="QR_MERCADOPAGO">Solo QR MP</option>
+                <option value="TRANSFERENCIA">Solo Transf.</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -573,6 +658,7 @@ export function PosTransactionHistoryView({
                 (acc, it) => acc + (it.quantity || 0),
                 0
               );
+              const exchangeInfo = parseExchangeDetails(sale.notes);
 
               return (
                 <div
@@ -590,6 +676,12 @@ export function PosTransactionHistoryView({
                         {sale.ticketCode && sale.invoiceNumber && (
                           <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                             Ticket {sale.ticketCode}
+                          </span>
+                        )}
+                        {exchangeInfo && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1 shadow-2xs">
+                            <ArrowLeftRight className="w-3 h-3 text-purple-600" />
+                            <span>CAMBIO</span>
                           </span>
                         )}
                         <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
@@ -709,6 +801,51 @@ export function PosTransactionHistoryView({
                     </div>
                   </div>
 
+                  {/* Banner Informativo si es Cambio de Prenda */}
+                  {exchangeInfo && (
+                    <div className="mx-4 sm:mx-5 mb-4 p-3 rounded-xl bg-purple-50/70 border border-purple-200/90 text-xs text-purple-950 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700 shrink-0 mt-0.5">
+                          <ArrowLeftRight className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-purple-950 text-xs">
+                              Operación de Cambio de Producto
+                            </span>
+                            {exchangeInfo.reason && (
+                              <span className="text-[10px] font-bold text-purple-800 bg-purple-200/60 px-2 py-0.2 rounded-full border border-purple-300/60">
+                                Motivo: {exchangeInfo.reason}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-purple-900/90 flex items-center gap-1.5 flex-wrap">
+                            {exchangeInfo.returnedItem && (
+                              <span>
+                                <strong className="text-purple-950 font-semibold">Devuelve:</strong>{" "}
+                                {exchangeInfo.returnedItem}
+                              </span>
+                            )}
+                            {exchangeInfo.returnedItem && exchangeInfo.deliveredItem && (
+                              <span className="text-purple-400 font-bold">➔</span>
+                            )}
+                            {exchangeInfo.deliveredItem && (
+                              <span>
+                                <strong className="text-purple-950 font-semibold">Se entrega:</strong>{" "}
+                                {exchangeInfo.deliveredItem}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {exchangeInfo.financialSummary && (
+                        <span className="text-[11px] font-black px-2.5 py-1 bg-white rounded-lg border border-purple-200 text-purple-900 shadow-2xs self-end md:self-center shrink-0 font-mono">
+                          {exchangeInfo.financialSummary}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Detalle Expandible de Artículos Vendidos */}
                   {isExpanded && (
                     <div className="bg-slate-50/70 border-t border-slate-100 p-4 sm:p-5 space-y-3">
@@ -727,6 +864,17 @@ export function PosTransactionHistoryView({
                           <span>Visualizar Ticket No Fiscal</span>
                         </button>
                       </div>
+
+                      {exchangeInfo && (
+                        <div className="p-2.5 bg-purple-50/60 rounded-xl border border-purple-200 text-[11px] text-purple-950 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                            <span>
+                              <strong>Auditoría de Stock:</strong> La prenda devuelta (<em>{exchangeInfo.returnedItem || "devuelta"}</em>) reingresó a stock en Saavedra 241 con tipo <strong>Devolución Cliente</strong> (+1 un.).
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
@@ -885,6 +1033,35 @@ export function PosTransactionHistoryView({
                       </div>
                     )}
                 </div>
+
+                {/* Comprobante de cambio si corresponde */}
+                {(() => {
+                  const receiptEx = parseExchangeDetails(sale.notes);
+                  if (!receiptEx) return null;
+                  return (
+                    <div className="py-2.5 px-3 bg-purple-50/80 rounded-xl border border-dashed border-purple-300 text-[10.5px] text-purple-950 space-y-1">
+                      <div className="font-black uppercase tracking-wider text-[10px] text-purple-900 flex items-center gap-1.5">
+                        <ArrowLeftRight className="w-3 h-3 text-purple-700" />
+                        <span>COMPROBANTE DE CAMBIO DE PRODUCTO</span>
+                      </div>
+                      {receiptEx.reason && (
+                        <div>
+                          <strong>Motivo:</strong> {receiptEx.reason}
+                        </div>
+                      )}
+                      {receiptEx.returnedItem && (
+                        <div>
+                          <strong>Prenda devuelta:</strong> {receiptEx.returnedItem}
+                        </div>
+                      )}
+                      {receiptEx.financialSummary && (
+                        <div className="font-bold text-purple-900 pt-0.5 border-t border-purple-200/60 font-mono">
+                          {receiptEx.financialSummary}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Items */}
                 <div className="space-y-2 border-b border-dashed border-slate-300 pb-3">
