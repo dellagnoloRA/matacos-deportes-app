@@ -5,7 +5,7 @@
 # 1. Base image con Node.js 20 LTS Alpine
 FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 WORKDIR /app
 
 # 2. Etapa de dependencias con PNPM
@@ -48,6 +48,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 
 USER nextjs
 
@@ -55,5 +57,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
 

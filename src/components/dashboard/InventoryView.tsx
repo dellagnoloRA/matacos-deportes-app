@@ -33,11 +33,9 @@ import {
   FileSpreadsheet,
   AlertOctagon,
   Layers,
-  ShoppingCart,
-  Receipt,
 } from "lucide-react";
 import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
 import { ProductFormModal } from "./ProductFormModal";
@@ -45,6 +43,7 @@ import { StockMovementModal, type OperationType } from "./StockMovementModal";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { BatchPriceUpdateModal } from "./BatchPriceUpdateModal";
 import { PriceHistoryView } from "./PriceHistoryView";
+import { StockMovementHistoryView } from "./StockMovementHistoryView";
 import { BulkImportModal } from "./BulkImportModal";
 import { QuickSaleModal } from "./QuickSaleModal";
 import { SalesHistoryModal } from "./SalesHistoryModal";
@@ -779,8 +778,8 @@ interface InventoryViewProps {
   onAlertsCountChange?: (count: number) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
-  activeSubView?: "productos" | "tablas" | "historial";
-  onSubViewChange?: (subView: "productos" | "tablas" | "historial") => void;
+  activeSubView?: "productos" | "tablas" | "historial" | "movimientos";
+  onSubViewChange?: (subView: "productos" | "tablas" | "historial" | "movimientos") => void;
 }
 
 export function InventoryView({
@@ -830,19 +829,27 @@ export function InventoryView({
 
   // Estados para el Filtro Unificado con Icono de Embudo (RF-01 / RF-01.2 / RF-06)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [isStockDropdownOpen, setIsStockDropdownOpen] = useState(false);
   const filterMenuRef = React.useRef<HTMLDivElement>(null);
+  // Filtros por marca y categoría
+  const [selectedBrand, setSelectedBrand] = useState("Todas");
+  const [selectedCategory, setSelectedCategory] = useState("Todas");
 
   // Conteo total de filtros activos no predeterminados
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedDiscipline !== "Todas") count++;
+    if (selectedBrand !== "Todas") count++;
+    if (selectedCategory !== "Todas") count++;
     if (stockAlertFilter !== "ALL") count++;
     if (activeFilterMode !== "ACTIVE") count++;
     return count;
-  }, [selectedDiscipline, stockAlertFilter, activeFilterMode]);
+  }, [selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode]);
 
   const handleResetAllFilters = () => {
     handleSelectDiscipline("Todas");
+    setSelectedBrand("Todas");
+    setSelectedCategory("Todas");
     setStockAlertFilter("ALL");
     setActiveFilterMode("ACTIVE");
   };
@@ -920,6 +927,25 @@ export function InventoryView({
       }
     }
     return counts;
+  }, [productsList, activeFilterMode]);
+
+  // Opciones de marca y categoría con conteo (respetando estado activo/inactivo)
+  const { brandOptions, categoryOptions } = useMemo(() => {
+    const brands = new Map<string, number>();
+    const categories = new Map<string, number>();
+    for (const p of productsList) {
+      if (activeFilterMode === "ACTIVE" && p.active === false) continue;
+      if (activeFilterMode === "INACTIVE" && p.active !== false) continue;
+      const b = p.brand?.trim();
+      if (b) brands.set(b, (brands.get(b) ?? 0) + 1);
+      const c = p.category?.trim();
+      if (c) categories.set(c, (categories.get(c) ?? 0) + 1);
+    }
+    const toSorted = (m: Map<string, number>) =>
+      Array.from(m.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+    return { brandOptions: toSorted(brands), categoryOptions: toSorted(categories) };
   }, [productsList, activeFilterMode]);
 
   // Resumen calculado en tiempo real de alertas de stock (excluyendo productos inactivos)
@@ -1187,11 +1213,46 @@ export function InventoryView({
     }
   };
 
-  // Identificar qué variante coincide con el código de barra buscado
+  // Identificar qué variante coincide con el código de barra o SKU buscado
   const getMatchedVariant = useCallback((item: DetailedProductItem, query: string) => {
     if (!query) return null;
     const q = query.trim().toLowerCase();
-    return item.variants?.find((v) => v.barcode && v.barcode.toLowerCase().includes(q)) || null;
+    if (!item.variants || item.variants.length === 0) return null;
+
+    // 1. Coincidencia exacta por código de barra
+    const exactBarcode = item.variants.find(
+      (v) => v.barcode && v.barcode.trim().toLowerCase() === q
+    );
+    if (exactBarcode) return exactBarcode;
+
+    // 2. Coincidencia exacta por SKU
+    const exactSku = item.variants.find(
+      (v) => v.sku && v.sku.trim().toLowerCase() === q
+    );
+    if (exactSku) return exactSku;
+
+    // 3. Coincidencia parcial por código de barra (mínimo 3 dígitos)
+    if (q.length >= 3) {
+      const partialBarcode = item.variants.find(
+        (v) => v.barcode && v.barcode.toLowerCase().includes(q)
+      );
+      if (partialBarcode) return partialBarcode;
+    }
+
+    // 4. Coincidencia parcial por SKU
+    if (q.length >= 3) {
+      const partialSku = item.variants.find(
+        (v) => v.sku && v.sku.toLowerCase().includes(q)
+      );
+      if (partialSku) return partialSku;
+    }
+
+    // 5. Si el producto tiene una única variante, asociarla directamente
+    if (item.variants.length === 1) {
+      return item.variants[0];
+    }
+
+    return null;
   }, []);
 
   // Manejo de pulsación de teclas en el campo de búsqueda (lector USB de código de barras)
@@ -1201,7 +1262,7 @@ export function InventoryView({
       const term = searchQuery.trim().toLowerCase();
       if (!term) return;
 
-      // 1. Buscar coincidencia exacta por código de barra (en producto o variantes)
+      // 1. Buscar coincidencia por código de barra (en producto o variantes)
       const exactMatch = filteredProducts.find(
         (p) =>
           (p.barcode && p.barcode.toLowerCase() === term) ||
@@ -1209,11 +1270,29 @@ export function InventoryView({
       );
 
       if (exactMatch) {
-        handleOpenDetail(exactMatch);
-        showToast("Producto escaneado", `Se abrió el detalle de "${exactMatch.name}".`);
+        const matchedVar = getMatchedVariant(exactMatch, term);
+        if (matchedVar) {
+          showToast(
+            "Variante identificada",
+            `Talle ${matchedVar.size} (${matchedVar.color}) de "${exactMatch.name}". Pulsa las flechas para modificar stock.`
+          );
+        } else {
+          showToast(
+            "Producto localizado",
+            `"${exactMatch.name}". Pulsa las flechas para modificar stock.`
+          );
+        }
       } else if (filteredProducts.length === 1) {
-        handleOpenDetail(filteredProducts[0]);
-        showToast("Producto encontrado", `Se abrió "${filteredProducts[0].name}".`);
+        const single = filteredProducts[0];
+        const matchedVar = getMatchedVariant(single, term);
+        if (matchedVar) {
+          showToast(
+            "Variante identificada",
+            `Talle ${matchedVar.size} (${matchedVar.color}) de "${single.name}". Pulsa las flechas para modificar stock.`
+          );
+        } else {
+          showToast("Producto filtrado", `"${single.name}". Pulsa las flechas para modificar stock.`);
+        }
       } else if (filteredProducts.length === 0) {
         showToast(
           "Código no encontrado",
@@ -1246,21 +1325,44 @@ export function InventoryView({
 
           matchesSearch = matchesMainBarcode || matchesVariantBarcode || Boolean(matchesSku);
         } else {
-          // Búsqueda en todos los campos (código de barra, nombre, marca, SKU, disciplina)
-          const matchesName = item.name.toLowerCase().includes(term);
-          const matchesBrand = item.brand.toLowerCase().includes(term);
-          const matchesSku =
-            (item.sku && item.sku.toLowerCase().includes(term)) ||
-            item.variants?.some((v) => v.sku && v.sku.toLowerCase().includes(term));
-          const matchesDisciplineText = item.discipline.toLowerCase().includes(term);
+          // Búsqueda tolerante: tildes, guiones, espacios, tokens múltiples
+          const tokens = normalizeSearch(term).split(/\s+/).filter(Boolean);
+          const termNoSpaces = normalizeSearch(term).replace(/\s+/g, "");
+
+          // Campos del producto + variantes, normalizados
+          const productFields = [
+            item.name,
+            item.brand,
+            item.sku || "",
+            item.discipline || "",
+            item.category || "",
+            item.subcategory || "",
+          ].map(normalizeSearch);
+
+          const variantFields = (item.variants ?? []).flatMap((v) => [
+            v.sku || "",
+            v.color || "",
+            v.size || "",
+          ].map(normalizeSearch));
+
+          const allFields = [...productFields, ...variantFields];
+          const allText = allFields.join(" ");
+          const allTextNoSpaces = allText.replace(/\s+/g, "");
+
+          // Cada token debe aparecer en algún campo (o en el texto concatenado)
+          const matchesAllTokens = tokens.every((token) =>
+            allFields.some((field) => field.includes(token)) || allText.includes(token)
+          );
+
+          // Término sin espacios vs texto sin espacios (ej: "airmax" → "air max")
+          const matchesFuzzySpaces =
+            termNoSpaces.length > 0 && allTextNoSpaces.includes(termNoSpaces);
 
           matchesSearch =
             matchesMainBarcode ||
             matchesVariantBarcode ||
-            matchesName ||
-            matchesBrand ||
-            Boolean(matchesSku) ||
-            matchesDisciplineText;
+            matchesAllTokens ||
+            matchesFuzzySpaces;
         }
       }
 
@@ -1293,7 +1395,22 @@ export function InventoryView({
         matchesActive = true;
       }
 
-      return matchesSearch && matchesDiscipline && matchesAlertFilter && matchesActive;
+      const matchesBrand =
+        selectedBrand === "Todas" ||
+        (item.brand ?? "").trim().toLowerCase() === selectedBrand.trim().toLowerCase();
+
+      const matchesCategory =
+        selectedCategory === "Todas" ||
+        (item.category ?? "").trim().toLowerCase() === selectedCategory.trim().toLowerCase();
+
+      return (
+        matchesSearch &&
+        matchesDiscipline &&
+        matchesBrand &&
+        matchesCategory &&
+        matchesAlertFilter &&
+        matchesActive
+      );
     });
 
     // Ordenamiento jerárquico por severidad de alerta:
@@ -1317,12 +1434,12 @@ export function InventoryView({
     }
 
     return filtered;
-  }, [productsList, searchQuery, searchMode, selectedDiscipline, stockAlertFilter, activeFilterMode]);
+  }, [productsList, searchQuery, searchMode, selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode]);
 
   // Resetear página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [stockAlertFilter, activeFilterMode, searchQuery, selectedDiscipline]);
+  }, [stockAlertFilter, activeFilterMode, searchQuery, selectedDiscipline, selectedBrand, selectedCategory]);
 
   // Cálculos de Paginación Adaptable
   const totalItems = filteredProducts.length;
@@ -1442,8 +1559,12 @@ export function InventoryView({
     }
   }, [selectedProductId, productsList]);
 
-  const handleOpenDetail = (product: DetailedProductItem) => {
+  const [selectedVariantIdForDetail, setSelectedVariantIdForDetail] = useState<string | undefined>(undefined);
+
+  const handleOpenDetail = (product: DetailedProductItem, variantId?: string) => {
     closedProductIdRef.current = null;
+    const targetVariantId = variantId || getMatchedVariant(product, searchQuery)?.id;
+    setSelectedVariantIdForDetail(targetVariantId);
     setSelectedProduct(product);
     onProductChange?.(product.id);
   };
@@ -1453,6 +1574,7 @@ export function InventoryView({
     return (
       <ProductDetailView
         product={selectedProduct}
+        initialVariantId={selectedVariantIdForDetail}
         onProductUpdate={(updated) => {
           setProductsList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           setSelectedProduct(updated);
@@ -1462,6 +1584,7 @@ export function InventoryView({
             closedProductIdRef.current = selectedProduct.id;
           }
           setSelectedProduct(null);
+          setSelectedVariantIdForDetail(undefined);
           onProductChange?.(null);
           loadProducts();
         }}
@@ -1471,6 +1594,7 @@ export function InventoryView({
             prev.map((p) => (p.id === deletedId ? { ...p, active: false } : p))
           );
           setSelectedProduct(null);
+          setSelectedVariantIdForDetail(undefined);
           onProductChange?.(null);
           showToast(
             "Producto dado de baja",
@@ -1497,11 +1621,24 @@ export function InventoryView({
             loadProducts();
           }}
         />
+      ) : activeSubView === "movimientos" ? (
+        <StockMovementHistoryView
+          onBackToInventory={() => {
+            onSubViewChange?.("productos");
+            loadProducts();
+          }}
+          onNavigateToPriceHistory={() => {
+            onSubViewChange?.("historial");
+          }}
+        />
       ) : activeSubView === "historial" ? (
         <PriceHistoryView
           onBackToInventory={() => {
             onSubViewChange?.("productos");
             loadProducts();
+          }}
+          onNavigateToStockMovements={() => {
+            onSubViewChange?.("movimientos");
           }}
         />
       ) : (
@@ -1581,33 +1718,6 @@ export function InventoryView({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
             <span className="hidden xl:inline">Importar Excel/CSV</span>
             <span className="xl:hidden hidden sm:inline">Importar</span>
-          </button>
-
-          {/* Botón: Historial de Tickets y Ventas */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedHistoryTicket(null);
-              setIsSalesHistoryModalOpen(true);
-            }}
-            className="px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100/90 active:scale-95 text-slate-800 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs select-none whitespace-nowrap shrink-0 cursor-pointer"
-            title="Consultar historial de ventas y comprobantes emitidos"
-          >
-            <Receipt className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-            <span className="hidden xl:inline">Historial Tickets</span>
-            <span className="xl:hidden hidden sm:inline">Tickets</span>
-          </button>
-
-          {/* Botón: Registrar Venta de Mostrador Multiproducto */}
-          <button
-            type="button"
-            onClick={() => setIsQuickSaleModalOpen(true)}
-            className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-extrabold text-xs px-3 sm:px-3.5 py-2 rounded-xl border border-emerald-400/40 shadow-[0_2px_6px_rgba(22,163,74,0.3),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-1.5 select-none whitespace-nowrap shrink-0 cursor-pointer"
-            title="Registrar Venta de Mostrador con Múltiples Productos"
-          >
-            <ShoppingCart className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
-            <span className="hidden sm:inline">Registrar Venta</span>
-            <span className="sm:hidden">Venta</span>
           </button>
 
           <button
@@ -1711,6 +1821,36 @@ export function InventoryView({
               </span>
             )}
 
+            {/* Chip: Marca */}
+            {selectedBrand !== "Todas" && (
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200/80 text-indigo-900 text-xs font-semibold shadow-2xs">
+                <span>Marca: {selectedBrand}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrand("Todas")}
+                  className="hover:bg-indigo-200/60 p-0.5 rounded text-indigo-700 hover:text-indigo-950 transition-colors cursor-pointer"
+                  title="Quitar filtro de marca"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {/* Chip: Categoría */}
+            {selectedCategory !== "Todas" && (
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-sky-50 border border-sky-200/80 text-sky-900 text-xs font-semibold shadow-2xs">
+                <span>Categoría: {selectedCategory}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("Todas")}
+                  className="hover:bg-sky-200/60 p-0.5 rounded text-sky-700 hover:text-sky-950 transition-colors cursor-pointer"
+                  title="Quitar filtro de categoría"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
             {/* Botón para restablecer todos los filtros */}
             <button
               type="button"
@@ -1791,41 +1931,42 @@ export function InventoryView({
 
             {/* Popover Menú Desplegable del Filtro */}
             {isFilterMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[340px] sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-50 p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-[340px] sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-50 p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
                 {/* Cabecera del Popover */}
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200/60 shadow-2xs">
-                      <Filter className="w-4 h-4" />
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200/60 shadow-2xs">
+                        <Filter className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-tight">Filtros del Catálogo</h4>
+                        <p className="text-[11px] text-slate-500">Estado, stock, disciplina, marca y categoría</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 leading-tight">Filtros del Catálogo</h4>
-                      <p className="text-[11px] text-slate-500">Estado, stock y disciplina</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {activeFiltersCount > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      {activeFiltersCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleResetAllFilters}
+                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          title="Restablecer todos los filtros"
+                        >
+                          Restablecer
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={handleResetAllFilters}
-                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                        title="Restablecer todos los filtros"
+                        onClick={() => setIsFilterMenuOpen(false)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Cerrar filtros"
                       >
-                        Restablecer
+                        <X className="w-4 h-4" />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setIsFilterMenuOpen(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Cerrar filtros"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-4 max-h-[calc(100vh-280px)] overflow-y-auto pr-0.5">
+                  {/* Cuerpo de Filtros con scroll interno si es necesario */}
+                  <div className="space-y-4 pr-1 overflow-y-auto custom-scrollbar">
                   {/* 1. FILTRO POR ESTADO */}
                   <div className="space-y-1.5">
                     <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
@@ -1880,100 +2021,7 @@ export function InventoryView({
                     </div>
                   </div>
 
-                  {/* 2. FILTRO DE STOCK */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                      <span>Nivel de Stock</span>
-                      {stockAlertsSummary.totalAlertVariants > 0 && (
-                        <span className="text-[10px] text-rose-600 font-bold">
-                          {stockAlertsSummary.totalAlertVariants} en alerta
-                        </span>
-                      )}
-                    </label>
-                    <div className="space-y-1">
-                      {/* Opción: Todos */}
-                      <button
-                        type="button"
-                        onClick={() => setStockAlertFilter("ALL")}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left cursor-pointer ${
-                          stockAlertFilter === "ALL"
-                            ? "bg-slate-900 text-white border-slate-800 shadow-xs"
-                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Boxes className={`w-4 h-4 ${stockAlertFilter === "ALL" ? "text-emerald-400" : "text-slate-500"}`} />
-                          <span>Todos los niveles de stock</span>
-                        </div>
-                        {stockAlertFilter === "ALL" && <CheckCircle2 className="w-3.5 h-3.5 text-[#00D615]" />}
-                      </button>
-
-                      {/* Opción: En Alerta */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStockAlertFilter("IN_ALERT")}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left cursor-pointer ${
-                          stockAlertFilter === "IN_ALERT"
-                            ? "bg-rose-600 text-white border-rose-700 shadow-xs"
-                            : "bg-rose-50/70 hover:bg-rose-100 text-rose-900 border-rose-200"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className={`w-4 h-4 ${stockAlertFilter === "IN_ALERT" ? "text-white" : "text-rose-600"}`} />
-                          <span>En Alerta (Crítico o Agotado)</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-black ${
-                          stockAlertFilter === "IN_ALERT" ? "bg-white text-rose-700" : "bg-rose-600 text-white"
-                        }`}>
-                          {stockAlertsSummary.totalAlertVariants}
-                        </span>
-                      </button>
-
-                      {/* Opción: Agotados */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStockAlertFilter("OUT_OF_STOCK")}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left cursor-pointer ${
-                          stockAlertFilter === "OUT_OF_STOCK"
-                            ? "bg-rose-700 text-white border-rose-800 shadow-xs"
-                            : "bg-rose-50/40 hover:bg-rose-100 text-rose-950 border-rose-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertOctagon className={`w-4 h-4 ${stockAlertFilter === "OUT_OF_STOCK" ? "text-white" : "text-rose-700"}`} />
-                          <span>Agotados (0 un. total)</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-black ${
-                          stockAlertFilter === "OUT_OF_STOCK" ? "bg-white text-rose-800" : "bg-rose-700 text-white"
-                        }`}>
-                          {stockAlertsSummary.outOfStockCount}
-                        </span>
-                      </button>
-
-                      {/* Opción: Reponer Mostrador */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStockAlertFilter("STORE_REPLENISHMENT")}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left cursor-pointer ${
-                          stockAlertFilter === "STORE_REPLENISHMENT"
-                            ? "bg-orange-600 text-white border-orange-700 shadow-xs"
-                            : "bg-orange-50 hover:bg-orange-100 text-orange-950 border-orange-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Store className={`w-4 h-4 ${stockAlertFilter === "STORE_REPLENISHMENT" ? "text-white" : "text-orange-600"}`} />
-                          <span>Reponer Mostrador (Depósito dispon.)</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-black ${
-                          stockAlertFilter === "STORE_REPLENISHMENT" ? "bg-white text-orange-800" : "bg-orange-600 text-white"
-                        }`}>
-                          {stockAlertsSummary.storeEmptyCount}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 3. FILTRO POR DISCIPLINA */}
+                  {/* 2. FILTRO POR DISCIPLINA */}
                   <div className="space-y-1.5">
                     <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                       <span>Disciplina Deportiva</span>
@@ -2000,10 +2048,178 @@ export function InventoryView({
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
+
+                  {/* 3. MARCA Y CATEGORÍA (GRID PARA AHORRAR ESPACIO) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* FILTRO POR MARCA */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Marca</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {brandOptions.length}
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={selectedBrand}
+                          onChange={(e) => setSelectedBrand(e.target.value)}
+                          className="w-full text-xs font-bold pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 text-slate-800 cursor-pointer outline-none transition-all shadow-2xs appearance-none truncate"
+                        >
+                          <option value="Todas">Todas las marcas</option>
+                          {brandOptions.map((b) => (
+                            <option key={b.name} value={b.name}>
+                              {b.name} ({b.count})
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* FILTRO POR CATEGORÍA */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Categoría</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {categoryOptions.length}
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={selectedCategory}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                          className="w-full text-xs font-bold pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 text-slate-800 cursor-pointer outline-none transition-all shadow-2xs appearance-none truncate"
+                        >
+                          <option value="Todas">Todas las categorías</option>
+                          {categoryOptions.map((c) => (
+                            <option key={c.name} value={c.name}>
+                              {c.name} ({c.count})
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. FILTRO DE STOCK (Personalizado con Iconos) */}
+                  <div className="space-y-1.5 relative">
+                    <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                      <span>Nivel de Stock</span>
+                      {stockAlertsSummary.totalAlertVariants > 0 && (
+                        <span className="text-[10px] text-rose-600 font-bold">
+                          {stockAlertsSummary.totalAlertVariants} en alerta
+                        </span>
+                      )}
+                    </label>
+                    
+                    {/* Botón selector del dropdown */}
+                    <button
+                      type="button"
+                      onClick={() => setIsStockDropdownOpen(!isStockDropdownOpen)}
+                      className="w-full text-xs font-bold pl-3 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 text-slate-800 flex items-center justify-between transition-all shadow-2xs cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {stockAlertFilter === "ALL" && (
+                          <><Boxes className="w-4 h-4 text-slate-500" /><span>Todos los niveles de stock</span></>
+                        )}
+                        {stockAlertFilter === "IN_ALERT" && (
+                          <><AlertTriangle className="w-4 h-4 text-rose-600" /><span>En Alerta (Crítico o Agotado)</span></>
+                        )}
+                        {stockAlertFilter === "OUT_OF_STOCK" && (
+                          <><AlertOctagon className="w-4 h-4 text-rose-700" /><span>Agotados (0 un. total)</span></>
+                        )}
+                        {stockAlertFilter === "STORE_REPLENISHMENT" && (
+                          <><Store className="w-4 h-4 text-orange-600" /><span>Reponer Mostrador (Dep. dispon.)</span></>
+                        )}
+                      </div>
+                      <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isStockDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Menú Desplegable Absoluto (hacia arriba) */}
+                    {isStockDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-[105]" onClick={() => setIsStockDropdownOpen(false)} />
+                        <div className="absolute left-0 right-0 bottom-[calc(100%+4px)] bg-white rounded-xl shadow-xl border border-slate-200/90 p-1.5 z-[110] space-y-1 animate-in fade-in zoom-in-95">
+                          {/* Option 1: ALL */}
+                          <button
+                            type="button"
+                            onClick={() => { setStockAlertFilter("ALL"); setIsStockDropdownOpen(false); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              stockAlertFilter === "ALL" ? "bg-slate-100 text-slate-900" : "hover:bg-slate-50 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Boxes className={`w-4 h-4 ${stockAlertFilter === "ALL" ? "text-emerald-500" : "text-slate-400"}`} />
+                              <span>Todos los niveles</span>
+                            </div>
+                            {stockAlertFilter === "ALL" && <CheckCircle2 className="w-3.5 h-3.5 text-[#00D615]" />}
+                          </button>
+                          
+                          {/* Option 2: IN_ALERT */}
+                          <button
+                            type="button"
+                            onClick={() => { handleToggleStockAlertFilter("IN_ALERT"); setIsStockDropdownOpen(false); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              stockAlertFilter === "IN_ALERT" ? "bg-rose-50 text-rose-900" : "hover:bg-rose-50/50 text-rose-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-500" />
+                              <span>En Alerta</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              stockAlertFilter === "IN_ALERT" ? "bg-rose-600 text-white" : "bg-rose-100 text-rose-700"
+                            }`}>
+                              {stockAlertsSummary.totalAlertVariants}
+                            </span>
+                          </button>
+
+                          {/* Option 3: OUT_OF_STOCK */}
+                          <button
+                            type="button"
+                            onClick={() => { handleToggleStockAlertFilter("OUT_OF_STOCK"); setIsStockDropdownOpen(false); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              stockAlertFilter === "OUT_OF_STOCK" ? "bg-rose-100 text-rose-900" : "hover:bg-rose-50 text-rose-800"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <AlertOctagon className="w-4 h-4 text-rose-600" />
+                              <span>Agotados</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              stockAlertFilter === "OUT_OF_STOCK" ? "bg-rose-700 text-white" : "bg-rose-200 text-rose-800"
+                            }`}>
+                              {stockAlertsSummary.outOfStockCount}
+                            </span>
+                          </button>
+
+                          {/* Option 4: STORE_REPLENISHMENT */}
+                          <button
+                            type="button"
+                            onClick={() => { handleToggleStockAlertFilter("STORE_REPLENISHMENT"); setIsStockDropdownOpen(false); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              stockAlertFilter === "STORE_REPLENISHMENT" ? "bg-orange-50 text-orange-900" : "hover:bg-orange-50/50 text-orange-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Store className="w-4 h-4 text-orange-500" />
+                              <span>Reponer Mostrador</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              stockAlertFilter === "STORE_REPLENISHMENT" ? "bg-orange-600 text-white" : "bg-orange-100 text-orange-700"
+                            }`}>
+                              {stockAlertsSummary.storeEmptyCount}
+                            </span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Pie del Popover */}
-                <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 shrink-0">
                   <span className="text-[11.5px] text-slate-500 font-medium">
                     <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> {filteredProducts.length === 1 ? "coincidencia" : "coincidencias"}
                   </span>
@@ -2304,13 +2520,31 @@ export function InventoryView({
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
-                    title="Movimientos y Traslado de Stock"
-                    className="p-2 text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors active:scale-95"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const matchedVariant = getMatchedVariant(item, searchQuery);
+                    return (
+                      <button
+                        onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", matchedVariant?.id, e)}
+                        title={
+                          matchedVariant
+                            ? `Ajustar stock de variante escaneada (${matchedVariant.size} - ${matchedVariant.color})`
+                            : "Movimientos y Traslado de Stock"
+                        }
+                        className={`p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 ${
+                          matchedVariant
+                            ? "text-emerald-950 bg-emerald-100 hover:bg-emerald-200 ring-2 ring-emerald-500/40 font-bold shadow-2xs"
+                            : "text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+                        }`}
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                        {matchedVariant && (
+                          <span className="text-[10.5px] font-bold text-emerald-950">
+                            {matchedVariant.size}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={(e) => handleOpenEditModal(item, e)}
                     title="Editar producto"
@@ -2650,13 +2884,26 @@ export function InventoryView({
                       <td className="py-4 px-5 text-right whitespace-nowrap min-w-[150px] sticky right-0 bg-white group-hover:bg-slate-50/90 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Botón rápido de Movimiento de Stock */}
-                          <button
-                            onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", undefined, e)}
-                            title="Ajustar Stock / Movimientos"
-                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
-                          >
-                            <ArrowRightLeft className="w-3.5 h-3.5" />
-                          </button>
+                          {(() => {
+                            const matchedVar = getMatchedVariant(item, searchQuery);
+                            return (
+                              <button
+                                onClick={(e) => handleOpenStockModal(item, "TRANSFERENCIA_INTERNA", matchedVar?.id, e)}
+                                title={
+                                  matchedVar
+                                    ? `Ajustar stock de variante escaneada (${matchedVar.size} - ${matchedVar.color})`
+                                    : "Ajustar Stock / Movimientos"
+                                }
+                                className={`p-1.5 rounded-lg transition-all border ${
+                                  matchedVar
+                                    ? "text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border-emerald-300 font-bold ring-2 ring-emerald-500/30"
+                                    : "text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 border-transparent hover:border-emerald-200"
+                                }`}
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={(e) => handleOpenEditModal(item, e)}
                             title="Editar producto"

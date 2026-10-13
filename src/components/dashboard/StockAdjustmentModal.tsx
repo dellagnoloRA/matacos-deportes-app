@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   ArrowRightLeft,
@@ -17,8 +17,12 @@ import {
   HelpCircle,
   ShoppingBag,
   ChevronDown,
+  Search,
+  Palette,
+  Ruler,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
+import { normalizeSearch } from "@/lib/utils";
 import {
   registerStockMovement,
   transferStockInternal,
@@ -65,6 +69,15 @@ export function StockAdjustmentModal({
   const quantityContainerRef = useRef<HTMLDivElement>(null);
   const [reason, setReason] = useState("");
 
+  // Estados del buscador inline de variante principal
+  const [variantSearchText, setVariantSearchText] = useState("");
+  const [variantColorFilter, setVariantColorFilter] = useState("TODOS");
+  const variantSearchRef = useRef<HTMLInputElement>(null);
+
+  // Estados del buscador inline de variante de intercambio (cambio de talle)
+  const [exchangeSearchText, setExchangeSearchText] = useState("");
+  const [exchangeColorFilter, setExchangeColorFilter] = useState("TODOS");
+
   // Cerrar el dropdown de cantidad al hacer clic afuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -93,8 +106,14 @@ export function StockAdjustmentModal({
   useEffect(() => {
     if (isOpen) {
       // Determinar variante inicial según prop o fallback a primera variante
-      const matchedVariant = initialVariantId
-        ? variants.find((v) => v.id === initialVariantId)
+      const cleanInitial = initialVariantId ? initialVariantId.trim().toLowerCase() : "";
+      const matchedVariant = cleanInitial
+        ? variants.find(
+            (v) =>
+              (v.id && v.id.toLowerCase() === cleanInitial) ||
+              (v.barcode && v.barcode.toLowerCase() === cleanInitial) ||
+              (v.sku && v.sku.toLowerCase() === cleanInitial)
+          )
         : null;
       const targetId = matchedVariant?.id || (variants.length > 0 && variants[0].id ? variants[0].id : "");
 
@@ -116,8 +135,62 @@ export function StockAdjustmentModal({
       setIsConfirmModalOpen(false);
       setErrorMessage(null);
       setSuccessMessage(null);
+      setVariantSearchText("");
+      setVariantColorFilter("TODOS");
+      setExchangeSearchText("");
+      setExchangeColorFilter("TODOS");
+      setTimeout(() => { variantSearchRef.current?.focus(); }, 100);
     }
   }, [isOpen, product, initialOperationType, initialVariantId]);
+
+  // Escáner rápido de código de barras USB mientras el modal está abierto
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleWindowKeyDown = (e: KeyboardEvent) => {
+      // No interferir si el usuario está escribiendo en textarea (motivo) o un input de texto
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "TEXTAREA" ||
+          (target.tagName === "INPUT" && (target as HTMLInputElement).type === "text"))
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastKeyTime > 200) {
+        buffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) {
+          const code = buffer.trim().toLowerCase();
+          const found = variants.find(
+            (v) =>
+              (v.barcode && v.barcode.toLowerCase() === code) ||
+              (v.sku && v.sku.toLowerCase() === code)
+          );
+          if (found && found.id) {
+            handleReturnVariantChange(found.id);
+            setSuccessMessage(
+              `Variante escaneada: Talle ${found.size} (${found.color})`
+            );
+          }
+        }
+        buffer = "";
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  }, [isOpen, variants]);
 
   // Manejar cambio del talle devuelto asegurando que el entregado no sea el mismo
   const handleReturnVariantChange = (newReturnId: string) => {
@@ -148,6 +221,64 @@ export function StockAdjustmentModal({
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  // ─── Colores únicos para el filtro de chips (variante principal) ──────────
+  const uniqueColors = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const v of variants) {
+      const c = (v.color || "Sin Color").trim();
+      map.set(c, (map.get(c) ?? 0) + (v.stockStore ?? 0));
+    }
+    return Array.from(map.entries())
+      .map(([name, stock]) => ({ name, stock }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [variants]);
+
+  // ─── Variantes filtradas para el selector principal ───────────────────────
+  const filteredMainVariants = useMemo(() => {
+    const q = normalizeSearch(variantSearchText);
+    return variants.filter((v) => {
+      const colorMatch =
+        variantColorFilter === "TODOS" ||
+        (v.color || "Sin Color").trim().toLowerCase() === variantColorFilter.toLowerCase();
+      if (!colorMatch) return false;
+      if (!q) return true;
+      const text = normalizeSearch(`${v.size} ${v.color ?? ""} ${v.sku ?? ""} ${v.barcode ?? ""}`);
+      const noSpaces = text.replace(/\s+/g, "");
+      const qNoSpaces = q.replace(/\s+/g, "");
+      return text.includes(q) || noSpaces.includes(qNoSpaces);
+    });
+  }, [variants, variantSearchText, variantColorFilter]);
+
+  // ─── Colores únicos para el filtro de chips (variante de intercambio) ─────
+  const uniqueExchangeColors = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const v of variants) {
+      if (v.id === selectedVariantId) continue;
+      const c = (v.color || "Sin Color").trim();
+      map.set(c, (map.get(c) ?? 0) + (v.stockStore ?? 0));
+    }
+    return Array.from(map.entries())
+      .map(([name, stock]) => ({ name, stock }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [variants, selectedVariantId]);
+
+  // ─── Variantes filtradas para el selector de intercambio ─────────────────
+  const filteredExchangeVariants = useMemo(() => {
+    const q = normalizeSearch(exchangeSearchText);
+    return variants.filter((v) => {
+      if (v.id === selectedVariantId) return false;
+      const colorMatch =
+        exchangeColorFilter === "TODOS" ||
+        (v.color || "Sin Color").trim().toLowerCase() === exchangeColorFilter.toLowerCase();
+      if (!colorMatch) return false;
+      if (!q) return true;
+      const text = normalizeSearch(`${v.size} ${v.color ?? ""} ${v.sku ?? ""} ${v.barcode ?? ""}`);
+      const noSpaces = text.replace(/\s+/g, "");
+      const qNoSpaces = q.replace(/\s+/g, "");
+      return text.includes(q) || noSpaces.includes(qNoSpaces);
+    });
+  }, [variants, selectedVariantId, exchangeSearchText, exchangeColorFilter]);
 
   if (!isOpen) return null;
 
@@ -502,7 +633,7 @@ export function StockAdjustmentModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
-          {/* 1. Selector de Variante (Talle y Color) */}
+          {/* 1. Selector de Variante (Talle y Color) — con filtro inline */}
           <div>
             <label className="text-slate-700 font-semibold mb-1.5 flex items-center justify-between">
               <span>
@@ -516,19 +647,106 @@ export function StockAdjustmentModal({
               </span>
             </label>
 
-            <div className="grid grid-cols-1 gap-2">
-              <select
-                value={selectedVariantId}
-                onChange={(e) => handleReturnVariantChange(e.target.value)}
-                className="w-full bg-slate-50 text-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 font-semibold"
-                required
-              >
-                {variants.map((v) => (
-                  <option key={v.id || v.sku} value={v.id}>
-                    Talle: {v.size} | Color: {v.color} — [Salón: {v.stockStore} un. | Depósito: {v.stockWarehouse} un.]
-                  </option>
-                ))}
-              </select>
+            {/* Buscador de talle / color / SKU */}
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={variantSearchRef}
+                  type="text"
+                  value={variantSearchText}
+                  onChange={(e) => setVariantSearchText(e.target.value)}
+                  placeholder="Buscar talle, color, SKU o cód. de barra..."
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                />
+                {variantSearchText && (
+                  <button
+                    type="button"
+                    onClick={() => setVariantSearchText("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Chips de color */}
+              {uniqueColors.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setVariantColorFilter("TODOS")}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all shrink-0 ${
+                      variantColorFilter === "TODOS"
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    Todos ({variants.length})
+                  </button>
+                  {uniqueColors.map((c) => {
+                    const isActive = variantColorFilter.toLowerCase() === c.name.toLowerCase();
+                    return (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => setVariantColorFilter(isActive ? "TODOS" : c.name)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all shrink-0 flex items-center gap-1.5 ${
+                          isActive
+                            ? "bg-emerald-700 text-white border-emerald-700"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-slate-400 border border-slate-300 shrink-0" />
+                        {c.name}
+                        <span className={`text-[10px] font-mono px-1 rounded ${isActive ? "bg-emerald-800 text-emerald-100" : "bg-slate-100 text-slate-500"}`}>
+                          {c.stock}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Grilla de variantes filtradas */}
+              <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50">
+                {filteredMainVariants.length === 0 ? (
+                  <div className="py-5 text-center text-xs text-slate-400 font-medium">
+                    Sin coincidencias.{" "}
+                    <button type="button" onClick={() => { setVariantSearchText(""); setVariantColorFilter("TODOS"); }} className="text-emerald-600 underline font-bold">
+                      Limpiar filtros
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+                    {filteredMainVariants.map((v) => {
+                      const isSelected = selectedVariantId === v.id;
+                      return (
+                        <button
+                          key={v.id || v.sku}
+                          type="button"
+                          onClick={() => handleReturnVariantChange(v.id ?? "")}
+                          className={`p-2 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/30"
+                              : "bg-white border-slate-200 hover:border-emerald-300 hover:bg-slate-50 shadow-2xs"
+                          }`}
+                        >
+                          <div className={`font-black text-xs font-mono ${isSelected ? "text-white" : "text-slate-900"}`}>
+                            Talle {v.size}
+                          </div>
+                          <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-emerald-100" : "text-slate-500"}`}>
+                            {v.color || "Único"}
+                          </div>
+                          <div className={`text-[10px] font-bold mt-1 font-mono ${isSelected ? "text-emerald-100" : v.stockStore > 0 ? "text-emerald-700" : "text-rose-500"}`}>
+                            S: {v.stockStore} • D: {v.stockWarehouse ?? 0}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Badge de stock actual de la variante seleccionada */}
@@ -536,7 +754,7 @@ export function StockAdjustmentModal({
               <div className="mt-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-[11.5px]">
                 <div className="flex items-center gap-2 text-slate-600">
                   <Layers className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Código SKU: <strong className="font-mono text-slate-800">{currentVariant.sku || "N/A"}</strong></span>
+                  <span>SKU: <strong className="font-mono text-slate-800">{currentVariant.sku || "N/A"}</strong> — Talle <strong>{currentVariant.size}</strong> · {currentVariant.color}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-emerald-700 font-bold">Salón: {currentStoreStock} un.</span>
@@ -546,6 +764,7 @@ export function StockAdjustmentModal({
               </div>
             )}
           </div>
+
 
           {/* 2. Selector de Operación (Botones tipo Card) */}
           <div>
@@ -774,25 +993,94 @@ export function StockAdjustmentModal({
                         </span>
                       </span>
                       <span className="text-[10.5px] font-normal text-slate-500">
-                        {exchangeVariantsList.length} opción(es) disponibles
+                        {filteredExchangeVariants.length} opción(es)
                       </span>
                     </label>
 
-                    <select
-                      value={exchangeVariant?.id || ""}
-                      onChange={(e) => setExchangeVariantId(e.target.value)}
-                      className="w-full bg-white text-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 font-semibold text-xs shadow-2xs"
-                      required
-                    >
-                      {exchangeVariantsList.map((v) => {
-                        const stockInLoc = targetLocation === "STORE" ? v.stockStore : v.stockWarehouse;
-                        return (
-                          <option key={v.id || v.sku} value={v.id}>
-                            Talle: {v.size} | Color: {v.color} — [{targetLocation === "STORE" ? "Salón" : "Depósito"}: {stockInLoc} un. disponible(s)]
-                          </option>
-                        );
-                      })}
-                    </select>
+                    {/* Buscador de talle a entregar */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={exchangeSearchText}
+                        onChange={(e) => setExchangeSearchText(e.target.value)}
+                        placeholder="Buscar talle, color, SKU..."
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-amber-200 focus:border-emerald-500 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      />
+                      {exchangeSearchText && (
+                        <button type="button" onClick={() => setExchangeSearchText("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Chips de color para intercambio */}
+                    {uniqueExchangeColors.length > 1 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setExchangeColorFilter("TODOS")}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all shrink-0 ${exchangeColorFilter === "TODOS" ? "bg-slate-900 text-white border-slate-900" : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"}`}
+                        >
+                          Todos
+                        </button>
+                        {uniqueExchangeColors.map((c) => {
+                          const isActive = exchangeColorFilter.toLowerCase() === c.name.toLowerCase();
+                          return (
+                            <button key={c.name} type="button" onClick={() => setExchangeColorFilter(isActive ? "TODOS" : c.name)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all shrink-0 flex items-center gap-1 ${isActive ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"}`}
+                            >
+                              <span className="w-2 h-2 rounded-full bg-slate-400 border border-slate-300 shrink-0" />
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Grilla de variantes de intercambio */}
+                    <div className="max-h-36 overflow-y-auto rounded-xl border border-amber-200 bg-white">
+                      {filteredExchangeVariants.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-slate-400 font-medium">
+                          Sin coincidencias.{" "}
+                          <button type="button" onClick={() => { setExchangeSearchText(""); setExchangeColorFilter("TODOS"); }} className="text-emerald-600 underline font-bold">
+                            Limpiar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+                          {filteredExchangeVariants.map((v) => {
+                            const isSelected = exchangeVariant?.id === v.id;
+                            const stockInLoc = targetLocation === "STORE" ? v.stockStore : (v.stockWarehouse ?? 0);
+                            const noStock = stockInLoc <= 0;
+                            return (
+                              <button
+                                key={v.id || v.sku}
+                                type="button"
+                                onClick={() => setExchangeVariantId(v.id ?? "")}
+                                className={`p-2 rounded-xl border text-left transition-all ${
+                                  isSelected
+                                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/30"
+                                    : noStock
+                                    ? "bg-slate-50 border-slate-200 opacity-60"
+                                    : "bg-white border-amber-200 hover:border-emerald-300 hover:bg-amber-50 shadow-2xs"
+                                }`}
+                              >
+                                <div className={`font-black text-xs font-mono ${isSelected ? "text-white" : "text-slate-900"}`}>
+                                  Talle {v.size}
+                                </div>
+                                <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-emerald-100" : "text-slate-500"}`}>
+                                  {v.color || "Único"}
+                                </div>
+                                <div className={`text-[10px] font-bold mt-1 font-mono ${isSelected ? "text-emerald-100" : noStock ? "text-rose-500" : "text-emerald-700"}`}>
+                                  {targetLocation === "STORE" ? "Salón" : "Depósito"}: {stockInLoc} un.
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Badge de stock y verificación en tiempo real */}
                     {exchangeVariant && (
@@ -822,6 +1110,7 @@ export function StockAdjustmentModal({
               </div>
             )}
           </div>
+
 
           {/* 3. Selector de Ubicación Destino (si no es transferencia fija) */}
           {operationType !== "TRANSFERENCIA_INTERNA" && (

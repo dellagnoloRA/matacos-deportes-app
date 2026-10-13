@@ -124,5 +124,23 @@ export type ProductVariantInput = z.infer<typeof ProductVariantSchema>;
 export type CreateProductInput = z.input<typeof CreateProductSchema>;
 export type UpdateProductInput = z.input<typeof UpdateProductSchema>;
 
+/**
+ * Esquema para Carga Rápida de Emergencia desde POS / Preventa
+ */
+export const CreateQuickPosProductSchema = z.object({
+  name: z.string().min(2, "El nombre del producto debe tener al menos 2 caracteres"),
+  price: z.number().positive("El precio de venta debe ser mayor a 0"),
+  costPrice: z.number().nullable().optional(),
+  size: z.string().min(1, "El talle es obligatorio"),
+  color: z.string().optional().default("Único"),
+  barcode: z.string().nullable().optional(),
+  disciplineName: z.string().optional().default("Multideporte"),
+  categoryName: z.string().optional().default("General"),
+  brandName: z.string().optional().default("Genérica"),
+  initialStock: z.number().int().min(1).default(1),
+});
+
+export type CreateQuickPosProductInput = z.input<typeof CreateQuickPosProductSchema>;
+
 // Re-exportar esquemas y tipos de actualización porcentual de precios
 export * from "./priceUpdate";

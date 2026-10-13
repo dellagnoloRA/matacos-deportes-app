@@ -21,6 +21,23 @@ export function formatCurrency(amount: number): string {
 }
 
 /**
+ * Normaliza un texto para búsquedas tolerantes a:
+ * - Tildes/acentos (ej: "Vóley" → "voley")
+ * - Guiones, puntos y otros separadores (ej: "Gel-Rocket" → "gel rocket")
+ * - Mayúsculas
+ * Uso: comparar normalizeSearch(query) contra normalizeSearch(campo)
+ */
+export function normalizeSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quitar diacríticos (tildes, diéresis, etc.)
+    .toLowerCase()
+    .replace(/[-_.,()/\\|]+/g, " ") // separadores especiales → espacio
+    .replace(/\s+/g, " ")           // colapsar espacios múltiples
+    .trim();
+}
+
+/**
  * Formatea fechas a la zona horaria oficial de Formosa, Argentina
  */
 export function formatDate(date: Date | string): string {
