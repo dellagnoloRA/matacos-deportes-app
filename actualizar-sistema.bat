@@ -24,12 +24,14 @@ docker load -i "%ORIGEN%matacos-app.tar"
 echo.
 echo [2/3] Reiniciando contenedor con la nueva version...
 cd /d "%DESTINO%"
-docker compose up -d --no-deps app
+docker compose stop app >nul 2>&1
+docker compose rm -f app >nul 2>&1
+docker compose up -d
 
 echo.
-echo [3/3] Aplicando migraciones de base de datos...
-timeout /t 3 /nobreak >nul
-docker compose exec -T app prisma migrate deploy
+echo [3/3] Verificando migraciones y arranque del sistema...
+timeout /t 6 /nobreak >nul
+docker compose exec -T app prisma migrate deploy >nul 2>&1
 
 echo.
 echo =======================================================================
