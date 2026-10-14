@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Boxes,
   X,
@@ -267,16 +268,18 @@ export function SidebarLeft({
           </button>
 
           {/* 5. E-commerce (Bloqueado) */}
-          <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
+          {/* 5. E-commerce */}
+          <Link
+            href="/"
+            target="_blank"
+            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold text-emerald-100 hover:bg-white/10 hover:text-white"
           >
             <div className="flex items-center gap-3">
               <Globe className="w-4 h-4 text-emerald-300" />
               <span>E-commerce</span>
             </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
-          </button>
+            <span className="text-[9px] bg-emerald-500/20 text-[#00D615] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Tienda</span>
+          </Link>
         </nav>
       </div>
 

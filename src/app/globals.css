@@ -43,3 +43,24 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 #f1f5f9;
 }
+
+/* Infinite Marquee Ticker Tape for Top Announcement Bar */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 60s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

@@ -1,15 +1,12 @@
-import { Suspense } from "react";
-import { DashboardView } from "@/components/dashboard/DashboardView";
-import { getDetailedInventoryProducts } from "@/server/actions/productActions";
+import { Metadata } from "next";
+import { EcommerceHomeView } from "@/components/ecommerce/EcommerceHomeView";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Matacos Deportes — Tienda Oficial | Saavedra 241, Formosa",
+  description:
+    "Equipamiento deportivo, calzado, indumentaria y outdoor. Envíos a todo el país y 3 y 6 cuotas sin interés en Matacos Deportes.",
+};
 
-export default async function HomePage() {
-  const res = await getDetailedInventoryProducts();
-  const initialProducts = res.success ? res.data : undefined;
-  return (
-    <Suspense fallback={<div className="h-screen w-full bg-[#06241d] flex items-center justify-center text-emerald-400 font-bold">Cargando Matacos...</div>}>
-      <DashboardView initialProducts={initialProducts} />
-    </Suspense>
-  );
+export default function HomePage() {
+  return <EcommerceHomeView />;
 }
