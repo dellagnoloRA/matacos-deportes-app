@@ -44,6 +44,15 @@ body {
   scrollbar-color: #94a3b8 #f1f5f9;
 }
 
+/* Invisible scrollbar utility (preserves scroll functionality without visible bar) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Infinite Marquee Ticker Tape for Top Announcement Bar */
 @keyframes marquee {
   0% {

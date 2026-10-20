@@ -1,3 +1,13 @@
+export interface ProductSizeOption {
+  size: string;
+  inStock: boolean;
+}
+
+export interface ProductColorOption {
+  name: string;
+  hex?: string;
+}
+
 export interface EcommerceProduct {
   id: string;
   name: string;
@@ -9,8 +19,20 @@ export interface EcommerceProduct {
   isOffer?: boolean;
   offerTag?: string;
   image: string;
+  secondaryImage?: string;
   description?: string;
   installments?: string;
+  sizes?: ProductSizeOption[];
+  colors?: string[];
+  gender?: "Hombre" | "Mujer" | "Unisex" | "Niños";
+  inStock?: boolean;
+  stockCount?: number;
+  freeShipping?: boolean;
+  storePickup?: boolean;
+  cashTransferDiscountPercent?: number; // ej: 10%
+  discountPercent?: number; // ej: 15%
+  isNew?: boolean;
+  rating?: number;
 }
 
 export interface EcommerceCategory {

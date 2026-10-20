@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { EcommerceProduct } from "./types";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
 import { ChevronDown, Eye, Check, ShoppingBag, X } from "lucide-react";
@@ -193,6 +194,19 @@ export function FeaturedProductsSection({
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Enlace para Ver Catálogo Completo */}
+        <div className="pt-6 flex justify-center">
+          <Link
+            href="/productos"
+            className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-slate-950 hover:bg-[#06241d] text-white text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-101 active:scale-98 group cursor-pointer"
+          >
+            <span>Ver todos los productos del catálogo</span>
+            <span className="w-5 h-5 rounded-full bg-[#00D615] text-slate-950 flex items-center justify-center font-bold text-xs group-hover:translate-x-1 transition-transform">
+              →
+            </span>
+          </Link>
         </div>
 
         {/* Success Notice Notification */}

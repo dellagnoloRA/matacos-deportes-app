@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Search,
   Heart,
@@ -42,6 +43,7 @@ export function EcommerceHeader({
   onOpenSearch,
   onSearchChange,
 }: EcommerceHeaderProps) {
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -136,35 +138,43 @@ export function EcommerceHeader({
         <nav className="hidden lg:flex items-center gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
           <Link
             href="/"
-            className="text-[#0d4a36] border-b-2 border-[#00D615] pb-1 hover:text-[#00A811] transition-colors"
+            className={`pb-1 transition-colors ${
+              pathname === "/"
+                ? "text-[#0d4a36] border-b-2 border-[#00D615] font-black"
+                : "hover:text-[#00A811] border-b-2 border-transparent"
+            }`}
           >
             INICIO
           </Link>
-          <a
-            href="#productos"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+          <Link
+            href="/productos"
+            className={`pb-1 transition-colors ${
+              pathname === "/productos"
+                ? "text-[#0d4a36] border-b-2 border-[#00D615] font-black"
+                : "hover:text-[#00A811] border-b-2 border-transparent hover:border-[#00D615]"
+            }`}
           >
             PRODUCTOS
-          </a>
-          <a
-            href="#disciplinas"
+          </Link>
+          <Link
+            href="/productos"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
             DISCIPLINAS
-          </a>
-          <a
-            href="#marcas"
+          </Link>
+          <Link
+            href="/productos"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
             MARCAS
-          </a>
-          <a
-            href="#ofertas"
+          </Link>
+          <Link
+            href="/productos"
             className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
           >
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
             <span>OFERTAS</span>
-          </a>
+          </Link>
         </nav>
 
         {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
@@ -311,39 +321,43 @@ export function EcommerceHeader({
               <Link
                 href="/"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-[#00A811] py-2 border-b border-slate-50"
+                className={`py-2 border-b border-slate-50 ${
+                  pathname === "/" ? "text-[#00A811] font-black" : "hover:text-[#00A811]"
+                }`}
               >
                 INICIO
               </Link>
-              <a
-                href="#productos"
+              <Link
+                href="/productos"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className={`py-2 border-b border-slate-50 transition-colors ${
+                  pathname === "/productos" ? "text-[#00A811] font-black" : "hover:text-[#00A811]"
+                }`}
               >
                 PRODUCTOS
-              </a>
-              <a
-                href="#disciplinas"
+              </Link>
+              <Link
+                href="/productos"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
                 DISCIPLINAS
-              </a>
-              <a
-                href="#marcas"
+              </Link>
+              <Link
+                href="/productos"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
                 MARCAS
-              </a>
-              <a
-                href="#ofertas"
+              </Link>
+              <Link
+                href="/productos"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
               >
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span>OFERTAS</span>
-              </a>
+              </Link>
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
