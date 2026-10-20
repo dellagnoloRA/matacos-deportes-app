@@ -16,6 +16,8 @@ import { InventoryView } from "./InventoryView";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { PosView } from "./PosView";
 import { CashShiftHistoryView } from "./CashShiftHistoryView";
+import { UsersManagementView } from "./UsersManagementView";
+import { ProfilesManagementView } from "./ProfilesManagementView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -69,8 +71,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const hasPerm = useCallback((code: string) => {
     if (!currentUser) return false;
-    if (currentUser.level >= 100) return true;
-    return currentUser.permissions?.includes(code) ?? false;
+        return currentUser.permissions?.includes(code) ?? false;
   }, [currentUser]);
 
   // Pestaña actual sincronizada con la URL del navegador
@@ -81,6 +82,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "caja") return "caja";
     if (tab === "ecommerce") return "ecommerce";
     if (tab === "configuracion") return "configuracion";
+    if (tab === "usuarios") return "usuarios";
+    if (tab === "perfiles") return "perfiles";
     return "inventario";
   }, [searchParams]);
 
@@ -152,7 +155,21 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const handleSelectTab = useCallback(
     (id: string) => {
       setSelectedProductId(null);
-      if (id === "pos" || id === "pos-preventa" || id === "preventa") {
+      if (id === "admin-usuarios" || id === "usuarios") {
+        updateUrl({
+          tab: "usuarios",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "admin-perfiles" || id === "perfiles") {
+        updateUrl({
+          tab: "perfiles",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "pos" || id === "pos-preventa" || id === "preventa") {
         updateUrl({
           tab: "pos",
           seccion: "preventa",
@@ -288,7 +305,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {isDesktopLeftOpen && (
           <SidebarLeft
             activeItem={
-              currentTab === "inventario"
+              currentTab === "usuarios"
+                ? "admin-usuarios"
+                : currentTab === "perfiles"
+                ? "admin-perfiles"
+                : currentTab === "inventario"
                 ? `inventario-${currentInventorySubView}`
                 : currentTab === "pos"
                 ? `pos-${currentPosSubView}`
@@ -305,7 +326,29 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         )}
 
         {/* 2. Main Content Area */}
-        {currentTab === "pos" ? (
+        {currentTab === "usuarios" ? (
+          hasPerm("admin.usuarios") ? (
+            <UsersManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar personal (admin.usuarios).
+              </p>
+            </div>
+          )
+        ) : currentTab === "perfiles" ? (
+          hasPerm("admin.perfiles") ? (
+            <ProfilesManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar perfiles (admin.perfiles).
+              </p>
+            </div>
+          )
+        ) : currentTab === "pos" ? (
           currentPosSubView === "arqueo" ? (
             <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
               <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
@@ -513,7 +556,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           className="h-full w-full bg-[#06241d]"
           isMobile
           activeItem={
-            currentTab === "inventario"
+            currentTab === "usuarios"
+              ? "admin-usuarios"
+              : currentTab === "perfiles"
+              ? "admin-perfiles"
+              : currentTab === "inventario"
               ? `inventario-${currentInventorySubView}`
               : currentTab === "pos"
               ? `pos-${currentPosSubView}`

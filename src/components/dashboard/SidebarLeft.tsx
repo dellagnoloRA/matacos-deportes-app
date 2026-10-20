@@ -21,6 +21,8 @@ import {
   Receipt,
   Lock,
   LogOut,
+  Users,
+  Shield,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -55,8 +57,7 @@ export function SidebarLeft({
 
   const hasPerm = (code: string) => {
     if (!currentUser) return false;
-    if (currentUser.level >= 100) return true;
-    return currentUser.permissions?.includes(code) ?? false;
+        return currentUser.permissions?.includes(code) ?? false;
   };
 
   const isInventoryActive =
@@ -318,6 +319,47 @@ export function SidebarLeft({
             </span>
           </button>
 )}
+
+          {/* 6. Administración (Personal y Perfiles) */}
+          {(hasPerm("admin.usuarios") || hasPerm("admin.perfiles")) && (
+            <div className="space-y-1 pt-1.5 border-t border-emerald-900/40">
+              <div className="px-3.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400/60">
+                Administración
+              </div>
+              {hasPerm("admin.usuarios") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-usuarios")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-usuarios"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className={`w-4 h-4 ${activeItem === "admin-usuarios" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Personal</span>
+                  </div>
+                </button>
+              )}
+              {hasPerm("admin.perfiles") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-perfiles")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-perfiles"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Shield className={`w-4 h-4 ${activeItem === "admin-perfiles" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Perfiles & Roles</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 5. E-commerce (Bloqueado) */}
           <button

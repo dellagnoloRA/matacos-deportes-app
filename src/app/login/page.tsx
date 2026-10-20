@@ -128,7 +128,7 @@ export default function LoginPage() {
               className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors"
             >
               <div className="font-semibold text-emerald-400">👑 Admin</div>
-              <div className="text-[10px] text-slate-500 truncate">admin (Nivel 100)</div>
+              <div className="text-[10px] text-slate-500 truncate">admin (Acceso Total)</div>
             </button>
 
             <button
@@ -137,7 +137,7 @@ export default function LoginPage() {
               className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors"
             >
               <div className="font-semibold text-blue-400">🛡️ Encargado</div>
-              <div className="text-[10px] text-slate-500 truncate">encargado (Nivel 50)</div>
+              <div className="text-[10px] text-slate-500 truncate">encargado (Supervisión)</div>
             </button>
 
             <button
@@ -146,7 +146,7 @@ export default function LoginPage() {
               className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors"
             >
               <div className="font-semibold text-amber-400">💵 Cajero</div>
-              <div className="text-[10px] text-slate-500 truncate">cajero1 (Nivel 10)</div>
+              <div className="text-[10px] text-slate-500 truncate">cajero1 (Cajero Mostrador)</div>
             </button>
 
             <button
@@ -155,7 +155,7 @@ export default function LoginPage() {
               className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors"
             >
               <div className="font-semibold text-purple-400">🏷️ Vendedor</div>
-              <div className="text-[10px] text-slate-500 truncate">vendedor (Nivel 5)</div>
+              <div className="text-[10px] text-slate-500 truncate">vendedor (Salón de Ventas)</div>
             </button>
           </div>
         </div>
