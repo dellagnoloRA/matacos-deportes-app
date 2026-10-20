@@ -16,6 +16,8 @@ import { InventoryView } from "./InventoryView";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { PosView } from "./PosView";
 import { CashShiftHistoryView } from "./CashShiftHistoryView";
+import { getCurrentUserAction } from "@/server/actions/authActions";
+import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
 import { DetailedProductItem, KpiData } from "./types";
 
@@ -59,6 +61,17 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [currentUser, setCurrentUser] = useState<SessionPayload | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then(setCurrentUser);
+  }, []);
+
+  const hasPerm = useCallback((code: string) => {
+    if (!currentUser) return false;
+    if (currentUser.level >= 100) return true;
+    return currentUser.permissions?.includes(code) ?? false;
+  }, [currentUser]);
 
   // Pestaña actual sincronizada con la URL del navegador
   const currentTab = useMemo(() => {
@@ -325,7 +338,14 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 </div>
               </div>
               <div className="p-4 lg:p-8 max-w-7xl mx-auto w-full">
-                <CashShiftHistoryView />
+                {hasPerm("caja.auditoria_historial") ? (
+                  <CashShiftHistoryView />
+                ) : (
+                  <div className="p-8 text-center bg-white border border-rose-200 rounded-2xl shadow-sm">
+                    <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+                    <p className="text-xs text-slate-500 mt-1">Tu perfil no cuenta con permisos para auditar arqueos de caja (caja.auditoria_historial).</p>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

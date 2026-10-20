@@ -47,7 +47,9 @@ import {
   Edit3,
   Barcode,
   Zap,
+  LogOut,
 } from "lucide-react";
+import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
 import { formatCurrency, formatDate, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -186,6 +188,12 @@ export function PosView({
   // ----------------------------------------------------------------------
   // Estado del Catálogo y Filtros
   // ----------------------------------------------------------------------
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then(setCurrentUser);
+  }, []);
+
   const [products, setProducts] = useState<DetailedProductItem[]>(initialProducts);
 
   useEffect(() => {
@@ -3299,6 +3307,30 @@ export function PosView({
                 <span className="hidden sm:inline">Devolución / Cambio</span>
                 <span className="sm:hidden">Cambio</span>
               </button>
+
+              {/* User Session Badge & Logout */}
+              {currentUser && (
+                <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                  <div className="hidden lg:flex flex-col text-right">
+                    <span className="text-xs font-bold text-slate-800 leading-tight">
+                      {currentUser.username || currentUser.name}
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-semibold leading-tight">
+                      {currentUser.profileName || "Personal"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await logoutAction();
+                      window.location.href = "/login";
+                    }}
+                    title="Cerrar Sesión"
+                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

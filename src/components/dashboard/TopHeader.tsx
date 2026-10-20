@@ -1,6 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
+import { SessionPayload } from "@/lib/session";
+import { LogOut } from "lucide-react";
 import {
   Star,
   Search,
@@ -31,6 +35,18 @@ export function TopHeader({
 }: TopHeaderProps) {
   const [isStarred, setIsStarred] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<SessionPayload | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then(setCurrentUser);
+  }, []);
+
+  const handleLogout = async () => {
+    await logoutAction();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <header className="w-full bg-[#111215] text-slate-200 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-lg shadow-black/10 border border-neutral-800">
@@ -112,6 +128,27 @@ export function TopHeader({
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full absolute top-1.5 right-1.5 ring-2 ring-neutral-950" />
           )}
         </button>
+
+        {/* User Session Badge & Logout */}
+        {currentUser && (
+          <div className="flex items-center gap-2 pl-2 border-l border-neutral-800">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-bold text-white leading-tight">
+                {currentUser.username || currentUser.name}
+              </span>
+              <span className="text-[10px] text-emerald-400 font-medium leading-tight">
+                {currentUser.profileName || "Personal"}
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Right Sidebar Toggle */}
         <button
