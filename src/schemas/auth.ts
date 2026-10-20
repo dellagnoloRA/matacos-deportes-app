@@ -49,3 +49,11 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const createProfileSchema = z.object({
+  name: z.string().min(2, "El nombre del perfil debe tener al menos 2 caracteres").trim(),
+  description: z.string().optional(),
+  parentProfileId: z.string().uuid("Perfil base inválido").nullable().optional(),
+});
+
+export type CreateProfileInput = z.infer<typeof createProfileSchema>;

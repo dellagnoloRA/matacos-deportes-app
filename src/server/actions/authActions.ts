@@ -91,28 +91,26 @@ export async function loginAction(input: LoginInput): Promise<LoginResult> {
     const permissionsSet = new Set<string>();
 
     if (user.profile) {
-      // Si es Admin de nivel 100, asignamos todos los permisos activos en BD
-      if (user.profile.level >= 100) {
-        const allPermissions = await prisma.permission.findMany({
-          select: { code: true },
-        });
-        allPermissions.forEach((p) => permissionsSet.add(p.code));
-      } else {
-        // Permisos directos del perfil
-        user.profile.permissions.forEach((pp) => {
+      // Permisos directos del perfil
+      user.profile.permissions.forEach((pp) => {
+        if (pp.permission?.code) {
+          permissionsSet.add(pp.permission.code);
+        }
+      });
+
+      // Permisos heredados del perfil padre (si tiene jerarquía reflexiva)
+      if (user.profile.parentProfile) {
+        user.profile.parentProfile.permissions.forEach((pp) => {
           if (pp.permission?.code) {
             permissionsSet.add(pp.permission.code);
           }
         });
+      }
 
-        // Permisos heredados del perfil padre (si tiene jerarquía reflexiva)
-        if (user.profile.parentProfile) {
-          user.profile.parentProfile.permissions.forEach((pp) => {
-            if (pp.permission?.code) {
-              permissionsSet.add(pp.permission.code);
-            }
-          });
-        }
+      // Si es el Administrador, asegurar que conserve acceso administrativo
+      if (user.profile.name.toLowerCase().includes("admin")) {
+        permissionsSet.add("admin.usuarios");
+        permissionsSet.add("admin.perfiles");
       }
     }
 
@@ -198,8 +196,7 @@ export async function hasPermission(permissionCode: string): Promise<boolean> {
   try {
     const session = await getSession();
     if (!session) return false;
-    if (session.level >= 100) return true; // Administrador siempre tiene pase total
-    return session.permissions.includes(permissionCode);
+    return session.permissions?.includes(permissionCode) ?? false;
   } catch {
     return false;
   }
