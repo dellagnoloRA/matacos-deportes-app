@@ -175,9 +175,9 @@ Los permisos quedan estandarizados e inmutables en código, clasificados en 6 m�
   * En la cabecera del dashboard y mostrador, un indicador visual directo del usuario autenticado:
     * Ej: `👤 admin (Administrador) | [Cerrar Sesión]`
   * Permite validar de un vistazo qué rol está operando en la prueba visual y cerrar sesión en un clic para ingresar con otro usuario.
-* **Pantallas Administrativas Básicas:**
-  * `/admin/usuarios`: Tabla simple del personal con botón de alta (modal Zod) y selector de perfil.
-  * `/admin/perfiles`: Listado de perfiles y modal con checkboxes por módulo para asignar los 29 permisos.
+* **Pantallas Administrativas (Completadas y Funcionales):**
+  * `/admin/usuarios` (`UsersManagementView.tsx`): Tabla de empleados con búsqueda, modal de alta con validación Zod, suspensión/reactivación y restablecimiento de claves.
+  * `/admin/perfiles` (`ProfilesManagementView.tsx`): Matriz dinámica de 29 permisos por módulo, creación de nuevos perfiles con herencia opcional, eliminación de perfiles personalizados y botón único de guardado. Se eliminaron los términos informales de "Nivel" sustituyéndolos por distintivos de alcance operativo (*Acceso Total*, *Supervisión*, *Caja y Cobro*, *Salón de Ventas*).
 
 ---
 

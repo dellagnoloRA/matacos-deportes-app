@@ -16,11 +16,13 @@ El requerimiento **RF-23** sustituye el esquema preliminar de roles estáticos e
 1. **Identificador Dual en Mostrador:** Permite al personal del local Saavedra 241 iniciar sesión rápidamente mediante su **nombre de usuario corto** (ej: `admin`, `cajero1`, `mostrador`) o su correo electrónico corporativo, reduciendo la fricción y tiempos de espera en mostrador.
 2. **Criptografía de Contraseñas:** Almacenamiento irreversible de claves mediante **`bcryptjs`** (10 salt rounds), protegiendo la base de datos contra filtraciones o ataques de fuerza bruta.
 3. **Catálogo Maestro de 29 Permisos Atómicos:** Unidades técnicas mínimas de autorización divididas en 6 módulos (`POS`, `CAJA`, `INVENTARIO`, `ECOMMERCE`, `REPORTES`, `ADMIN`).
-4. **Perfiles Dinámicos y Herencia Jerárquica:** El administrador puede configurar perfiles y casillas de verificación. Se implementó una relación reflexiva (`parentProfileId`) para que roles supervisores (ej. *Encargado de Local*) hereden automáticamente las capacidades del rol operativo (*Cajero Mostrador*).
+4. **Perfiles Dinámicos y Herencia Jerárquica:** El administrador puede crear perfiles personalizados y configurar casillas de verificación. Se implementó una relación reflexiva (`parentProfileId`) para que roles supervisores (ej. *Encargado de Local*) hereden automáticamente las capacidades del rol operativo (*Cajero Mostrador*).
 5. **Sesiones Seguras de 12 Horas:** Sesiones encapsuladas en cookies `HttpOnly`, `SameSite=Lax` y tokens JWT firmados con **`jose`** (`HS256`), con una duración de 12 horas ajustada a la jornada comercial completa en Formosa.
 6. **Middleware de Protección de Rutas:** Interceptación estricta de `/admin/*`, `/pos/*` y la raíz `/`, con auto-limpieza de cookies corruptas o expiradas.
 7. **Doble Guardia a Nivel Servidor (Zero Trust):** Enmascaramiento automático de información sensible (`costPrice: null` para usuarios sin `inventario.costos`) y denegación de auditorías de turnos sin `caja.auditoria_historial`.
 8. **Aislamiento Total del E-commerce:** Desacoplamiento lógico y físico entre los empleados del local (`User`) y los compradores de la tienda web (`Customer`), asegurando que ningún cliente web pueda operar rutas de gestión.
+9. **Eliminación de Rótulos Informales ("Niveles"):** Sustitución del término de "Nivel" por **distintivos profesionales de alcance operativo** (*Acceso Total*, *Supervisión*, *Caja y Cobro*, *Salón de Ventas*).
+10. **Paneles de Control Administrativos y Botón Único de Guardado:** Interfaces dedicadas para la administración de personal y personalización de perfiles con experiencia de guardado clara y unificada.
 
 ---
 
@@ -55,7 +57,7 @@ erDiagram
         string id PK "UUID"
         string name UK "Ej: Encargado de Local"
         string description "Alcance funcional"
-        int level "Jerarquia: 100 Admin, 50 Encargado, 10 Cajero"
+        int level "Orden interno de jerarquia"
         boolean isSystem "Protegido contra eliminacion"
         string parentProfileId FK "Herencia reflexiva a perfil padre"
         datetime createdAt
@@ -90,13 +92,13 @@ erDiagram
 ```mermaid
 flowchart TD
     subgraph PerfilesBase["Perfiles Base del Sistema Matacos Deportes"]
-        Admin["👑 Administrador\n(Nivel 100 - isSystem: true)\nAcceso Total: 29 Permisos"]
+        Admin["👑 Administrador\n(Acceso Total - isSystem: true)\nAcceso Completo: 29 Permisos"]
         
-        Encargado["👔 Encargado de Local\n(Nivel 50 - isSystem: true)\n16 Permisos Efectivos"]
+        Encargado["👔 Encargado de Local\n(Supervisión - isSystem: true)\n16 Permisos Efectivos"]
         
-        Cajero["💳 Cajero Mostrador\n(Nivel 10 - isSystem: true)\n9 Permisos Directos"]
+        Cajero["💳 Cajero Mostrador\n(Caja y Cobro - isSystem: true)\n9 Permisos Directos"]
         
-        Vendedor["🏷️ Vendedor Salón\n(Nivel 5 - isSystem: true)\n3 Permisos Directos"]
+        Vendedor["🏷️ Vendedor Salón\n(Salón de Ventas - isSystem: true)\n3 Permisos Directos"]
     end
 
     subgraph PermisosCajero["Permisos Operativos Cajero (9)"]
@@ -209,12 +211,12 @@ Los permisos se encuentran gobernados en código fuente e insertados en la base 
 
 ## 4. Matriz de Perfiles Base del Sistema
 
-| Perfil | Nivel | Herencia (`parentProfileId`) | Permisos Directos | Permisos Heredados | Total Permisos Efectivos |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Administrador** | 100 | Ninguno (`isSystem: true`) | 29 | - | **29 (Pase Total)** |
-| **Encargado de Local** | 50 | *Cajero Mostrador* (`isSystem: true`) | 7 de supervisión | 9 de Cajero | **16 Permisos** |
-| **Cajero Mostrador** | 10 | Ninguno (`isSystem: true`) | 9 de mostrador y caja | - | **9 Permisos** |
-| **Vendedor Salón** | 5 | Ninguno (`isSystem: true`) | 3 de salón y preventa | - | **3 Permisos** |
+| Perfil | Alcance Operativo | Herencia (`parentProfileId`) | Permisos Directos | Permisos Heredados | Total Permisos Efectivos |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Administrador** | **Acceso Total** | Ninguno (`isSystem: true`) | 29 | - | **29 (Pase Total)** |
+| **Encargado de Local** | **Supervisión** | *Cajero Mostrador* (`isSystem: true`) | 7 de supervisión | 9 de Cajero | **16 Permisos** |
+| **Cajero Mostrador** | **Caja y Cobro** | Ninguno (`isSystem: true`) | 9 de mostrador y caja | - | **9 Permisos** |
+| **Vendedor Salón** | **Salón de Ventas** | Ninguno (`isSystem: true`) | 3 de salón y preventa | - | **3 Permisos** |
 
 ---
 
@@ -232,7 +234,35 @@ Estas cuentas se encuentran inicializadas en la base de datos PostgreSQL mediant
 
 ---
 
-## 6. Verificación Automatizada (Suite de Tests)
+## 6. Módulos de Gestión Administrativa (Frontend y Backend)
+
+### A. Gestión de Personal (`/admin/usuarios` / `UsersManagementView.tsx`)
+* **Listado del Personal:** Tabla con nombre completo, usuario de mostrador, correo, perfil asignado y estado (Activo / Suspendido).
+* **Modal de Alta Asistido:** Formulario Zod para registrar nuevos empleados validando nombre, usuario (sin espacios, mín. 3 caracteres), correo único y contraseña cifrada con `bcryptjs`.
+* **Suspensión / Reactivación:** Botón directo para alternar el acceso del personal. Protege al Administrador General activo contra auto-desactivación accidental.
+* **Restablecimiento de Contraseñas:** Modal para fijar una nueva clave a cualquier empleado sin revelar la contraseña anterior.
+
+### B. Gestión de Perfiles y Matriz de Permisos (`/admin/perfiles` / `ProfilesManagementView.tsx`)
+* **Creación de Nuevos Perfiles:** Modal accesible con el botón `+ Nuevo` que permite indicar nombre, descripción y perfil base de herencia reflexiva.
+* **Eliminación Segura de Perfiles Personalizados:** Botón de papelera para perfiles no nativos (`isSystem: false`), protegido si tienen empleados asignados o perfiles dependientes.
+* **Matriz de Casillas de Verificación:** 29 permisos categorizados por módulo con opción de marcado/desmarcado por lote (*"Marcar todos"* / *"Desmarcar módulo"*).
+* **Botón Único de Guardado:** Ubicado prominentemente en la cabecera del perfil activo, eliminando duplicidad visual y persistiendo en transacción atómica (`updateProfilePermissionsAction`).
+* **Salvaguarda de Acceso:** El perfil `Administrador` conserva inalterables `admin.usuarios` y `admin.perfiles` para prevenir el bloqueo involuntario del panel.
+
+### C. Server Actions Dedicadas (`src/server/actions/userManagementActions.ts`)
+* `getUsersListAction`: Lectura de personal con datos de perfil.
+* `createUserAction`: Alta de usuario con hash `bcrypt` (10 salt rounds).
+* `toggleUserActiveAction`: Modificación de estado activo/inactivo.
+* `resetUserPasswordAction`: Cambio forzado de clave cifrada.
+* `getProfilesListAction`: Lista de perfiles con conteo de usuarios y permisos directos.
+* `getAllPermissionsAction`: Catálogo maestro de los 29 permisos agrupados.
+* `createProfileAction`: Alta de perfil personalizado con herencia reflexiva.
+* `deleteCustomProfileAction`: Baja de perfil personalizado con validación referencial.
+* `updateProfilePermissionsAction`: Persistencia atómica de casillas en `ProfilePermission`.
+
+---
+
+## 7. Verificación Automatizada (Suite de Tests)
 
 Se implementó el script ejecutable [`scripts/test-rf23-rbac.ts`](file:///C:/Users/della/matacos-deportes-app/scripts/test-rf23-rbac.ts) para validar de manera desatendida la seguridad del sistema:
 
