@@ -134,45 +134,47 @@ export function EcommerceHeader({
           </Link>
         </div>
 
-        {/* Center: Desktop Navigation Links */}
+        {/* Center: Desktop Navigation Links (Idéntico a la captura) */}
         <nav className="hidden lg:flex items-center gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
           <Link
             href="/"
-            className={`pb-1 transition-colors ${
-              pathname === "/"
-                ? "text-[#0d4a36] border-b-2 border-[#00D615] font-black"
-                : "hover:text-[#00A811] border-b-2 border-transparent"
-            }`}
+            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
           >
-            INICIO
+            <span className={pathname === "/" ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+              INICIO
+            </span>
+            {pathname === "/" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
+            )}
           </Link>
           <Link
             href="/productos"
-            className={`pb-1 transition-colors ${
-              pathname === "/productos"
-                ? "text-[#0d4a36] border-b-2 border-[#00D615] font-black"
-                : "hover:text-[#00A811] border-b-2 border-transparent hover:border-[#00D615]"
-            }`}
+            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
           >
-            PRODUCTOS
+            <span className={pathname === "/productos" ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+              CATÁLOGO
+            </span>
+            {pathname === "/productos" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
+            )}
           </Link>
           <Link
             href="/productos"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            className="hover:text-[#00A811] transition-colors pb-1"
           >
             DISCIPLINAS
           </Link>
           <Link
             href="/productos"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            className="hover:text-[#00A811] transition-colors pb-1"
           >
-            MARCAS
+            DESTACADOS
           </Link>
           <Link
             href="/productos"
             className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
           >
-            <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
+            <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
             <span>OFERTAS</span>
           </Link>
         </nav>

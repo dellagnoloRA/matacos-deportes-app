@@ -431,27 +431,25 @@ export function ProductCatalogView({
       />
 
       {/* 2. Breadcrumbs & Sub-header */}
-      <div className="bg-slate-50 border-b border-slate-200 py-3.5 px-4 sm:px-8 lg:px-12">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-slate-500">
+      <div className="bg-white py-4 px-4 sm:px-8 lg:px-12 border-b border-slate-100">
+        <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-slate-400">
           <nav className="flex items-center gap-2">
-            <Link href="/" className="hover:text-emerald-700 transition-colors">
+            <Link href="/" className="hover:text-slate-700 transition-colors">
               Inicio
             </Link>
-            <span>/</span>
-            <span className="font-semibold text-slate-800">
-              {filters.category ? filters.category : "Todos los Productos"}
-            </span>
-            {filters.discipline && (
+            <span>&gt;</span>
+            <Link href="/productos" className="hover:text-slate-700 transition-colors">
+              Catálogo
+            </Link>
+            {(filters.discipline || filters.category || (filters.brand && filters.brand.length > 0)) && (
               <>
-                <span>/</span>
-                <span className="text-emerald-700 font-bold">{filters.discipline}</span>
+                <span>&gt;</span>
+                <span className="font-semibold text-slate-800">
+                  {filters.discipline || filters.category || filters.brand?.[0]}
+                </span>
               </>
             )}
           </nav>
-
-          <span className="hidden sm:inline font-medium text-slate-400">
-            Saavedra 241, Formosa Capital
-          </span>
         </div>
       </div>
 
@@ -461,56 +459,54 @@ export function ProductCatalogView({
           {/* Columna Izquierda: Sidebar de Filtros en Desktop */}
           <div className="hidden lg:block w-64 shrink-0">
             <ProductFiltersSidebar
-                filters={filters}
-                onFilterChange={setFilters}
-                onClearFilters={handleClearFilters}
-                sizeGroups={sizeGroups}
-                availableSizes={availableSizes}
-                hasActiveScopeForSizes={hasActiveScopeForSizes}
-                activeScopeLabel={activeScopeLabel}
-                availableBrands={filterOptions.availableBrands}
-                availableCategories={filterOptions.availableCategories}
-                availableDisciplines={filterOptions.availableDisciplines}
-                availableColors={filterOptions.availableColors}
-                totalProductCount={filteredProducts.length}
-                inStockCount={filterOptions.inStockCount}
-                outOfStockCount={filterOptions.outOfStockCount}
-                minPrice={minProductPrice}
-                maxPrice={maxProductPrice}
-              />
+              filters={filters}
+              onFilterChange={setFilters}
+              onClearFilters={handleClearFilters}
+              sizeGroups={sizeGroups}
+              availableSizes={availableSizes}
+              hasActiveScopeForSizes={hasActiveScopeForSizes}
+              activeScopeLabel={activeScopeLabel}
+              availableBrands={filterOptions.availableBrands}
+              availableCategories={filterOptions.availableCategories}
+              availableDisciplines={filterOptions.availableDisciplines}
+              availableColors={filterOptions.availableColors}
+              totalProductCount={filteredProducts.length}
+              inStockCount={filterOptions.inStockCount}
+              outOfStockCount={filterOptions.outOfStockCount}
+              minPrice={minProductPrice}
+              maxPrice={maxProductPrice}
+            />
           </div>
 
           {/* Columna Derecha: Catálogo de Productos */}
-          <div className="grow w-full space-y-5">
-            {/* Barra Superior de Control (Referencia Imagen 1 y 2) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-              {/* Izquierda: Contador y Botón Móvil de Filtros */}
+          <div className="grow w-full space-y-4">
+            {/* Barra Superior de Control */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+              {/* Izquierda: Contador de artículos disponibles */}
               <div className="flex items-center gap-3">
-                {/* Botón Filtros para Móviles */}
                 <button
                   onClick={() => setIsMobileFiltersOpen(true)}
-                  className="lg:hidden flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg transition-colors"
+                  className="lg:hidden flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                 >
                   <SlidersHorizontal className="w-4 h-4 text-emerald-800" />
                   <span>Filtros</span>
                 </button>
 
-                {/* Contador de Productos (Idéntico a Imagen 1: "463 productos") */}
-                <span className="text-xs sm:text-sm font-bold text-slate-800">
-                  {filteredProducts.length} productos
+                <span className="text-sm font-bold text-slate-800">
+                  {filteredProducts.length} artículos disponibles
                 </span>
               </div>
 
-              {/* Derecha: Desplegable Ordenar Por (Referencia Imagen 1 y 2) */}
-              <div className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="hidden sm:inline font-medium">Ordenar por:</span>
+              {/* Derecha: Desplegable Ordenar Por */}
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="hidden sm:inline font-medium text-slate-500">Ordenar por:</span>
                 <div className="relative">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
-                    className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 outline-none hover:border-slate-300 focus:border-[#00D615] cursor-pointer"
+                    className="appearance-none bg-white border border-slate-200 rounded-xl pl-3.5 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-[#00D615] cursor-pointer shadow-2xs"
                   >
-                    <option value="relevancia">Relevancia</option>
+                    <option value="relevancia">Novedades y Destacados</option>
                     <option value="menor-precio">Menor precio</option>
                     <option value="mayor-precio">Mayor precio</option>
                     <option value="descuento">Mayor descuento</option>
@@ -521,102 +517,83 @@ export function ProductCatalogView({
               </div>
             </div>
 
-            {/* Chips de Filtros Activos (Referencia Imagen 1: "✕ En existencia") */}
-            <div className="flex flex-wrap items-center gap-2">
-              {filters.onlyInStock && (
-                <button
-                  onClick={() => removeFilterChip("onlyInStock")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer"
-                >
-                  <X className="w-3 h-3 text-slate-500 group-hover:text-slate-900" />
-                  <span>En existencia</span>
-                </button>
-              )}
+            {/* Chips de Filtros Activos (Exacto a la captura) */}
+            {Boolean(
+              filters.category ||
+              filters.discipline ||
+              (filters.brand && filters.brand.length > 0) ||
+              (filters.sizes && filters.sizes.length > 0) ||
+              filters.priceRange
+            ) && (
+              <div className="flex flex-wrap items-center gap-2.5 pb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  FILTROS ACTIVOS:
+                </span>
 
-              {filters.category && (
-                <button
-                  onClick={() => removeFilterChip("category")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-emerald-200"
-                >
-                  <X className="w-3 h-3 text-emerald-600 group-hover:text-emerald-900" />
-                  <span>Categoría: {filters.category}</span>
-                </button>
-              )}
+                {filters.discipline && (
+                  <button
+                    onClick={() => removeFilterChip("discipline")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>Disciplina: {filters.discipline}</span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                )}
 
-              {filters.discipline && (
-                <button
-                  onClick={() => removeFilterChip("discipline")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white text-xs font-medium rounded-full transition-colors group cursor-pointer"
-                >
-                  <X className="w-3 h-3 text-slate-300 group-hover:text-white" />
-                  <span>Deporte: {filters.discipline}</span>
-                </button>
-              )}
+                {filters.category && (
+                  <button
+                    onClick={() => removeFilterChip("category")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>Categoría: {filters.category}</span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                )}
 
-              {filters.brand?.map((b) => (
-                <button
-                  key={b}
-                  onClick={() => removeFilterChip("brand", b)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer"
-                >
-                  <X className="w-3 h-3 text-slate-500 group-hover:text-slate-900" />
-                  <span>Marca: {b}</span>
-                </button>
-              ))}
+                {filters.brand?.map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => removeFilterChip("brand", b)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>Marca: {b}</span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                ))}
 
-              {filters.sizes?.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => removeFilterChip("size", s)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer"
-                >
-                  <X className="w-3 h-3 text-slate-500 group-hover:text-slate-900" />
-                  <span>Talle: {s}</span>
-                </button>
-              ))}
+                {filters.sizes?.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => removeFilterChip("size", s)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>Talle: {s}</span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                ))}
 
-              {filters.onlyOffers && (
-                <button
-                  onClick={() => removeFilterChip("onlyOffers")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-700 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-red-200"
-                >
-                  <X className="w-3 h-3 text-red-500 group-hover:text-red-800" />
-                  <span>Solo Ofertas</span>
-                </button>
-              )}
+                {filters.priceRange && (
+                  <button
+                    onClick={() => removeFilterChip("priceRange")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>
+                      Precio: {formatCurrency(filters.priceRange[0])} - {formatCurrency(filters.priceRange[1])}
+                    </span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                )}
 
-              {filters.storePickupOnly && (
                 <button
-                  onClick={() => removeFilterChip("storePickupOnly")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer"
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer ml-1"
                 >
-                  <X className="w-3 h-3 text-slate-500 group-hover:text-slate-900" />
-                  <span>Retiro Saavedra 241</span>
+                  Limpiar todos los filtros
                 </button>
-              )}
+              </div>
+            )}
 
-              {filters.freeShippingOnly && (
-                <button
-                  onClick={() => removeFilterChip("freeShippingOnly")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer"
-                >
-                  <X className="w-3 h-3 text-slate-500 group-hover:text-slate-900" />
-                  <span>Envío Gratis</span>
-                </button>
-              )}
-
-              {filters.priceRange && (
-                <button
-                  onClick={() => removeFilterChip("priceRange")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-emerald-200"
-                >
-                  <X className="w-3 h-3 text-emerald-600 group-hover:text-emerald-900" />
-                  <span>
-                    Precio: {formatCurrency(filters.priceRange[0])} - {formatCurrency(filters.priceRange[1])}
-                  </span>
-                </button>
-              )}
-            </div>
 
             {/* Grilla de Productos (4 columnas desktop como en la Imagen 1) */}
             {filteredProducts.length > 0 ? (

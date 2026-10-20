@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw, Check, Sparkles, Filter, DollarSign } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 
 export interface FilterState {
   category?: string;
@@ -54,38 +53,29 @@ export function ProductFiltersSidebar({
   filters,
   onFilterChange,
   onClearFilters,
-  availableSizes = [],
   sizeGroups = [],
   availableBrands = [],
   availableCategories = [],
   availableDisciplines = [],
-  availableColors = [],
   totalProductCount = 0,
-  inStockCount = 0,
-  outOfStockCount = 0,
-  hasActiveScopeForSizes = false,
-  activeScopeLabel,
   minPrice = 0,
   maxPrice = 250000,
   isMobileModal = false,
   onCloseMobileModal,
 }: ProductFiltersSidebarProps) {
-  // Estados de acordeones abiertos
+  // Estados de acordeones abiertos según el diseño oficial de Matacos Deportes
   const [openSections, setOpenSections] = useState({
-    talles: true,
-    disponibilidad: true,
-    categoria: true,
-    disciplina: false,
-    marca: true,
+    disciplina: true,
+    categoria: false,
+    marca: false,
+    talles: false,
     precio: true,
-    color: false,
-    genero: false,
   });
 
   // Estado para expandir grupos de talles que superan las 3 filas
   const [expandedSizeGroups, setExpandedSizeGroups] = useState<Record<string, boolean>>({});
 
-  // Estados para expandir categorías, marcas y disciplinas a partir del 10mo elemento sin slider
+  // Estados para expandir categorías, marcas y disciplinas a partir del 10mo elemento sin scroll
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllBrands, setShowAllBrands] = useState(false);
   const [showAllDisciplines, setShowAllDisciplines] = useState(false);
@@ -106,23 +96,13 @@ export function ProductFiltersSidebar({
     Boolean(filters.discipline) ||
     (filters.brand && filters.brand.length > 0) ||
     (filters.sizes && filters.sizes.length > 0) ||
-    (filters.colors && filters.colors.length > 0) ||
-    Boolean(filters.priceRange) ||
-    Boolean(filters.gender) ||
-    Boolean(filters.onlyInStock) ||
-    Boolean(filters.onlyOffers) ||
-    Boolean(filters.storePickupOnly) ||
-    Boolean(filters.freeShippingOnly);
-
-  const formatPrice = (amount: number) => {
-    return formatCurrency(amount).replace(/,00$/, "");
-  };
+    Boolean(filters.priceRange);
 
   const currentMin = filters.priceRange ? filters.priceRange[0] : minPrice;
   const currentMax = filters.priceRange ? filters.priceRange[1] : maxPrice;
 
   // Toggle de un elemento en array (ej: talles o marcas)
-  const toggleArrayItem = (key: "sizes" | "brand" | "colors", item: string) => {
+  const toggleArrayItem = (key: "sizes" | "brand", item: string) => {
     const current = filters[key] || [];
     const exists = current.includes(item);
     const updated = exists ? current.filter((x) => x !== item) : [...current, item];
@@ -130,393 +110,41 @@ export function ProductFiltersSidebar({
   };
 
   return (
-    <aside className="w-full flex flex-col gap-5 text-slate-800 text-xs select-none">
-      {/* 1. Encabezado del Panel */}
-      <div className="sticky top-0 bg-white z-10 flex items-center justify-between pb-3 pt-1 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-emerald-700" />
-          <h3 className="text-sm font-black tracking-wider uppercase text-slate-950">
-            FILTROS
-          </h3>
-        </div>
+    <aside className="w-full bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs flex flex-col gap-4 text-slate-800 text-xs select-none">
+      {/* 1. Encabezado del Panel: FILTRAR POR y Limpiar */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 className="text-xs font-black tracking-wider uppercase text-slate-900">
+          FILTRAR POR
+        </h3>
 
         {hasActiveFilters && (
           <button
             onClick={onClearFilters}
-            className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-3 h-3" />
             <span>Limpiar</span>
+            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
           </button>
         )}
       </div>
 
-      {/* 2. Switches Rápidos (Referencia Imagen 2 / Dexter) */}
-      <div className="space-y-2.5 pb-4 border-b border-slate-200">
-        {/* Switch Retiro por sucursal Saavedra 241 */}
-        <label className="flex items-center justify-between cursor-pointer py-1 group">
-          <span className="font-semibold text-slate-700 group-hover:text-slate-950">
-            Retiro en Saavedra 241
-          </span>
-          <div
-            onClick={() =>
-              onFilterChange({
-                ...filters,
-                storePickupOnly: !filters.storePickupOnly,
-              })
-            }
-            className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer ${
-              filters.storePickupOnly ? "bg-[#06241d]" : "bg-slate-200"
-            }`}
-          >
-            <div
-              className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
-                filters.storePickupOnly ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </div>
-        </label>
-
-        {/* Switch Envío a domicilio / Gratis */}
-        <label className="flex items-center justify-between cursor-pointer py-1 group">
-          <span className="font-semibold text-slate-700 group-hover:text-slate-950">
-            Envío a domicilio
-          </span>
-          <div
-            onClick={() =>
-              onFilterChange({
-                ...filters,
-                freeShippingOnly: !filters.freeShippingOnly,
-              })
-            }
-            className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer ${
-              filters.freeShippingOnly ? "bg-[#06241d]" : "bg-slate-200"
-            }`}
-          >
-            <div
-              className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
-                filters.freeShippingOnly ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </div>
-        </label>
-
-        {/* Switch Solo Ofertas y Descuentos */}
-        <label className="flex items-center justify-between cursor-pointer py-1 group">
-          <span className="font-semibold text-slate-700 group-hover:text-slate-950 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-            <span>En Oferta / SALE</span>
-          </span>
-          <div
-            onClick={() =>
-              onFilterChange({
-                ...filters,
-                onlyOffers: !filters.onlyOffers,
-              })
-            }
-            className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer ${
-              filters.onlyOffers ? "bg-red-600" : "bg-slate-200"
-            }`}
-          >
-            <div
-              className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
-                filters.onlyOffers ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </div>
-        </label>
-      </div>
-
-      {/* 3. Acordeón: TALLE (Solo mostrar si hay categorías con más de 1 talle) */}
-      {sizeGroups && sizeGroups.some((g) => g.sizes.length > 1) && (
-        <div className="pb-4 border-b border-slate-200">
-          <button
-            onClick={() => toggleSection("talles")}
-            className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
-          >
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span>TALLE</span>
-              {hasActiveScopeForSizes && activeScopeLabel && (
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded capitalize">
-                  {activeScopeLabel}
-                </span>
-              )}
-            </div>
-            {openSections.talles ? (
-              <ChevronUp className="w-4 h-4 text-slate-500" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-slate-500" />
-            )}
-          </button>
-
-          {openSections.talles && (
-            <div className="pt-3 space-y-4">
-              {sizeGroups
-                .filter((group) => group.sizes.length > 1)
-                .map((group) => {
-                  const MAX_VISIBLE_SIZES = 9; // ~3 filas de chips en el ancho del sidebar
-                  const hasSelectedOverflow = group.sizes
-                    .slice(MAX_VISIBLE_SIZES)
-                    .some((s) => filters.sizes?.includes(s.size));
-
-                  const isExpanded =
-                    Boolean(expandedSizeGroups[group.name]) || hasSelectedOverflow;
-
-                  const visibleSizes =
-                    isExpanded || group.sizes.length <= MAX_VISIBLE_SIZES
-                      ? group.sizes
-                      : group.sizes.slice(0, MAX_VISIBLE_SIZES);
-
-                  const hasOverflow = group.sizes.length > MAX_VISIBLE_SIZES;
-
-                  return (
-                    <div key={group.name} className="space-y-1.5">
-                      {/* Título de la sección de talle */}
-                      <div className="text-center sm:text-left text-xs font-semibold text-slate-800 tracking-tight">
-                        {group.name}
-                      </div>
-
-                      {/* Fila / Cuadrícula de chips rectangulares como en la imagen */}
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                        {visibleSizes.map(({ size, count }) => {
-                          const isSelected = filters.sizes?.includes(size);
-                          return (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={() => toggleArrayItem("sizes", size)}
-                              className={`min-w-10 h-10 px-2 rounded-xs text-xs font-bold transition-all flex items-center justify-center select-none shadow-2xs cursor-pointer ${
-                                isSelected
-                                  ? "bg-slate-950 text-white shadow-md ring-2 ring-emerald-500 scale-102"
-                                  : "bg-[#cbd5e1] hover:bg-[#b8c5d1] text-slate-800"
-                              }`}
-                              title={`${size} (${count} artículos)`}
-                            >
-                              <span>{size}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Botón Ver más a partir de la 3ra fila */}
-                      {hasOverflow && (
-                        <div className="flex justify-center sm:justify-start pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => toggleExpandSizeGroup(group.name)}
-                            className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 transition-colors flex items-center gap-1 cursor-pointer select-none py-1"
-                          >
-                            {isExpanded ? (
-                              <>
-                                <span>Ver menos</span>
-                                <ChevronUp className="w-3.5 h-3.5" />
-                              </>
-                            ) : (
-                              <>
-                                <span>+ Ver más ({group.sizes.length - MAX_VISIBLE_SIZES} más)</span>
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 4. Acordeón: DISPONIBILIDAD (Referencia Imagen 1) */}
-      <div className="pb-4 border-b border-slate-200">
+      {/* 2. Acordeón: DISCIPLINA (Primero y abierto por defecto) */}
+      <div className="pb-3 border-b border-slate-100">
         <button
-          onClick={() => toggleSection("disponibilidad")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
-        >
-          <span>DISPONIBILIDAD</span>
-          {openSections.disponibilidad ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          )}
-        </button>
-
-        {openSections.disponibilidad && (
-          <div className="pt-3 space-y-2">
-            <label className="flex items-center justify-between text-xs cursor-pointer py-1 px-1.5 rounded hover:bg-slate-50">
-              <div className="flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={Boolean(filters.onlyInStock)}
-                  onChange={() =>
-                    onFilterChange({
-                      ...filters,
-                      onlyInStock: !filters.onlyInStock,
-                    })
-                  }
-                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-emerald-500 cursor-pointer"
-                />
-                <span className="font-medium text-slate-800">En existencia</span>
-              </div>
-              <span className="text-[11px] text-slate-600">({inStockCount})</span>
-            </label>
-
-            <label className="flex items-center justify-between text-xs cursor-pointer py-1 px-1.5 rounded hover:bg-slate-50 text-slate-600">
-              <div className="flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  disabled
-                  className="w-3.5 h-3.5 rounded border-slate-300 opacity-50 cursor-not-allowed"
-                />
-                <span>Agotado</span>
-              </div>
-              <span className="text-[11px] text-slate-600">({outOfStockCount})</span>
-            </label>
-          </div>
-        )}
-      </div>
-
-      {/* 5. Acordeón: CATEGORÍA DE PRODUCTO (Referencia Dexter e Imagen 1) */}
-      <div className="pb-4 border-b border-slate-200">
-        <button
-          onClick={() => toggleSection("categoria")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
-        >
-          <span>CATEGORÍA</span>
-          {openSections.categoria ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          )}
-        </button>
-
-        {openSections.categoria && (
-          <div className="pt-2 space-y-1">
-            <button
-              onClick={() => onFilterChange({ ...filters, category: undefined })}
-              className={`w-full text-left py-1.5 px-2 rounded font-medium text-xs transition-colors flex items-center justify-between ${
-                !filters.category
-                  ? "bg-slate-100 text-slate-950 font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>Todas las categorías</span>
-              <span className="text-[10px] text-slate-600">({totalProductCount})</span>
-            </button>
-
-            {(showAllCategories
-              ? availableCategories
-              : availableCategories.slice(0, 10)
-            ).map(({ category, count }) => {
-              const isSelected = filters.category === category;
-              return (
-                <button
-                  key={category}
-                  onClick={() =>
-                    onFilterChange({
-                      ...filters,
-                      category: isSelected ? undefined : category,
-                    })
-                  }
-                  className={`w-full text-left py-1.5 px-2 rounded font-medium text-xs transition-colors flex items-center justify-between ${
-                    isSelected
-                      ? "bg-[#06241d] text-[#c2f25b] font-bold"
-                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
-                >
-                  <span>{category}</span>
-                  <span className="text-[10px] text-slate-600">({count})</span>
-                </button>
-              );
-            })}
-
-            {availableCategories.length > 10 && (
-              <button
-                type="button"
-                onClick={() => setShowAllCategories((prev) => !prev)}
-                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-2 transition-colors cursor-pointer flex items-center gap-1"
-              >
-                {showAllCategories
-                  ? "- Ver menos"
-                  : `+ Ver más (${availableCategories.length - 10})`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 6. Acordeón: MARCA (Referencia Dexter) */}
-      <div className="pb-4 border-b border-slate-200">
-        <button
-          onClick={() => toggleSection("marca")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
-        >
-          <span>MARCA</span>
-          {openSections.marca ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          )}
-        </button>
-
-        {openSections.marca && (
-          <div className="pt-3 space-y-1.5">
-            {(showAllBrands
-              ? availableBrands
-              : availableBrands.slice(0, 10)
-            ).map(({ brand, count }) => {
-              const isChecked = filters.brand?.includes(brand);
-              return (
-                <label
-                  key={brand}
-                  className="flex items-center justify-between text-xs cursor-pointer py-1 px-1.5 rounded hover:bg-slate-50 text-slate-700"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(isChecked)}
-                      onChange={() => toggleArrayItem("brand", brand)}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <span className="font-semibold text-slate-800">{brand}</span>
-                  </div>
-                  <span className="text-[11px] text-slate-600">({count})</span>
-                </label>
-              );
-            })}
-
-            {availableBrands.length > 10 && (
-              <button
-                type="button"
-                onClick={() => setShowAllBrands((prev) => !prev)}
-                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-1.5 transition-colors cursor-pointer flex items-center gap-1"
-              >
-                {showAllBrands
-                  ? "- Ver menos"
-                  : `+ Ver más (${availableBrands.length - 10})`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 7. Acordeón: DISCIPLINA / DEPORTE (Matacos Deportes) */}
-      <div className="pb-4 border-b border-slate-200">
-        <button
+          type="button"
           onClick={() => toggleSection("disciplina")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
+          className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
         >
           <span>DISCIPLINA</span>
           {openSections.disciplina ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
+            <ChevronUp className="w-4 h-4 text-slate-400" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
+            <ChevronDown className="w-4 h-4 text-slate-400" />
           )}
         </button>
 
         {openSections.disciplina && (
-          <div className="pt-2 space-y-1">
+          <div className="pt-2.5 space-y-1">
             {(showAllDisciplines
               ? availableDisciplines
               : availableDisciplines.slice(0, 10)
@@ -525,20 +153,23 @@ export function ProductFiltersSidebar({
               return (
                 <button
                   key={discipline}
+                  type="button"
                   onClick={() =>
                     onFilterChange({
                       ...filters,
                       discipline: isSelected ? undefined : discipline,
                     })
                   }
-                  className={`w-full text-left py-1.5 px-2 rounded font-medium text-xs transition-colors flex items-center justify-between ${
+                  className={`w-full text-left py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between cursor-pointer ${
                     isSelected
-                      ? "bg-slate-950 text-white font-bold"
-                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                      ? "bg-[#0B132B] text-white font-bold shadow-xs"
+                      : "text-slate-700 hover:bg-slate-50 font-medium"
                   }`}
                 >
                   <span>{discipline}</span>
-                  <span className="text-[10px] text-slate-600">({count})</span>
+                  <span className={`text-xs ${isSelected ? "text-white font-bold" : "text-slate-400"}`}>
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -547,7 +178,7 @@ export function ProductFiltersSidebar({
               <button
                 type="button"
                 onClick={() => setShowAllDisciplines((prev) => !prev)}
-                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-2 transition-colors cursor-pointer flex items-center gap-1"
+                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-3 transition-colors cursor-pointer flex items-center gap-1"
               >
                 {showAllDisciplines
                   ? "- Ver menos"
@@ -558,96 +189,212 @@ export function ProductFiltersSidebar({
         )}
       </div>
 
-      {/* 8. Acordeón: PRECIO con Slider de Rango (Referencia Imagen 1 y 2) */}
-      <div className="pb-4 border-b border-slate-200">
+      {/* 3. Acordeón: CATEGORÍA (Cerrado por defecto) */}
+      <div className="pb-3 border-b border-slate-100">
         <button
-          onClick={() => toggleSection("precio")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
+          type="button"
+          onClick={() => toggleSection("categoria")}
+          className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
         >
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span>PRECIO</span>
-            {filters.priceRange && (
-              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded">
-                Filtrado
-              </span>
+          <span>CATEGORÍA</span>
+          {openSections.categoria ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
+
+        {openSections.categoria && (
+          <div className="pt-2.5 space-y-1">
+            {(showAllCategories
+              ? availableCategories
+              : availableCategories.slice(0, 10)
+            ).map(({ category, count }) => {
+              const isSelected = filters.category === category;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() =>
+                    onFilterChange({
+                      ...filters,
+                      category: isSelected ? undefined : category,
+                    })
+                  }
+                  className={`w-full text-left py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                    isSelected
+                      ? "bg-[#0B132B] text-white font-bold shadow-xs"
+                      : "text-slate-700 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <span>{category}</span>
+                  <span className={`text-xs ${isSelected ? "text-white font-bold" : "text-slate-400"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {availableCategories.length > 10 && (
+              <button
+                type="button"
+                onClick={() => setShowAllCategories((prev) => !prev)}
+                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-3 transition-colors cursor-pointer flex items-center gap-1"
+              >
+                {showAllCategories
+                  ? "- Ver menos"
+                  : `+ Ver más (${availableCategories.length - 10})`}
+              </button>
             )}
           </div>
-          {openSections.precio ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
+        )}
+      </div>
+
+      {/* 4. Acordeón: MARCA (Cerrado por defecto) */}
+      <div className="pb-3 border-b border-slate-100">
+        <button
+          type="button"
+          onClick={() => toggleSection("marca")}
+          className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+        >
+          <span>MARCA</span>
+          {openSections.marca ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
+
+        {openSections.marca && (
+          <div className="pt-2.5 space-y-1">
+            {(showAllBrands
+              ? availableBrands
+              : availableBrands.slice(0, 10)
+            ).map(({ brand, count }) => {
+              const isChecked = filters.brand?.includes(brand);
+              return (
+                <button
+                  key={brand}
+                  type="button"
+                  onClick={() => toggleArrayItem("brand", brand)}
+                  className={`w-full text-left py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                    isChecked
+                      ? "bg-[#0B132B] text-white font-bold shadow-xs"
+                      : "text-slate-700 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <span>{brand}</span>
+                  <span className={`text-xs ${isChecked ? "text-white font-bold" : "text-slate-400"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {availableBrands.length > 10 && (
+              <button
+                type="button"
+                onClick={() => setShowAllBrands((prev) => !prev)}
+                className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 pt-1.5 px-3 transition-colors cursor-pointer flex items-center gap-1"
+              >
+                {showAllBrands
+                  ? "- Ver menos"
+                  : `+ Ver más (${availableBrands.length - 10})`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 5. Acordeón: TALLES (Cerrado por defecto) */}
+      {sizeGroups.length > 0 && (
+        <div className="pb-3 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => toggleSection("talles")}
+            className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+          >
+            <span>TALLES</span>
+            {openSections.talles ? (
+              <ChevronUp className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+
+          {openSections.talles && (
+            <div className="pt-3 space-y-3">
+              {sizeGroups.map((group) => {
+                const isExpanded = expandedSizeGroups[group.name];
+                const displayedSizes = isExpanded ? group.sizes : group.sizes.slice(0, 9);
+                const hasMore = group.sizes.length > 9;
+
+                return (
+                  <div key={group.name} className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 block">
+                      {group.name}
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {displayedSizes.map(({ size }) => {
+                        const isSelected = filters.sizes?.includes(size);
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => toggleArrayItem("sizes", size)}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer border ${
+                              isSelected
+                                ? "bg-[#0B132B] text-white border-[#0B132B]"
+                                : "bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400"
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandSizeGroup(group.name)}
+                        className="text-[10px] font-bold text-emerald-800 hover:underline pt-0.5"
+                      >
+                        {isExpanded ? "- Ver menos" : `+ Ver más (${group.sizes.length - 9})`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 6. Acordeón: RANGO DE PRECIO (Abierto por defecto, con MÍNIMO, MÁXIMO y 3 botones rápidos) */}
+      <div className="pb-1">
+        <button
+          type="button"
+          onClick={() => toggleSection("precio")}
+          className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+        >
+          <span>RANGO DE PRECIO</span>
+          {openSections.precio ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
           )}
         </button>
 
         {openSections.precio && (
           <div className="pt-3 space-y-3">
-            {/* Rango de precio actual */}
-            <div className="flex items-center justify-between text-xs font-bold text-slate-900">
-              <span>{formatPrice(currentMin)}</span>
-              <span className="text-slate-400 font-normal">—</span>
-              <span>{formatPrice(currentMax)}</span>
-            </div>
-
-            {/* Sliders de Rango interactivos (Mínimo y Máximo) */}
-            <div className="space-y-3 pt-1 pb-1">
+            {/* Inputs editables MÍNIMO y MÁXIMO */}
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
-                  <span>Mínimo:</span>
-                  <span className="font-bold text-[#06241d]">{formatPrice(currentMin)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={minPrice}
-                  max={currentMax}
-                  step={1000}
-                  value={currentMin}
-                  onChange={(e) => {
-                    const newMin = Math.min(Number(e.target.value), currentMax);
-                    onFilterChange({
-                      ...filters,
-                      priceRange: [newMin, currentMax],
-                    });
-                  }}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#00D615]"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
-                  <span>Máximo:</span>
-                  <span className="font-bold text-[#06241d]">{formatPrice(currentMax)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={currentMin}
-                  max={maxPrice}
-                  step={1000}
-                  value={currentMax}
-                  onChange={(e) => {
-                    const newMax = Math.max(Number(e.target.value), currentMin);
-                    onFilterChange({
-                      ...filters,
-                      priceRange: [currentMin, newMax],
-                    });
-                  }}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#00D615]"
-                />
-              </div>
-
-              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
-                <span>Catálogo min: {formatPrice(minPrice)}</span>
-                <span>Catálogo max: {formatPrice(maxPrice)}</span>
-              </div>
-            </div>
-
-            {/* Inputs editables Min y Max */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                  Mínimo
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  MÍNIMO
                 </label>
                 <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">$</span>
                   <input
                     type="number"
                     value={currentMin}
@@ -661,17 +408,17 @@ export function ProductFiltersSidebar({
                         priceRange: [val, currentMax],
                       });
                     }}
-                    className="w-full pl-5 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-900 focus:outline-emerald-500"
+                    className="w-full pl-6 pr-2 py-1.5 bg-slate-50/70 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                  Máximo
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  MÁXIMO
                 </label>
                 <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">$</span>
                   <input
                     type="number"
                     value={currentMax}
@@ -685,83 +432,64 @@ export function ProductFiltersSidebar({
                         priceRange: [currentMin, val],
                       });
                     }}
-                    className="w-full pl-5 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-900 focus:outline-emerald-500"
+                    className="w-full pl-6 pr-2 py-1.5 bg-slate-50/70 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Botón para restablecer el precio si está activo */}
-            {filters.priceRange && (
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onFilterChange({
-                      ...filters,
-                      priceRange: undefined,
-                    })
-                  }
-                  className="text-[11px] font-bold text-red-600 hover:text-red-700 transition-colors cursor-pointer"
-                >
-                  Restablecer rango de precio
-                </button>
-              </div>
-            )}
+            {/* 3 Botones rápidos de rango de precio */}
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() =>
+                  onFilterChange({
+                    ...filters,
+                    priceRange: [minPrice, 30000],
+                  })
+                }
+                className="py-1 px-2 rounded-md border border-slate-200 hover:border-slate-400 text-slate-700 text-[11px] font-semibold text-center transition-colors bg-white hover:bg-slate-50 cursor-pointer"
+              >
+                Hasta $30.000
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onFilterChange({
+                    ...filters,
+                    priceRange: [30000, 70000],
+                  })
+                }
+                className="py-1 px-2 rounded-md border border-slate-200 hover:border-slate-400 text-slate-700 text-[11px] font-semibold text-center transition-colors bg-white hover:bg-slate-50 cursor-pointer"
+              >
+                $30.000 - $70.000
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onFilterChange({
+                    ...filters,
+                    priceRange: [70000, maxPrice],
+                  })
+                }
+                className="col-span-2 py-1 px-2 rounded-md border border-slate-200 hover:border-slate-400 text-slate-700 text-[11px] font-semibold text-center transition-colors bg-white hover:bg-slate-50 cursor-pointer"
+              >
+                Más de $70.000
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* 9. Acordeón: COLOR (Referencia Imagen 1 y 2) */}
-      <div className="pb-4 border-b border-slate-200">
-        <button
-          onClick={() => toggleSection("color")}
-          className="w-full flex items-center justify-between font-black uppercase text-[12px] tracking-wide text-slate-900 py-1"
-        >
-          <span>COLOR</span>
-          {openSections.color ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          )}
-        </button>
-
-        {openSections.color && (
-          <div className="pt-3 flex flex-wrap gap-2">
-            {availableColors.map(({ color, count, hex }) => {
-              const isSelected = filters.colors?.includes(color);
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => toggleArrayItem("colors", color)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border flex items-center gap-1.5 transition-all ${
-                    isSelected
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                  }`}
-                >
-                  {hex && (
-                    <span
-                      className="w-2.5 h-2.5 rounded-full border border-black/10 shrink-0"
-                      style={{ backgroundColor: hex }}
-                    />
-                  )}
-                  <span>{color}</span>
-                  <span className="text-[9px] opacity-70">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 9. Botón en Móvil para Cerrar Drawer */}
+      {/* 7. Botón en Móvil para Cerrar Drawer */}
       {isMobileModal && (
         <div className="pt-4 sticky bottom-0 bg-white pb-6">
           <button
+            type="button"
             onClick={onCloseMobileModal}
-            className="w-full py-3 bg-[#06241d] text-white font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2"
+            className="w-full py-3 bg-[#0B132B] text-white font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>Ver resultados ({totalProductCount})</span>
           </button>

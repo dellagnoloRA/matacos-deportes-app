@@ -1,6 +1,7 @@
 export interface ProductSizeOption {
   size: string;
   inStock: boolean;
+  stock?: number;
 }
 
 export interface ProductColorOption {
