@@ -20,11 +20,13 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
   // Use mock or real backend products
   const products = initialProducts && initialProducts.length > 0 ? initialProducts : MOCK_FEATURED_PRODUCTS;
 
-  // Cart state initialized with 2 demo items as displayed in mockup
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { product: products[0], quantity: 1 },
-    { product: products[3], quantity: 1 },
-  ]);
+  // Cart state initialized safely
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const initial: CartItem[] = [];
+    if (products[0]) initial.push({ product: products[0], quantity: 1 });
+    if (products[1]) initial.push({ product: products[1], quantity: 1 });
+    return initial;
+  });
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDiscipline, setSelectedDiscipline] = useState<string | undefined>();

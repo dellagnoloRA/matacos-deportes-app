@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { EcommerceProduct } from "./types";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
-import { ChevronDown, Eye, Check, ShoppingBag, X } from "lucide-react";
+import { ChevronDown, Eye, Check, ShoppingBag, X, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface FeaturedProductsSectionProps {
@@ -13,11 +14,11 @@ interface FeaturedProductsSectionProps {
 
 const CATEGORY_TABS = [
   "Todos",
+  "Natación",
+  "Vóley",
   "Calzado",
   "Indumentaria",
   "Accesorios",
-  "Mochilas y bolsos",
-  "Equipamiento deportivo",
   "Crocs",
 ];
 
@@ -30,21 +31,49 @@ export function FeaturedProductsSection({
   const [activeModalProduct, setActiveModalProduct] = useState<EcommerceProduct | null>(null);
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
-  // Formatter matching screenshot: $ 99.900
+  // Formateo según estándar Matacos en ARS
   const formatPrice = (amount: number) => {
-    return formatCurrency(amount).replace(/,00$/, "");
+    return formatCurrency(amount);
   };
 
-  // Filter products by selected tab
+  // Filtrado y ordenamiento de productos
   const filteredProducts = useMemo(() => {
     let list = [...products];
 
     if (selectedCategory !== "Todos") {
+      const target = selectedCategory.toLowerCase();
       list = list.filter((p) => {
-        if (selectedCategory.toLowerCase() === "crocs") {
-          return p.brand.toLowerCase() === "crocs" || p.name.toLowerCase().includes("crocs");
+        if (target === "crocs") {
+          return (
+            p.brand.toLowerCase() === "crocs" ||
+            p.name.toLowerCase().includes("crocs") ||
+            p.discipline?.toLowerCase().includes("crocs")
+          );
         }
-        return p.category.toLowerCase() === selectedCategory.toLowerCase();
+        if (target === "natación" || target === "natacion") {
+          return (
+            p.discipline?.toLowerCase().includes("nataci") ||
+            p.category.toLowerCase().includes("nataci") ||
+            p.category.toLowerCase().includes("malla") ||
+            p.category.toLowerCase().includes("antipar") ||
+            p.name.toLowerCase().includes("speedo") ||
+            p.name.toLowerCase().includes("nataci")
+          );
+        }
+        if (target === "vóley" || target === "voley") {
+          return (
+            p.discipline?.toLowerCase().includes("voley") ||
+            p.discipline?.toLowerCase().includes("vóley") ||
+            p.name.toLowerCase().includes("voley") ||
+            p.name.toLowerCase().includes("v200w") ||
+            p.brand.toLowerCase().includes("mikasa")
+          );
+        }
+        return (
+          p.category.toLowerCase().includes(target) ||
+          p.discipline?.toLowerCase().includes(target) ||
+          p.brand.toLowerCase().includes(target)
+        );
       });
     }
 
@@ -79,7 +108,7 @@ export function FeaturedProductsSection({
 
           <div className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-3 py-1 rounded-full text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[#00D615] animate-ping" />
-            <span>Productos y precios de muestra</span>
+            <span>Stock en tiempo real • Saavedra 241</span>
           </div>
         </div>
 
@@ -105,7 +134,7 @@ export function FeaturedProductsSection({
 
         {/* Sub-bar: Counter and Sort By */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 text-xs text-slate-500 font-medium">
-          <span>{filteredProducts.length} productos de muestra</span>
+          <span>{filteredProducts.length} productos disponibles</span>
 
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline">Ordenar por:</span>
@@ -125,75 +154,126 @@ export function FeaturedProductsSection({
         </div>
 
         {/* Product Grid: 4 columns on desktop, 2 on tablet/mobile */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              className="group bg-white rounded-2xl border border-slate-200/90 hover:border-slate-400 shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden"
+        {filteredProducts.length === 0 ? (
+          <div className="py-16 text-center space-y-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            <p className="text-sm font-bold text-slate-700">No encontramos productos en esta categoría por el momento.</p>
+            <button
+              onClick={() => setSelectedCategory("Todos")}
+              className="text-xs font-bold text-[#00A811] hover:underline"
             >
-              {/* Product Card Top / Image Container */}
-              <div className="relative w-full aspect-square bg-[#f8fafc] overflow-hidden p-4 flex items-center justify-center">
-                {/* Offer Tag */}
-                {product.isOffer && (
-                  <span className="absolute top-3 left-3 z-10 bg-[#c2f25b] text-slate-950 font-black text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
-                    {product.offerTag || "OFERTA"}
-                  </span>
-                )}
+              Ver todos los productos disponibles
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => {
+              const isOutOfStock = product.hasStock === false || product.totalAvailableStock === 0;
+              const isLowStock =
+                !isOutOfStock &&
+                product.totalAvailableStock !== undefined &&
+                product.totalAvailableStock > 0 &&
+                product.totalAvailableStock <= 3;
 
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-contain object-center group-hover:scale-108 transition-transform duration-500"
-                  loading="lazy"
-                />
-
-                {/* Quick View Button Hover Overlay */}
-                <button
-                  onClick={() => setActiveModalProduct(product)}
-                  className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 text-white font-bold text-xs bg-black/40 backdrop-blur-2xs transition-opacity"
-                  title="Vista rápida"
+              return (
+                <div
+                  key={product.id}
+                  className="group bg-white rounded-2xl border border-slate-200/90 hover:border-slate-400 shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden"
                 >
-                  <Eye className="w-4 h-4" />
-                  <span>Vista Rápida</span>
-                </button>
-              </div>
+                  {/* Product Card Top / Image Container */}
+                  <div className="relative w-full aspect-square bg-[#f8fafc] overflow-hidden p-4 flex items-center justify-center">
+                    {/* Offer Tag */}
+                    {product.isOffer && (
+                      <span className="absolute top-3 left-3 z-10 bg-[#c2f25b] text-slate-950 font-black text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                        {product.offerTag || "OFERTA"}
+                      </span>
+                    )}
 
-              {/* Product Info */}
-              <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {product.brand}
-                  </span>
-                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-1">
-                    {product.name}
-                  </h3>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  {/* Pricing */}
-                  <div className="min-h-10 flex flex-col justify-end">
-                    {product.originalPrice ? (
-                      <span className="text-xs text-slate-400 line-through font-medium">
-                        {formatPrice(product.originalPrice)}
+                    {/* Stock Status Badge */}
+                    {isOutOfStock ? (
+                      <span className="absolute top-3 right-3 z-10 bg-slate-800 text-slate-100 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                        Agotado
+                      </span>
+                    ) : isLowStock ? (
+                      <span className="absolute top-3 right-3 z-10 bg-amber-500 text-slate-950 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                        ¡Últimas {product.totalAvailableStock}!
                       </span>
                     ) : null}
-                    <span className="text-base font-extrabold text-[#00A811] tracking-tight">
-                      {formatPrice(product.price)}
-                    </span>
+
+                    <Link
+                      href={`/productos/${product.id}`}
+                      className="w-full h-full flex items-center justify-center"
+                    >
+                      <img
+                        src={product.image || "/placeholder-product.svg"}
+                        alt={product.name}
+                        className="w-full h-full object-contain object-center group-hover:scale-108 transition-transform duration-500"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                        }}
+                      />
+                    </Link>
+
+                    {/* Quick View Button Hover Overlay */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveModalProduct(product);
+                      }}
+                      className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 text-white font-bold text-xs bg-black/40 backdrop-blur-2xs transition-opacity cursor-pointer"
+                      title="Vista rápida"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>Vista Rápida</span>
+                    </button>
                   </div>
 
-                  {/* Ver producto action button */}
-                  <button
-                    onClick={() => setActiveModalProduct(product)}
-                    className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-98 transition-all duration-150 text-center"
-                  >
-                    Ver producto
-                  </button>
+                  {/* Product Info */}
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span>{product.brand}</span>
+                        {product.discipline && (
+                          <span className="text-[10px] text-emerald-600 font-semibold">{product.discipline}</span>
+                        )}
+                      </div>
+                      <Link href={`/productos/${product.id}`}>
+                        <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-2">
+                          {product.name}
+                        </h3>
+                      </Link>
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      {/* Pricing */}
+                      <div className="min-h-10 flex flex-col justify-end">
+                        {product.originalPrice ? (
+                          <span className="text-xs text-slate-400 line-through font-medium">
+                            {formatPrice(product.originalPrice)}
+                          </span>
+                        ) : null}
+                        <span className="text-base font-extrabold text-[#00A811] tracking-tight">
+                          {formatPrice(product.price)}
+                        </span>
+                      </div>
+
+                      {/* Ver producto action button */}
+                      <div className="grid grid-cols-1 gap-2">
+                        <Link
+                          href={`/productos/${product.id}`}
+                          className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-98 transition-all duration-150 text-center block"
+                        >
+                          Ver producto
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Success Notice Notification */}
         {addedNotice && (
@@ -228,9 +308,12 @@ export function FeaturedProductsSection({
                   </span>
                 )}
                 <img
-                  src={activeModalProduct.image}
+                  src={activeModalProduct.image || "/placeholder-product.svg"}
                   alt={activeModalProduct.name}
                   className="max-h-72 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                  }}
                 />
               </div>
 
@@ -248,7 +331,7 @@ export function FeaturedProductsSection({
 
                   <p className="text-xs text-slate-600 leading-relaxed">
                     {activeModalProduct.description ||
-                      "Materiales de alta durabilidad diseñados para resistir el entrenamiento intensivo y actividades outdoor."}
+                      "Artículo deportivo original garantizado por Matacos Deportes. Local a la calle en Saavedra 241, Formosa."}
                   </p>
 
                   <div className="pt-2">
@@ -264,19 +347,43 @@ export function FeaturedProductsSection({
                       {activeModalProduct.installments || "3 y 6 cuotas sin interés en el local"}
                     </span>
                   </div>
+
+                  {activeModalProduct.totalAvailableStock !== undefined && (
+                    <div className="text-xs text-slate-600 font-semibold">
+                      Stock disponible:{" "}
+                      <span className="text-emerald-700 font-bold">
+                        {activeModalProduct.totalAvailableStock} unidades
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <button
                     onClick={() => {
                       handleAddProduct(activeModalProduct);
                       setActiveModalProduct(null);
                     }}
-                    className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-98 transition-all"
+                    disabled={activeModalProduct.hasStock === false || activeModalProduct.totalAvailableStock === 0}
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer disabled:cursor-not-allowed"
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>Agregar al carrito</span>
+                    <span>
+                      {activeModalProduct.hasStock === false || activeModalProduct.totalAvailableStock === 0
+                        ? "Sin Stock"
+                        : "Agregar al carrito"}
+                    </span>
                   </button>
+
+                  <Link
+                    href={`/productos/${activeModalProduct.id}`}
+                    onClick={() => setActiveModalProduct(null)}
+                    className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Ver ficha y selector de talles</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+
                   <p className="text-[10px] text-center text-slate-400">
                     Retiro sin cargo en Saavedra 241, Formosa
                   </p>

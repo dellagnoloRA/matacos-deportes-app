@@ -8,46 +8,46 @@ export const SHARED_IMAGE = "https://images.unsplash.com/photo-1542291026-7eec26
 
 export const MOCK_CATEGORIES: EcommerceCategory[] = [
   {
+    id: "cat-natacion",
+    name: "Natación y Agua",
+    slug: "natacion",
+    image: SHARED_IMAGE,
+  },
+  {
+    id: "cat-voley",
+    name: "Vóley Profesional",
+    slug: "voley",
+    image: SHARED_IMAGE,
+  },
+  {
+    id: "cat-crocs",
+    name: "Línea Crocs Oficial",
+    slug: "crocs",
+    image: SHARED_IMAGE,
+  },
+  {
     id: "cat-calzado",
-    name: "Calzado",
+    name: "Calzado Deportivo",
     slug: "calzado",
     image: SHARED_IMAGE,
   },
   {
-    id: "cat-indumentaria",
-    name: "Indumentaria",
-    slug: "indumentaria",
-    image: SHARED_IMAGE,
-  },
-  {
-    id: "cat-accesorios",
-    name: "Accesorios",
-    slug: "accesorios",
-    image: SHARED_IMAGE,
-  },
-  {
-    id: "cat-mochilas",
-    name: "Mochilas y Bolsos",
-    slug: "mochilas-y-bolsos",
-    image: SHARED_IMAGE,
-  },
-  {
-    id: "cat-equipamiento",
-    name: "Equipamiento deportivo",
-    slug: "equipamiento-deportivo",
+    id: "cat-fitness",
+    name: "Fitness y Entrenamiento",
+    slug: "fitness",
     image: SHARED_IMAGE,
   },
 ];
 
 export const MOCK_DISCIPLINES: EcommerceDiscipline[] = [
-  { id: "disc-1", name: "Fútbol", slug: "futbol" },
-  { id: "disc-2", name: "Running", slug: "running" },
-  { id: "disc-3", name: "Fitness", slug: "fitness" },
-  { id: "disc-4", name: "Básquet", slug: "basquet" },
-  { id: "disc-5", name: "Outdoor", slug: "outdoor" },
-  { id: "disc-6", name: "Trekking", slug: "trekking" },
-  { id: "disc-7", name: "Camping", slug: "camping" },
-  { id: "disc-8", name: "Otras disciplinas", slug: "otras-disciplinas" },
+  { id: "disc-natacion", name: "Natación", slug: "natacion" },
+  { id: "disc-voley", name: "Vóley", slug: "voley" },
+  { id: "disc-crocs", name: "Crocs", slug: "crocs" },
+  { id: "disc-fitness", name: "Fitness & Gym", slug: "fitness" },
+  { id: "disc-running", name: "Running / Urbano", slug: "running-urbano" },
+  { id: "disc-padel", name: "Padel", slug: "padel" },
+  { id: "disc-indumentaria", name: "Indumentaria", slug: "indumentaria" },
+  { id: "disc-accesorios", name: "Accesorios Deportivos", slug: "accesorios" },
 ];
 
 export const MOCK_FEATURED_PRODUCTS: EcommerceProduct[] = [

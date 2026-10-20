@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { EcommerceCategory } from "./types";
 import { MOCK_CATEGORIES } from "./mockData";
 import { ArrowRight } from "lucide-react";
@@ -27,11 +28,12 @@ export function CategoryGrid({
           </h2>
         </div>
 
-        {/* Categories Grid / Horizontal Scroll */}
+        {/* Categories Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
           {categories.map((cat) => (
-            <button
+            <Link
               key={cat.id}
+              href={`/catalogo?categoria=${cat.slug}`}
               onClick={() => onSelectCategory?.(cat.slug)}
               className="group flex flex-col items-center bg-white rounded-2xl p-2.5 border border-slate-200/80 hover:border-[#00D615] shadow-xs hover:shadow-lg transition-all duration-300 text-left overflow-hidden cursor-pointer"
             >
@@ -50,19 +52,19 @@ export function CategoryGrid({
               <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-[#00A811] transition-colors text-center pb-1">
                 {cat.name}
               </span>
-            </button>
+            </Link>
           ))}
         </div>
 
-        {/* Action Button: VER MÁS */}
+        {/* Action Button: VER CATÁLOGO COMPLETO */}
         <div className="flex justify-center pt-2">
-          <button
-            onClick={() => onSelectCategory?.("todas")}
+          <Link
+            href="/catalogo"
             className="inline-flex items-center gap-2 bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm uppercase tracking-wider px-8 py-3 rounded-lg shadow-sm hover:shadow transition-all duration-200"
           >
-            <span>VER MÁS</span>
+            <span>VER CATÁLOGO COMPLETO</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </div>
     </section>

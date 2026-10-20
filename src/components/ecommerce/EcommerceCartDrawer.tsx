@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { EcommerceProduct } from "./types";
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -35,7 +36,7 @@ export function EcommerceCartDrawer({
   );
 
   const formatPrice = (amount: number) => {
-    return formatCurrency(amount).replace(/,00$/, "");
+    return formatCurrency(amount);
   };
 
   return (
@@ -169,18 +170,14 @@ export function EcommerceCartDrawer({
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  alert(
-                    "¡Pedido preparado! Redirigiendo a pasarela de pago / Mercado Pago..."
-                  );
-                  onCheckout?.();
-                }}
-                className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all"
+              <Link
+                href="/checkout"
+                onClick={onClose}
+                className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all text-center block"
               >
                 <span>INICIAR COMPRA</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                <ArrowRight className="w-4 h-4 inline-block ml-1" />
+              </Link>
             </div>
           )}
         </div>

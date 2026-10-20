@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Heart,
@@ -16,7 +17,13 @@ import {
   Percent,
   MapPin,
   ShieldCheck,
+  Loader2,
+  PackageCheck,
+  ArrowRight,
 } from "lucide-react";
+import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
+import type { PredictiveSearchItem } from "@/types/ecommerce";
+import { formatCurrency } from "@/lib/utils";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -36,20 +43,24 @@ interface EcommerceHeaderProps {
 }
 
 export function EcommerceHeader({
-  cartCount = 2,
+  cartCount = 0,
   wishlistCount = 0,
   onOpenCart,
   onOpenSearch,
   onSearchChange,
 }: EcommerceHeaderProps) {
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [predictiveResults, setPredictiveResults] = useState<PredictiveSearchItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [, startTransition] = useTransition();
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close search when clicking outside
+  // Close search and dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -57,6 +68,7 @@ export function EcommerceHeader({
         !searchContainerRef.current.contains(event.target as Node)
       ) {
         setIsSearchOpen(false);
+        setPredictiveResults([]);
       }
     }
 
@@ -72,16 +84,61 @@ export function EcommerceHeader({
     };
   }, [isSearchOpen]);
 
+  // Debounced predictive search effect
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setPredictiveResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const handler = setTimeout(async () => {
+      try {
+        const res = await getPredictiveSearch(trimmed, 6);
+        if (res.success && res.data) {
+          setPredictiveResults(res.data);
+        } else {
+          setPredictiveResults([]);
+        }
+      } catch (err) {
+        console.error("Error en búsqueda predictiva:", err);
+        setPredictiveResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmed = searchQuery.trim();
     if (onSearchChange) {
-      onSearchChange(searchQuery);
+      onSearchChange(trimmed);
     }
+    if (trimmed.length > 0) {
+      setIsSearchOpen(false);
+      setPredictiveResults([]);
+      startTransition(() => {
+        router.push(`/catalogo?search=${encodeURIComponent(trimmed)}`);
+      });
+    }
+  };
+
+  const handleSelectPredictiveItem = (productId: string) => {
+    setIsSearchOpen(false);
+    setPredictiveResults([]);
+    startTransition(() => {
+      router.push(`/productos/${productId}`);
+    });
   };
 
   return (
     <header className="w-full bg-white sticky top-0 z-40 shadow-xs border-b border-slate-100">
-      {/* 1. Top Announcement Marquee Ticker Tape (Banda continua interactiva) */}
+      {/* 1. Top Announcement Marquee Ticker Tape */}
       <div className="bg-[#06241d] text-white text-[11px] sm:text-xs py-2.5 overflow-hidden border-b border-emerald-950/80 select-none relative group">
         <div className="animate-marquee flex items-center">
           {[...ANNOUNCEMENTS, ...ANNOUNCEMENTS].map((item, idx) => {
@@ -117,7 +174,7 @@ export function EcommerceHeader({
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
-            className="lg:hidden p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors"
+            className="lg:hidden p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             aria-label="Abrir menú"
           >
             <Menu className="w-6 h-6" />
@@ -140,12 +197,12 @@ export function EcommerceHeader({
           >
             INICIO
           </Link>
-          <a
-            href="#productos"
+          <Link
+            href="/catalogo"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
-            PRODUCTOS
-          </a>
+            CATÁLOGO
+          </Link>
           <a
             href="#disciplinas"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
@@ -153,10 +210,10 @@ export function EcommerceHeader({
             DISCIPLINAS
           </a>
           <a
-            href="#marcas"
+            href="#productos"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
-            MARCAS
+            DESTACADOS
           </a>
           <a
             href="#ofertas"
@@ -168,7 +225,7 @@ export function EcommerceHeader({
         </nav>
 
         {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
-        <div className="flex items-center gap-2 sm:gap-3 text-slate-700">
+        <div className="flex items-center gap-2 sm:gap-3 text-slate-700 relative">
           {/* Help / WhatsApp Support */}
           <a
             href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20un%20producto"
@@ -180,18 +237,22 @@ export function EcommerceHeader({
             <MessageCircle className="w-5 h-5" />
           </a>
 
-          {/* Horizontal Expanding Search Bar */}
+          {/* Horizontal Expanding Search Bar + Predictive Dropdown */}
           <div
             ref={searchContainerRef}
             className={`relative flex items-center transition-all duration-300 ease-in-out ${
               isSearchOpen
-                ? "w-44 sm:w-64 md:w-80 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
+                ? "w-56 sm:w-80 md:w-96 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
                 : "w-9 h-9 justify-center"
             }`}
           >
             {isSearchOpen ? (
               <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
-                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                {isSearching ? (
+                  <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
+                ) : (
+                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                )}
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -203,9 +264,10 @@ export function EcommerceHeader({
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       setIsSearchOpen(false);
+                      setPredictiveResults([]);
                     }
                   }}
-                  placeholder="Buscar productos..."
+                  placeholder="Buscar por nombre, código o marca..."
                   className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
                 />
                 {searchQuery ? (
@@ -213,10 +275,11 @@ export function EcommerceHeader({
                     type="button"
                     onClick={() => {
                       setSearchQuery("");
+                      setPredictiveResults([]);
                       if (onSearchChange) onSearchChange("");
                       searchInputRef.current?.focus();
                     }}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0"
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
                     title="Borrar texto"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -224,8 +287,11 @@ export function EcommerceHeader({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setIsSearchOpen(false)}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0"
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setPredictiveResults([]);
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
                     title="Cerrar buscador"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -238,18 +304,95 @@ export function EcommerceHeader({
                   setIsSearchOpen(true);
                   if (onOpenSearch) onOpenSearch();
                 }}
-                className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
+                className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
                 title="Buscar productos"
                 aria-label="Buscar productos"
               >
                 <Search className="w-5 h-5" />
               </button>
             )}
+
+            {/* Predictive Results Dropdown Popover */}
+            {isSearchOpen && searchQuery.trim().length >= 2 && (
+              <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <span>Sugerencias en tiempo real</span>
+                  {isSearching && (
+                    <span className="flex items-center gap-1 text-[#00A811]">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Buscando...</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                  {predictiveResults.length > 0 ? (
+                    predictiveResults.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectPredictiveItem(item.id)}
+                        className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+                      >
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 shrink-0 overflow-hidden border border-slate-200/60 p-1 flex items-center justify-center">
+                          <img
+                            src={item.imageUrl || "/placeholder-product.svg"}
+                            alt={item.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
+                            <span>{item.brandName}</span>
+                            <span>•</span>
+                            <span>{item.categoryName}</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#00A811] transition-colors">
+                            {item.name}
+                          </p>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <span className="text-xs font-black text-[#00A811]">
+                              {formatCurrency(item.price)}
+                            </span>
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              {item.availableStock > 0 ? `${item.availableStock} disp.` : "Agotado"}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : !isSearching ? (
+                    <div className="p-6 text-center text-xs text-slate-500 space-y-1">
+                      <p className="font-bold text-slate-700">No encontramos coincidencias para "{searchQuery}"</p>
+                      <p className="text-[11px] text-slate-400">Probá buscando por marca (ej. Speedo, Mikasa) o categoría.</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                  <Link
+                    href={`/catalogo?search=${encodeURIComponent(searchQuery.trim())}`}
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setPredictiveResults([]);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 hover:text-[#00A811] transition-colors w-full py-1.5"
+                  >
+                    <span>Ver todos los resultados en el catálogo</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Wishlist */}
           <button
-            className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors relative"
+            className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors relative cursor-pointer"
             title="Favoritos"
           >
             <Heart className="w-5 h-5" />
@@ -272,7 +415,7 @@ export function EcommerceHeader({
           {/* Cart with Badge */}
           <button
             onClick={onOpenCart}
-            className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative"
+            className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
             title="Carrito de compras"
           >
             <ShoppingBag className="w-5 h-5" />
@@ -301,7 +444,7 @@ export function EcommerceHeader({
               />
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -315,13 +458,13 @@ export function EcommerceHeader({
               >
                 INICIO
               </Link>
-              <a
-                href="#productos"
+              <Link
+                href="/catalogo"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
-                PRODUCTOS
-              </a>
+                CATÁLOGO
+              </Link>
               <a
                 href="#disciplinas"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -330,11 +473,11 @@ export function EcommerceHeader({
                 DISCIPLINAS
               </a>
               <a
-                href="#marcas"
+                href="#productos"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
-                MARCAS
+                PRODUCTOS
               </a>
               <a
                 href="#ofertas"
