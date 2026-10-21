@@ -114,6 +114,25 @@ export function ProductQuickViewModal({
                 </div>
               </div>
 
+              {/* Colores / Variantes */}
+              {product.colors && product.colors.length > 0 && (
+                <div className="flex items-center gap-2 pt-2 text-xs">
+                  <span className="font-bold text-slate-900 uppercase tracking-wider">
+                    Color:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.colors.map((c) => (
+                      <span
+                        key={c}
+                        className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 font-semibold border border-slate-200/80 text-[11px]"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Selector de Talles */}
               {product.sizes && product.sizes.length > 0 && (
                 <div className="space-y-2 pt-2">

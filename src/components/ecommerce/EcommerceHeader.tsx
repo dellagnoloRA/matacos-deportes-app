@@ -272,11 +272,11 @@ export function EcommerceHeader({
             )}
           </button>
 
-          {/* User Account / Admin Link */}
+          {/* User Account / Iniciar Sesión / Registrarse */}
           <Link
-            href="/admin"
+            href="/login"
             className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-            title="Mi Cuenta / Gestión"
+            title="Iniciar Sesión / Registrarse"
           >
             <User className="w-5 h-5" />
           </Link>
@@ -362,12 +362,20 @@ export function EcommerceHeader({
               </Link>
             </nav>
 
-            <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
+            <div className="mt-auto pt-6 border-t border-slate-100 space-y-2.5">
               <Link
-                href="/admin"
+                href="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
               >
                 <User className="w-4 h-4" />
+                <span>Iniciar Sesión / Registrarse</span>
+              </Link>
+              <Link
+                href="/admin"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase transition-colors"
+              >
                 <span>Panel de Gestión</span>
               </Link>
               <p className="text-[11px] text-center text-slate-400">

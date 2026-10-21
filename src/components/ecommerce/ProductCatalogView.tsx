@@ -25,6 +25,91 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
+// Familias canónicas de colores para agrupar tonos y variantes de productos (ej: Azul -> Azul Francia, Marino)
+export interface ColorFamily {
+  name: string;
+  hex: string;
+  keywords: string[];
+}
+
+export const COLOR_FAMILIES: ColorFamily[] = [
+  {
+    name: "Azul",
+    hex: "#2563EB",
+    keywords: ["azul", "marino", "navy", "royal", "francia", "celeste", "turquesa", "cian", "aqua", "petroleo", "petróleo"],
+  },
+  {
+    name: "Negro",
+    hex: "#111827",
+    keywords: ["negro", "black", "azabache"],
+  },
+  {
+    name: "Blanco",
+    hex: "#FFFFFF",
+    keywords: ["blanco", "white", "marfil", "crudo", "hueso", "tiza"],
+  },
+  {
+    name: "Rojo",
+    hex: "#DC2626",
+    keywords: ["rojo", "red", "bordo", "bordó", "escarlata", "carmesi", "carmesí", "vino", "borgoña", "granate"],
+  },
+  {
+    name: "Verde",
+    hex: "#16A34A",
+    keywords: ["verde", "green", "oliva", "militar", "lima", "menta", "esmeralda", "musgo"],
+  },
+  {
+    name: "Gris",
+    hex: "#6B7280",
+    keywords: ["gris", "grey", "gray", "plateado", "plata", "grafito", "plomo", "ceniza", "melange"],
+  },
+  {
+    name: "Rosa",
+    hex: "#EC4899",
+    keywords: ["rosa", "pink", "rosado", "fucsia", "fuchsia", "magenta", "chicle"],
+  },
+  {
+    name: "Amarillo",
+    hex: "#EAB308",
+    keywords: ["amarillo", "yellow", "dorado", "oro", "mostaza"],
+  },
+  {
+    name: "Naranja",
+    hex: "#F97316",
+    keywords: ["naranja", "orange", "coral", "salmon", "salmón"],
+  },
+  {
+    name: "Violeta",
+    hex: "#8B5CF6",
+    keywords: ["violeta", "purple", "morado", "lila", "purpura", "púrpura", "lavanda"],
+  },
+  {
+    name: "Marrón",
+    hex: "#854D0E",
+    keywords: ["marron", "marrón", "brown", "beige", "habano", "arena", "suela", "camel", "chocolate", "cafe", "café"],
+  },
+  {
+    name: "Multicolor",
+    hex: "#6366F1",
+    keywords: ["multicolor", "estampado", "combinado", "rayado", "print"],
+  },
+];
+
+export function getColorFamily(colorName: string): { name: string; hex: string } {
+  if (!colorName) return { name: "Otro", hex: "#94A3B8" };
+  const lower = colorName.toLowerCase().trim();
+
+  for (const family of COLOR_FAMILIES) {
+    if (family.keywords.some((kw) => lower.includes(kw))) {
+      return { name: family.name, hex: family.hex };
+    }
+  }
+
+  // Si no coincide con ninguna palabra clave, capitalizar el nombre del color
+  const capitalized = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+  return { name: capitalized, hex: "#94A3B8" };
+}
+
 interface ProductCatalogViewProps {
   initialProducts?: EcommerceProduct[];
   initialCategory?: string;
@@ -67,11 +152,12 @@ export function ProductCatalogView({
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
-  // 1. Determinar si existe un contexto activo (Categoría, Marca o Disciplina)
+  // 1. Determinar si existe un contexto activo (Categoría, Disciplina o Marca)
+  // Regla: Talles y Colores NO deben aparecer a menos de que el usuario seleccione según catálogo, disciplina y marcas
   const hasActiveScopeForSizes = Boolean(
     filters.category ||
-    (filters.brand && filters.brand.length > 0) ||
-    filters.discipline
+    filters.discipline ||
+    (filters.brand && filters.brand.length > 0)
   );
 
   // Rango de precios mínimo y máximo dinámico según los productos de la base de datos
@@ -88,17 +174,20 @@ export function ProductCatalogView({
     };
   }, [allProducts]);
 
-  // Etiqueta legible del contexto activo para el encabezado del acordeón
+  // Etiqueta legible del contexto activo para el encabezado de los acordeones
   const activeScopeLabel = useMemo(() => {
-    if (filters.category) return filters.category;
-    if (filters.discipline) return filters.discipline;
-    if (filters.brand && filters.brand.length > 0) return filters.brand.join(", ");
-    return undefined;
+    const parts: string[] = [];
+    if (filters.discipline) parts.push(filters.discipline);
+    if (filters.category) parts.push(filters.category);
+    if (filters.brand && filters.brand.length > 0) parts.push(filters.brand.join(", "));
+    return parts.length > 0 ? parts.join(" • ") : undefined;
   }, [filters.category, filters.discipline, filters.brand]);
 
   // 2. Extraer grupos de talles dinámicamente según las categorías reales de la base de datos
-  // Solo se incluye una categoría en el apartado de talles si cuenta con más de un talle (> 1)
+  // Solo se calcula y muestra si el usuario seleccionó según catálogo, disciplina o marcas
   const sizeGroups = useMemo<SizeGroup[]>(() => {
+    if (!hasActiveScopeForSizes) return [];
+
     const groupMap = new Map<string, Map<string, number>>();
 
     for (const p of allProducts) {
@@ -135,7 +224,7 @@ export function ProductCatalogView({
 
     const result: SizeGroup[] = [];
     for (const [name, map] of groupMap.entries()) {
-      // Regla: Solo mostrar la categoría si tiene más de un talle (> 1). Si no, no mostrarla en talles.
+      // Regla: Solo mostrar la categoría si tiene más de un talle (> 1)
       if (map.size > 1) {
         const sizes = Array.from(map.entries())
           .map(([size, count]) => ({ size, count }))
@@ -149,10 +238,11 @@ export function ProductCatalogView({
     }
 
     return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [allProducts, filters.category, filters.discipline, filters.brand]);
+  }, [allProducts, hasActiveScopeForSizes, filters.category, filters.discipline, filters.brand]);
 
   // Lista plana de todos los talles de los grupos actuales
   const availableSizes = useMemo(() => {
+    if (!hasActiveScopeForSizes) return [];
     const list: { size: string; count: number }[] = [];
     const seen = new Set<string>();
     for (const g of sizeGroups) {
@@ -164,10 +254,74 @@ export function ProductCatalogView({
       }
     }
     return list;
-  }, [sizeGroups]);
+  }, [sizeGroups, hasActiveScopeForSizes]);
 
-  // Limpiar automáticamente talles seleccionados que ya no correspondan a la selección actual
+  // Extraer colores dinámicos AGRUPADOS en familias según el contexto activo (catálogo, disciplina, marcas)
+  const availableColors = useMemo(() => {
+    if (!hasActiveScopeForSizes) return [];
+
+    // Mapeo: nombreFamilia -> { count: númeroDeProductosUnicos, hex: string, rawColors: Set<string> }
+    const familyMap = new Map<string, { count: number; hex: string; rawColors: Set<string> }>();
+
+    for (const p of allProducts) {
+      const matchCategory =
+        !filters.category ||
+        p.category.toLowerCase() === filters.category.toLowerCase();
+
+      const matchDiscipline =
+        !filters.discipline ||
+        (p.discipline &&
+          p.discipline.toLowerCase() === filters.discipline.toLowerCase());
+
+      const matchBrand =
+        !filters.brand ||
+        filters.brand.length === 0 ||
+        (p.brand && filters.brand.includes(p.brand));
+
+      if (matchCategory && matchDiscipline && matchBrand && p.colors && Array.isArray(p.colors)) {
+        // Para cada producto, identificamos las familias únicas a las que pertenecen sus colores
+        const productFamilies = new Map<string, { hex: string; rawColor: string }>();
+
+        for (const c of p.colors) {
+          if (!c) continue;
+          const family = getColorFamily(c);
+          if (!productFamilies.has(family.name)) {
+            productFamilies.set(family.name, { hex: family.hex, rawColor: c });
+          }
+        }
+
+        // Incrementamos el contador por familia exactamente una vez por producto
+        for (const [familyName, { hex, rawColor }] of productFamilies.entries()) {
+          const entry = familyMap.get(familyName) || {
+            count: 0,
+            hex,
+            rawColors: new Set<string>(),
+          };
+          entry.count += 1;
+          entry.rawColors.add(rawColor);
+          familyMap.set(familyName, entry);
+        }
+      }
+    }
+
+    return Array.from(familyMap.entries())
+      .map(([color, { count, hex, rawColors }]) => ({
+        color, // Nombre de la familia (ej: "Azul")
+        count, // Total de productos en la familia
+        hex, // Muestra de color representativa
+        shades: Array.from(rawColors), // Tonos específicos encontrados (ej: ["Azul Francia", "Marino"])
+      }))
+      .sort((a, b) => a.color.localeCompare(b.color));
+  }, [allProducts, hasActiveScopeForSizes, filters.category, filters.discipline, filters.brand]);
+
+  // Limpiar automáticamente talles seleccionados que ya no correspondan a la selección actual o si se desactiva el alcance
   useEffect(() => {
+    if (!hasActiveScopeForSizes) {
+      if (filters.sizes && filters.sizes.length > 0) {
+        setFilters((prev) => ({ ...prev, sizes: [] }));
+      }
+      return;
+    }
     if (filters.sizes && filters.sizes.length > 0) {
       const validSizeSet = new Set(availableSizes.map((s) => s.size));
       const filtered = filters.sizes.filter((s) => validSizeSet.has(s));
@@ -175,7 +329,24 @@ export function ProductCatalogView({
         setFilters((prev) => ({ ...prev, sizes: filtered }));
       }
     }
-  }, [availableSizes, filters.sizes]);
+  }, [hasActiveScopeForSizes, availableSizes, filters.sizes]);
+
+  // Limpiar automáticamente colores seleccionados que ya no correspondan a la selección actual o si se desactiva el alcance
+  useEffect(() => {
+    if (!hasActiveScopeForSizes) {
+      if (filters.colors && filters.colors.length > 0) {
+        setFilters((prev) => ({ ...prev, colors: [] }));
+      }
+      return;
+    }
+    if (filters.colors && filters.colors.length > 0) {
+      const validColorSet = new Set(availableColors.map((c) => c.color));
+      const filtered = filters.colors.filter((c) => validColorSet.has(c));
+      if (filtered.length !== filters.colors.length) {
+        setFilters((prev) => ({ ...prev, colors: filtered }));
+      }
+    }
+  }, [hasActiveScopeForSizes, availableColors, filters.colors]);
 
   // 3. Extracción de metadatos generales (Categorías, Marcas, Disciplinas, Colores)
   const filterOptions = useMemo(() => {
@@ -279,10 +450,16 @@ export function ProductCatalogView({
       );
     }
 
-    // 6. Colores
+    // 6. Colores (Agrupados por familia de color: ej. tocar "Azul" incluye "Azul Francia", "Marino", etc.)
     if (filters.colors && filters.colors.length > 0) {
       result = result.filter((p) =>
-        p.colors?.some((c) => filters.colors?.includes(c))
+        p.colors?.some((c) => {
+          const family = getColorFamily(c);
+          return (
+            filters.colors?.includes(family.name) ||
+            filters.colors?.includes(c)
+          );
+        })
       );
     }
 
@@ -469,7 +646,7 @@ export function ProductCatalogView({
               availableBrands={filterOptions.availableBrands}
               availableCategories={filterOptions.availableCategories}
               availableDisciplines={filterOptions.availableDisciplines}
-              availableColors={filterOptions.availableColors}
+              availableColors={availableColors}
               totalProductCount={filteredProducts.length}
               inStockCount={filterOptions.inStockCount}
               outOfStockCount={filterOptions.outOfStockCount}
@@ -523,6 +700,7 @@ export function ProductCatalogView({
               filters.discipline ||
               (filters.brand && filters.brand.length > 0) ||
               (filters.sizes && filters.sizes.length > 0) ||
+              (filters.colors && filters.colors.length > 0) ||
               filters.priceRange
             ) && (
               <div className="flex flex-wrap items-center gap-2.5 pb-2">
@@ -572,6 +750,17 @@ export function ProductCatalogView({
                   </button>
                 ))}
 
+                {filters.colors?.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => removeFilterChip("color", c)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium rounded-full transition-colors group cursor-pointer border border-slate-200 shadow-2xs"
+                  >
+                    <span>Color: {c}</span>
+                    <X className="w-3 h-3 text-slate-400 group-hover:text-slate-800" />
+                  </button>
+                ))}
+
                 {filters.priceRange && (
                   <button
                     onClick={() => removeFilterChip("priceRange")}
@@ -595,9 +784,9 @@ export function ProductCatalogView({
             )}
 
 
-            {/* Grilla de Productos (4 columnas desktop como en la Imagen 1) */}
+            {/* Grilla de Productos (columnas y espaciado compacto idéntico a la referencia) */}
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
                 {filteredProducts.map((product) => (
                   <ProductCatalogCard
                     key={product.id}
@@ -666,7 +855,7 @@ export function ProductCatalogView({
                 availableBrands={filterOptions.availableBrands}
                 availableCategories={filterOptions.availableCategories}
                 availableDisciplines={filterOptions.availableDisciplines}
-                availableColors={filterOptions.availableColors}
+                availableColors={availableColors}
                 totalProductCount={filteredProducts.length}
                 inStockCount={filterOptions.inStockCount}
                 outOfStockCount={filterOptions.outOfStockCount}

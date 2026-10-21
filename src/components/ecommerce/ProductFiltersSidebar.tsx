@@ -37,7 +37,7 @@ interface ProductFiltersSidebarProps {
   availableBrands?: { brand: string; count: number }[];
   availableCategories?: { category: string; count: number }[];
   availableDisciplines?: { discipline: string; count: number }[];
-  availableColors?: { color: string; count: number; hex?: string }[];
+  availableColors?: { color: string; count: number; hex?: string; shades?: string[] }[];
   totalProductCount?: number;
   inStockCount?: number;
   outOfStockCount?: number;
@@ -57,7 +57,10 @@ export function ProductFiltersSidebar({
   availableBrands = [],
   availableCategories = [],
   availableDisciplines = [],
+  availableColors = [],
   totalProductCount = 0,
+  hasActiveScopeForSizes,
+  activeScopeLabel,
   minPrice = 0,
   maxPrice = 250000,
   isMobileModal = false,
@@ -68,9 +71,18 @@ export function ProductFiltersSidebar({
     disciplina: true,
     categoria: false,
     marca: false,
-    talles: false,
+    talles: true,
+    colores: true,
     precio: true,
   });
+
+  // Determinar si talles y colores deben mostrarse (solo si se seleccionó según catálogo, disciplina o marcas)
+  const canShowSizesAndColors = Boolean(
+    hasActiveScopeForSizes ??
+      (filters.category ||
+        filters.discipline ||
+        (filters.brand && filters.brand.length > 0))
+  );
 
   // Estado para expandir grupos de talles que superan las 3 filas
   const [expandedSizeGroups, setExpandedSizeGroups] = useState<Record<string, boolean>>({});
@@ -96,13 +108,14 @@ export function ProductFiltersSidebar({
     Boolean(filters.discipline) ||
     (filters.brand && filters.brand.length > 0) ||
     (filters.sizes && filters.sizes.length > 0) ||
+    (filters.colors && filters.colors.length > 0) ||
     Boolean(filters.priceRange);
 
   const currentMin = filters.priceRange ? filters.priceRange[0] : minPrice;
   const currentMax = filters.priceRange ? filters.priceRange[1] : maxPrice;
 
-  // Toggle de un elemento en array (ej: talles o marcas)
-  const toggleArrayItem = (key: "sizes" | "brand", item: string) => {
+  // Toggle de un elemento en array (ej: talles, marcas o colores)
+  const toggleArrayItem = (key: "sizes" | "brand" | "colors", item: string) => {
     const current = filters[key] || [];
     const exists = current.includes(item);
     const updated = exists ? current.filter((x) => x !== item) : [...current, item];
@@ -306,15 +319,22 @@ export function ProductFiltersSidebar({
         )}
       </div>
 
-      {/* 5. Acordeón: TALLES (Cerrado por defecto) */}
-      {sizeGroups.length > 0 && (
+      {/* 5. Acordeón: TALLES (Aparece únicamente si se seleccionó según catálogo, disciplina o marcas) */}
+      {canShowSizesAndColors && sizeGroups.length > 0 && (
         <div className="pb-3 border-b border-slate-100">
           <button
             type="button"
             onClick={() => toggleSection("talles")}
             className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
           >
-            <span>TALLES</span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span>TALLES</span>
+              {activeScopeLabel && (
+                <span className="text-[10px] font-normal text-slate-400 lowercase truncate max-w-[110px]">
+                  ({activeScopeLabel})
+                </span>
+              )}
+            </div>
             {openSections.talles ? (
               <ChevronUp className="w-4 h-4 text-slate-400" />
             ) : (
@@ -363,6 +383,74 @@ export function ProductFiltersSidebar({
                       </button>
                     )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 6. Acordeón: COLORES (Aparece únicamente si se seleccionó según catálogo, disciplina o marcas) */}
+      {canShowSizesAndColors && availableColors.length > 0 && (
+        <div className="pb-3 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => toggleSection("colores")}
+            className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span>COLORES</span>
+              {activeScopeLabel && (
+                <span className="text-[10px] font-normal text-slate-400 lowercase truncate max-w-[110px]">
+                  ({activeScopeLabel})
+                </span>
+              )}
+            </div>
+            {openSections.colores ? (
+              <ChevronUp className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+
+          {openSections.colores && (
+            <div className="pt-2.5 flex flex-wrap gap-1.5">
+              {availableColors.map(({ color, count, hex, shades }) => {
+                const isSelected = filters.colors?.includes(color);
+                const tooltipText =
+                  shades && shades.length > 1
+                    ? `Familia ${color}: incluye ${shades.join(", ")}`
+                    : `Color: ${color}`;
+
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => toggleArrayItem("colors", color)}
+                    title={tooltipText}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      isSelected
+                        ? "bg-[#0B132B] text-white border-[#0B132B] shadow-2xs font-bold"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-white font-medium"
+                    }`}
+                  >
+                    {hex ? (
+                      <span
+                        className="w-3 h-3 rounded-full border border-black/15 shrink-0 shadow-2xs"
+                        style={{ backgroundColor: hex }}
+                      />
+                    ) : (
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-300 border border-slate-400/40 shrink-0" />
+                    )}
+                    <span>{color}</span>
+                    <span
+                      className={`text-[10px] ${
+                        isSelected ? "text-slate-300 font-medium" : "text-slate-400 font-normal"
+                      }`}
+                    >
+                      ({count})
+                    </span>
+                  </button>
                 );
               })}
             </div>
