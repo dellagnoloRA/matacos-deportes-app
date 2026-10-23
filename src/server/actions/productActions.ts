@@ -18,6 +18,7 @@ export interface ProductFilterOptions {
   brandId?: string;
   disciplineId?: string;
   disciplineSlug?: string;
+  gender?: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
   activeOnly?: boolean;
 }
 
@@ -43,7 +44,7 @@ function serializeData<T>(data: T): T {
  */
 export async function getProducts(options: ProductFilterOptions = {}) {
   try {
-    const { search, categoryId, brandId, disciplineId, disciplineSlug, activeOnly = true } = options;
+    const { search, categoryId, brandId, disciplineId, disciplineSlug, gender, activeOnly = true } = options;
 
     const whereClause: Prisma.ProductWhereInput = {
       ...(activeOnly ? { active: true } : {}),
@@ -51,6 +52,7 @@ export async function getProducts(options: ProductFilterOptions = {}) {
       ...(brandId ? { brandId } : {}),
       ...(disciplineId ? { disciplineId } : {}),
       ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
+      ...(gender ? { gender } : {}),
       ...(search
         ? {
             OR: [
@@ -205,6 +207,7 @@ export async function createProduct(input: CreateProductInput) {
           price: new Prisma.Decimal(validated.price),
           categoryId: validated.categoryId,
           brandId: validated.brandId,
+          gender: validated.gender ?? "UNISEX",
           active: validated.active,
           variants: {
             create: validated.variants.map((v) => ({
@@ -308,6 +311,7 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
           ...(validated.categoryId ? { categoryId: validated.categoryId } : {}),
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
+          ...(validated.gender ? { gender: validated.gender } : {}),
           ...(validated.active !== undefined ? { active: validated.active } : {}),
         },
       });
@@ -574,6 +578,7 @@ export async function getDetailedInventoryProducts(options?: {
         discipline: p.discipline.name,
         category: p.category.name,
         subcategory: p.category.name,
+        gender: p.gender,
         modelCode: canonicalModelCode,
         sku: canonicalModelCode,
         barcode: p.variants.length === 1 ? (firstVariant?.barcode || "") : "",

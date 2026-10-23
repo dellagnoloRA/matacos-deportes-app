@@ -3,6 +3,11 @@ import { z } from "zod";
 /**
  * Criterios de ordenamiento para el catálogo público
  */
+export const EcommerceGenderEnum = z.enum(["HOMBRE", "MUJER", "NINO", "UNISEX"], {
+  errorMap: () => ({ message: "El género debe ser HOMBRE, MUJER, NINO o UNISEX" }),
+});
+export type EcommerceGender = z.infer<typeof EcommerceGenderEnum>;
+
 export const CatalogSortEnum = z.enum(
   ["price_asc", "price_desc", "newest", "name_asc"],
   {
@@ -20,6 +25,12 @@ export const CatalogFilterSchema = z
     disciplineSlug: z.string().trim().optional(),
     categorySlug: z.string().trim().optional(),
     brandSlug: z.string().trim().optional(),
+    gender: z
+      .preprocess(
+        (val) => (typeof val === "string" ? val.trim().toUpperCase() : val),
+        EcommerceGenderEnum
+      )
+      .optional(),
     size: z.string().trim().optional(),
     color: z.string().trim().optional(),
     minPrice: z

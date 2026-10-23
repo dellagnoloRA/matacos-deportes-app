@@ -85,6 +85,7 @@ export async function getProductDetail(
         imageUrl: true,
         modelCode: true,
         price: true,
+        gender: true,
         createdAt: true,
         category: {
           select: { id: true, name: true, slug: true },
@@ -214,6 +215,7 @@ export async function getProductDetail(
       imageUrl: product.imageUrl,
       modelCode: product.modelCode,
       price: basePrice,
+      gender: product.gender,
       category: product.category,
       brand: product.brand,
       discipline: product.discipline,
@@ -357,6 +359,7 @@ export async function getRelatedProducts(
         imageUrl: true,
         modelCode: true,
         price: true,
+        gender: true,
         createdAt: true,
         category: {
           select: { id: true, name: true, slug: true },
@@ -431,6 +434,7 @@ export async function getRelatedProducts(
         imageUrl: p.imageUrl,
         modelCode: p.modelCode,
         price: basePrice,
+        gender: p.gender,
         category: p.category,
         brand: p.brand,
         discipline: p.discipline,

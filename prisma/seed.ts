@@ -120,6 +120,7 @@ async function main() {
   const seedProducts = [
     {
       name: "Antiparras Cobra Ultra Mirror",
+      gender: "UNISEX",
       description: "Antiparras de competición hidrodinámicas con lentes espejadas y protección UV400.",
       brandId: brandArena.id,
       categoryId: catAntiparras.id,
@@ -134,6 +135,7 @@ async function main() {
     },
     {
       name: "Pelota Vóley V200W Oficial FIVB",
+      gender: "UNISEX",
       description: "Balón oficial de juego de la FIVB con diseño aerodinámico de 18 paneles.",
       brandId: brandMikasa.id,
       categoryId: catPelotas.id,
@@ -146,6 +148,7 @@ async function main() {
     },
     {
       name: "Zapatillas Gel-Rocket 11 Indoor",
+      gender: "HOMBRE",
       description: "Calzado multiusos para canchas de interior con tecnología GEL y suela de tracción.",
       brandId: brandAsics.id,
       categoryId: catCalzado.id,
@@ -161,6 +164,7 @@ async function main() {
     },
     {
       name: "Crocs Classic Clog Unisex",
+      gender: "UNISEX",
       description: "El zueco icónico ultraliviano y resistente al agua fabricado en material Croslite.",
       brandId: brandCrocs.id,
       categoryId: catCalzado.id,
@@ -182,6 +186,7 @@ async function main() {
     },
     {
       name: "Malla Competición Fastskin LZR",
+      gender: "MUJER",
       description: "Traje de baño de competición aprobado por World Aquatics con costuras termoselladas.",
       brandId: brandSpeedo.id,
       categoryId: catMallas.id,
@@ -196,6 +201,7 @@ async function main() {
     },
     {
       name: "Cinturón de Levantamiento Cuero Pro",
+      gender: "UNISEX",
       description: "Cinturón lumbar en cuero reforzado de 10mm con hebilla de acero inoxidable de doble púa.",
       brandId: brandMatacos.id,
       categoryId: catAccesorios.id,
@@ -209,6 +215,7 @@ async function main() {
     },
     {
       name: "Zapatillas Gondor II",
+      gender: "HOMBRE",
       description: "Calzado deportivo versátil y duradero para entrenamiento y uso diario.",
       brandId: brandTopper.id,
       categoryId: catCalzado.id,
@@ -238,6 +245,7 @@ async function main() {
           disciplineId: item.disciplineId,
           costPrice: item.costPrice,
           price: item.price,
+          gender: (item as any).gender || "UNISEX",
           active: true,
           variants: {
             create: item.variants.map((v) => ({

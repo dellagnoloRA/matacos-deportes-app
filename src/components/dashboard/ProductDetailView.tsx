@@ -1738,6 +1738,18 @@ export function ProductDetailView({
                 <span className="font-semibold text-slate-800 mt-0.5 block">{product.category} &gt; {product.subcategory || "General"}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-400 block font-medium">Género / Público</span>
+                <span className="font-semibold text-slate-900 text-sm mt-0.5 block">
+                  {product.gender === "HOMBRE"
+                    ? "Hombre"
+                    : product.gender === "MUJER"
+                    ? "Mujer"
+                    : product.gender === "NINO"
+                    ? "Niños"
+                    : "Unisex"}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span className="text-slate-400 block font-medium">Código de Modelo (Familia)</span>
                 <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.modelCode || product.sku}</span>
               </div>

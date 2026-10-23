@@ -48,6 +48,7 @@ async function fetchPublicCatalogRaw(
       disciplineSlug,
       categorySlug,
       brandSlug,
+      gender,
       size,
       color,
       minPrice,
@@ -64,6 +65,7 @@ async function fetchPublicCatalogRaw(
       ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
       ...(categorySlug ? { category: { slug: categorySlug } } : {}),
       ...(brandSlug ? { brand: { slug: brandSlug } } : {}),
+      ...(gender ? { gender } : {}),
       ...(minPrice !== undefined || maxPrice !== undefined
         ? {
             price: {
@@ -132,6 +134,7 @@ async function fetchPublicCatalogRaw(
           imageUrl: true,
           modelCode: true,
           price: true,
+          gender: true,
           createdAt: true,
           category: {
             select: { id: true, name: true, slug: true },
@@ -208,6 +211,7 @@ async function fetchPublicCatalogRaw(
         imageUrl: p.imageUrl,
         modelCode: p.modelCode,
         price: basePrice,
+        gender: p.gender,
         category: p.category,
         brand: p.brand,
         discipline: p.discipline,
@@ -501,6 +505,36 @@ async function fetchCatalogFacetsRaw(): Promise<{
       _max: { price: true },
     });
 
+        // 6. Conteo por género
+    const genderCounts = await prisma.product.groupBy({
+      by: ["gender"],
+      where: {
+        active: true,
+        variants: {
+          some: {
+            OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
+          },
+        },
+      },
+      _count: { _all: true },
+    });
+
+    const genderLabels: Record<string, string> = {
+      HOMBRE: "Hombre",
+      MUJER: "Mujer",
+      NINO: "Niños",
+      UNISEX: "Unisex",
+    };
+
+    const gendersFacet = (["HOMBRE", "MUJER", "NINO", "UNISEX"] as const).map((g) => {
+      const found = genderCounts.find((gc) => gc.gender === g);
+      return {
+        gender: g,
+        label: genderLabels[g] || g,
+        count: found ? found._count._all : 0,
+      };
+    });
+
     const response: CatalogFacetsResponse = {
       disciplines: disciplines.map((d) => ({
         name: d.name,
@@ -517,6 +551,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
         slug: b.slug,
         count: b._count.products,
       })),
+      genders: gendersFacet,
       sizes: sortedSizes,
       priceRange: {
         min: priceAggregate._min.price ? Number(priceAggregate._min.price) : 0,

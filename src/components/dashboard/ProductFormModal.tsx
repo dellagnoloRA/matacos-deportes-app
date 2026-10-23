@@ -90,6 +90,7 @@ export function ProductFormModal({
   const [disciplineId, setDisciplineId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [gender, setGender] = useState<"HOMBRE" | "MUJER" | "NINO" | "UNISEX">("UNISEX");
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
@@ -434,6 +435,7 @@ export function ProductFormModal({
           : ""
       );
       setPrice(productToEdit.price);
+      setGender(productToEdit.gender || "UNISEX");
       setImageUrl(productToEdit.imageUrl || null);
 
       if (productToEdit.images && productToEdit.images.length > 0) {
@@ -525,6 +527,7 @@ export function ProductFormModal({
             ? Number(productToEdit.costPrice)
             : 0,
         price: Number(productToEdit.price) || 0,
+        gender: productToEdit.gender || "UNISEX",
         images: editImagesSnapshot,
         variants: editVariantsSnapshot,
       });
@@ -535,6 +538,7 @@ export function ProductFormModal({
       setDisciplineId("");
       setCategoryId("");
       setBrandId("");
+      setGender("UNISEX");
       setCostPrice("");
       setPrice("");
       setImageUrl(null);
@@ -563,6 +567,7 @@ export function ProductFormModal({
         category: "",
         brand: "",
         costPrice: 0,
+        gender: "UNISEX",
         price: 0,
         images: [],
         variants: [
@@ -1284,6 +1289,7 @@ export function ProductFormModal({
           disciplineId,
           categoryId,
           brandId,
+          gender,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1306,6 +1312,7 @@ export function ProductFormModal({
           disciplineId,
           categoryId,
           brandId,
+          gender,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1974,6 +1981,47 @@ export function ProductFormModal({
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Selector de Género / Público Objetivo */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-700 font-semibold text-xs">
+                  Género / Público Objetivo <span className="text-slate-400 font-normal">(Filtro de tienda)</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                  {gender === "UNISEX" && "Aplica para todos o accesorio neutro"}
+                  {gender === "HOMBRE" && "Indumentaria y calzado masculino"}
+                  {gender === "MUJER" && "Indumentaria y calzado femenino"}
+                  {gender === "NINO" && "Línea infantil y juvenil"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                {(
+                  [
+                    { id: "UNISEX", label: "Unisex" },
+                    { id: "HOMBRE", label: "Hombre" },
+                    { id: "MUJER", label: "Mujer" },
+                    { id: "NINO", label: "Niños" },
+                  ] as const
+                ).map((item) => {
+                  const isSelected = gender === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setGender(item.id)}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer active:scale-95 ${
+                        isSelected
+                          ? "bg-slate-900 text-white shadow-xs ring-1 ring-slate-900"
+                          : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -68,6 +68,20 @@ async function runRf13Tests() {
     assert(true, "Rechaza correctamente minPrice negativo");
   }
 
+  try {
+    const validGender = CatalogFilterSchema.parse({ gender: "mujer" });
+    assert(validGender.gender === "MUJER", "Coerción y normalización de género 'mujer' -> 'MUJER' exitosa");
+  } catch (e: any) {
+    assert(false, "Fallo en parseo de género válido", e.message);
+  }
+
+  try {
+    CatalogFilterSchema.parse({ gender: "invalido" });
+    assert(false, "Debe rechazar género inválido");
+  } catch {
+    assert(true, "Rechaza correctamente género inválido");
+  }
+
   // --------------------------------------------------------------------------
   // TEST 2: Consulta de Catálogo Público con Paginación
   // --------------------------------------------------------------------------

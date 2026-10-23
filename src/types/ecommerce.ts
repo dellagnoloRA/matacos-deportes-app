@@ -29,6 +29,7 @@ export interface PublicProductItem {
   imageUrl: string | null;
   modelCode: string | null;
   price: number; // Precio base en ARS
+  gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
   category: {
     id: string;
     name: string;
@@ -89,6 +90,7 @@ export interface CatalogFacetsResponse {
   disciplines: CatalogFacetOption[];
   categories: CatalogFacetOption[];
   brands: CatalogFacetOption[];
+  genders: { gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX"; label: string; count: number }[];
   sizes: { size: string; count: number }[];
   priceRange: { min: number; max: number };
 }
