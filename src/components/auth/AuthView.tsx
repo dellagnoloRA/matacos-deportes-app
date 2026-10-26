@@ -50,10 +50,22 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
       });
       return;
     }
+    const rawName = loginEmail.split("@")[0] || "Lourdes";
+    const formattedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("matacos_user", JSON.stringify({ name: formattedName, email: loginEmail }));
+      } catch (err) {
+        console.warn("Error saving user to localStorage", err);
+      }
+    }
     setNotification({
       type: "success",
-      message: "¡Bienvenido a Matacos Deportes! Sesión iniciada correctamente.",
+      message: `¡Bienvenido a Matacos Deportes, ${formattedName}! Sesión iniciada correctamente.`,
     });
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1000);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -72,14 +84,20 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
       });
       return;
     }
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("matacos_user", JSON.stringify({ name: regNombre, email: regEmail }));
+      } catch (err) {
+        console.warn("Error saving user to localStorage", err);
+      }
+    }
     setNotification({
       type: "success",
-      message: `¡Cuenta creada con éxito, ${regNombre}! Ya podés iniciar sesión.`,
+      message: `¡Cuenta creada con éxito, ${regNombre}! Redirigiendo a la tienda...`,
     });
     setTimeout(() => {
-      setMode("login");
-      setLoginEmail(regEmail);
-    }, 1500);
+      window.location.href = "/";
+    }, 1000);
   };
 
   return (
