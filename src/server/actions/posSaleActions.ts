@@ -1796,6 +1796,7 @@ export async function createQuickPosProduct(input: CreateQuickPosProductInput) {
           categoryId: category.id,
           brandId: brand.id,
           active: true,
+          gender: validated.gender ?? "UNISEX",
           description: "Carga rápida de emergencia desde mostrador",
           modelCode: `EMG-${Date.now().toString().slice(-6)}`,
         },
@@ -1859,6 +1860,7 @@ export async function createQuickPosProduct(input: CreateQuickPosProductInput) {
         minStoreStock: 1,
         active: true,
         updatedAt: new Date().toISOString(),
+        gender: product.gender,
         iconBg: getDisciplineGradient(discipline.name),
         variants: [
           {

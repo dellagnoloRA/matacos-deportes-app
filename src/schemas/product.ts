@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 /**
+ * Clasificación por Género de Producto
+ */
+export const GenderEnum = z.enum(["HOMBRE", "MUJER", "NINO", "UNISEX"], {
+  errorMap: () => ({ message: "El género debe ser HOMBRE, MUJER, NINO o UNISEX" }),
+});
+export type GenderType = z.infer<typeof GenderEnum>;
+
+/**
  * Esquema de validación para Disciplinas
  */
 export const DisciplineSchema = z.object({
@@ -99,6 +107,7 @@ export const CreateProductSchema = z.object({
     .min(0, "El precio de venta no puede ser negativo"),
   categoryId: z.string().uuid("Debe seleccionar una categoría válida"),
   brandId: z.string().uuid("Debe seleccionar una marca válida"),
+  gender: GenderEnum.optional().default("UNISEX"),
   active: z.boolean().default(true),
   variants: z
     .array(ProductVariantSchema)
@@ -137,6 +146,7 @@ export const CreateQuickPosProductSchema = z.object({
   disciplineName: z.string().optional().default("Multideporte"),
   categoryName: z.string().optional().default("General"),
   brandName: z.string().optional().default("Genérica"),
+  gender: GenderEnum.optional().default("UNISEX"),
   initialStock: z.number().int().min(1).default(1),
 });
 
