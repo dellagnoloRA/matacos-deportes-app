@@ -65,3 +65,21 @@ Registro auditable de ingresos extraordinarios o egresos no derivados de ventas 
 Comprobante estructurado impreso en bobina térmica de 80mm al finalizar la jornada. Detalla totales por medio de pago, lista de egresos/ingresos intermedios, fondo inicial, total esperado, total real contado y diferencia neta, destinado a graparse con el sobre de recaudación física.
 
 
+
+
+## 4. E-Commerce: Portal de Clientes, Favoritos y Seguimiento (RF-29)
+
+### Cliente Web (`Customer`)
+Comprador registrado de la tienda online con credenciales propias (email y contraseña cifrada con `bcryptjs`), desacoplado funcional y jerárquicamente de la entidad `User` del personal del local. Su sesión opera con una cookie independiente `matacos_customer_token` (JWT HttpOnly).
+
+### Lista de Favoritos (`Wishlist / Favorite`)
+Colección personalizada de artículos guardados por el cliente a nivel de Producto base (`Product`). Permite preservar indumentaria, calzado y accesorios de interés, resolviendo la selección específica de variantes (talle y color) al momento de transferir el ítem al carrito de compras.
+
+### Orden Web y Trazabilidad de Envío
+Toda transacción comercial generada a través del canal digital (`channel: "WEB"`). Expone un flujo de estados logísticos transparentes para el cliente (*Pendiente de Pago*, *En Preparación en Saavedra 241*, *Listo para Retiro / En Camino*, *Entregado*).
+
+### Código y Enlace de Rastreo Logístico
+Mecanismo de simplificación operativa para envíos nacionales. El sistema almacena el código de seguimiento de despacho (`shippingTrackingCode`) y proporciona al comprador un botón con enlace directo a la plataforma pública de seguimiento de Correo Argentino (`https://www.correoargentino.com.ar/formularios/ondt`). Para envíos por cadetería dentro de Formosa Capital, el estado indica "En camino con cadetería" con el canal de atención por WhatsApp para coordinar la franja de entrega.
+
+### Separación Estricta de Canales de Venta
+Las operaciones realizadas de forma presencial en el local físico de Saavedra 241 (`channel: "MOSTRADOR"`) se respaldan exclusivamente mediante el tique térmico impreso entregado en mano al comprador y quedan bajo registro de auditoría interna de la caja. El portal web del cliente está destinado estrictamente a la trazabilidad y registro de sus compras online (`channel: "WEB"`).
