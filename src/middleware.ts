@@ -29,17 +29,14 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // 2. Rutas protegidas: /admin, /pos y la raíz / (que renderiza el dashboard)
+  // 2. Rutas protegidas: /admin y /pos para personal interno
   const isProtectedRoute =
-    pathname === "/" ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/pos");
 
   if (isProtectedRoute && !isValidSession) {
     const loginUrl = new URL("/login", request.url);
-    if (pathname !== "/") {
-      loginUrl.searchParams.set("redirect", pathname);
-    }
+    loginUrl.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(loginUrl);
     // Limpiar cookie corrupta o expirada
     if (token) {
@@ -53,7 +50,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
     "/admin/:path*",
     "/pos/:path*",
     "/login",

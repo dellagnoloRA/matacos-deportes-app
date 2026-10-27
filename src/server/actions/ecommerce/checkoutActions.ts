@@ -9,13 +9,14 @@ import {
   GuestCheckoutInput,
   ShippingMethod,
 } from "@/schemas/ecommerce";
+import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
 
 /**
  * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
  */
-export const WEB_ORDER_RESERVATION_MINUTES = 15;
+
 
 /**
  * Tarifas logísticas de referencia (Saavedra 241, Formosa Capital)

@@ -3,6 +3,11 @@
  * Diseñados estrictamente sin datos sensibles internos (sin precios de costo ni proveedores).
  */
 
+/**
+ * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
+ */
+export const WEB_ORDER_RESERVATION_MINUTES = 15;
+
 export interface PublicVariantItem {
   id: string;
   size: string;
