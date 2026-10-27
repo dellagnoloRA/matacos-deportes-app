@@ -2,7 +2,7 @@
 
 **Status:** `ready-for-agent`  
 **Domain Area:** E-Commerce / Customer Identity & Loyalty  
-**Target Branch:** `feature/rf-29-portal-clientes`  
+**Target Branch:** `feature/be-rf29-portal-clientes`  
 **Base Branch:** `develop`  
 
 ---
