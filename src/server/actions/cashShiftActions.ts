@@ -21,6 +21,7 @@ import {
 } from "@/server/services/cashShiftService";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { hasPermission } from "./authActions";
 
 function serializeData<T>(obj: any): T {
   if (obj === null || obj === undefined) return obj;
@@ -376,6 +377,16 @@ export async function getCashShiftSummary(shiftId: string) {
  */
 export async function listCashShifts(input?: ListCashShiftsInput) {
   try {
+    const canAudit = await hasPermission("caja.auditoria_historial");
+    if (!canAudit) {
+      return {
+        success: false,
+        error: "No tienes permisos para consultar la auditoría e historial de cajas (caja.auditoria_historial)",
+        data: [],
+        totalCount: 0,
+      };
+    }
+
     const validated = ListCashShiftsSchema.parse(input ?? {});
 
     const where: Prisma.CashShiftWhereInput = {};

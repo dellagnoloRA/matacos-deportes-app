@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
+import { SessionPayload } from "@/lib/session";
 import {
   Boxes,
   X,
@@ -18,6 +20,9 @@ import {
   Tag,
   Receipt,
   Lock,
+  LogOut,
+  Users,
+  Shield,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -39,6 +44,22 @@ export function SidebarLeft({
   onSelectItem,
   pendingSalesCount = 0,
 }: SidebarLeftProps) {
+  const [currentUser, setCurrentUser] = useState<SessionPayload | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then(setCurrentUser);
+  }, []);
+
+  const handleLogout = async () => {
+    await logoutAction();
+    window.location.href = "/login";
+  };
+
+  const hasPerm = (code: string) => {
+    if (!currentUser) return false;
+        return currentUser.permissions?.includes(code) ?? false;
+  };
+
   const isInventoryActive =
     activeItem === "inventario" || activeItem.startsWith("inventario-");
 
@@ -167,7 +188,8 @@ export function SidebarLeft({
                   <span>Productos</span>
                 </button>
 
-                <button
+                {hasPerm("inventario.maestros") && (
+  <button
                   type="button"
                   onClick={() => handleItemClick("inventario-tablas")}
                   className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
@@ -179,8 +201,10 @@ export function SidebarLeft({
                   <Layers className={`w-3.5 h-3.5 ${activeSubItem === "tablas" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
                   <span>Tablas</span>
                 </button>
+)}
 
-                <button
+                {hasPerm("inventario.ajuste_stock") && (
+  <button
                   type="button"
                   onClick={() => handleItemClick("inventario-movimientos")}
                   className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
@@ -192,8 +216,10 @@ export function SidebarLeft({
                   <ArrowRightLeft className={`w-3.5 h-3.5 ${activeSubItem === "movimientos" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
                   <span>Movimientos de Stock</span>
                 </button>
+)}
 
-                <button
+                {hasPerm("inventario.historial_precios") && (
+  <button
                   type="button"
                   onClick={() => handleItemClick("inventario-historial")}
                   className={`flex items-center gap-2.5 w-full py-2 px-2.5 rounded-xl transition-all font-semibold text-xs ${
@@ -205,6 +231,7 @@ export function SidebarLeft({
                   <Tag className={`w-3.5 h-3.5 ${activeSubItem === "historial" ? "text-[#c2f25b]" : "text-emerald-400"}`} />
                   <span>Ajustes de Precios</span>
                 </button>
+)}
               </div>
             )}
           </div>
@@ -234,6 +261,7 @@ export function SidebarLeft({
           </button>
 
           {/* 4. Caja (Cobro de Preventas y Arqueo) */}
+{(hasPerm("caja.abrir_turno") || hasPerm("caja.cerrar_arqueo")) && (
           <button
             onClick={() => handleItemClick("pos-cobrar")}
             className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
@@ -266,8 +294,10 @@ export function SidebarLeft({
               </span>
             )}
           </button>
+)}
 
           {/* 5. Cajas y Arqueos (Historial y Auditoría RF-11) */}
+{hasPerm("caja.auditoria_historial") && (
           <button
             onClick={() => handleItemClick("pos-arqueo")}
             className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
@@ -288,6 +318,48 @@ export function SidebarLeft({
               Auditoría
             </span>
           </button>
+)}
+
+          {/* 6. Administración (Personal y Perfiles) */}
+          {(hasPerm("admin.usuarios") || hasPerm("admin.perfiles")) && (
+            <div className="space-y-1 pt-1.5 border-t border-emerald-900/40">
+              <div className="px-3.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400/60">
+                Administración
+              </div>
+              {hasPerm("admin.usuarios") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-usuarios")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-usuarios"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className={`w-4 h-4 ${activeItem === "admin-usuarios" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Personal</span>
+                  </div>
+                </button>
+              )}
+              {hasPerm("admin.perfiles") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-perfiles")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-perfiles"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Shield className={`w-4 h-4 ${activeItem === "admin-perfiles" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Perfiles & Roles</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 5. E-commerce (Bloqueado) */}
           <button
@@ -303,20 +375,38 @@ export function SidebarLeft({
         </nav>
       </div>
 
-      {/* Bottom Section: User Profile Card (Terminal Mostrador / Saavedra 241) */}
-      <div className="space-y-3 pt-4 border-t border-emerald-800/60">
-        <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center gap-3 shadow-inner">
-          <div className="w-9 h-9 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">
-            POS
+      {/* Bottom Section: User Role & Logout (Abajo a la izquierda) */}
+      <div className="space-y-2 pt-3 border-t border-emerald-800/60">
+        <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">
+              {currentUser?.username
+                ? currentUser.username.slice(0, 2).toUpperCase()
+                : currentUser?.name
+                ? currentUser.name.slice(0, 2).toUpperCase()
+                : "MD"}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span
+                className="text-xs font-bold text-white leading-tight truncate"
+                title={currentUser?.name || currentUser?.username || "Usuario"}
+              >
+                {currentUser?.username || currentUser?.name || "Cargando..."}
+              </span>
+              <span className="text-[10px] text-[#00D615] font-bold tracking-wide truncate uppercase">
+                {currentUser?.profileName || "Personal"}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-bold text-white leading-tight truncate">
-              Terminal Mostrador
-            </span>
-            <span className="text-[10.5px] text-emerald-300/80 font-medium tracking-wide">
-              Saavedra 241
-            </span>
-          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Cerrar Sesión"
+            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>

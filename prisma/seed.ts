@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -274,6 +275,279 @@ async function main() {
   }
 
   console.log("¡Catálogo completo de productos cargado exitosamente en PostgreSQL!");
+
+  // 5. Catálogo Maestro de Permisos (RF-23)
+  console.log("Cargando catálogo maestro de permisos...");
+  await prisma.permission.deleteMany({
+    where: { code: "caja.anular_venta" },
+  });
+  const masterPermissions = [
+    // POS (Salón / Mostrador)
+    { code: "pos.vender", module: "POS", description: "Crear tickets, agregar productos, procesar cobros y emitir comprobantes" },
+    { code: "pos.descuento_manual", module: "POS", description: "Aplicar bonificaciones o descuentos manuales en mostrador" },
+    { code: "pos.cambios_devoluciones", module: "POS", description: "Gestionar cambios de talle/prenda y devoluciones de clientes" },
+
+    // CAJA (Flujo de Dinero y Turnos)
+    { code: "caja.abrir_turno", module: "CAJA", description: "Abrir turno de terminal con fondo inicial en efectivo" },
+    { code: "caja.movimientos", module: "CAJA", description: "Registrar ingresos y egresos de caja chica o retiros de seguridad" },
+    { code: "caja.cerrar_arqueo", module: "CAJA", description: "Ejecutar arqueo de billetes y cierre de jornada de terminal" },
+    { code: "caja.auditoria_historial", module: "CAJA", description: "Consultar historial consolidado de arqueos y justificaciones" },
+    { code: "caja.ver_teorico", module: "CAJA", description: "Visualizar el total esperado del sistema antes de contar billetes" },
+    { code: "caja.reimprimir_ticket", module: "CAJA", description: "Reimpresión de tickets finalizados desde el historial" },
+    { code: "caja.modificar_preventa", module: "CAJA", description: "Editar o cancelar preventas pendientes antes de su cobro" },
+
+    // INVENTARIO (Depósito, Stock y Catálogo)
+    { code: "inventario.ver", module: "INVENTARIO", description: "Consultar catálogo y existencias en Salón y Depósito" },
+    { code: "inventario.crear_producto", module: "INVENTARIO", description: "Alta, edición y desactivación de productos y variantes" },
+    { code: "inventario.precios", module: "INVENTARIO", description: "Modificar individualmente el precio de venta al público (PVP)" },
+    { code: "inventario.actualizacion_lote", module: "INVENTARIO", description: "Modificación masiva de precios por lote, marca o categoría" },
+    { code: "inventario.costos", module: "INVENTARIO", description: "Visualizar precio de costo de proveedores (costPrice) y margen" },
+    { code: "inventario.ajuste_stock", module: "INVENTARIO", description: "Ajustes manuales de existencias, roturas y transferencias" },
+    { code: "inventario.importar_excel", module: "INVENTARIO", description: "Carga e importación masiva de catálogo vía Excel/CSV" },
+    { code: "inventario.maestros", module: "INVENTARIO", description: "Administrar Marcas, Categorías y Disciplinas deportivas" },
+    { code: "inventario.historial_precios", module: "INVENTARIO", description: "Auditar bitácora histórica de modificaciones de precios" },
+    { code: "inventario.alertas_stock", module: "INVENTARIO", description: "Configurar umbrales de stock crítico y reposición" },
+    { code: "inventario.etiquetas_codigos", module: "INVENTARIO", description: "Generación e impresión de etiquetas con código de barras" },
+
+    // E-COMMERCE (Tienda Digital)
+    { code: "ecommerce.pedidos", module: "ECOMMERCE", description: "Gestionar pedidos web entrantes, preparación y despacho" },
+    { code: "ecommerce.banners", module: "ECOMMERCE", description: "Modificar banners del carrusel hero y vitrinas destacadas" },
+    { code: "ecommerce.cupones", module: "ECOMMERCE", description: "Crear y gestionar cupones de descuento y promociones online" },
+    { code: "ecommerce.clientes", module: "ECOMMERCE", description: "Visualizar cartera de clientes registrados en la tienda online" },
+
+    // REPORTES (Métricas de Negocio)
+    { code: "reportes.ver_kpis", module: "REPORTES", description: "Visualizar facturación global, ticket promedio y gráficos financieros" },
+    { code: "reportes.exportar", module: "REPORTES", description: "Exportar reportes de ventas, arqueos y stock a Excel/PDF" },
+
+    // ADMIN (Seguridad y Usuarios)
+    { code: "admin.usuarios", module: "ADMIN", description: "Gestionar altas, bajas, roles y contraseñas de personal" },
+    { code: "admin.perfiles", module: "ADMIN", description: "Crear y configurar perfiles de acceso y permisos" },
+  ];
+
+  const permissionsMap = new Map<string, string>();
+  for (const perm of masterPermissions) {
+    const upserted = await prisma.permission.upsert({
+      where: { code: perm.code },
+      update: { module: perm.module, description: perm.description },
+      create: perm,
+    });
+    permissionsMap.set(perm.code, upserted.id);
+  }
+
+  // 6. Perfiles Base del Sistema
+  console.log("Creando perfiles base del sistema...");
+  const profileAdmin = await prisma.profile.upsert({
+    where: { name: "Administrador" },
+    update: { level: 100, isSystem: true },
+    create: {
+      name: "Administrador",
+      description: "Acceso total y gobierno del sistema, costos, métricas y seguridad",
+      level: 100,
+      isSystem: true,
+    },
+  });
+
+  const profileCajero = await prisma.profile.upsert({
+    where: { name: "Cajero Mostrador" },
+    update: { level: 10, isSystem: true },
+    create: {
+      name: "Cajero Mostrador",
+      description: "Operador de terminal de cobros, arqueos y atención en Saavedra 241",
+      level: 10,
+      isSystem: true,
+    },
+  });
+
+  const profileEncargado = await prisma.profile.upsert({
+    where: { name: "Encargado de Local" },
+    update: { level: 50, isSystem: true, parentProfileId: profileCajero.id },
+    create: {
+      name: "Encargado de Local",
+      description: "Supervisión del local físico, control de caja, transferencias y mermas",
+      level: 50,
+      isSystem: true,
+      parentProfileId: profileCajero.id,
+    },
+  });
+
+  const profileVendedor = await prisma.profile.upsert({
+    where: { name: "Vendedor Salón" },
+    update: { level: 5, isSystem: true },
+    create: {
+      name: "Vendedor Salón",
+      description: "Atención comercial, consulta de stock y emisión de preventas",
+      level: 5,
+      isSystem: true,
+    },
+  });
+
+  // 7. Asignación de Permisos a Perfiles Base
+  console.log("Asignando matriz de permisos a perfiles...");
+  await prisma.profilePermission.deleteMany({
+    where: {
+      profileId: {
+        in: [profileAdmin.id, profileEncargado.id, profileCajero.id, profileVendedor.id],
+      },
+    },
+  });
+
+  // Admin tiene TODOS los 30 permisos
+  const adminPermissionsData = Array.from(permissionsMap.values()).map((permissionId) => ({
+    profileId: profileAdmin.id,
+    permissionId,
+  }));
+  await prisma.profilePermission.createMany({ data: adminPermissionsData });
+
+  // Cajero Mostrador
+  const cajeroCodes = [
+    "pos.vender",
+    "pos.descuento_manual",
+    "pos.cambios_devoluciones",
+    "caja.abrir_turno",
+    "caja.movimientos",
+    "caja.cerrar_arqueo",
+    "caja.reimprimir_ticket",
+    "caja.modificar_preventa",
+    "inventario.ver",
+  ];
+  const cajeroPermissionsData = cajeroCodes
+    .map((code) => permissionsMap.get(code))
+    .filter((id): id is string => Boolean(id))
+    .map((permissionId) => ({ profileId: profileCajero.id, permissionId }));
+  await prisma.profilePermission.createMany({ data: cajeroPermissionsData });
+
+  // Encargado de Local (Hereda Cajero Mostrador mediante parentProfileId, y suma supervisión)
+  const encargadoSpecificCodes = [
+    "caja.auditoria_historial",
+    "caja.ver_teorico",
+    "inventario.ajuste_stock",
+    "inventario.etiquetas_codigos",
+    "inventario.alertas_stock",
+    "ecommerce.pedidos",
+    "reportes.ver_kpis",
+  ];
+  const encargadoPermissionsData = encargadoSpecificCodes
+    .map((code) => permissionsMap.get(code))
+    .filter((id): id is string => Boolean(id))
+    .map((permissionId) => ({ profileId: profileEncargado.id, permissionId }));
+  await prisma.profilePermission.createMany({ data: encargadoPermissionsData });
+
+  // Vendedor Salón
+  const vendedorCodes = ["pos.vender", "caja.modificar_preventa", "inventario.ver"];
+  const vendedorPermissionsData = vendedorCodes
+    .map((code) => permissionsMap.get(code))
+    .filter((id): id is string => Boolean(id))
+    .map((permissionId) => ({ profileId: profileVendedor.id, permissionId }));
+  await prisma.profilePermission.createMany({ data: vendedorPermissionsData });
+
+  // 8. Usuarios Base con Contraseñas Hasheadas
+  console.log("Configurando usuarios con credenciales seguras (bcryptjs)...");
+  const hashedAdminPassword = await bcrypt.hash("MatacosAdmin2026!", 10);
+  const hashedCajeroPassword = await bcrypt.hash("Caja241Saavedra!", 10);
+  const hashedEncargadoPassword = await bcrypt.hash("Encargado241!", 10);
+  const hashedVendedorPassword = await bcrypt.hash("Vendedor241!", 10);
+
+  // Administrador General
+  await prisma.user.upsert({
+    where: { email: "admin@matacosdeportes.com.ar" },
+    update: {
+      username: "admin",
+      profileId: profileAdmin.id,
+      role: "ADMIN",
+      active: true,
+    },
+    create: {
+      name: "Administrador Matacos",
+      username: "admin",
+      email: "admin@matacosdeportes.com.ar",
+      password: hashedAdminPassword,
+      role: "ADMIN",
+      profileId: profileAdmin.id,
+      active: true,
+    },
+  });
+
+  // Cajero 1
+  await prisma.user.upsert({
+    where: { email: "cajero.1@matacos.local" },
+    update: {
+      username: "cajero1",
+      profileId: profileCajero.id,
+      password: hashedCajeroPassword,
+      active: true,
+    },
+    create: {
+      name: "Cajero 1",
+      username: "cajero1",
+      email: "cajero.1@matacos.local",
+      password: hashedCajeroPassword,
+      role: "CAJERO",
+      profileId: profileCajero.id,
+      active: true,
+    },
+  });
+
+  // Cajero Mostrador
+  await prisma.user.upsert({
+    where: { email: "cajero.mostrador@matacos.local" },
+    update: {
+      username: "mostrador",
+      profileId: profileCajero.id,
+      password: hashedCajeroPassword,
+      active: true,
+    },
+    create: {
+      name: "Cajero Mostrador",
+      username: "mostrador",
+      email: "cajero.mostrador@matacos.local",
+      password: hashedCajeroPassword,
+      role: "CAJERO",
+      profileId: profileCajero.id,
+      active: true,
+    },
+  });
+
+  // Encargado de Local
+  await prisma.user.upsert({
+    where: { email: "encargado@matacosdeportes.com.ar" },
+    update: {
+      username: "encargado",
+      profileId: profileEncargado.id,
+      password: hashedEncargadoPassword,
+      active: true,
+    },
+    create: {
+      name: "Encargado de Turno",
+      username: "encargado",
+      email: "encargado@matacosdeportes.com.ar",
+      password: hashedEncargadoPassword,
+      role: "CAJERO",
+      profileId: profileEncargado.id,
+      active: true,
+    },
+  });
+
+  // Vendedor Salón
+  await prisma.user.upsert({
+    where: { email: "vendedor@matacosdeportes.com.ar" },
+    update: {
+      username: "vendedor",
+      profileId: profileVendedor.id,
+      password: hashedVendedorPassword,
+      active: true,
+    },
+    create: {
+      name: "Vendedor Salón",
+      username: "vendedor",
+      email: "vendedor@matacosdeportes.com.ar",
+      password: hashedVendedorPassword,
+      role: "CAJERO",
+      profileId: profileVendedor.id,
+      active: true,
+    },
+  });
+
+  console.log("¡Esquema de seguridad, perfiles y permisos RF-23 sembrado con éxito!");
 }
 
 main()
