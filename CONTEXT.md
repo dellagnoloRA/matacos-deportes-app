@@ -65,3 +65,26 @@ Registro auditable de ingresos extraordinarios o egresos no derivados de ventas 
 Comprobante estructurado impreso en bobina térmica de 80mm al finalizar la jornada. Detalla totales por medio de pago, lista de egresos/ingresos intermedios, fondo inicial, total esperado, total real contado y diferencia neta, destinado a graparse con el sobre de recaudación física.
 
 
+
+
+## 4. E-Commerce: Checkout, Envíos y Pasarela de Pagos (RF-15, RF-16, RF-19)
+
+### Pasarela de Pagos Online (Checkout Pro)
+Mecanismo oficial de procesamiento de pagos online donde el comprador es transferido a la interfaz oficial de Mercado Pago para abonar con tarjeta de crédito, débito o dinero en cuenta, abstrayendo al comercio del manejo y riesgo normativo de datos sensibles de tarjetas.  
+_Avoid_: Checkout transparente propio, pasarela embebida con captura local de tarjeta.
+
+### Preferencia de Pago
+Objeto transaccional originado en el servidor que declara ante Mercado Pago los ítems adquiridos, datos del comprador, costo de envío y URLs de retorno (`back_urls`).  
+_Avoid_: Intención de pago provisoria, orden de cobro preliminar.
+
+### Webhook de Confirmación Asíncrona
+Notificación automática de servidor a servidor enviada por Mercado Pago tras registrar un cobro, responsable de validar la acreditación del dinero, crear el asiento de pago y actualizar el pedido.  
+_Avoid_: Confirmación por redirección del navegador, validación del cliente en frontend.
+
+### Umbral de Envío Bonificado (Envío Gratis Dual)
+Regla promocional basada en dos montos mínimos configurables: uno para entregas locales dentro de Formosa Capital y otro para envíos nacionales por correo, a partir de los cuales el flete pasa a ser 100% bonificado para el cliente.  
+_Avoid_: Tarifa plana fija sin promoción, flete estático rígido.
+
+### Orden Web
+Transacción comercial generada en la tienda online (`channel: "WEB"`). Mantiene reserva temporal de existencias durante el checkout y transiciona por un ciclo de vida logístico auditable (`PENDIENTE_PAGO` ➔ `PAGADA` ➔ `EN_PREPARACION` ➔ `EN_CAMINO` / `LISTO_RETIRO` ➔ `ENTREGADA`).  
+_Avoid_: Preventa de mostrador, pedido sin reserva de stock.
