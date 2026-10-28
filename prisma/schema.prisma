@@ -20,6 +20,7 @@ enum PaymentMethod {
   CREDITO
   TRANSFERENCIA
   QR_MERCADOPAGO
+  MERCADOPAGO_ONLINE
 }
 
 enum SaleStatus {
