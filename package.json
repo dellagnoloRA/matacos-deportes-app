@@ -16,7 +16,8 @@
     "db:clean": "tsx scripts/clean-database.ts",
     "db:studio": "prisma studio",
     "test:backend": "tsx scripts/run-all-backend-tests.ts",
-    "test:rf11": "tsx scripts/test-rf11-cash-shifts.ts"
+    "test:rf11": "tsx scripts/test-rf11-cash-shifts.ts",
+    "test:rf16": "tsx scripts/test-rf16-mercadopago-checkout.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

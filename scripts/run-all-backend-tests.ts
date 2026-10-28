@@ -51,6 +51,11 @@ const SUITES = [
     rf: "RF-04 / CU-INV-02",
     script: "scripts/test-rf04-bulk-import.ts",
   },
+  {
+    name: "Pasarela Mercado Pago Checkout Pro y Webhooks Atómicos",
+    rf: "RF-16",
+    script: "scripts/test-rf16-mercadopago-checkout.ts",
+  },
 ];
 
 async function main() {
