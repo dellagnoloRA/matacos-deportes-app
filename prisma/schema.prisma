@@ -28,6 +28,15 @@ enum SaleStatus {
   CANCELADA
 }
 
+enum ShippingStatus {
+  PENDIENTE
+  EN_PREPARACION
+  LISTO_RETIRO
+  EN_CAMINO
+  ENTREGADO
+  CANCELADO
+}
+
 enum DiscountType {
   PERCENTAGE
   FIXED
@@ -110,6 +119,7 @@ model Product {
   gender       Gender           @default(UNISEX)
   variants     ProductVariant[]
   images       ProductImage[]
+  favorites    Favorite[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 }
@@ -214,11 +224,13 @@ model Sale {
   customerDni   String?
 
   // Datos logísticos de entrega en compras web
-  shippingMethod     String? // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
-  shippingCost       Decimal? @default(0) @db.Decimal(12, 2)
-  shippingAddress    String? // Calle y número
-  shippingCity       String? // Localidad
-  shippingPostalCode String?
+  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
+  shippingStatus       ShippingStatus  @default(PENDIENTE)
+  shippingTrackingCode String?         // Código de guía (ej. Correo Argentino)
+  shippingCost         Decimal?        @default(0) @db.Decimal(12, 2)
+  shippingAddress      String?         // Calle y número
+  shippingCity         String?         // Localidad
+  shippingPostalCode   String?
 
   channel       String        @default("MOSTRADOR") // MOSTRADOR o WEB
   status        SaleStatus    @default(COMPLETADA)
@@ -274,22 +286,40 @@ model SalePayment {
 }
 
 // =========================================================================
-// CLIENTES WEB REGISTRADOS (CUENTA OPCIONAL)
+// CLIENTES WEB REGISTRADOS Y LISTA DE FAVORITOS (RF-29)
 // =========================================================================
 
 model Customer {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  password          String // Hash con bcryptjs
+  id                String     @id @default(uuid())
+  email             String     @unique
+  password          String? // Hash con bcryptjs (nullable para Google OAuth)
+  googleId          String?    @unique
+  avatarUrl         String?
   name              String
   phone             String?
   dni               String?
   defaultAddress    String? // Calle y número
-  defaultCity       String?  @default("Formosa")
-  defaultPostalCode String?  @default("3600")
+  defaultCity       String?    @default("Formosa")
+  defaultPostalCode String?    @default("3600")
+  favorites         Favorite[] // Productos guardados en lista de deseos
   sales             Sale[] // Historial de compras vinculadas
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([email])
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@index([productId])
 }
 
 // =========================================================================
