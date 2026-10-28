@@ -12,6 +12,7 @@ import {
 import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
+import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
 
 /**
  * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)

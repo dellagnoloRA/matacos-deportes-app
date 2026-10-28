@@ -53,6 +53,11 @@ const SUITES = [
     script: "scripts/test-rf04-bulk-import.ts",
   },
   {
+    name: "Botón Contextual de WhatsApp y Asistencia",
+    rf: "RF-18",
+    script: "scripts/test-rf18-whatsapp-contingency.ts",
+  },
+  {
     name: "Portal de Clientes, Favoritos y Seguimiento Web",
     rf: "RF-29",
     script: "scripts/test-rf29-customer-portal.ts",

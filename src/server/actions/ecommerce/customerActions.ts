@@ -124,7 +124,7 @@ function buildWhatsappOrderSupportUrl(
       ? "envío por cadetería en Formosa Capital"
       : shippingMethod === "CORREO_ARGENTINO"
         ? "envío por Correo Argentino"
-        : "retiro en Saavedra 241";
+        : "retiro en local físico";
   const text = encodeURIComponent(
     `¡Hola Matacos Deportes! Consulto por mi pedido web *${orderCode}*${customerName ? ` a nombre de ${customerName}` : ""} (${methodText}).`
   );
