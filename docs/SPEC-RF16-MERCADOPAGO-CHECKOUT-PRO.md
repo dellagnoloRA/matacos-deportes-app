@@ -70,10 +70,11 @@ The integration strictly utilizes **Mercado Pago Checkout Pro** via the official
   - `items`: Title, unit_price, quantity, currency_id ("ARS").
   - `payer`: Name, surname, email, identification (type "DNI", number).
   - `shipments`: Mode, receiver_address, cost.
-  - `back_urls`: Success, pending, and failure endpoints routed to `/checkout/resultado`.
+  - `back_urls`: Absolute HTTPS URLs (`${APP_URL}/checkout/resultado`) for `success`, `pending`, and `failure`.
   - `auto_return`: "approved".
-  - `external_reference`: Matacos order code (`WEB-2026-XXXX`).
-  - `notification_url`: The HTTPS webhook endpoint (`/api/webhooks/mercadopago`).
+  - `external_reference`: Matacos order identifier (`sale.id` o código de orden `WEB-2026-XXXX`).
+  - `notification_url`: The absolute HTTPS webhook endpoint (`${APP_URL}/api/webhooks/mercadopago`).
+- **Base URL Requirement:** A variable `NEXT_PUBLIC_APP_URL` (or `APP_URL`) must be defined in `.env` (e.g., ngrok tunnel during local development or production domain) so that Mercado Pago receives valid absolute URLs for redirection and webhooks.
 - **Security & Zero Card Data Handling:** No credit card numbers, expiration dates, or CVVs ever pass through our servers or frontend components, ensuring total compliance with PCI-DSS guidelines.
 
 ### 2. General Free Shipping Rule & Freight Configuration
@@ -136,6 +137,37 @@ The integration strictly utilizes **Mercado Pago Checkout Pro** via the official
 - **Protocolo de Pasaje a Producción:**
   - El sistema no requiere ningún cambio de código para pasar a producción.
   - Al momento del despliegue oficial, el titular comercial de Saavedra 241 genera sus propias *Credenciales de producción* (`PROD-...`) desde su panel fiscal de Mercado Pago y las inyecta como variables de entorno protegidas en el servidor VPS.
+
+---
+
+## Subtareas de Implementación (Trello WBS)
+
+1. **Configuración Inicial y Base de Datos:**
+   - 1.1. Agregar el valor `MERCADOPAGO_ONLINE` al enum `PaymentMethod` en `prisma/schema.prisma` y sincronizar esquema (`pnpm prisma db push` o migración).
+   - 1.2. Verificar SDK oficial en `package.json` (`mercadopago: ^2.3.0`) y configurar cliente singleton en `src/lib/mercadopago.ts` utilizando variables de entorno (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`).
+
+2. **Server Action `createMercadoPagoPreference(orderId: string)`:**
+   - 2.1. Validar la orden existente en base de datos (`SaleStatus: PENDIENTE_PAGO`) y sus ítems/flete.
+   - 2.2. Construir el payload de Checkout Pro con `items`, `payer` (nombre, DNI, email), `external_reference: orderId` (o `sale.id`), `notification_url` (`${NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`) y `back_urls` absolutas (`${NEXT_PUBLIC_APP_URL}/checkout/resultado`).
+   - 2.3. Ejecutar `new Preference(client).create({ body })` y retornar el `init_point` (o `sandbox_init_point` en desarrollo) e `id` de la preferencia.
+
+3. **Route Handler `POST /api/webhooks/mercadopago` (Seguridad e Ingesta):**
+   - 3.1. Validar firma criptográfica del header `x-signature` con HMAC SHA-256 y `MERCADOPAGO_WEBHOOK_SECRET`. Rechazar requests no autorizadas (HTTP 401).
+   - 3.2. Extraer el identificador del evento (`data.id`) cuando `type === "payment"` o `topic === "payment"`.
+
+4. **Procesamiento Atómico e Idempotente de Pagos:**
+   - 4.1. Consultar estado real de la transacción contra la API de Mercado Pago (`new Payment(client).get({ id: paymentId })`).
+   - 4.2. **Idempotencia:** Verificar en `SalePayment` si ya existe un registro con `referenceCode === paymentId`. Si ya fue procesado, retornar HTTP 200 inmediatamente sin mutaciones redundantes.
+   - 4.3. **Pago Aprobado (`status === "approved"`):**
+     - En transacción atómica (`prisma.$transaction`):
+       - Actualizar `Sale.status` a `COMPLETADA`.
+       - Crear registro en `SalePayment` con `method: MERCADOPAGO_ONLINE`, monto acreditado, marca de tarjeta, cuotas y `referenceCode: paymentId`.
+       - Decrementar `ProductVariant.stockReserved` (liberar reserva).
+       - Decrementar stock físico de cada variante (`stockStore`).
+       - Registrar movimiento de inventario en `StockMovement` con tipo `"VENTA_WEB"`.
+   - 4.4. **Pago Rechazado o Cancelado (`status === "rejected"` o `"cancelled"`):**
+     - Actualizar `Sale.status` a `CANCELADA`.
+     - Decrementar `ProductVariant.stockReserved` para restituir las unidades al catálogo disponible.
 
 ---
 
