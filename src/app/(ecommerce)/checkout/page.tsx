@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { CheckoutClient } from "./CheckoutClient";
+import { getShippingConfig } from "@/config/company";
 
 export const metadata: Metadata = {
   title: "Finalizar Compra — Matacos Deportes",
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function CheckoutPage() {
+  const shippingConfig = getShippingConfig();
+
   // Cargar variantes activas con stock para visualización y pruebas inmediatas
   const rawVariants = await prisma.productVariant.findMany({
     where: {
@@ -39,5 +42,10 @@ export default async function CheckoutPage() {
     stock: v.stockStore,
   }));
 
-  return <CheckoutClient availableVariants={availableVariants} />;
+  return (
+    <CheckoutClient
+      availableVariants={availableVariants}
+      shippingConfig={shippingConfig}
+    />
+  );
 }

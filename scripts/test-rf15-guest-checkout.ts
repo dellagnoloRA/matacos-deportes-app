@@ -207,7 +207,7 @@ async function runRf15Tests() {
         "Datos de comprador invitado persistidos sin requerir cuenta registrada"
       );
       assert(
-        order.totals.total === expectedPrice * orderQty + 2500,
+        order.totals.total === expectedPrice * orderQty + (expectedPrice * orderQty >= 100000 ? 0 : 2500),
         `Total calculado incluye subtotal (${formatCurrency(expectedPrice * orderQty)}) + cadetería ($ 2.500,00) = ${order.totals.totalFormatted}`
       );
       assert(

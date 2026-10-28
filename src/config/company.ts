@@ -69,3 +69,52 @@ export function getCompanyConfig(): CompanyConfig {
 
 
 export const companyConfig = getCompanyConfig();
+
+export interface ShippingConfig {
+  freeShippingThreshold: number;
+  cadeteriaBaseFee: number;
+  correoArgentinoBaseFee: number;
+}
+
+export function getShippingConfig(): ShippingConfig {
+  return {
+    freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 100000),
+    cadeteriaBaseFee: Number(process.env.CADETERIA_BASE_FEE || 2500),
+    correoArgentinoBaseFee: Number(process.env.CORREO_ARGENTINO_BASE_FEE || 7500),
+  };
+}
+
+export function calculateShippingFee(
+  method: "RETIRO_LOCAL" | "CADETERIA_FORMOSA" | "CORREO_ARGENTINO",
+  subtotal: number,
+  customConfig?: Partial<ShippingConfig>
+): {
+  cost: number;
+  isFree: boolean;
+  baseFee: number;
+  threshold: number;
+} {
+  const config = { ...getShippingConfig(), ...customConfig };
+  if (method === "RETIRO_LOCAL") {
+    return {
+      cost: 0,
+      isFree: true,
+      baseFee: 0,
+      threshold: config.freeShippingThreshold,
+    };
+  }
+
+  const baseFee =
+    method === "CADETERIA_FORMOSA"
+      ? config.cadeteriaBaseFee
+      : config.correoArgentinoBaseFee;
+
+  const isFree = subtotal >= config.freeShippingThreshold;
+
+  return {
+    cost: isFree ? 0 : baseFee,
+    isFree,
+    baseFee,
+    threshold: config.freeShippingThreshold,
+  };
+}

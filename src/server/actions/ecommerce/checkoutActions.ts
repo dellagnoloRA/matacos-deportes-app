@@ -12,6 +12,7 @@ import {
 import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
+import { calculateShippingFee } from "@/config/company";
 
 /**
  * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
@@ -614,10 +615,11 @@ export async function createGuestOrder(
 
       // Determinar costo y dirección de envío según modalidad elegida
       const shippingMethod = validated.shippingMethod;
+      const dynamicShipping = calculateShippingFee(shippingMethod, subtotalProducts);
       const shippingCost =
         validated.shippingCost !== undefined
           ? validated.shippingCost
-          : DEFAULT_SHIPPING_COSTS[shippingMethod];
+          : dynamicShipping.cost;
 
       const effectiveAddress =
         shippingMethod === "RETIRO_LOCAL"

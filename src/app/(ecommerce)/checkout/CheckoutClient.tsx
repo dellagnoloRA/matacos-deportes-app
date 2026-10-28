@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/utils";
 import { createGuestOrder } from "@/server/actions/ecommerce/checkoutActions";
 import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadopagoActions";
 import { ShippingMethod } from "@/schemas/ecommerce";
+import { ShippingConfig } from "@/config/company";
 
 interface CheckoutVariant {
   id: string;
@@ -31,9 +32,13 @@ interface CheckoutVariant {
 
 interface CheckoutClientProps {
   availableVariants: CheckoutVariant[];
+  shippingConfig: ShippingConfig;
 }
 
-export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
+export function CheckoutClient({
+  availableVariants,
+  shippingConfig,
+}: CheckoutClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -66,18 +71,21 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
     "MERCADOPAGO" | "TRANSFERENCIA" | "EFECTIVO"
   >("MERCADOPAGO");
 
-  // Cálculo de totales
+  // Cálculo dinámico de totales basado en la configuración parametrizable
   const subtotalProducts = selectedItems.reduce(
     (sum, item) => sum + item.variant.price * item.quantity,
     0
   );
 
-  const FREE_SHIPPING_THRESHOLD = 100000;
-  const isFreeShipping = subtotalProducts >= FREE_SHIPPING_THRESHOLD;
+  const isFreeShipping =
+    subtotalProducts >= shippingConfig.freeShippingThreshold;
 
   let baseShippingCost = 0;
-  if (shippingMethod === "CADETERIA_FORMOSA") baseShippingCost = 2500;
-  if (shippingMethod === "CORREO_ARGENTINO") baseShippingCost = 7500;
+  if (shippingMethod === "CADETERIA_FORMOSA") {
+    baseShippingCost = shippingConfig.cadeteriaBaseFee;
+  } else if (shippingMethod === "CORREO_ARGENTINO") {
+    baseShippingCost = shippingConfig.correoArgentinoBaseFee;
+  }
 
   const effectiveShippingCost =
     shippingMethod === "RETIRO_LOCAL" || isFreeShipping ? 0 : baseShippingCost;
@@ -107,13 +115,14 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
 
     startTransition(async () => {
       try {
-        // 1. Crear la orden web en estado PENDIENTE_PAGO
+        // 1. Crear la orden web en estado PENDIENTE_PAGO con costo de envío dinámico
         const orderRes = await createGuestOrder({
           customerName,
           customerDni,
           customerEmail,
           customerPhone,
           shippingMethod,
+          shippingCost: effectiveShippingCost,
           shippingAddress:
             shippingMethod === "RETIRO_LOCAL" ? "Saavedra 241" : shippingAddress,
           shippingCity:
@@ -331,7 +340,9 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
                   </div>
                   <span className="text-xs text-slate-500">Formosa Capital</span>
                   <span className="text-xs font-black text-slate-900 mt-1">
-                    {isFreeShipping ? "¡GRATIS!" : "$ 2.500,00"}
+                    {isFreeShipping
+                      ? "¡GRATIS!"
+                      : formatCurrency(shippingConfig.cadeteriaBaseFee)}
                   </span>
                 </button>
 
@@ -353,7 +364,9 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
                   </div>
                   <span className="text-xs text-slate-500">Nacional</span>
                   <span className="text-xs font-black text-slate-900 mt-1">
-                    {isFreeShipping ? "¡GRATIS!" : "$ 7.500,00"}
+                    {isFreeShipping
+                      ? "¡GRATIS!"
+                      : formatCurrency(shippingConfig.correoArgentinoBaseFee)}
                   </span>
                 </button>
               </div>
@@ -523,7 +536,7 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
                 ))}
               </div>
 
-              {/* Banner Envío Gratis */}
+              {/* Banner Envío Gratis Dinámico */}
               {isFreeShipping ? (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-800">
                   <Check className="w-4 h-4 text-emerald-600" />
@@ -533,7 +546,9 @@ export function CheckoutClient({ availableVariants }: CheckoutClientProps) {
                 <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                   Agregá{" "}
                   <strong className="text-slate-900">
-                    {formatCurrency(FREE_SHIPPING_THRESHOLD - subtotalProducts)}
+                    {formatCurrency(
+                      shippingConfig.freeShippingThreshold - subtotalProducts
+                    )}
                   </strong>{" "}
                   más para obtener envío gratis general.
                 </div>
