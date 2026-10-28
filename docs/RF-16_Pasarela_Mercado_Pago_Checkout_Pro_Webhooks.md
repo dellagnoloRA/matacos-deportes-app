@@ -1,147 +1,243 @@
-# [RF-16] Pasarela de Pagos Online con Mercado Pago (Checkout Pro) y Webhooks de Confirmación
+# [RF-16] Pasarela de Pagos Online con Mercado Pago (Checkout Pro), Webhooks de Confirmación y Envíos Parametrizables
 
-**Estado:** `ready-for-agent`  
-**Módulo:** Módulo 3 — Tienda Web (E-Commerce) y Checkout  
-**Requerimiento Relacionado:** RF-15 (Carrito y Guest Checkout), RF-19 (Opciones de Envío)  
-
----
-
-## Problem Statement
-
-Los clientes de la tienda online de Matacos Deportes que agregan productos a su carrito no disponen de una pasarela electrónica para abonar sus compras de manera digital, segura y en cuotas. Al intentar avanzar desde el carrito hacia el checkout, no existe una pantalla donde ingresar sus datos de entrega ni elegir un medio de pago, lo que impide concretar las ventas web. Además, el comercio carece de un mecanismo automático y desatendido que verifique la acreditación de los pagos electrónicos, obligando a verificaciones manuales propensas a errores o retrasos en la preparación de pedidos.
-
-Por otra parte, los costos de envío y las promociones comerciales (como el beneficio de Envío Gratis a partir de determinado monto de compra) actualmente no cuentan con un cálculo automático ni con un umbral configurable que el administrador pueda ajustar frente a variaciones de tarifas o estrategias de ventas.
+**Proyecto:** Sistema Integral de Gestión, POS Offline y E-commerce — Matacos Deportes  
+**Cliente:** Matacos Deportes (Saavedra 241, Formosa Capital, Argentina)  
+**Institución:** Universidad de la Cuenca del Plata (Sede Formosa) — Práctica Profesional Supervisada I (PPS I)  
+**Estado:** **Implementado y Verificado** (26/26 tests pasando)  
+**Rama:** `feature/be-rf16-pasarela-mercadopago`  
 
 ---
 
-## Solution
+## 1. Descripción y Objetivos del Requerimiento
 
-Implementar la pantalla unificada de finalización de compra (*One-Page Checkout*) y la integración oficial con **Mercado Pago Checkout Pro**, acompañada de un endpoint de **Webhooks asíncronos** para la acreditación automática de pagos.
+El requerimiento **RF-16** implementa la infraestructura transaccional de pagos electrónicos para la tienda web de Matacos Deportes mediante la pasarela oficial de **Mercado Pago (Checkout Pro)**, acompañada de un endpoint para **Webhooks asíncronos**, pantallas de compra reactivas y la regla comercial de **Envío Gratis General parametrizable**.
 
-El comprador completa sus datos personales, selecciona su modalidad de entrega (Retiro en Saavedra 241, Cadetería local o Correo Argentino) y visualiza el cálculo inmediato del flete, beneficiándose con **Envío Gratis** si el subtotal de su compra alcanza o supera el umbral general configurado por el comercio. Al optar por Mercado Pago, el sistema reserva el inventario de forma atómica durante 15 minutos, genera una Preferencia oficial de pago y transfiere al comprador a la pantalla segura de Mercado Pago para abonar con tarjeta de crédito (con cuotas y promociones administradas por el dueño en su cuenta de MP), débito o dinero en cuenta.
+### Objetivos Cumplidos
 
-Cuando Mercado Pago acredita el cobro, un webhook procesa la notificación de servidor a servidor de manera idempotente, confirmando la orden, asentando el pago y descontando definitivamente el stock físico del inventario.
+1. **Pasarela Oficial Mercado Pago Checkout Pro (Cero Riesgo PCI-DSS):**
+   - El cliente es redirigido de manera segura a la interfaz oficial de Mercado Pago (`init_point` / `sandbox_init_point`).
+   - El comercio no captura, procesa ni almacena números de tarjeta, CVVs ni vencimientos en sus propios servidores o componentes web.
+   - Las cuotas sin interés y planes de financiamiento bancario se configuran de forma desatendida directamente en el panel de Mercado Pago del titular.
+
+2. **Server Action `createMercadoPagoPreference`:**
+   - Valida la existencia de la orden en PostgreSQL (`Sale` en estado `PENDIENTE_PAGO`) y verifica que la reserva temporal de 15 minutos se encuentre vigente.
+   - Construye el payload de preferencia con ítems, variantes, datos del comprador (`payer`), fletes y URLs de retorno absolutas (`back_urls`).
+
+3. **Route Handler de Webhooks (`POST /api/webhooks/mercadopago`):**
+   - Recibe notificaciones automáticas de servidor a servidor enviadas por Mercado Pago.
+   - Valida la autenticidad del remitente mediante **firmas criptográficas HMAC SHA-256** sobre el encabezado `x-signature` utilizando el `MERCADOPAGO_WEBHOOK_SECRET`.
+   - Responde inmediatamente con HTTP 200 para evitar tormentas de reintentos por parte de Mercado Pago.
+
+4. **Procesamiento Atómico e Idempotente (`processMercadoPagoPayment`):**
+   - **Control de Idempotencia:** Si una notificación llega duplicada, el sistema verifica `SalePayment.referenceCode == paymentId` y responde con éxito sin duplicar cobros ni descontar stock dos veces.
+   - **Pago Aprobado (`approved`):**
+     - Actualiza `Sale.status` a `COMPLETADA`.
+     - Registra el comprobante en `SalePayment` con el método contable **`MERCADOPAGO_ONLINE`**.
+     - **Doble baja de inventario:** Libera el `stockReserved` y decrementa el stock físico real (`stockStore`).
+     - Asienta el movimiento de auditoría en `InventoryMovement` con tipo `"VENTA_WEB"`.
+   - **Pago Rechazado o Cancelado (`rejected` / `cancelled`):**
+     - Transiciona la orden a `CANCELADA`.
+     - Restituye las unidades reservadas (`stockReserved`), devolviéndolas inmediatamente al catálogo disponible para otros clientes.
+   - Invalida la memoria caché del catálogo público (`revalidateEcommerceCatalogCache`).
+
+5. **Regla de Envío Gratis General y Fletes Dinámicos:**
+   - Centralizada en [`src/config/company.ts`](file:///c:/Users/della/matacos-deportes-app/src/config/company.ts) y parametrizable por variables de entorno (`FREE_SHIPPING_THRESHOLD`, `CADETERIA_BASE_FEE`, `CORREO_ARGENTINO_BASE_FEE`).
+   - Si el subtotal de artículos en el carrito alcanza o supera el umbral general (por defecto: `$ 100.000,00`), el costo de envío se bonifica automáticamente al 100% (`$ 0,00`).
+
+6. **Pantallas de Compra Funcionales:**
+   - **One-Page Checkout ([`/checkout`](file:///c:/Users/della/matacos-deportes-app/src/app/(ecommerce)/checkout/page.tsx)):** Vista rápida estructurada en Bloque de Contacto (Guest Checkout), Modalidad de Entrega (Retiro en Saavedra 241, Cadetería Formosa, Correo Argentino), Selector de Pago y Resumen de Totales.
+   - **Página de Resultado Post-Pago ([`/checkout/resultado`](file:///c:/Users/della/matacos-deportes-app/src/app/(ecommerce)/checkout/resultado/page.tsx)):** Procesa los parámetros de retorno de la pasarela y muestra el estado final de la compra (Aprobado, Pendiente o Rechazado).
 
 ---
 
-## User Stories
+## 2. Diagramas de Arquitectura y Flujos
 
-1. As a web buyer, I want to access a unified checkout page directly from my shopping cart, so that I can complete my purchase quickly without unnecessary page reloads.
-2. As a guest buyer, I want to provide my contact information (name, DNI/CUIT, email, phone) without creating an account or password, so that I can purchase with zero friction.
-3. As a registered customer, I want my shipping and contact details to be pre-filled automatically on the checkout page, so that I do not have to type them every time I shop.
-4. As a web buyer, I want to choose between in-store pickup at Saavedra 241 and home delivery, so that I can receive my products in the most convenient way.
-5. As a web buyer selecting home delivery, I want to enter my postal code, street address, city, and province, so that the store knows exactly where to ship my items.
-6. As a web buyer, I want the system to calculate my shipping cost dynamically based on my selected delivery method, so that I know the exact final amount before paying.
-7. As a web buyer, I want to receive 100% free shipping automatically when my order subtotal reaches or exceeds the store's free shipping threshold, so that I can take advantage of volume promotions.
-8. As a store administrator, I want to modify the free shipping threshold amount and base shipping rates easily, so that the store can adapt its commercial promotions and freight costs at any time.
-9. As a web buyer, I want to see a clear breakdown of product subtotal, shipping cost, and final total, so that there are no surprise fees before confirming my order.
-10. As a web buyer, I want to choose between Mercado Pago, direct bank transfer, and in-store cash payment (when picking up locally), so that I can pay with my preferred payment method.
-11. As a web buyer selecting Mercado Pago, I want to be redirected to Mercado Pago's official payment portal, so that I can pay using credit cards, debit cards, or Mercado Pago account balance safely.
-12. As a web buyer paying with credit card, I want Mercado Pago to recognize my bank and display available installment plans, so that I can finance my purchase according to store promotions.
-13. As a store owner, I want installment promotions (such as interest-free installments or buyer-paid financing) to be configured directly in my Mercado Pago seller account, so that our development team does not need to maintain bank promotion rules in code.
-14. As a store owner, I want the system to reserve product stock for 15 minutes when a buyer proceeds to Mercado Pago, so that other buyers or counter customers cannot purchase the same items while payment is pending.
-15. As a store owner, I want stock reservation to execute under atomic database locks, so that concurrent sales between the physical counter in Saavedra 241 and the online store never cause overselling.
-16. As a store owner, I want Mercado Pago to notify our backend asynchronously via webhooks when a payment is approved, so that orders are confirmed automatically without manual staff intervention.
-17. As an operations staff member, I want an approved payment to update the order status to paid, record the payment with transaction references, and physically deduct stock from inventory, so that warehouse picking can begin immediately.
-18. As an operations staff member, I want webhook notifications to be processed idempotently, so that duplicate webhook deliveries from Mercado Pago never cause double stock deductions or duplicate payments.
-19. As a web buyer completing my payment on Mercado Pago, I want to be redirected back to an order summary page, so that I can view my order confirmation code and purchase details.
-20. As a web buyer whose payment was rejected on Mercado Pago, I want to see a clear explanation on the result page with an option to retry or contact customer support via WhatsApp, so that I do not lose my order.
-21. As a web buyer whose payment is pending (such as cash payment coupons), I want to see instructions and expiration reminders on the result page, so that I can pay before the stock reservation expires.
-22. As an operations staff member, I want orders with rejected or cancelled payments to release their reserved stock automatically, so that available inventory is immediately restored for other customers.
-23. As a store accountant, I want online Mercado Pago payments to be categorized under a distinct payment method from counter physical QR payments, so that cash register closures and bank reconciliations remain clean.
+### Diagrama 1: Flujo de Checkout Pro, Redirección y Acreditación por Webhook (Mermaid)
 
----
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Comprador as Comprador Web
+    participant UI as Checkout (/checkout)
+    participant ActionPref as createMercadoPagoPreference
+    participant MP as API Mercado Pago (Cloud)
+    participant Webhook as Route Handler (/api/webhooks/mercadopago)
+    participant DB as PostgreSQL 16 (Prisma ORM)
 
-## Implementation Decisions
+    Note over Comprador,UI: 1. Confirmación de Compra en Tienda Online
+    Comprador->>UI: Clic en "Pagar con Mercado Pago"
+    UI->>ActionPref: createMercadoPagoPreference(saleId)
+    ActionPref->>DB: Verifica orden PENDIENTE_PAGO y reserva vigente (15 min)
+    ActionPref->>MP: Preference.create(items, payer, shipments, back_urls)
+    MP-->>ActionPref: Retorna preference.id, init_point y sandbox_init_point
+    ActionPref-->>UI: Retorna URLs de redirección
+    UI->>Comprador: Redirige al portal oficial de Mercado Pago (init_point)
 
-### 1. Modules and Components
-- **Checkout View Module:** A single-page checkout interface that orchestrates customer information collection, delivery selection, dynamic shipping cost calculation with free shipping promotion badges, payment method selection, and order confirmation.
-- **Payment Gateway Integration Module:** Backend service responsible for creating Mercado Pago Preferences via the official Mercado Pago SDK, setting item descriptions, quantities, unit prices, shipping costs, customer information, back URLs, and external reference codes.
-- **Asynchronous Webhook Ingestion Module:** API route handler that receives event notifications from Mercado Pago, validates security headers and event integrity, queries the Mercado Pago Payment API to verify the definitive status, and executes atomic state transitions.
-- **Post-Payment Result View:** A unified outcome screen that parses return query parameters, confirms order status, and displays either a success voucher, pending payment instructions, or a retry workflow.
-- **Developer Sandbox Governance Policy:**
-  - **Segregación Estricta:** Queda terminantemente prohibido utilizar credenciales de producción (`PROD-...`) o cuentas reales de los dueños durante el desarrollo local.
-  - **Credenciales Sandbox:** Los desarrolladores crean su aplicación en `mercadopago.com.ar/developers`, extraen las claves `TEST-...` y configuran usuarios de prueba (*Test Users*) con saldo ficticio y tarjetas de prueba oficiales (`APRO`, `CONT`, `CALL`).
-  - **Pasaje a Producción:** Las credenciales de producción son provistas exclusivamente por el titular en el VPS final vía variables de entorno.
+    Note over Comprador,MP: 2. Transacción Segura en Pasarela Externa (Checkout Pro)
+    Comprador->>MP: Ingresa tarjeta / cuotas / dinero en cuenta y confirma pago
+    MP-->>Comprador: Redirige a /checkout/resultado?status=approved&payment_id=XXX
 
-### 2. Architectural and Schema Decisions
-- **Mercado Pago Integration Mode:** Exclusively **Checkout Pro**. The customer completes credit/debit card data and installments inside Mercado Pago's hosted interface or modal. The application never collects, tokenizes, or stores credit card numbers, avoiding PCI-DSS overhead and legal liability.
-- **Payment Method Differentiation:** A dedicated payment method identifier is added to distinguish online Mercado Pago gateway payments from in-store physical QR counter payments in the database.
-- **Order Lifecycle States:** Web orders transition through an explicit lifecycle:
-  - Initial creation with stock reservation: Pending Payment (`PENDIENTE_PAGO`)
-  - Webhook payment approved: Paid (`PAGADO` / `COMPLETADA`)
-  - Order packaging and dispatch: In Preparation (`EN_PREPARACION`) ➔ In Transit / Ready for Pickup (`EN_CAMINO` / `LISTO_RETIRO`) ➔ Delivered (`ENTREGADO`)
-  - Expiration after 15 minutes or gateway rejection: Cancelled (`CANCELADA`)
-- **Configurable Free Shipping Threshold:** A single general free shipping threshold is maintained in the business configuration. Any order whose product subtotal meets or exceeds this threshold receives free shipping regardless of destination, while orders below the threshold apply the standard base rate for the chosen delivery method.
-- **Atomic Stock Reservation and Idempotent Confirmation:** Order creation reserves stock using pessimistic database row locking. When the payment webhook arrives, processing is wrapped in an atomic transaction that checks whether the payment was already recorded, ensuring idempotency.
-
-### 3. API and Payload Contracts
-
-```typescript
-// Input contract for creating an order with payment preference
-interface CreateWebOrderPreferenceInput {
-  customerName: string;
-  customerDni: string;
-  customerEmail: string;
-  customerPhone: string;
-  shippingMethod: "RETIRO_LOCAL" | "CADETERIA_FORMOSA" | "CORREO_ARGENTINO";
-  shippingAddress?: string;
-  shippingCity?: string;
-  shippingPostalCode?: string;
-  paymentMethod: "MERCADOPAGO" | "TRANSFERENCIA" | "EFECTIVO_LOCAL";
-  notes?: string;
-  items: Array<{
-    variantId: string;
-    quantity: number;
-  }>;
-}
-
-// Output contract returned to the checkout interface
-interface CreateWebOrderPreferenceResult {
-  orderCode: string;
-  saleId: string;
-  subtotal: number;
-  shippingCost: number;
-  total: number;
-  isFreeShipping: boolean;
-  initPoint?: string; // URL to open Mercado Pago Checkout Pro
-  reservationExpiresAt: string;
-}
+    Note over MP,DB: 3. Acreditación Asíncrona de Servidor a Servidor (Webhook)
+    MP->>Webhook: POST /api/webhooks/mercadopago (x-signature, data.id)
+    Webhook->>Webhook: Valida firma HMAC SHA-256 con MERCADOPAGO_WEBHOOK_SECRET
+    Webhook->>MP: new Payment(client).get(paymentId) para verificar estado real
+    MP-->>Webhook: Estado confirmado: "approved"
+    Webhook->>DB: prisma.$transaction: Control de Idempotencia (SalePayment)
+    Webhook->>DB: Actualiza Sale a "COMPLETADA"
+    Webhook->>DB: Inserta SalePayment (MERCADOPAGO_ONLINE, paymentId)
+    Webhook->>DB: Decrementa stockReserved y stockStore
+    Webhook->>DB: Registra InventoryMovement ("VENTA_WEB")
+    DB-->>Webhook: Transacción confirmada
+    Webhook-->>MP: HTTP 200 OK (Acreditación finalizada)
 ```
 
 ---
 
-## Testing Decisions
+### Diagrama 2: Máquina de Estados del Pedido y Stock Físico vs. Reservado
 
-### What Makes a Good Test
-Tests must verify external behavioral contracts, data integrity, and atomic guarantees without asserting on private internal implementations:
-- Verifying that an order subtotal reaching the threshold automatically sets shipping cost to zero.
-- Verifying that creating a web order with Mercado Pago increments reserved stock and establishes a 15-minute expiration window.
-- Verifying that an incoming approved payment webhook marks the order as paid, decrements physical store stock, and decrements reserved stock.
-- Verifying that duplicate webhook calls for the same payment ID do not duplicate payments or deduct stock twice (idempotency).
-- Verifying that an order cancellation releases reserved stock back to available stock.
+```mermaid
+stateDiagram-v2
+    [*] --> Carrito: Selección de productos
+    Carrito --> PendientePago: createGuestOrder() [Reserva stockReserved por 15 min]
 
-### Modules to Test
-- **Checkout Preference Action:** Validation of input payloads, dynamic freight calculation, threshold promotion rules, and preference generation.
-- **Webhook Route Handler:** Signature verification, payment status ingestion, transactional order transition, and stock deduction.
-- **Expiration and Rejection Logic:** Automatic stock restitution upon gateway rejection or timeout.
+    state PendientePago {
+        [*] --> GenerandoPreferencia: createMercadoPagoPreference()
+        GenerandoPreferencia --> EnPasarelaMP: Redirección a Checkout Pro
+        EnPasarelaMP --> EsperandoWebhook: Pago emitido por el comprador
+    }
 
-### Prior Art
-- Existing automated test suite for guest checkout and stock reservation (`test-rf15-guest-checkout.ts`).
-- Transaction and stock deduction integration tests (`test-stock-and-sales.ts`, `test-pos-full-flow.ts`).
+    PendientePago --> Completada: Webhook con status === "approved"\n[Libera stockReserved, descuenta stockStore y asienta VENTA_WEB]
+    PendientePago --> CanceladaRechazo: Webhook con status === "rejected" / "cancelled"\n[Restituye stockReserved al disponible]
+    PendientePago --> CanceladaTimeout: Cron releaseExpiredWebOrders() (> 15 min impaga)\n[Restituye stockReserved al disponible]
 
----
-
-## Out of Scope
-
-- **Custom / Transparent Card Tokenization (Bricks):** Custom credit card input fields directly on our website are excluded; all card data collection is handled by Mercado Pago Checkout Pro.
-- **Direct Merchant Bank Agreements:** Managing custom installment tables or bank discounts in local database tables is excluded; all financing is managed through the owner's Mercado Pago account.
-- **Multi-Vendor or Split Payments:** Payments are routed exclusively to the single Mercado Pago merchant account of Matacos Deportes.
-- **Automated Carrier API Integration:** Live real-time pricing queries via Correo Argentino / Andreani web services are out of scope; freight is computed via configurable base rates and free shipping rules.
+    Completada --> [*]
+    CanceladaRechazo --> [*]
+    CanceladaTimeout --> [*]
+```
 
 ---
 
-## Further Notes
+## 3. Mitigación de Riesgos del Proyecto (Informe Mensual Mes 3)
 
-- The Mercado Pago public key and access token are read from environment variables and must be configured with test credentials (`TEST-...`) during staging and production credentials for live launch.
-- The webhook endpoint must be publicly accessible via HTTPS in production, or tunneled via local tools during development.
+| ID Riesgo | Riesgo Identificado | Medida de Mitigación Implementada en RF-16 |
+| :---: | :--- | :--- |
+| **R-01** | **Sobreventas concurrentes entre Salón Saavedra 241 y Tienda Web** | 1. El stock se mantiene protegido bajo `stockReserved` durante los 15 minutos de la pasarela.<br/>2. La acreditación por webhook descuenta `stockStore` de forma atómica bajo `prisma.$transaction`.<br/>3. Si el pago es rechazado, las unidades regresan automáticamente al stock disponible. |
+| **R-04** | **Abandono de carrito por desconfianza o rechazo de tarjeta** | 1. Integración con Checkout Pro reconocido por el público argentino.<br/>2. Pantalla `/checkout/resultado` que explica el motivo de rechazo y permite reintentar sin perder los datos del carrito.<br/>3. Posibilidad de optar por transferencia bancaria o efectivo en local como alternativas. |
+| **R-05** | **Inconsistencias contables en arqueos de caja y liquidaciones** | 1. Creación del valor de enum **`MERCADOPAGO_ONLINE`** en `PaymentMethod`.<br/>2. Segregación contable estricta entre los cobros online de la tienda web y los cobros físicos por mostrador (`QR_MERCADOPAGO`). |
+
+---
+
+## 4. Estructura de Componentes y Código Desarrollado
+
+### 4.1. Base de Datos y Modelos ([`prisma/schema.prisma`](file:///c:/Users/della/matacos-deportes-app/prisma/schema.prisma))
+- **`PaymentMethod.MERCADOPAGO_ONLINE`:** Identificador exclusivo para los pagos acreditados a través de la pasarela web.
+
+### 4.2. Cliente SDK y Helpers de Seguridad ([`src/lib/mercadopago.ts`](file:///c:/Users/della/matacos-deportes-app/src/lib/mercadopago.ts))
+- **`mpClient`:** Instancia singleton configurada de `MercadoPagoConfig`.
+- **`verifyWebhookSignature(...)`:** Validador HMAC SHA-256 utilizando `WebhookSignatureValidator` del SDK oficial para proteger el endpoint contra ataques de spoofing.
+- **`getAppBaseUrl()`:** Resolución dinámica de la URL base para componer retornos y webhooks absolutos.
+
+### 4.3. Configuración Comercial y Fletes Dinámicos ([`src/config/company.ts`](file:///c:/Users/della/matacos-deportes-app/src/config/company.ts))
+- **`getShippingConfig()`:** Lectura de umbral de envío gratis y tarifas de flete base desde variables de entorno.
+- **`calculateShippingFee(method, subtotal)`:** Función pura que computa el costo final y aplica la bonificación al 100% si `subtotal >= threshold`.
+
+### 4.4. Server Actions de Pasarela ([`src/server/actions/ecommerce/mercadopagoActions.ts`](file:///c:/Users/della/matacos-deportes-app/src/server/actions/ecommerce/mercadopagoActions.ts))
+- **`createMercadoPagoPreference(orderIdOrCode)`:** Generación de la preferencia oficial con ítems, flete, comprador y expiración de 15 minutos.
+- **`processMercadoPagoPayment(paymentId)`:** Procesador transaccional con control de idempotencia, doble decremento de stock y auditoría en `InventoryMovement`.
+
+### 4.5. Endpoint de Notificaciones Webhook ([`src/app/api/webhooks/mercadopago/route.ts`](file:///c:/Users/della/matacos-deportes-app/src/app/api/webhooks/mercadopago/route.ts))
+- **`POST /api/webhooks/mercadopago`:** Route Handler Next.js 15 que valida firma, filtra eventos `payment` y dispara la acreditación.
+
+### 4.6. Interfaz de Usuario
+- **[`src/app/(ecommerce)/checkout/page.tsx`](file:///c:/Users/della/matacos-deportes-app/src/app/(ecommerce)/checkout/page.tsx)** y **[`CheckoutClient.tsx`](file:///c:/Users/della/matacos-deportes-app/src/app/(ecommerce)/checkout/CheckoutClient.tsx):** One-Page Checkout reactivo con precarga de datos y cálculo dinámico de envíos.
+- **[`src/app/(ecommerce)/checkout/resultado/page.tsx`](file:///c:/Users/della/matacos-deportes-app/src/app/(ecommerce)/checkout/resultado/page.tsx):** Pantalla unificada post-pago con vouchers de éxito, instrucciones diferidas y reintentos.
+
+---
+
+## 5. Configuración de Entornos y Servidor MCP Oficial
+
+### Variables de Entorno Requeridas (`.env`)
+```env
+# URL base de la aplicación web
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Credenciales de Mercado Pago (Sandbox en desarrollo, Producción en despliegue)
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-6382986052956974-102809-e4d81b4b3189b2c7d3dc9bb188008b3d-3800441556
+MERCADOPAGO_PUBLIC_KEY=APP_USR-1aecc40e-49e1-476a-af54-47cce78f24d5
+MERCADOPAGO_WEBHOOK_SECRET=your_webhook_secret_here
+
+# Fletes y Tarifas de Envío Dinámicas
+FREE_SHIPPING_THRESHOLD=100000
+CADETERIA_BASE_FEE=2500
+CORREO_ARGENTINO_BASE_FEE=7500
+```
+
+### Servidor Oficial Mercado Pago MCP (Model Context Protocol)
+El entorno de desarrollo cuenta con el servidor MCP oficial conectado y autenticado (`~/.gemini/config/mcp_config.json` y comando `agy mcp`):
+- Endpoint: `https://mcp.mercadopago.com/mcp`
+- Herramientas disponibles: `create_test_user`, `add_money_test_user`, `quality_checklist`, `save_webhook`, `search_documentation`.
+
+---
+
+## 6. Pruebas Automatizadas y Verificación de Calidad
+
+Se diseñó y ejecutó la suite de pruebas unitarias y de integración end-to-end en [`scripts/test-rf16-mercadopago-checkout.ts`](file:///c:/Users/della/matacos-deportes-app/scripts/test-rf16-mercadopago-checkout.ts):
+
+```bash
+pnpm run test:rf16
+```
+
+### Resultados de Ejecución
+```text
+================================================================================
+🧪 TEST SUITE: RF-16 PASARELA MERCADO PAGO CHECKOUT PRO Y WEBHOOKS ATÓMICOS
+================================================================================
+
+📦 Variante para pruebas: Crocband (Talle 10/12 (42) - Blanco/marino)
+   Stock Salón: 24 | Stock Reservado: 0
+
+🔹 1. Generación de Preferencia Checkout Pro (Server Action)
+  ✅ [PASS] Creación de Orden previa para pasarela
+  ✅ [PASS] Llamada exitosa a createMercadoPagoPreference
+  ✅ [PASS] Preferencia generada con ID: 3800441556-d2d4cd72-6f6a-45b5-b5d5-1de67f34d8cf
+  ✅ [PASS] URL de redirección Checkout Pro generada (init_point)
+  ✅ [PASS] URL Sandbox Checkout Pro generada (sandbox_init_point)
+
+🔹 2. Validación de Orden Inválida en createMercadoPagoPreference
+  ✅ [PASS] Rechazo adecuado de orden inexistente
+
+🔹 3. Validación de Firmas HMAC en verifyWebhookSignature
+  ✅ [PASS] Validación exitosa de firma legítima con secreto y timestamp
+  ✅ [PASS] Rechazo estricto de firma manipulada
+
+🔹 4. Procesamiento Atómico de Pago Aprobado (approved)
+  ✅ [PASS] processMercadoPagoPayment ejecutado con éxito
+  ✅ [PASS] Estado devuelto es 'approved'
+  ✅ [PASS] Venta transicionó a COMPLETADA
+  ✅ [PASS] Registro de pago insertado en SalePayment
+  ✅ [PASS] Método de pago registrado como MERCADOPAGO_ONLINE
+  ✅ [PASS] Código de referencia de MP almacenado correctamente
+  ✅ [PASS] stockReserved decrementado correctamente (0)
+  ✅ [PASS] stockStore físico decrementado correctamente (23)
+  ✅ [PASS] Movimiento de inventario auditado en InventoryMovement con tipo VENTA_WEB
+
+🔹 5. Control de Idempotencia (Notificaciones Duplicadas)
+  ✅ [PASS] Llamada duplicada respondida con éxito (HTTP 200)
+  ✅ [PASS] Detector de idempotencia activado (alreadyProcessed: true)
+  ✅ [PASS] No se crearon pagos duplicados en la base de datos
+  ✅ [PASS] El stock físico NO se descontó una segunda vez
+
+🔹 6. Procesamiento de Pago Rechazado (rejected) y Restitución de Stock
+  ✅ [PASS] Pago rechazado procesado con éxito
+  ✅ [PASS] Estado informado como rejected
+  ✅ [PASS] La venta transicionó a CANCELADA
+  ✅ [PASS] stockReserved fue restituido inmediatamente al stock disponible
+  ✅ [PASS] El stock físico permanece intacto tras el rechazo
+
+================================================================================
+📊 RESULTADOS RF-16: 26 Pasados | 0 Fallidos (100% Exitoso)
+================================================================================
+```
+
+* **Chequeo de Tipos TypeScript (`pnpm tsc --noEmit`):** 0 errores.
+* **Integración al Runner Maestro:** Registrado en `scripts/run-all-backend-tests.ts`.
