@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
+import {
+  loginCustomerAction,
+  registerCustomerAction,
+} from "@/server/actions/ecommerce/customerActions";
 
 interface AuthViewProps {
   initialMode?: "login" | "register";
@@ -34,8 +38,12 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
     message: string;
   } | null>(null);
 
+  const [isPending, startTransition] = useTransition();
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setNotification(null);
+
     if (!loginEmail || !loginPassword) {
       setNotification({
         type: "error",
@@ -50,30 +58,63 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
       });
       return;
     }
-    const rawName = loginEmail.split("@")[0] || "Lourdes";
-    const formattedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-    if (typeof window !== "undefined") {
+
+    startTransition(async () => {
       try {
-        localStorage.setItem("matacos_user", JSON.stringify({ name: formattedName, email: loginEmail }));
+        const res = await loginCustomerAction({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        });
+
+        if (res.success && res.data) {
+          const customerName = res.data.customer.name;
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(
+                "matacos_user",
+                JSON.stringify({ name: customerName, email: res.data.customer.email })
+              );
+            } catch (err) {
+              console.warn("Error saving user to localStorage", err);
+            }
+          }
+          setNotification({
+            type: "success",
+            message: `¡Bienvenido a Matacos Deportes, ${customerName}! Sesión iniciada correctamente.`,
+          });
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 800);
+        } else {
+          setNotification({
+            type: "error",
+            message: res.error || "Credenciales incorrectas.",
+          });
+        }
       } catch (err) {
-        console.warn("Error saving user to localStorage", err);
+        setNotification({
+          type: "error",
+          message: "Ocurrió un error al iniciar sesión.",
+        });
       }
-    }
-    setNotification({
-      type: "success",
-      message: `¡Bienvenido a Matacos Deportes, ${formattedName}! Sesión iniciada correctamente.`,
     });
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1000);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setNotification(null);
+
     if (!regNombre || !regApellido || !regEmail || !regPassword) {
       setNotification({
         type: "error",
         message: "Por favor complete los campos obligatorios del registro.",
+      });
+      return;
+    }
+    if (regPassword.length < 6) {
+      setNotification({
+        type: "error",
+        message: "La contraseña debe tener al menos 6 caracteres.",
       });
       return;
     }
@@ -84,20 +125,47 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
       });
       return;
     }
-    if (typeof window !== "undefined") {
+
+    startTransition(async () => {
       try {
-        localStorage.setItem("matacos_user", JSON.stringify({ name: regNombre, email: regEmail }));
+        const fullName = `${regNombre.trim()} ${regApellido.trim()}`.trim();
+        const res = await registerCustomerAction({
+          name: fullName,
+          email: regEmail.trim(),
+          password: regPassword,
+        });
+
+        if (res.success && res.data) {
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(
+                "matacos_user",
+                JSON.stringify({ name: res.data.customer.name, email: res.data.customer.email })
+              );
+            } catch (err) {
+              console.warn("Error saving user to localStorage", err);
+            }
+          }
+          setNotification({
+            type: "success",
+            message: `¡Cuenta creada con éxito, ${res.data.customer.name}! Redirigiendo a la tienda...`,
+          });
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 800);
+        } else {
+          setNotification({
+            type: "error",
+            message: res.error || "No se pudo registrar la cuenta.",
+          });
+        }
       } catch (err) {
-        console.warn("Error saving user to localStorage", err);
+        setNotification({
+          type: "error",
+          message: "Ocurrió un error al crear la cuenta.",
+        });
       }
-    }
-    setNotification({
-      type: "success",
-      message: `¡Cuenta creada con éxito, ${regNombre}! Redirigiendo a la tienda...`,
     });
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1000);
   };
 
   return (
@@ -160,9 +228,7 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
             {/* Botón Continuar con Google */}
             <button
               type="button"
-              onClick={() =>
-                alert("Inicio de sesión con Google disponible próximamente.")
-              }
+              onClick={() => { window.location.href = "/api/auth/customer/google"; }}
               className="w-full py-2 sm:py-2.5 px-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800 text-xs sm:text-sm font-medium flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer active:scale-[0.99]"
             >
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
@@ -281,9 +347,17 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
               {/* Botón Iniciar Sesión */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1"
+                disabled={isPending}
+                className="w-full py-2.5 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1 flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                Iniciar sesión
+                {isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Iniciando sesión...</span>
+                  </>
+                ) : (
+                  <span>Iniciar sesión</span>
+                )}
               </button>
             </form>
 
