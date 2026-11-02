@@ -7,6 +7,7 @@
  * 4. Gestión Transaccional de Productos, Variantes y Baja Lógica (RF-01, RF-02)
  * 5. Control de Stock Dual, Movimientos Atómicos y Ventas (RF-03, CU-INV-03, CU-INV-04)
  * 6. Ingestión Masiva y Carga Progresiva de Inventario (RF-04, CU-INV-02)
+ * 7. Portal de Clientes, Autenticación Web, Favoritos y Seguimiento (RF-29)
  */
 
 import { execSync } from "child_process";
@@ -56,18 +57,23 @@ const SUITES = [
     rf: "RF-16",
     script: "scripts/test-rf16-mercadopago-checkout.ts",
   },
+  {
+    name: "Portal de Clientes, Favoritos y Seguimiento Web",
+    rf: "RF-29",
+    script: "scripts/test-rf29-customer-portal.ts",
+  },
 ];
 
 async function main() {
   console.log("================================================================================");
-  console.log("🚀 EJECUCIÓN MAESTRA DE PRUEBAS DE BACKEND — MATACOS DEPORTES (MÓDULO 1)");
+  console.log("🚀 EJECUCIÓN MAESTRA DE PRUEBAS DE BACKEND — MATACOS DEPORTES");
   console.log("================================================================================\n");
 
   const results: SuiteResult[] = [];
   const globalStart = Date.now();
 
   for (let i = 0; i < SUITES.length; i++) {
-    const suite = SUITES[i];
+    const suite = SUITES[i]!;
     console.log(`[${i + 1}/${SUITES.length}] Ejecutando: ${suite.name} (${suite.rf})...`);
 
     const start = Date.now();
@@ -81,9 +87,14 @@ async function main() {
       });
       success = true;
       console.log(`   ✅ SUPERADO (${Date.now() - start} ms)\n`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       success = false;
-      output = error.stdout?.toString() || error.stderr?.toString() || error.message;
+      const errObj = error as { stdout?: Buffer; stderr?: Buffer; message?: string };
+      output =
+        errObj.stdout?.toString() ||
+        errObj.stderr?.toString() ||
+        errObj.message ||
+        "Error en ejecución de suite";
       console.error(`   ❌ FALLÓ (${Date.now() - start} ms)\n`);
     }
 
@@ -106,7 +117,7 @@ async function main() {
   console.log("================================================================================");
   results.forEach((r, idx) => {
     const badge = r.success ? "✅ PASS" : "❌ FAIL";
-    console.log(`${idx + 1}. [${badge}] ${r.rf.padEnd(20)} | ${r.name.padEnd(45)} (${r.durationMs} ms)`);
+    console.log(`${idx + 1}. [${badge}] ${r.rf.padEnd(20)} | ${r.name.padEnd(48)} (${r.durationMs} ms)`);
   });
 
   console.log("--------------------------------------------------------------------------------");

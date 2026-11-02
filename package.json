@@ -17,7 +17,8 @@
     "db:studio": "prisma studio",
     "test:backend": "tsx scripts/run-all-backend-tests.ts",
     "test:rf11": "tsx scripts/test-rf11-cash-shifts.ts",
-    "test:rf16": "tsx scripts/test-rf16-mercadopago-checkout.ts"
+    "test:rf16": "tsx scripts/test-rf16-mercadopago-checkout.ts",
+    "test:rf29": "tsx scripts/test-rf29-customer-portal.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

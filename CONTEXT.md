@@ -88,3 +88,20 @@ _Avoid_: Tarifa plana fija sin promoción, flete estático rígido.
 ### Orden Web
 Transacción comercial generada en la tienda online (`channel: "WEB"`). Mantiene reserva temporal de existencias durante el checkout y transiciona por un ciclo de vida logístico auditable (`PENDIENTE_PAGO` ➔ `PAGADA` ➔ `EN_PREPARACION` ➔ `EN_CAMINO` / `LISTO_RETIRO` ➔ `ENTREGADA`).  
 _Avoid_: Preventa de mostrador, pedido sin reserva de stock.
+
+## 5. E-Commerce: Portal de Clientes, Favoritos y Seguimiento (RF-29)
+
+### Cliente Web (`Customer`)
+Comprador registrado de la tienda online con credenciales propias (email y contraseña cifrada con `bcryptjs`), desacoplado funcional y jerárquicamente de la entidad `User` del personal del local. Su sesión opera con una cookie independiente `matacos_customer_token` (JWT HttpOnly).
+
+### Lista de Favoritos (`Wishlist / Favorite`)
+Colección personalizada de artículos guardados por el cliente a nivel de Producto base (`Product`). Permite preservar indumentaria, calzado y accesorios de interés, resolviendo la selección específica de variantes (talle y color) al momento de transferir el ítem al carrito de compras.
+
+### Orden Web y Trazabilidad de Envío
+Toda transacción comercial generada a través del canal digital (`channel: "WEB"`). Expone un flujo de estados logísticos transparentes para el cliente (*Pendiente de Pago*, *En Preparación en Saavedra 241*, *Listo para Retiro / En Camino*, *Entregado*).
+
+### Código y Enlace de Rastreo Logístico
+Mecanismo de simplificación operativa para envíos nacionales. El sistema almacena el código de seguimiento de despacho (`shippingTrackingCode`) y proporciona al comprador un botón con enlace directo a la plataforma pública de seguimiento de Correo Argentino (`https://www.correoargentino.com.ar/formularios/ondt`). Para envíos por cadetería dentro de Formosa Capital, el estado indica "En camino con cadetería" con el canal de atención por WhatsApp para coordinar la franja de entrega.
+
+### Separación Estricta de Canales de Venta
+Las operaciones realizadas de forma presencial en el local físico de Saavedra 241 (`channel: "MOSTRADOR"`) se respaldan exclusivamente mediante el tique térmico impreso entregado en mano al comprador y quedan bajo registro de auditoría interna de la caja. El portal web del cliente está destinado estrictamente a la trazabilidad y registro de sus compras online (`channel: "WEB"`).
