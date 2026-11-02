@@ -1,7 +1,15 @@
+import React, { Suspense } from "react";
 import { Metadata } from "next";
-import { getPublicCatalog, getCatalogFacets } from "@/server/actions/ecommerce/catalogActions";
+import {
+  getPublicCatalog,
+  getCatalogFacets,
+} from "@/server/actions/ecommerce/catalogActions";
 import { CatalogView } from "@/components/ecommerce/catalog/CatalogView";
-import type { CatalogFilterInput } from "@/schemas/ecommerce";
+import {
+  EcommerceGenderEnum,
+  CatalogSortEnum,
+  type CatalogFilterInput,
+} from "@/schemas/ecommerce";
 import type {
   CatalogPagination,
   CatalogFacetsResponse,
@@ -23,21 +31,31 @@ interface CatalogoPageProps {
 export default async function CatalogoPage({ searchParams }: CatalogoPageProps) {
   const resolvedParams = await searchParams;
 
-  // Extraer y normalizar parámetros de URL
   const getString = (val: string | string[] | undefined) =>
     Array.isArray(val) ? val[0] : val;
+
+  const rawGender = getString(resolvedParams.genero)?.trim().toUpperCase();
+  const parsedGender = EcommerceGenderEnum.safeParse(rawGender);
+
+  const rawSort = getString(resolvedParams.sort)?.trim();
+  const parsedSort = CatalogSortEnum.safeParse(rawSort);
 
   const filters: CatalogFilterInput = {
     disciplineSlug: getString(resolvedParams.disciplina) || undefined,
     categorySlug: getString(resolvedParams.categoria) || undefined,
     brandSlug: getString(resolvedParams.marca) || undefined,
-    gender: (getString(resolvedParams.genero) as any) || undefined,
+    gender: parsedGender.success ? parsedGender.data : undefined,
     size: getString(resolvedParams.talle) || undefined,
     color: getString(resolvedParams.color) || undefined,
-    minPrice: resolvedParams.minPrice ? Number(getString(resolvedParams.minPrice)) : undefined,
-    maxPrice: resolvedParams.maxPrice ? Number(getString(resolvedParams.maxPrice)) : undefined,
-    search: getString(resolvedParams.search) || getString(resolvedParams.q) || undefined,
-    sort: (getString(resolvedParams.sort) as any) || "newest",
+    minPrice: resolvedParams.minPrice
+      ? Number(getString(resolvedParams.minPrice))
+      : undefined,
+    maxPrice: resolvedParams.maxPrice
+      ? Number(getString(resolvedParams.maxPrice))
+      : undefined,
+    search:
+      getString(resolvedParams.search) || getString(resolvedParams.q) || undefined,
+    sort: parsedSort.success ? parsedSort.data : "newest",
     page: resolvedParams.page ? Number(getString(resolvedParams.page)) : 1,
     limit: resolvedParams.limit ? Number(getString(resolvedParams.limit)) : 12,
   };
@@ -66,27 +84,36 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
       getCatalogFacets(),
     ]);
 
-    const products = catalogRes.success && catalogRes.data ? catalogRes.data.products : [];
-    const pagination = catalogRes.success && catalogRes.data ? catalogRes.data.pagination : defaultPagination;
-    const facets = facetsRes.success && facetsRes.data ? facetsRes.data : defaultFacets;
+    const products =
+      catalogRes.success && catalogRes.data ? catalogRes.data.products : [];
+    const pagination =
+      catalogRes.success && catalogRes.data
+        ? catalogRes.data.pagination
+        : defaultPagination;
+    const facets =
+      facetsRes.success && facetsRes.data ? facetsRes.data : defaultFacets;
 
     return (
-      <CatalogView
-        products={products}
-        pagination={pagination}
-        facets={facets}
-        activeFilters={filters}
-      />
+      <Suspense fallback={null}>
+        <CatalogView
+          products={products}
+          pagination={pagination}
+          facets={facets}
+          activeFilters={filters}
+        />
+      </Suspense>
     );
   } catch (error) {
     console.error("Error al renderizar el catálogo:", error);
     return (
-      <CatalogView
-        products={[]}
-        pagination={defaultPagination}
-        facets={defaultFacets}
-        activeFilters={filters}
-      />
+      <Suspense fallback={null}>
+        <CatalogView
+          products={[]}
+          pagination={defaultPagination}
+          facets={defaultFacets}
+          activeFilters={filters}
+        />
+      </Suspense>
     );
   }
 }

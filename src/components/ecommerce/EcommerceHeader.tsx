@@ -24,6 +24,9 @@ import {
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
+import { useCartStore } from "@/store/cartStore";
+import { useCustomerStore } from "@/store/customerStore";
+import { EcommerceCartDrawer } from "./EcommerceCartDrawer";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -43,8 +46,8 @@ interface EcommerceHeaderProps {
 }
 
 export function EcommerceHeader({
-  cartCount = 0,
-  wishlistCount = 0,
+  cartCount,
+  wishlistCount,
   onOpenCart,
   onOpenSearch,
   onSearchChange,
@@ -57,8 +60,15 @@ export function EcommerceHeader({
   const [isSearching, setIsSearching] = useState(false);
   const [, startTransition] = useTransition();
 
+  const { items: cartItems, hasHydrated, openDrawer } = useCartStore();
+  const { customer, fetchCustomer } = useCustomerStore();
+
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void fetchCustomer();
+  }, [fetchCustomer]);
 
   // Close search and dropdown when clicking outside
   useEffect(() => {
@@ -136,374 +146,419 @@ export function EcommerceHeader({
     });
   };
 
+  const storeCartCount = hasHydrated
+    ? cartItems.reduce((sum, item) => sum + item.quantity, 0)
+    : 0;
+  const effectiveCartCount = cartCount !== undefined ? cartCount : storeCartCount;
+
+  const effectiveWishlistCount =
+    wishlistCount !== undefined
+      ? wishlistCount
+      : customer?.favoriteProductIds?.length ?? 0;
+
+  const firstName = customer?.name ? customer.name.trim().split(/\s+/)[0] : null;
+
   return (
-    <header className="w-full bg-white sticky top-0 z-40 shadow-xs border-b border-slate-100">
-      {/* 1. Top Announcement Marquee Ticker Tape */}
-      <div className="bg-[#06241d] text-white text-[11px] sm:text-xs py-2.5 overflow-hidden border-b border-emerald-950/80 select-none relative group">
-        <div className="animate-marquee flex items-center">
-          {[...ANNOUNCEMENTS, ...ANNOUNCEMENTS].map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={idx}
-                className="flex items-center gap-3 px-16 sm:px-24 shrink-0 transition-opacity hover:opacity-100 cursor-default"
-              >
-                <Icon
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    item.highlight ? "text-[#00D615]" : "text-emerald-400"
-                  }`}
-                />
-                <span
-                  className={`tracking-wider whitespace-nowrap ${
-                    item.highlight
-                      ? "font-bold text-[#c2f25b]"
-                      : "font-medium text-slate-100"
-                  }`}
+    <>
+      <header className="w-full bg-white sticky top-0 z-40 shadow-xs border-b border-slate-100">
+        {/* 1. Top Announcement Marquee Ticker Tape */}
+        <div className="bg-[#06241d] text-white text-[11px] sm:text-xs py-2.5 overflow-hidden border-b border-emerald-950/80 select-none relative group">
+          <div className="animate-marquee flex items-center">
+            {[...ANNOUNCEMENTS, ...ANNOUNCEMENTS].map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 px-16 sm:px-24 shrink-0 transition-opacity hover:opacity-100 cursor-default"
                 >
-                  {item.text}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2. Main Navigation Bar */}
-      <div className="w-full px-4 sm:px-8 lg:px-12 xl:px-16 h-20 flex items-center justify-between gap-6">
-        {/* Left: Mobile hamburger & Brand Logo */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="lg:hidden p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            aria-label="Abrir menú"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-
-          <Link href="/" className="flex items-center group">
-            <img
-              src="/matacos-deportes-logo.png"
-              alt="Matacos Deportes"
-              className="h-10 sm:h-12 w-auto object-contain transition-transform group-hover:scale-102"
-            />
-          </Link>
-        </div>
-
-        {/* Center: Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
-          <Link
-            href="/"
-            className="text-[#0d4a36] border-b-2 border-[#00D615] pb-1 hover:text-[#00A811] transition-colors"
-          >
-            INICIO
-          </Link>
-          <Link
-            href="/catalogo"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-          >
-            CATÁLOGO
-          </Link>
-          <a
-            href="#disciplinas"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-          >
-            DISCIPLINAS
-          </a>
-          <a
-            href="#productos"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-          >
-            DESTACADOS
-          </a>
-          <a
-            href="#ofertas"
-            className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
-          >
-            <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
-            <span>OFERTAS</span>
-          </a>
-        </nav>
-
-        {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
-        <div className="flex items-center gap-2 sm:gap-3 text-slate-700 relative">
-          {/* Help / WhatsApp Support */}
-          <a
-            href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20un%20producto"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
-            title="Atención WhatsApp"
-          >
-            <MessageCircle className="w-5 h-5" />
-          </a>
-
-          {/* Horizontal Expanding Search Bar + Predictive Dropdown */}
-          <div
-            ref={searchContainerRef}
-            className={`relative flex items-center transition-all duration-300 ease-in-out ${
-              isSearchOpen
-                ? "w-56 sm:w-80 md:w-96 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
-                : "w-9 h-9 justify-center"
-            }`}
-          >
-            {isSearchOpen ? (
-              <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
-                {isSearching ? (
-                  <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
-                ) : (
-                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                )}
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (onSearchChange) onSearchChange(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setIsSearchOpen(false);
-                      setPredictiveResults([]);
-                    }
-                  }}
-                  placeholder="Buscar por nombre, código o marca..."
-                  className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setPredictiveResults([]);
-                      if (onSearchChange) onSearchChange("");
-                      searchInputRef.current?.focus();
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
-                    title="Borrar texto"
+                  <Icon
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      item.highlight ? "text-[#00D615]" : "text-emerald-400"
+                    }`}
+                  />
+                  <span
+                    className={`tracking-wider whitespace-nowrap ${
+                      item.highlight
+                        ? "font-bold text-[#c2f25b]"
+                        : "font-medium text-slate-100"
+                    }`}
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setPredictiveResults([]);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
-                    title="Cerrar buscador"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </form>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsSearchOpen(true);
-                  if (onOpenSearch) onOpenSearch();
-                }}
-                className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-                title="Buscar productos"
-                aria-label="Buscar productos"
-              >
-                <Search className="w-5 h-5" />
-              </button>
-            )}
-
-            {/* Predictive Results Dropdown Popover */}
-            {isSearchOpen && searchQuery.trim().length >= 2 && (
-              <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  <span>Sugerencias en tiempo real</span>
-                  {isSearching && (
-                    <span className="flex items-center gap-1 text-[#00A811]">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Buscando...</span>
-                    </span>
-                  )}
+                    {item.text}
+                  </span>
                 </div>
-
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                  {predictiveResults.length > 0 ? (
-                    predictiveResults.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleSelectPredictiveItem(item.id)}
-                        className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
-                      >
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 shrink-0 overflow-hidden border border-slate-200/60 p-1 flex items-center justify-center">
-                          <img
-                            src={item.imageUrl || "/placeholder-product.svg"}
-                            alt={item.name}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/placeholder-product.svg";
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
-                            <span>{item.brandName}</span>
-                            <span>•</span>
-                            <span>{item.categoryName}</span>
-                          </div>
-                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#00A811] transition-colors">
-                            {item.name}
-                          </p>
-                          <div className="flex items-center justify-between mt-0.5">
-                            <span className="text-xs font-black text-[#00A811]">
-                              {formatCurrency(item.price)}
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              {item.availableStock > 0 ? `${item.availableStock} disp.` : "Agotado"}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : !isSearching ? (
-                    <div className="p-6 text-center text-xs text-slate-500 space-y-1">
-                      <p className="font-bold text-slate-700">No encontramos coincidencias para "{searchQuery}"</p>
-                      <p className="text-[11px] text-slate-400">Probá buscando por marca (ej. Speedo, Mikasa) o categoría.</p>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
-                  <Link
-                    href={`/catalogo?search=${encodeURIComponent(searchQuery.trim())}`}
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setPredictiveResults([]);
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 hover:text-[#00A811] transition-colors w-full py-1.5"
-                  >
-                    <span>Ver todos los resultados en el catálogo</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            )}
+              );
+            })}
           </div>
-
-          {/* Wishlist */}
-          <button
-            className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors relative cursor-pointer"
-            title="Favoritos"
-          >
-            <Heart className="w-5 h-5" />
-            {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
-
-          {/* User Account / Admin Link */}
-          <Link
-            href="/admin"
-            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-            title="Mi Cuenta / Gestión"
-          >
-            <User className="w-5 h-5" />
-          </Link>
-
-          {/* Cart with Badge */}
-          <button
-            onClick={onOpenCart}
-            className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
-            title="Carrito de compras"
-          >
-            <ShoppingBag className="w-5 h-5" />
-            {cartCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-[#00D615] text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs">
-                {cartCount}
-              </span>
-            )}
-          </button>
         </div>
-      </div>
 
-      {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl z-50 flex flex-col p-6 animate-in slide-in-from-left duration-300">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        {/* 2. Main Navigation Bar */}
+        <div className="w-full px-4 sm:px-8 lg:px-12 xl:px-16 h-20 flex items-center justify-between gap-6">
+          {/* Left: Mobile hamburger & Brand Logo */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              aria-label="Abrir menú"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+
+            <Link href="/" className="flex items-center group">
               <img
                 src="/matacos-deportes-logo.png"
                 alt="Matacos Deportes"
-                className="h-8 w-auto object-contain"
+                className="h-10 sm:h-12 w-auto object-contain transition-transform group-hover:scale-102"
               />
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            </Link>
+          </div>
+
+          {/* Center: Desktop Navigation Links */}
+          <nav className="hidden lg:flex items-center gap-7 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
+            <Link
+              href="/"
+              className="text-[#0d4a36] border-b-2 border-[#00D615] pb-1 hover:text-[#00A811] transition-colors"
+            >
+              INICIO
+            </Link>
+            <Link
+              href="/catalogo"
+              className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            >
+              CATÁLOGO
+            </Link>
+            <Link
+              href="/#disciplinas"
+              className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            >
+              DISCIPLINAS
+            </Link>
+            <Link
+              href="/seguimiento"
+              className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            >
+              SEGUIMIENTO
+            </Link>
+            <Link
+              href="/#ofertas"
+              className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
+            >
+              <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
+              <span>OFERTAS</span>
+            </Link>
+          </nav>
+
+          {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
+          <div className="flex items-center gap-2 sm:gap-3 text-slate-700 relative">
+            {/* Help / WhatsApp Support */}
+            <a
+              href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20un%20producto"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
+              title="Atención WhatsApp"
+            >
+              <MessageCircle className="w-5 h-5" />
+            </a>
+
+            {/* Horizontal Expanding Search Bar + Predictive Dropdown */}
+            <div
+              ref={searchContainerRef}
+              className={`relative flex items-center transition-all duration-300 ease-in-out ${
+                isSearchOpen
+                  ? "w-56 sm:w-80 md:w-96 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
+                  : "w-9 h-9 justify-center"
+              }`}
+            >
+              {isSearchOpen ? (
+                <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
+                  {isSearching ? (
+                    <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
+                  ) : (
+                    <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                  )}
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (onSearchChange) onSearchChange(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setIsSearchOpen(false);
+                        setPredictiveResults([]);
+                      }
+                    }}
+                    placeholder="Buscar por nombre, código o marca..."
+                    className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setPredictiveResults([]);
+                        if (onSearchChange) onSearchChange("");
+                        searchInputRef.current?.focus();
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
+                      title="Borrar texto"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSearchOpen(false);
+                        setPredictiveResults([]);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
+                      title="Cerrar buscador"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSearchOpen(true);
+                    if (onOpenSearch) onOpenSearch();
+                  }}
+                  className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                  title="Buscar productos"
+                  aria-label="Buscar productos"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Predictive Results Dropdown Popover */}
+              {isSearchOpen && searchQuery.trim().length >= 2 && (
+                <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <span>Sugerencias en tiempo real</span>
+                    {isSearching && (
+                      <span className="flex items-center gap-1 text-[#00A811]">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Buscando...</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {predictiveResults.length > 0 ? (
+                      predictiveResults.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleSelectPredictiveItem(item.id)}
+                          className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors cursor-pointer group"
+                        >
+                          <div className="w-12 h-12 rounded-lg bg-slate-100 shrink-0 overflow-hidden border border-slate-200/60 p-1 flex items-center justify-center">
+                            <img
+                              src={item.imageUrl || "/placeholder-product.svg"}
+                              alt={item.name}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
+                              <span>{item.brandName}</span>
+                              <span>•</span>
+                              <span>{item.categoryName}</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#00A811] transition-colors">
+                              {item.name}
+                            </p>
+                            <div className="flex items-center justify-between mt-0.5">
+                              <span className="text-xs font-black text-[#00A811]">
+                                {formatCurrency(item.price)}
+                              </span>
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                {item.availableStock > 0
+                                  ? `${item.availableStock} disp.`
+                                  : "Agotado"}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    ) : !isSearching ? (
+                      <div className="p-6 text-center text-xs text-slate-500 space-y-1">
+                        <p className="font-bold text-slate-700">
+                          No encontramos coincidencias para &quot;{searchQuery}&quot;
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Probá buscando por marca (ej. Speedo, Mikasa) o categoría.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                    <Link
+                      href={`/catalogo?search=${encodeURIComponent(searchQuery.trim())}`}
+                      onClick={() => {
+                        setIsSearchOpen(false);
+                        setPredictiveResults([]);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 hover:text-[#00A811] transition-colors w-full py-1.5"
+                    >
+                      <span>Ver todos los resultados en el catálogo</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <nav className="flex flex-col gap-4 mt-6 text-sm font-bold uppercase tracking-wider text-slate-800">
-              <Link
-                href="/"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-[#00A811] py-2 border-b border-slate-50"
-              >
-                INICIO
-              </Link>
-              <Link
-                href="/catalogo"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
-              >
-                CATÁLOGO
-              </Link>
-              <a
-                href="#disciplinas"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
-              >
-                DISCIPLINAS
-              </a>
-              <a
-                href="#productos"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
-              >
-                PRODUCTOS
-              </a>
-              <a
-                href="#ofertas"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
-              >
-                <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
-                <span>OFERTAS</span>
-              </a>
-            </nav>
+            {/* Wishlist -> links to /cuenta?tab=favoritos */}
+            <Link
+              href={customer ? "/cuenta?tab=favoritos" : "/cuenta"}
+              className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors relative cursor-pointer"
+              title="Mis Favoritos"
+            >
+              <Heart className="w-5 h-5" />
+              {effectiveWishlistCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {effectiveWishlistCount}
+                </span>
+              )}
+            </Link>
 
-            <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
-              <Link
-                href="/admin"
-                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
-              >
-                <User className="w-4 h-4" />
-                <span>Panel de Gestión</span>
-              </Link>
-              <p className="text-[11px] text-center text-slate-400">
-                Saavedra 241, Formosa Capital
-              </p>
-            </div>
+            {/* Customer Account Link */}
+            <Link
+              href="/cuenta"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-colors ${
+                customer
+                  ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200/80"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 p-2"
+              }`}
+              title={customer ? `Mi Cuenta (${customer.name})` : "Iniciar sesión / Mi Cuenta"}
+            >
+              <User className={`w-5 h-5 ${customer ? "text-[#00A811]" : ""}`} />
+              {firstName && (
+                <span className="hidden sm:inline text-xs font-bold max-w-24 truncate">
+                  {firstName}
+                </span>
+              )}
+            </Link>
+
+            {/* Cart with Badge */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenCart) {
+                  onOpenCart();
+                } else {
+                  openDrawer();
+                }
+              }}
+              className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
+              title="Carrito de compras"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {effectiveCartCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 bg-[#00D615] text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs">
+                  {effectiveCartCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
-      )}
-    </header>
+
+        {/* Mobile Drawer Menu */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl z-50 flex flex-col p-6 animate-in slide-in-from-left duration-300">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <img
+                  src="/matacos-deportes-logo.png"
+                  alt="Matacos Deportes"
+                  className="h-8 w-auto object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="flex flex-col gap-4 mt-6 text-sm font-bold uppercase tracking-wider text-slate-800">
+                <Link
+                  href="/"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-[#00A811] py-2 border-b border-slate-50"
+                >
+                  INICIO
+                </Link>
+                <Link
+                  href="/catalogo"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                >
+                  CATÁLOGO
+                </Link>
+                <Link
+                  href="/#disciplinas"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                >
+                  DISCIPLINAS
+                </Link>
+                <Link
+                  href="/seguimiento"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2 hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                >
+                  <PackageCheck className="w-4 h-4 text-[#00A811]" />
+                  <span>SEGUIMIENTO DE PEDIDO</span>
+                </Link>
+                <Link
+                  href="/#ofertas"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
+                >
+                  <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+                  <span>OFERTAS</span>
+                </Link>
+              </nav>
+
+              <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
+                <Link
+                  href="/cuenta"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{customer ? `Mi Cuenta (${firstName})` : "Iniciar Sesión / Cuenta"}</span>
+                </Link>
+                <p className="text-[11px] text-center text-slate-400">
+                  Saavedra 241, Formosa Capital
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Global Slide-Over Cart Drawer */}
+      {!onOpenCart && <EcommerceCartDrawer />}
+    </>
   );
 }

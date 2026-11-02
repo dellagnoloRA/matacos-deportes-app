@@ -555,7 +555,26 @@ async function main() {
     },
   });
 
-  console.log("¡Esquema de seguridad, perfiles y permisos RF-23 sembrado con éxito!");
+  // Cliente de prueba E-commerce (RF-29 / Checkout)
+  const hashedCustomerPassword = await bcrypt.hash("cliente123", 10);
+  await prisma.customer.upsert({
+    where: { email: "cliente@matacos.com.ar" },
+    update: {
+      password: hashedCustomerPassword,
+    },
+    create: {
+      name: "Juan Pérez",
+      email: "cliente@matacos.com.ar",
+      password: hashedCustomerPassword,
+      dni: "38123456",
+      phone: "3704556677",
+      defaultAddress: "Av. 25 de Mayo 850",
+      defaultCity: "Formosa",
+      defaultPostalCode: "3600",
+    },
+  });
+
+  console.log("¡Esquema de seguridad, perfiles, cliente demo y permisos RF-23 sembrado con éxito!");
 }
 
 main()

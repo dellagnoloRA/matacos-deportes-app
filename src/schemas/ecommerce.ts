@@ -216,3 +216,107 @@ export const GuestCheckoutSchema = z
 
 export type GuestCheckoutInput = z.input<typeof GuestCheckoutSchema>;
 export type GuestCheckoutOutput = z.output<typeof GuestCheckoutSchema>;
+
+
+/**
+ * ============================================================================
+ * ESQUEMAS PARA SELECCIÓN Y EJECUCIÓN DE PAGO WEB (PASO 2 DEL CHECKOUT)
+ * ============================================================================
+ */
+
+export const WebPaymentOptionEnum = z.enum(
+  ["TARJETA_CREDITO", "TARJETA_DEBITO", "TRANSFERENCIA", "PAGO_LOCAL"],
+  {
+    errorMap: () => ({
+      message:
+        "Medio de pago inválido. Use TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA o PAGO_LOCAL",
+    }),
+  }
+);
+export type WebPaymentOption = z.infer<typeof WebPaymentOptionEnum>;
+
+export const WebCardBrandEnum = z.enum(
+  ["VISA", "MASTERCARD", "NARANJA_X", "CABAL"],
+  {
+    errorMap: () => ({
+      message: "Marca de tarjeta inválida. Use VISA, MASTERCARD, NARANJA_X o CABAL",
+    }),
+  }
+);
+export type WebCardBrand = z.infer<typeof WebCardBrandEnum>;
+
+export const ProcessWebOrderPaymentSchema = z
+  .object({
+    orderCode: z
+      .string()
+      .trim()
+      .min(5, "El código de orden es obligatorio"),
+    verification: z
+      .string()
+      .trim()
+      .min(4, "La verificación (DNI o correo del comprador) es obligatoria"),
+    paymentOption: WebPaymentOptionEnum,
+    cardBrand: WebCardBrandEnum.optional(),
+    cardHolderName: z.string().trim().max(120).optional(),
+    cardLast4: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{4}$/, "Los últimos 4 dígitos de la tarjeta son inválidos")
+      .optional(),
+    installments: z.coerce.number().int().min(1).max(12).default(1),
+    simulateDecline: z.boolean().optional().default(false),
+    transferReference: z.string().trim().max(80).optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    const isCard =
+      data.paymentOption === "TARJETA_CREDITO" ||
+      data.paymentOption === "TARJETA_DEBITO";
+
+    if (isCard) {
+      if (!data.cardBrand) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Seleccioná la marca de tu tarjeta",
+          path: ["cardBrand"],
+        });
+      }
+      if (!data.cardHolderName || data.cardHolderName.trim().length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ingresá el nombre y apellido del titular de la tarjeta",
+          path: ["cardHolderName"],
+        });
+      }
+      if (!data.cardLast4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Completá los datos de la tarjeta (16 dígitos)",
+          path: ["cardLast4"],
+        });
+      }
+      if (data.paymentOption === "TARJETA_DEBITO" && data.installments !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Los pagos con tarjeta de débito solo admiten 1 pago",
+          path: ["installments"],
+        });
+      }
+      if (
+        data.paymentOption === "TARJETA_CREDITO" &&
+        ![1, 3, 6].includes(data.installments)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Las cuotas habilitadas son 1, 3 o 6 cuotas",
+          path: ["installments"],
+        });
+      }
+    }
+  });
+
+export type ProcessWebOrderPaymentInput = z.input<
+  typeof ProcessWebOrderPaymentSchema
+>;
+export type ProcessWebOrderPaymentOutput = z.output<
+  typeof ProcessWebOrderPaymentSchema
+>;

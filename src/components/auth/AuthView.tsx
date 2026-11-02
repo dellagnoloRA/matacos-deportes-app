@@ -1,28 +1,43 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
+import {
+  loginCustomerAction,
+  registerCustomerAction,
+} from "@/server/actions/ecommerce/customerActions";
+import { useCustomerStore } from "@/store/customerStore";
 
 interface AuthViewProps {
   initialMode?: "login" | "register";
+  redirectTo?: string;
+  initialError?: string;
 }
 
-export function AuthView({ initialMode = "login" }: AuthViewProps) {
+export function AuthView({
+  initialMode = "login",
+  redirectTo = "/cuenta",
+  initialError,
+}: AuthViewProps) {
+  const router = useRouter();
+  const { setCustomer } = useCustomerStore();
+  const [isPending, startTransition] = useTransition();
+
   const [mode, setMode] = useState<"login" | "register">(initialMode);
 
   // Form states - Login
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [acceptTermsLogin, setAcceptTermsLogin] = useState(true);
 
   // Form states - Register
   const [regNombre, setRegNombre] = useState("");
   const [regApellido, setRegApellido] = useState("");
-  const [regFechaNac, setRegFechaNac] = useState("");
-  const [regSexo, setRegSexo] = useState<"Masculino" | "Femenino" | "Otro">("Masculino");
+  const [regDni, setRegDni] = useState("");
+  const [regPhone, setRegPhone] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -32,103 +47,157 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
-  } | null>(null);
+  } | null>(
+    initialError ? { type: "error", message: initialError } : null
+  );
+
+  const safeRedirect =
+    redirectTo && redirectTo.startsWith("/") ? redirectTo : "/cuenta";
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) {
+    setNotification(null);
+
+    if (!loginEmail.trim() || !loginPassword) {
       setNotification({
         type: "error",
-        message: "Por favor ingrese su correo electrónico y contraseña.",
+        message: "Por favor ingresá tu correo electrónico y contraseña.",
       });
       return;
     }
+
     if (!acceptTermsLogin) {
       setNotification({
         type: "error",
-        message: "Debe aceptar los Términos del servicio para continuar.",
+        message: "Debés aceptar los Términos del servicio para continuar.",
       });
       return;
     }
-    const rawName = loginEmail.split("@")[0] || "Lourdes";
-    const formattedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("matacos_user", JSON.stringify({ name: formattedName, email: loginEmail }));
-      } catch (err) {
-        console.warn("Error saving user to localStorage", err);
+
+    startTransition(async () => {
+      const res = await loginCustomerAction({
+        email: loginEmail.trim(),
+        password: loginPassword,
+      });
+
+      if (!res.success || !res.data) {
+        setNotification({
+          type: "error",
+          message:
+            res.error || "No se pudo iniciar sesión. Verificá tus credenciales.",
+        });
+        return;
       }
-    }
-    setNotification({
-      type: "success",
-      message: `¡Bienvenido a Matacos Deportes, ${formattedName}! Sesión iniciada correctamente.`,
+
+      setCustomer(res.data.customer);
+      const linkedMsg =
+        res.data.linkedOrdersCount > 0
+          ? ` Se vincularon ${res.data.linkedOrdersCount} pedido(s) previo(s).`
+          : "";
+
+      setNotification({
+        type: "success",
+        message: `¡Bienvenido/a, ${res.data.customer.name}!${linkedMsg}`,
+      });
+
+      router.push(safeRedirect);
+      router.refresh();
     });
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1000);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regNombre || !regApellido || !regEmail || !regPassword) {
+    setNotification(null);
+
+    const fullName = `${regNombre.trim()} ${regApellido.trim()}`.trim();
+    if (!regNombre.trim() || !regApellido.trim() || !regEmail.trim() || !regPassword) {
       setNotification({
         type: "error",
-        message: "Por favor complete los campos obligatorios del registro.",
+        message: "Por favor completá los campos obligatorios del registro.",
       });
       return;
     }
+
     if (!acceptTermsRegister) {
       setNotification({
         type: "error",
-        message: "Debe aceptar los términos de condiciones y servicios para registrarse.",
+        message: "Debés aceptar los términos y condiciones para registrarte.",
       });
       return;
     }
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("matacos_user", JSON.stringify({ name: regNombre, email: regEmail }));
-      } catch (err) {
-        console.warn("Error saving user to localStorage", err);
+
+    startTransition(async () => {
+      const cleanDni = regDni.replace(/[.\-\s]/g, "").trim();
+      const res = await registerCustomerAction({
+        name: fullName,
+        email: regEmail.trim(),
+        password: regPassword,
+        dni: cleanDni || null,
+        phone: regPhone.trim() || null,
+      });
+
+      if (!res.success || !res.data) {
+        setNotification({
+          type: "error",
+          message:
+            res.error || "No se pudo registrar la cuenta. Revisá los datos.",
+        });
+        return;
       }
-    }
-    setNotification({
-      type: "success",
-      message: `¡Cuenta creada con éxito, ${regNombre}! Redirigiendo a la tienda...`,
+
+      setCustomer(res.data.customer);
+      const linkedMsg =
+        res.data.linkedOrdersCount > 0
+          ? ` Vinculamos ${res.data.linkedOrdersCount} compra(s) anterior(es) a tu perfil.`
+          : "";
+
+      setNotification({
+        type: "success",
+        message: `¡Cuenta creada con éxito, ${regNombre.trim()}!${linkedMsg}`,
+      });
+
+      router.push(safeRedirect);
+      router.refresh();
     });
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1000);
   };
 
   return (
-    <div className="min-h-screen sm:h-screen bg-white relative flex flex-col justify-between p-3 sm:p-4 lg:p-5 font-sans selection:bg-slate-900 selection:text-white overflow-y-auto sm:overflow-hidden">
-      {/* Botón Volver a la tienda en la esquina superior izquierda */}
-      <div className="w-full max-w-5xl mx-auto pt-1 sm:pt-1.5 flex justify-start">
+    <div className="min-h-screen bg-white relative flex flex-col justify-between p-3 sm:p-4 lg:p-5 font-sans selection:bg-slate-900 selection:text-white">
+      {/* Botón Volver */}
+      <div className="w-full max-w-5xl mx-auto pt-1 sm:pt-1.5 flex items-center justify-between">
         <Link
-          href="/"
+          href={safeRedirect === "/checkout" ? "/checkout" : "/"}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-950 transition-colors py-1 px-2.5 rounded-lg hover:bg-slate-100 active:bg-slate-200"
-          title="Volver a la tienda"
         >
           <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-          <span>Volver a la tienda</span>
+          <span>
+            {safeRedirect === "/checkout" ? "Volver al Checkout" : "Volver a la tienda"}
+          </span>
+        </Link>
+
+        <Link
+          href="/seguimiento"
+          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:underline py-1 px-2.5"
+        >
+          Seguir pedido sin cuenta →
         </Link>
       </div>
 
-      {/* Main Center Container (Diseño compacto y responsive que entra sin scroll) */}
-      <main className="w-full max-w-[420px] sm:max-w-[440px] mx-auto flex flex-col items-center justify-center my-auto px-3 sm:px-0">
-        {/* LOGO estático (No es un toggle ni enlace) */}
-        <div className="mb-2.5 sm:mb-3 text-center select-none pointer-events-none">
+      {/* Main Center Container */}
+      <main className="w-full max-w-[420px] sm:max-w-[440px] mx-auto flex flex-col items-center justify-center my-auto py-6 px-3 sm:px-0">
+        {/* LOGO */}
+        <Link href="/" className="mb-3 sm:mb-4 text-center block">
           <img
             src="/matacos-deportes-logo.png"
             alt="Matacos Deportes"
-            className="h-8 sm:h-9 w-auto object-contain mx-auto"
+            className="h-9 sm:h-10 w-auto object-contain mx-auto"
           />
-        </div>
+        </Link>
 
         {/* Notificación de estado */}
         {notification && (
           <div
-            className={`mb-3 w-full p-2.5 rounded-lg text-xs font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2 ${
+            className={`mb-3.5 w-full p-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2 ${
               notification.type === "success"
                 ? "bg-emerald-600 text-white"
                 : "bg-red-600 text-white"
@@ -136,6 +205,7 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
           >
             <span className="leading-snug">{notification.message}</span>
             <button
+              type="button"
               onClick={() => setNotification(null)}
               className="text-white/80 hover:text-white ml-2 text-xs shrink-0 cursor-pointer"
             >
@@ -147,22 +217,18 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
         {/* MODO 1: INICIAR SESIÓN */}
         {mode === "login" ? (
           <div className="w-full animate-in fade-in duration-200">
-            {/* Encabezado compacto */}
             <div className="mb-3.5 sm:mb-4">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Iniciar sesión
+                Iniciar sesión como cliente
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Inicia sesión o crea una cuenta
+                Ingresá a tu cuenta para agilizar tus compras y seguir tus pedidos
               </p>
             </div>
 
             {/* Botón Continuar con Google */}
-            <button
-              type="button"
-              onClick={() =>
-                alert("Inicio de sesión con Google disponible próximamente.")
-              }
+            <a
+              href={`/api/auth/customer/google?redirect=${encodeURIComponent(safeRedirect)}`}
               className="w-full py-2 sm:py-2.5 px-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800 text-xs sm:text-sm font-medium flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer active:scale-[0.99]"
             >
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
@@ -184,17 +250,17 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                 />
               </svg>
               <span>Continuar con Google</span>
-            </button>
+            </a>
 
-            {/* Separador con "o" */}
-            <div className="relative flex py-2 items-center my-0.5">
+            <div className="relative flex py-2.5 items-center my-0.5">
               <div className="grow border-t border-slate-200"></div>
-              <span className="shrink-0 px-2 text-slate-400 text-xs">o</span>
+              <span className="shrink-0 px-2 text-slate-400 text-xs">
+                o con tu correo
+              </span>
               <div className="grow border-t border-slate-200"></div>
             </div>
 
-            {/* Formulario compacto */}
-            <form onSubmit={handleLoginSubmit} className="space-y-2.5 sm:space-y-3">
+            <form onSubmit={handleLoginSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Correo electrónico
@@ -203,7 +269,8 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                   type="email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="Ingrese su correo electrónico"
+                  placeholder="ejemplo@correo.com"
+                  disabled={isPending}
                   className="w-full px-3 py-2 sm:py-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                   required
                 />
@@ -214,29 +281,29 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                   <label className="block text-xs font-medium text-slate-700">
                     Contraseña
                   </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      alert("Por favor comunicate con administración al WhatsApp de Saavedra 241.")
-                    }
-                    className="text-[11px] text-slate-500 hover:text-slate-900 hover:underline cursor-pointer"
+                  <a
+                    href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Necesito%20ayuda%20para%20recuperar%20mi%20contrase%C3%B1a"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-slate-500 hover:text-slate-900 hover:underline"
                   >
                     ¿Olvidaste tu contraseña?
-                  </button>
+                  </a>
                 </div>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? "text" : "password"}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Ingrese su contraseña"
+                    placeholder="Ingresá tu contraseña"
+                    disabled={isPending}
                     className="w-full px-3 py-2 sm:py-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
                     {showLoginPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -247,20 +314,7 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                 </div>
               </div>
 
-              {/* Checkboxes: Novedades y Términos */}
-              <div className="pt-0.5 space-y-1.5">
-                <label className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-slate-900 focus:ring-slate-500 mt-0.5 cursor-pointer shrink-0"
-                  />
-                  <span className="leading-tight">
-                    Enviarme novedades y ofertas por correo electrónico
-                  </span>
-                </label>
-
+              <div className="pt-0.5">
                 <label className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -269,28 +323,24 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                     className="w-3.5 h-3.5 rounded text-slate-900 focus:ring-slate-500 mt-0.5 cursor-pointer shrink-0"
                   />
                   <span className="leading-tight">
-                    Acepto los{" "}
-                    <span className="underline hover:text-slate-900">
-                      Términos del servicio
-                    </span>{" "}
-                    y políticas de privacidad
+                    Acepto los términos del servicio y políticas de privacidad
                   </span>
                 </label>
               </div>
 
-              {/* Botón Iniciar Sesión */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1"
+                disabled={isPending}
+                className="w-full py-2.5 bg-slate-900 hover:bg-black disabled:opacity-60 text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1 flex items-center justify-center gap-2"
               >
-                Iniciar sesión
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isPending ? "Ingresando..." : "Iniciar sesión"}</span>
               </button>
             </form>
 
-            {/* Cambio a registrarse */}
-            <div className="text-center mt-3 pt-2.5 border-t border-slate-100">
+            <div className="text-center mt-4 pt-3 border-t border-slate-100">
               <div className="text-xs text-slate-600">
-                ¿No tienes cuenta?{" "}
+                ¿No tenés cuenta?{" "}
                 <button
                   type="button"
                   onClick={() => {
@@ -299,147 +349,119 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                   }}
                   className="font-bold text-slate-900 hover:underline cursor-pointer ml-0.5"
                 >
-                  Regístrate aquí
+                  Registrate gratis aquí
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          /* MODO 2: REGISTRARSE (con la misma estética compacta y responsive sin scroll) */
+          /* MODO 2: REGISTRARSE */
           <div className="w-full animate-in fade-in duration-200">
-            {/* Encabezado */}
             <div className="mb-3.5 sm:mb-4">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Registrarse
+                Crear cuenta de cliente
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Crea tu cuenta para comprar online en Matacos Deportes
+                Guardá tus datos de envío y accedé al historial de tus compras online
               </p>
             </div>
 
             <form onSubmit={handleRegisterSubmit} className="space-y-2.5 sm:space-y-3">
-              {/* Fila Nombre y Apellido */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     value={regNombre}
                     onChange={(e) => setRegNombre(e.target.value)}
-                    placeholder="Ingrese Nombre"
+                    placeholder="Ej: Martín"
+                    disabled={isPending}
                     className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                     required
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                    Apellido
+                    Apellido *
                   </label>
                   <input
                     type="text"
                     value={regApellido}
                     onChange={(e) => setRegApellido(e.target.value)}
-                    placeholder="Ingrese Apellido"
+                    placeholder="Ej: Gómez"
+                    disabled={isPending}
                     className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                     required
                   />
                 </div>
               </div>
 
-              {/* Fila Fecha y Sexo */}
-              <div className="grid grid-cols-2 gap-2.5 items-start">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                    Fecha de Nacimiento
+                    DNI (opcional)
                   </label>
                   <input
                     type="text"
-                    value={regFechaNac}
-                    onChange={(e) => setRegFechaNac(e.target.value)}
-                    placeholder="DD/MM/AAAA"
+                    value={regDni}
+                    onChange={(e) => setRegDni(e.target.value)}
+                    placeholder="Ej: 38999111"
+                    disabled={isPending}
                     className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                    Sexo
+                    Teléfono / WhatsApp
                   </label>
-                  <div className="pt-0.5">
-                    <div className="flex items-center gap-2.5">
-                      <label className="flex items-center gap-1 text-[11px] sm:text-xs text-slate-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="reg-sexo"
-                          value="Masculino"
-                          checked={regSexo === "Masculino"}
-                          onChange={() => setRegSexo("Masculino")}
-                          className="w-3 h-3 text-slate-900 focus:ring-slate-500 cursor-pointer"
-                        />
-                        <span>Masc.</span>
-                      </label>
-                      <label className="flex items-center gap-1 text-[11px] sm:text-xs text-slate-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="reg-sexo"
-                          value="Femenino"
-                          checked={regSexo === "Femenino"}
-                          onChange={() => setRegSexo("Femenino")}
-                          className="w-3 h-3 text-slate-900 focus:ring-slate-500 cursor-pointer"
-                        />
-                        <span>Fem.</span>
-                      </label>
-                      <label className="flex items-center gap-1 text-[11px] sm:text-xs text-slate-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="reg-sexo"
-                          value="Otro"
-                          checked={regSexo === "Otro"}
-                          onChange={() => setRegSexo("Otro")}
-                          className="w-3 h-3 text-slate-900 focus:ring-slate-500 cursor-pointer"
-                        />
-                        <span>Otro</span>
-                      </label>
-                    </div>
-                  </div>
+                  <input
+                    type="tel"
+                    value={regPhone}
+                    onChange={(e) => setRegPhone(e.target.value)}
+                    placeholder="Ej: 3704556677"
+                    disabled={isPending}
+                    className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
+                  />
                 </div>
               </div>
 
-              {/* Correo Electrónico */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                  Correo electrónico
+                  Correo electrónico *
                 </label>
                 <input
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="Ingrese su correo electrónico"
+                  placeholder="ejemplo@correo.com"
+                  disabled={isPending}
                   className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                   required
                 />
               </div>
 
-              {/* Contraseña */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-0.5">
-                  Contraseña
+                  Contraseña (mínimo 6 caracteres) *
                 </label>
                 <div className="relative">
                   <input
                     type={showRegPassword ? "text" : "password"}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Ingrese su contraseña"
+                    placeholder="Creá tu contraseña"
+                    minLength={6}
+                    disabled={isPending}
                     className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword(!showRegPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
                     {showRegPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -450,7 +472,6 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                 </div>
               </div>
 
-              {/* Términos y condiciones */}
               <div className="pt-0.5">
                 <label className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-700 cursor-pointer select-none">
                   <input
@@ -460,24 +481,24 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
                     className="w-3.5 h-3.5 rounded text-slate-900 focus:ring-slate-500 mt-0.5 cursor-pointer shrink-0"
                   />
                   <span className="leading-tight">
-                    Sí, acepto los términos de condiciones y servicios
+                    Sí, acepto los términos y condiciones del servicio
                   </span>
                 </label>
               </div>
 
-              {/* Botón Crear cuenta */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1"
+                disabled={isPending}
+                className="w-full py-2.5 bg-slate-900 hover:bg-black disabled:opacity-60 text-white text-xs sm:text-sm font-semibold rounded-lg transition-all shadow-xs cursor-pointer active:scale-[0.99] mt-1 flex items-center justify-center gap-2"
               >
-                Crear cuenta
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isPending ? "Creando cuenta..." : "Crear cuenta"}</span>
               </button>
             </form>
 
-            {/* Volver a iniciar sesión */}
-            <div className="text-center mt-3 pt-2.5 border-t border-slate-100">
+            <div className="text-center mt-3.5 pt-2.5 border-t border-slate-100">
               <span className="text-xs text-slate-600">
-                ¿Ya tienes una cuenta?{" "}
+                ¿Ya tenés una cuenta?{" "}
               </span>
               <button
                 type="button"
@@ -494,11 +515,8 @@ export function AuthView({ initialMode = "login" }: AuthViewProps) {
         )}
       </main>
 
-      {/* Footer minimalista: Política de privacidad */}
-      <footer className="w-full max-w-5xl mx-auto text-center py-2 text-[11px] text-slate-400 hover:text-slate-600">
-        <span className="cursor-pointer hover:underline">
-          Política de privacidad
-        </span>
+      <footer className="w-full max-w-5xl mx-auto text-center py-2 text-[11px] text-slate-400">
+        <span>Matacos Deportes • Saavedra 241, Formosa Capital</span>
       </footer>
     </div>
   );
