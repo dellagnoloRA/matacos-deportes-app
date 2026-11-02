@@ -8,7 +8,8 @@ import { DisciplineGrid } from "./DisciplineGrid";
 import { FeaturedProductsSection } from "./FeaturedProductsSection";
 import { EcommerceOfferBanner } from "./EcommerceOfferBanner";
 import { EcommerceFooter } from "./EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "./EcommerceCartDrawer";
+import { EcommerceCartDrawer } from "./EcommerceCartDrawer";
+import { useCartStore } from "@/stores/cartStore";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
 import { EcommerceProduct } from "./types";
 
@@ -20,14 +21,7 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
   // Use mock or real backend products
   const products = initialProducts && initialProducts.length > 0 ? initialProducts : MOCK_FEATURED_PRODUCTS;
 
-  // Cart state initialized safely
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    const initial: CartItem[] = [];
-    if (products[0]) initial.push({ product: products[0], quantity: 1 });
-    if (products[1]) initial.push({ product: products[1], quantity: 1 });
-    return initial;
-  });
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const cartStore = useCartStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDiscipline, setSelectedDiscipline] = useState<string | undefined>();
 
@@ -51,38 +45,8 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
 
   // Cart actions
   const handleAddToCart = (product: EcommerceProduct) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
+    cartStore.addItem(product);
   };
-
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   const handleDisciplineSelect = (slug: string) => {
     setSelectedDiscipline(slug);
@@ -95,8 +59,6 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased">
       {/* 1. Header (Top bar + Main Navigation) */}
       <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
         onSearchChange={(q) => setSearchQuery(q)}
       />
 
@@ -138,13 +100,7 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
       <EcommerceFooter />
 
       {/* 8. Cart Slide-Over Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
+      <EcommerceCartDrawer />
     </div>
   );
 }

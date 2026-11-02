@@ -10,6 +10,7 @@ import {
   Store,
   ShieldCheck,
 } from "lucide-react";
+import { ClearCartOnSuccess } from "./ClearCartOnSuccess";
 
 export const metadata: Metadata = {
   title: "Resultado de tu Compra — Matacos Deportes",
@@ -49,6 +50,7 @@ export default async function CheckoutResultadoPage({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between">
+      <ClearCartOnSuccess isApproved={isApproved} />
       {/* Header simple */}
       <header className="bg-slate-950 text-white border-b border-slate-800 py-4 px-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between">

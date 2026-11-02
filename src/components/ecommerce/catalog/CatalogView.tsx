@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "@/components/ecommerce/EcommerceCartDrawer";
+import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
+import { useCartStore } from "@/stores/cartStore";
 import { CatalogFilterSidebar } from "./CatalogFilterSidebar";
 import { CatalogTopBar } from "./CatalogTopBar";
 import { CatalogPaginationNav } from "./CatalogPagination";
@@ -40,9 +41,8 @@ export function CatalogView({
   // Mobile filters drawer state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  // Cart drawer state
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  // Cart store
+  const cartStore = useCartStore();
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
   // Quick view modal
@@ -81,49 +81,15 @@ export function CatalogView({
 
   // Cart actions
   const handleAddToCart = (product: EcommerceProduct) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-
+    cartStore.addItem(product);
     setAddedNotice(product.name);
     setTimeout(() => setAddedNotice(null), 3000);
   };
 
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
       {/* 1. Header */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-      />
+      <EcommerceHeader />
 
       {/* 2. Main Catalog Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -451,13 +417,7 @@ export function CatalogView({
       )}
 
       {/* 8. Slide-over Cart Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
+      <EcommerceCartDrawer />
     </div>
   );
 }

@@ -24,6 +24,7 @@ import {
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
+import { useCartStore } from "@/stores/cartStore";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -43,13 +44,25 @@ interface EcommerceHeaderProps {
 }
 
 export function EcommerceHeader({
-  cartCount = 0,
+  cartCount,
   wishlistCount = 0,
   onOpenCart,
   onOpenSearch,
   onSearchChange,
 }: EcommerceHeaderProps) {
   const router = useRouter();
+  const [hasMounted, setHasMounted] = useState(false);
+  const storeCartCount = useCartStore((s) => s.getTotalCount());
+  const storeOpenCart = useCartStore((s) => s.openCart);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  const effectiveCartCount =
+    cartCount !== undefined ? cartCount : hasMounted ? storeCartCount : 0;
+  const handleCartClick = onOpenCart || storeOpenCart;
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -405,23 +418,23 @@ export function EcommerceHeader({
 
           {/* User Account / Admin Link */}
           <Link
-            href="/admin"
+            href="/cuenta"
             className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-            title="Mi Cuenta / Gestión"
+            title="Mi Cuenta (Iniciar Sesión / Registrarse)"
           >
             <User className="w-5 h-5" />
           </Link>
 
           {/* Cart with Badge */}
           <button
-            onClick={onOpenCart}
+            onClick={handleCartClick}
             className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
             title="Carrito de compras"
           >
             <ShoppingBag className="w-5 h-5" />
-            {cartCount > 0 && (
+            {effectiveCartCount > 0 && (
               <span className="absolute top-1 right-1 w-4 h-4 bg-[#00D615] text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs">
-                {cartCount}
+                {effectiveCartCount}
               </span>
             )}
           </button>

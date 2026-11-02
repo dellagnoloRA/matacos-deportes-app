@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,12 +14,17 @@ import {
   AlertCircle,
   Building2,
   Banknote,
+  ShoppingBag,
+  Plus,
+  Minus,
+  Trash2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { createGuestOrder } from "@/server/actions/ecommerce/checkoutActions";
 import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadopagoActions";
 import { ShippingMethod } from "@/schemas/ecommerce";
 import { ShippingConfig } from "@/config/company";
+import { useCartStore } from "@/stores/cartStore";
 
 interface CheckoutVariant {
   id: string;
@@ -43,37 +48,84 @@ export function CheckoutClient({
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Ítems en el checkout (por defecto precarga el primer producto activo con stock)
-  const [selectedItems, setSelectedItems] = useState<
-    Array<{ variant: CheckoutVariant; quantity: number }>
-  >(() => {
-    if (availableVariants.length > 0) {
-      return [{ variant: availableVariants[0], quantity: 1 }];
-    }
-    return [];
-  });
+  // Hidratación segura para sincronizar con Zustand persist (localStorage)
+  const [hasMounted, setHasMounted] = useState(false);
+  const cartItems = useCartStore((state) => state.items);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const addItem = useCartStore((state) => state.addItem);
 
-  // Datos del comprador
-  const [customerName, setCustomerName] = useState("Nahir Agustín Fornari");
-  const [customerDni, setCustomerDni] = useState("38.123.456");
-  const [customerEmail, setCustomerEmail] = useState("nahir@test.com");
-  const [customerPhone, setCustomerPhone] = useState("3704556677");
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  // Helper de prueba para desarrolladores en caso de que el carrito esté vacío
+  const handleLoadDemoProduct = () => {
+    if (availableVariants.length > 0) {
+      const v = availableVariants[0];
+      addItem(
+        {
+          id: v.id,
+          name: v.name,
+          brand: "Matacos",
+          category: "Indumentaria",
+          price: v.price,
+          image: "/placeholder-product.svg",
+          totalAvailableStock: v.stock,
+          hasStock: true,
+          variants: [
+            {
+              id: v.id,
+              size: v.size,
+              color: v.color,
+              sku: "DEMO",
+              barcode: null,
+              price: v.price,
+              availableStock: v.stock,
+              inStock: true,
+            },
+          ],
+        },
+        v.id,
+        1,
+        v.size,
+        v.color,
+        v.price
+      );
+    }
+  };
+
+  // Datos del comprador (vacíos por defecto para compra real/invitado)
+  const [customerName, setCustomerName] = useState("");
+  const [customerDni, setCustomerDni] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   // Método de entrega
   const [shippingMethod, setShippingMethod] =
     useState<ShippingMethod>("RETIRO_LOCAL");
-  const [shippingAddress, setShippingAddress] = useState("Saavedra 241");
-  const [shippingCity, setShippingCity] = useState("Formosa Capital");
-  const [shippingPostalCode, setShippingPostalCode] = useState("3600");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
+  const [shippingPostalCode, setShippingPostalCode] = useState("");
+
+  const handleSelectShippingMethod = (method: ShippingMethod) => {
+    setShippingMethod(method);
+    if (method === "CADETERIA_FORMOSA" && !shippingCity) {
+      setShippingCity("Formosa Capital");
+    }
+  };
 
   // Método de pago
   const [paymentOption, setPaymentOption] = useState<
     "MERCADOPAGO" | "TRANSFERENCIA" | "EFECTIVO"
   >("MERCADOPAGO");
 
+  // Ítems finales a comprar provenientes del carrito global
+  const itemsInOrder = hasMounted ? cartItems : [];
+
   // Cálculo dinámico de totales basado en la configuración parametrizable
-  const subtotalProducts = selectedItems.reduce(
-    (sum, item) => sum + item.variant.price * item.quantity,
+  const subtotalProducts = itemsInOrder.reduce(
+    (sum, item) => sum + item.price * item.quantity,
     0
   );
 
@@ -95,8 +147,8 @@ export function CheckoutClient({
   const handleProceedToPayment = () => {
     setErrorMessage(null);
 
-    if (selectedItems.length === 0) {
-      setErrorMessage("No hay productos seleccionados para comprar.");
+    if (itemsInOrder.length === 0) {
+      setErrorMessage("No hay productos en el carrito para procesar la compra.");
       return;
     }
 
@@ -128,8 +180,8 @@ export function CheckoutClient({
           shippingCity:
             shippingMethod === "RETIRO_LOCAL" ? "Formosa" : shippingCity,
           shippingPostalCode: shippingPostalCode || "3600",
-          items: selectedItems.map((item) => ({
-            variantId: item.variant.id,
+          items: itemsInOrder.map((item) => ({
+            variantId: item.variantId,
             quantity: item.quantity,
           })),
         });
@@ -174,6 +226,89 @@ export function CheckoutClient({
       }
     });
   };
+
+  // Estado de carga antes de hidratar el cliente
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+        <div className="flex items-center gap-3 text-slate-500 font-bold text-sm">
+          <Loader2 className="w-5 h-5 animate-spin text-[#00D615]" />
+          <span>Cargando checkout seguro...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Si el carrito está vacío
+  if (itemsInOrder.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+        <header className="bg-slate-950 text-white border-b border-slate-800 py-4 px-6 sticky top-0 z-20">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <Link
+              href="/"
+              className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Volver a la tienda</span>
+            </Link>
+
+            <div className="flex items-center gap-2">
+              <span className="font-black text-lg tracking-wider text-white">
+                MATACOS
+              </span>
+              <span className="text-[#00D615] font-black text-lg tracking-wider">
+                DEPORTES
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <ShieldCheck className="w-4 h-4 text-[#00D615]" />
+              <span>Compra 100% Segura</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-md mx-auto px-4 pt-16 text-center">
+          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+            <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <ShoppingBag className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h1 className="text-xl font-black text-slate-900 mb-2">
+                Tu carrito está vacío
+              </h1>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                No tenés productos seleccionados para iniciar el checkout. Explorá
+                nuestro catálogo y sumá tus prendas y calzados favoritos.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <Link
+                href="/catalogo"
+                className="w-full py-3.5 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all text-center"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Explorar Catálogo</span>
+              </Link>
+
+              {availableVariants.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleLoadDemoProduct}
+                  className="w-full py-2.5 px-4 rounded-xl border border-dashed border-slate-300 hover:border-slate-400 text-slate-600 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span>Cargar producto de prueba ({availableVariants[0].name})</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
@@ -258,7 +393,7 @@ export function CheckoutClient({
                     value={customerDni}
                     onChange={(e) => setCustomerDni(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D615]"
-                    placeholder="38.123.456"
+                    placeholder="Ej: 38.123.456"
                   />
                 </div>
 
@@ -271,7 +406,7 @@ export function CheckoutClient({
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D615]"
-                    placeholder="juan@ejemplo.com"
+                    placeholder="Ej: juan@ejemplo.com"
                   />
                 </div>
 
@@ -284,7 +419,7 @@ export function CheckoutClient({
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D615]"
-                    placeholder="3704 556677"
+                    placeholder="Ej: 3704 556677"
                   />
                 </div>
               </div>
@@ -303,8 +438,8 @@ export function CheckoutClient({
                 {/* Opción Retiro */}
                 <button
                   type="button"
-                  onClick={() => setShippingMethod("RETIRO_LOCAL")}
-                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                  onClick={() => handleSelectShippingMethod("RETIRO_LOCAL")}
+                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     shippingMethod === "RETIRO_LOCAL"
                       ? "border-[#00D615] bg-[#00D615]/5 ring-2 ring-[#00D615]"
                       : "border-slate-200 hover:border-slate-300"
@@ -325,8 +460,8 @@ export function CheckoutClient({
                 {/* Opción Cadetería */}
                 <button
                   type="button"
-                  onClick={() => setShippingMethod("CADETERIA_FORMOSA")}
-                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                  onClick={() => handleSelectShippingMethod("CADETERIA_FORMOSA")}
+                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     shippingMethod === "CADETERIA_FORMOSA"
                       ? "border-[#00D615] bg-[#00D615]/5 ring-2 ring-[#00D615]"
                       : "border-slate-200 hover:border-slate-300"
@@ -349,8 +484,8 @@ export function CheckoutClient({
                 {/* Opción Correo */}
                 <button
                   type="button"
-                  onClick={() => setShippingMethod("CORREO_ARGENTINO")}
-                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                  onClick={() => handleSelectShippingMethod("CORREO_ARGENTINO")}
+                  className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     shippingMethod === "CORREO_ARGENTINO"
                       ? "border-[#00D615] bg-[#00D615]/5 ring-2 ring-[#00D615]"
                       : "border-slate-200 hover:border-slate-300"
@@ -372,7 +507,7 @@ export function CheckoutClient({
               </div>
 
               {shippingMethod !== "RETIRO_LOCAL" && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-600 mb-1">
                       Dirección (Calle y Número)
@@ -382,7 +517,23 @@ export function CheckoutClient({
                       value={shippingAddress}
                       onChange={(e) => setShippingAddress(e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D615]"
-                      placeholder="Av. 25 de Mayo 450"
+                      placeholder="Ej: Av. 25 de Mayo 450"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Ciudad / Localidad
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingCity}
+                      onChange={(e) => setShippingCity(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D615]"
+                      placeholder={
+                        shippingMethod === "CADETERIA_FORMOSA"
+                          ? "Formosa Capital"
+                          : "Ej: Clorinda"
+                      }
                     />
                   </div>
                   <div>
@@ -514,24 +665,60 @@ export function CheckoutClient({
               </h2>
 
               {/* Lista de productos */}
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                {selectedItems.map((item, idx) => (
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {itemsInOrder.map((item) => (
                   <div
-                    key={idx}
-                    className="flex items-center justify-between text-xs py-2 border-b border-slate-50"
+                    key={item.id}
+                    className="flex items-center justify-between text-xs py-2.5 border-b border-slate-100 last:border-0 gap-3"
                   >
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        {item.variant.name}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-800 truncate">
+                        {item.name}
                       </p>
-                      <p className="text-slate-500">
-                        Talle {item.variant.size} • {item.variant.color} • x
-                        {item.quantity}
+                      <p className="text-slate-500 text-[11px]">
+                        Talle {item.size} • {item.color}
                       </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Disminuir"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="font-bold text-xs text-slate-800 min-w-[14px] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Aumentar"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="ml-2 text-slate-400 hover:text-red-500 transition-colors p-0.5 cursor-pointer"
+                          title="Eliminar del carrito"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <span className="font-bold text-slate-900">
-                      {formatCurrency(item.variant.price * item.quantity)}
-                    </span>
+
+                    <div className="text-right shrink-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        {formatCurrency(item.price * item.quantity)}
+                      </p>
+                      {item.quantity > 1 && (
+                        <p className="text-[10px] text-slate-400">
+                          {formatCurrency(item.price)} c/u
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -584,7 +771,7 @@ export function CheckoutClient({
               <button
                 type="button"
                 onClick={handleProceedToPayment}
-                disabled={isPending || selectedItems.length === 0}
+                disabled={isPending || itemsInOrder.length === 0}
                 className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isPending ? (

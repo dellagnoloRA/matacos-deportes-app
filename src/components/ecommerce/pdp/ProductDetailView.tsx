@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "@/components/ecommerce/EcommerceCartDrawer";
+import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
+import { useCartStore } from "@/stores/cartStore";
 import { ProductImageGallery } from "./ProductImageGallery";
 import { ProductVariantSelector } from "./ProductVariantSelector";
 import { ProductActionBox } from "./ProductActionBox";
@@ -43,9 +44,8 @@ export function ProductDetailView({
 
   // Modals state
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
+  const cartStore = useCartStore();
 
   // Resolve matching active variant
   const activeVariant = useMemo<PublicVariantItem | null>(() => {
@@ -78,31 +78,24 @@ export function ProductDetailView({
   const isOffer = product.maxPrice > product.price;
   const originalPrice = isOffer ? product.maxPrice : undefined;
 
-  // Cart actions
+  // Cart actions (conecta con Zustand store y reserva el variantId exacto)
   const handleAddToCart = (quantity: number) => {
-    const itemToAdd: EcommerceProduct = {
-      ...mapPublicProductToEcommerce(product),
-      price: effectivePrice,
-      name: `${product.name}${selectedSize ? ` (Talle: ${selectedSize})` : ""}${
-        selectedColor ? ` - ${selectedColor}` : ""
-      }`,
-    };
+    const mapped = mapPublicProductToEcommerce(product);
+    const chosenVariantId = activeVariant?.id;
+    const chosenSize = selectedSize || activeVariant?.size || "Único";
+    const chosenColor = selectedColor || activeVariant?.color || "Estándar";
 
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === itemToAdd.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === itemToAdd.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prev, { product: itemToAdd, quantity }];
-    });
+    cartStore.addItem(
+      mapped,
+      chosenVariantId,
+      quantity,
+      chosenSize,
+      chosenColor,
+      effectivePrice
+    );
 
-    setAddedNotice(itemToAdd.name);
+    setAddedNotice(`${product.name} (${chosenSize}/${chosenColor})`);
     setTimeout(() => setAddedNotice(null), 3000);
-    setIsCartDrawerOpen(true);
   };
 
   const handleBuyNow = (quantity: number) => {
@@ -110,33 +103,10 @@ export function ProductDetailView({
     router.push("/checkout");
   };
 
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
       {/* 1. Header */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-      />
+      <EcommerceHeader />
 
       {/* 2. Main PDP Content */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12">
@@ -333,13 +303,7 @@ export function ProductDetailView({
       <EcommerceFooter />
 
       {/* 4. Slide-Over Cart Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
+      <EcommerceCartDrawer />
 
       {/* 5. Size Guide Modal */}
       <SizeGuideModal
