@@ -83,3 +83,18 @@ Mecanismo de simplificación operativa para envíos nacionales. El sistema almac
 
 ### Separación Estricta de Canales de Venta
 Las operaciones realizadas de forma presencial en el local físico de Saavedra 241 (`channel: "MOSTRADOR"`) se respaldan exclusivamente mediante el tique térmico impreso entregado en mano al comprador y quedan bajo registro de auditoría interna de la caja. El portal web del cliente está destinado estrictamente a la trazabilidad y registro de sus compras online (`channel: "WEB"`).
+
+
+## 5. E-Commerce: Control de Reservas, Expiración y Despacho en Salón
+
+### Reserva Temporal de Stock Web (TTL de 15 minutos)
+Compromiso transaccional provisorio de existencias durante el proceso de compra online. Al crearse una Orden Web en estado `PENDIENTE_PAGO`, se incrementa `stockReserved` de las variantes y se asigna una ventana de validez estricta de 15 minutos (`reservedUntil`). Protege contra la sobreventa concurrente mientras el comprador abona en la pasarela, evitando a la vez que el salón físico de Saavedra 241 quede bloqueado indefinidamente ante compras abandonadas.
+
+### Expiración Preventiva de Preferencia (Mercado Pago Checkout Pro)
+Mecanismo de pasarela por el cual la preferencia de pago se genera con una fecha de corte (`expiration_date_to = reservedUntil`). Si el comprador supera los 15 minutos sin completar el pago, la propia pasarela de Mercado Pago bloquea la transacción informando la expiración de la sesión, impidiendo que el dinero sea debitado de su cuenta o tarjeta.
+
+### Rechazo por Expiración de Reserva (Fail-safe)
+Procedimiento de salvaguarda reactiva ejecutado en el backend si un pago llega a procesarse luego de que la orden haya sido cancelada por vencimiento de reserva y no existan existencias físicas disponibles en tienda ni depósito. La orden permanece en `CANCELADA`, se invoca la API de reembolso automático (`refundPayment`) y se envía un correo explicativo al comprador sin alterar el inventario ni el arqueo físico de caja.
+
+### Despacho y Gestión Logística de Salón
+Módulo operativo del personal de salón y administración en Saavedra 241 para preparar paquetes de compras web. Permite filtrar órdenes por estado logístico, ingresar el código de guía de Correo Argentino, contactar al comprador por WhatsApp para coordinar la entrega o retiro, y confirmar la entrega final.

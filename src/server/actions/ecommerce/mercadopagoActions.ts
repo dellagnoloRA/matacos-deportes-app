@@ -6,6 +6,7 @@ import {
   mpClient,
   Preference,
   Payment,
+  PaymentRefund,
   getAppBaseUrl,
 } from "@/lib/mercadopago";
 import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
@@ -77,7 +78,9 @@ export async function createMercadoPagoPreference(
 
     // 2. Verificar vigencia de la reserva de stock (15 min según RF-15 / RF-16)
     const expirationMs = WEB_ORDER_RESERVATION_MINUTES * 60 * 1000;
-    const expiresAtDate = new Date(sale.createdAt.getTime() + expirationMs);
+    const expiresAtDate = sale.reservedUntil
+      ? sale.reservedUntil
+      : new Date(sale.createdAt.getTime() + expirationMs);
     const now = new Date();
 
     if (now.getTime() > expiresAtDate.getTime()) {
@@ -85,6 +88,13 @@ export async function createMercadoPagoPreference(
         success: false,
         error: "El tiempo de reserva de inventario ha expirado. Por favor, vuelve a armar tu carrito.",
       };
+    }
+
+    if (!sale.reservedUntil) {
+      await prisma.sale.update({
+        where: { id: sale.id },
+        data: { reservedUntil: expiresAtDate },
+      });
     }
 
     // 3. Mapear artículos para el payload de Checkout Pro
@@ -163,6 +173,8 @@ export async function createMercadoPagoPreference(
         ...(isHttps ? { notification_url: `${baseUrl}/api/webhooks/mercadopago` } : {}),
         external_reference: sale.id,
         expires: true,
+        expiration_date_from: sale.createdAt.toISOString(),
+        expiration_date_to: expiresAtDate.toISOString(),
         date_of_expiration: expiresAtDate.toISOString(),
         statement_descriptor: "MATACOS DEPORTES",
         metadata: {
@@ -246,11 +258,84 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
 
       // 3. Manejo según estado del pago en Mercado Pago
       if (payment.status === "approved") {
+        // Verificar existencias físicas actuales de todas las variantes
+        const variants = await Promise.all(
+          sale.items.map((it) =>
+            tx.productVariant.findUnique({
+              where: { id: it.variantId },
+              select: { id: true, stockStore: true, stockWarehouse: true, stockReserved: true },
+            })
+          )
+        );
+
+        const variantMap = new Map(
+          variants
+            .filter((v): v is NonNullable<typeof v> => v !== null)
+            .map((v) => [v.id, v])
+        );
+        let hasPhysicalShortage = false;
+
+        for (const item of sale.items) {
+          const v = variantMap.get(item.variantId);
+          if (!v || (v.stockStore + v.stockWarehouse) < item.quantity) {
+            hasPhysicalShortage = true;
+            break;
+          }
+        }
+
+        const wasCancelled = sale.status === "CANCELADA";
+
+        // =========================================================================
+        // SALVAGUARDA REACTIVA (FAIL-SAFE):
+        // Pago aprobado recibido tardíamente sobre orden cancelada sin stock físico
+        // =========================================================================
+        if (wasCancelled && hasPhysicalShortage) {
+          console.warn(
+            `[MercadoPago Fail-safe] Pago tardío aprobado (${payment.id}) para orden expirada (${sale.invoiceNumber}) sin stock físico. Disparando reembolso automático.`
+          );
+
+          let refundError: string | null = null;
+          try {
+            const refundClient = new PaymentRefund(mpClient);
+            await refundClient.total({ payment_id: String(payment.id) });
+          } catch (err: any) {
+            console.error(`[MercadoPago Fail-safe] Error al procesar reembolso automático:`, err);
+            refundError = err instanceof Error ? err.message : String(err);
+          }
+
+          const auditNote = `[FAIL-SAFE REEMBOLSO]: Pago tardío MP #${payment.id} de $ ${payment.transaction_amount || sale.total} recibido tras expiración sin stock físico disponible en Saavedra 241. Reembolso total ${refundError ? 'FALLIDO (' + refundError + ')' : 'EMITIDO AUTOMÁTICAMENTE'}.`;
+          const updatedNotes = sale.notes ? `${sale.notes} | ${auditNote}` : auditNote;
+
+          await tx.sale.update({
+            where: { id: sale.id },
+            data: { notes: updatedNotes },
+          });
+
+          return {
+            alreadyProcessed: false,
+            status: "refunded_due_to_stock_shortage",
+            saleId: sale.id,
+            orderCode: sale.invoiceNumber,
+            refunded: !refundError,
+          };
+        }
+
+        // =========================================================================
+        // CASO NORMAL O RESCATE: Stock físico disponible para abastecer la venta
+        // =========================================================================
+        const rescueNote = wasCancelled
+          ? `[RESCATE DE ORDEN]: Pago aprobado tras expiración pero completado con éxito gracias a stock remanente en mostrador/depósito.`
+          : null;
+        const finalNotes = rescueNote
+          ? (sale.notes ? `${sale.notes} | ${rescueNote}` : rescueNote)
+          : sale.notes;
+
         // 3.1. Pasar la orden a COMPLETADA
         await tx.sale.update({
           where: { id: sale.id },
           data: {
             status: "COMPLETADA",
+            notes: finalNotes,
             syncedAt: new Date(),
           },
         });
@@ -270,26 +355,49 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
           },
         });
 
-        // 3.3. Para cada ítem: decrementar stockReserved, decrementar stockStore y registrar InventoryMovement
+        // 3.3. Para cada ítem: Prioridad Depósito en canal WEB (protege el salón físico)
         for (const item of sale.items) {
+          const v = variantMap.get(item.variantId);
+          const currentReserved = v ? v.stockReserved : 0;
+          const currentWarehouse = v ? v.stockWarehouse : 0;
+          const currentStore = v ? v.stockStore : 0;
+
+          // Prioridad 1: Descontar primero de Depósito. Prioridad 2: Descontar remanente de Salón.
+          const deductFromWarehouse = Math.min(currentWarehouse, item.quantity);
+          const deductFromStore = item.quantity - deductFromWarehouse;
+
+          const newStockReserved = wasCancelled
+            ? currentReserved
+            : Math.max(0, currentReserved - item.quantity);
+          const newStockWarehouse = Math.max(0, currentWarehouse - deductFromWarehouse);
+          const newStockStore = Math.max(0, currentStore - deductFromStore);
+
           const updatedVariant = await tx.productVariant.update({
             where: { id: item.variantId },
             data: {
-              stockReserved: { decrement: item.quantity },
-              stockStore: { decrement: item.quantity },
+              stockWarehouse: newStockWarehouse,
+              stockStore: newStockStore,
+              stockReserved: newStockReserved,
             },
           });
 
           const totalStockAfter = updatedVariant.stockStore + updatedVariant.stockWarehouse;
 
+          let location = "STORE";
+          if (deductFromWarehouse > 0 && deductFromStore === 0) {
+            location = "WAREHOUSE";
+          } else if (deductFromWarehouse > 0 && deductFromStore > 0) {
+            location = "SPLIT";
+          }
+
           await tx.inventoryMovement.create({
             data: {
               variantId: item.variantId,
-              type: "VENTA_WEB",
+              type: wasCancelled ? "VENTA_WEB_RESCATADA" : "VENTA_WEB",
               quantity: item.quantity,
               stockAfter: totalStockAfter,
-              location: "STORE",
-              reason: `Venta Web Mercado Pago ${sale.invoiceNumber || sale.id} (Pago MP #${payment.id})`,
+              location,
+              reason: `Venta Web Mercado Pago ${sale.invoiceNumber || sale.id} (Depósito: -${deductFromWarehouse}, Salón: -${deductFromStore}, Pago MP #${payment.id}${wasCancelled ? ' - Rescatada post-expiración' : ''})`,
             },
           });
         }

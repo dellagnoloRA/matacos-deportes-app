@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Preference, Payment, WebhookSignatureValidator } from "mercadopago";
+import { MercadoPagoConfig, Preference, Payment, PaymentRefund, WebhookSignatureValidator } from "mercadopago";
 
 /**
  * Token de acceso de Mercado Pago obtenido desde variables de entorno.
@@ -73,4 +73,4 @@ export function verifyWebhookSignature(params: {
   }
 }
 
-export { Preference, Payment, WebhookSignatureValidator };
+export { Preference, Payment, PaymentRefund, WebhookSignatureValidator };

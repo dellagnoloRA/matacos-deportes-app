@@ -235,6 +235,7 @@ model Sale {
 
   channel       String        @default("MOSTRADOR") // MOSTRADOR o WEB
   status        SaleStatus    @default(COMPLETADA)
+  reservedUntil DateTime?     // Límite de reserva temporal de stock (TTL 15m en canal WEB)
   subtotalGross Decimal       @default(0) @db.Decimal(12, 2)
   discount      Decimal       @default(0) @db.Decimal(12, 2)
   discountType  DiscountType?
@@ -254,6 +255,8 @@ model Sale {
   syncedAt      DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
+
+  @@index([channel, status, reservedUntil])
 }
 
 model SaleItem {

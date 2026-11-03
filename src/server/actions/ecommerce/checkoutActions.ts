@@ -201,17 +201,19 @@ export async function releaseExpiredWebOrders(
   error?: string;
 }> {
   try {
+    const now = new Date();
     const safeMinutes = Math.max(1, expirationMinutes);
-    const cutoffDate = new Date(Date.now() - safeMinutes * 60 * 1000);
+    const cutoffDate = new Date(now.getTime() - safeMinutes * 60 * 1000);
 
-    // Buscar órdenes web impagas cuya creación haya superado el tiempo de reserva
+    // Buscar órdenes web impagas cuya reserva haya vencido (TTL 15 min)
     const expiredSales = await prisma.sale.findMany({
       where: {
         channel: "WEB",
         status: "PENDIENTE_PAGO",
-        createdAt: {
-          lte: cutoffDate,
-        },
+        OR: [
+          { reservedUntil: { lte: now } },
+          { reservedUntil: null, createdAt: { lte: cutoffDate } },
+        ],
       },
       include: {
         items: true,
@@ -249,7 +251,7 @@ export async function releaseExpiredWebOrders(
         for (const item of sale.items) {
           const variant = await tx.productVariant.findUnique({
             where: { id: item.variantId },
-            select: { id: true, stockReserved: true },
+            select: { id: true, stockStore: true, stockWarehouse: true, stockReserved: true },
           });
 
           if (variant) {
@@ -259,6 +261,17 @@ export async function releaseExpiredWebOrders(
               data: { stockReserved: newReserved },
             });
             releasedUnitsCount += item.quantity;
+
+            await tx.inventoryMovement.create({
+              data: {
+                variantId: variant.id,
+                type: "RESERVA_EXPIRADA",
+                quantity: item.quantity,
+                stockAfter: variant.stockStore + variant.stockWarehouse,
+                location: "STORE",
+                reason: `Liberación automática de reserva vencida Orden Web ${currentSale.invoiceNumber || currentSale.id}`,
+              },
+            });
           }
         }
 
@@ -643,6 +656,7 @@ export async function createGuestOrder(
           ticketCode: orderCode,
           channel: "WEB",
           status: "PENDIENTE_PAGO",
+          reservedUntil: new Date(Date.now() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000),
           customerId: validated.customerId ?? null,
           customerName: validated.customerName,
           customerDni: validated.customerDni,
