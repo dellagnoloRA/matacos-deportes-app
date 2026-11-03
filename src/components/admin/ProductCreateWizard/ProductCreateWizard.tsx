@@ -117,6 +117,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
   const [isPublishing, setIsPublishing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showNoImagesAlert, setShowNoImagesAlert] = useState<{ onConfirm: () => void } | null>(null);
 
   // Transmitir datos en tiempo real a la ventana independiente de Vista Previa
   useEffect(() => {
@@ -272,7 +273,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
           ? "complete"
           : "pending";
       case 2:
-        return (form.generalImages?.length || 0) >= 3 ? "complete" : "pending";
+        return "complete"; // Las fotos son opcionales
       case 3:
         return Number(form.price) > 0 ? "complete" : "pending";
       case 4:
@@ -318,8 +319,8 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     }
   };
 
-  // Publicar producto final
-  const handlePublish = async () => {
+  // Publicación efectiva en base de datos
+  const executePublish = async () => {
     setErrorMessage(null);
     setIsPublishing(true);
 
@@ -339,6 +340,39 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
       setIsPublishing(false);
       setErrorMessage("Error de conexión al guardar el producto.");
     }
+  };
+
+  // Publicar producto final (alerta si no tiene fotos)
+  const handlePublish = async () => {
+    if ((form.generalImages?.length || 0) === 0) {
+      setShowNoImagesAlert({
+        onConfirm: () => executePublish(),
+      });
+      return;
+    }
+    executePublish();
+  };
+
+  // Avanzar al siguiente paso (alerta si está en fotos y no subió ninguna)
+  const handleNextStep = () => {
+    if (currentStep === 2 && (form.generalImages?.length || 0) === 0) {
+      setShowNoImagesAlert({
+        onConfirm: () => setCurrentStep(3),
+      });
+      return;
+    }
+    setCurrentStep((s) => Math.min(7, s + 1));
+  };
+
+  // Navegación directa por pasos (stepper / sidebar)
+  const handleNavigateStep = (targetStep: number) => {
+    if (currentStep === 2 && targetStep > 2 && (form.generalImages?.length || 0) === 0) {
+      setShowNoImagesAlert({
+        onConfirm: () => setCurrentStep(targetStep),
+      });
+      return;
+    }
+    setCurrentStep(targetStep);
   };
 
   // Nombres asociados para la Live Preview
@@ -551,8 +585,8 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
                     key={s.id}
                     type="button"
                     onClick={() => {
-                      setCurrentStep(s.id);
                       setIsMobileMenuOpen(false);
+                      handleNavigateStep(s.id);
                     }}
                     className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center gap-3 ${
                       isActive
@@ -635,7 +669,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setCurrentStep(s.id)}
+                  onClick={() => handleNavigateStep(s.id)}
                   className={`w-full text-left p-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-3 ${
                     isActive
                       ? "bg-emerald-50/80 border border-emerald-300 text-emerald-950 font-bold shadow-2xs"
@@ -704,7 +738,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
             <Step7Publishing
               form={form}
               updateForm={updateForm}
-              onGoToStep={(stepNum) => setCurrentStep(stepNum)}
+              onGoToStep={(stepNum) => handleNavigateStep(stepNum)}
             />
           )}
 
@@ -723,7 +757,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
             {currentStep < 7 ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep((s) => Math.min(7, s + 1))}
+                onClick={handleNextStep}
                 className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-extrabold shadow-sm cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <span className="hidden xs:inline">Siguiente Paso →</span>
@@ -743,9 +777,56 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
             )}
           </div>
         </main>
-
-
       </div>
+
+      {/* ================= MODAL DE ALERTA: CONTINUAR SIN IMÁGENES ================= */}
+      {showNoImagesAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setShowNoImagesAlert(null)}
+          />
+          <div className="relative bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-extrabold text-slate-950">
+                  ¿Deseas continuar sin subir imágenes?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  No has agregado ninguna foto para este producto. Las imágenes son opcionales y podrás cargarlas más adelante desde el catálogo o inventario.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoImagesAlert(null);
+                  setCurrentStep(2); // Permanecer en el paso de fotos
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer"
+              >
+                Volver y subir fotos
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = showNoImagesAlert.onConfirm;
+                  setShowNoImagesAlert(null);
+                  action();
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer"
+              >
+                Continuar sin imágenes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

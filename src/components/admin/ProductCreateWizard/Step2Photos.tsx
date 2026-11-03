@@ -110,30 +110,35 @@ export const Step2Photos: React.FC<Step2Props> = ({ form, updateForm }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-extrabold text-slate-950">2. Galería de Fotos y Vistas por Color</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-extrabold text-slate-950">2. Galería de Fotos y Vistas por Color</h2>
+          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+            Opcional
+          </span>
+        </div>
         <p className="text-xs text-slate-500">
-          Carga las fotos del producto. Mínimo 3 fotos recomendadas para tienda online.
+          Carga las fotos del producto (opcional). Puedes continuar sin fotos y agregarlas más tarde.
         </p>
       </div>
 
       {/* Indicador de cumplimiento de fotos mínimas */}
       <div
         className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
-          hasMinimumPhotos
+          photoCount > 0
             ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-            : "bg-amber-50 border-amber-200 text-amber-900"
+            : "bg-slate-50 border-slate-200 text-slate-700"
         }`}
       >
         <div className="flex items-center gap-2">
-          {hasMinimumPhotos ? (
+          {photoCount > 0 ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
           )}
           <span>
-            {hasMinimumPhotos
-              ? `¡Excelente! Tienes ${photoCount} fotos cargadas (cumple el mínimo de 3).`
-              : `Has cargado ${photoCount} foto(s). Te faltan ${3 - photoCount} para el mínimo recomendado.`}
+            {photoCount > 0
+              ? `¡Listo! Tienes ${photoCount} foto(s) cargada(s).`
+              : "Este paso es opcional. Puedes subir imágenes ahora o continuar sin fotos."}
           </span>
         </div>
         <span className="text-[11px] font-mono font-semibold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">

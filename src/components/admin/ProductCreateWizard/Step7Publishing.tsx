@@ -35,9 +35,12 @@ export const Step7Publishing: React.FC<Step7Props> = ({ form, updateForm, onGoTo
     },
     {
       id: 2,
-      title: "Fotos del producto",
-      isValid: (form.generalImages?.length || 0) >= 3,
-      description: `${form.generalImages?.length || 0} foto(s) cargada(s) (mínimo 3).`,
+      title: "Fotos del producto (Opcional)",
+      isValid: true,
+      description:
+        (form.generalImages?.length || 0) > 0
+          ? `${form.generalImages?.length} foto(s) cargada(s).`
+          : "Sin fotos cargadas (opcional).",
     },
     {
       id: 3,
