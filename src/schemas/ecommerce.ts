@@ -1,3 +1,10 @@
+import {
+  StrictEmailSchema,
+  StrictPhoneSchema,
+  StrictDniSchema,
+  STRICT_EMAIL_REGEX,
+} from "./settings";
+export { StrictEmailSchema, StrictPhoneSchema, StrictDniSchema, STRICT_EMAIL_REGEX };
 import { z } from "zod";
 
 /**
@@ -163,24 +170,9 @@ export const GuestCheckoutSchema = z
       .trim()
       .min(3, "El nombre y apellido debe tener al menos 3 caracteres")
       .max(120, "El nombre no puede superar los 120 caracteres"),
-    customerDni: z
-      .string()
-      .trim()
-      .min(7, "El DNI o CUIT debe tener al menos 7 caracteres")
-      .max(15, "El DNI o CUIT no puede superar los 15 caracteres")
-      .regex(
-        /^[0-9.\-]+$/,
-        "El DNI o CUIT solo puede contener números, puntos o guiones"
-      ),
-    customerEmail: z
-      .string()
-      .trim()
-      .email("Debe ingresar un correo electrónico válido"),
-    customerPhone: z
-      .string()
-      .trim()
-      .min(6, "El teléfono de contacto debe tener al menos 6 caracteres")
-      .max(30, "El teléfono ingresado es demasiado extenso"),
+    customerDni: StrictDniSchema,
+    customerEmail: StrictEmailSchema,
+    customerPhone: StrictPhoneSchema,
     shippingMethod: ShippingMethodEnum.default("RETIRO_LOCAL"),
     shippingAddress: z.string().trim().max(200).optional().nullable(),
     shippingCity: z.string().trim().max(80).default("Formosa"),

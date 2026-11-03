@@ -86,6 +86,29 @@ export function formatOrderStatusLabel(status?: string | null): string {
 /**
  * Genera una URL genérica de WhatsApp con número sanitizado y mensaje codificado
  */
+
+/**
+ * Obtiene la URL de chat de WhatsApp resolviendo dinámicamente el número configurado en PostgreSQL
+ */
+export async function getDynamicWhatsAppUrl(
+  message: string = "",
+  overrideNumber?: string | null
+): Promise<string> {
+  if (overrideNumber) {
+    return buildWhatsAppChatUrl(overrideNumber, message);
+  }
+  try {
+    const { getStoreSettings } = await import("@/server/actions/storeSettingsActions");
+    const res = await getStoreSettings();
+    if (res.success && res.data?.whatsappNumber) {
+      return buildWhatsAppChatUrl(res.data.whatsappNumber, message);
+    }
+  } catch {
+    // contingencia si corre en cliente o sin acceso a BD
+  }
+  return buildWhatsAppChatUrl(null, message);
+}
+
 export function buildWhatsAppChatUrl(
   phoneNumber?: string | null,
   message: string = ""

@@ -358,6 +358,20 @@ export function SidebarLeft({
                   </div>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => handleItemClick("configuracion")}
+                className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                  activeItem === "configuracion"
+                    ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                    : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className={`w-4 h-4 ${activeItem === "configuracion" ? "text-slate-950" : "text-emerald-300"}`} />
+                  <span>Configuración</span>
+                </div>
+              </button>
             </div>
           )}
 

@@ -1,3 +1,25 @@
+
+async function resolveStoreInfo() {
+  try {
+    const { getStoreSettings } = await import("@/server/actions/storeSettingsActions");
+    const res = await getStoreSettings();
+    if (res.success && res.data) {
+      return {
+        storeName: res.data.storeName || "Matacos Deportes",
+        storeAddress: `${res.data.storeAddress}, ${res.data.storeCity}`,
+        contactEmail: res.data.contactEmail || "ventas@matacosdeportes.com",
+      };
+    }
+  } catch (err) {
+    // contingencia silenciosa si corre en contexto aislado
+  }
+  return {
+    storeName: "Matacos Deportes",
+    storeAddress: "Saavedra 241, Formosa Capital, Argentina",
+    contactEmail: "ventas@matacosdeportes.com",
+  };
+}
+
 import { formatCurrency } from "./utils";
 import type { ShippingStatusType } from "@/schemas/customer";
 
@@ -63,8 +85,9 @@ export async function sendOrderConfirmationEmail(
   payload: OrderConfirmationEmailPayload
 ): Promise<EmailSendResult> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const storeInfo = await resolveStoreInfo();
   const trackingPageUrl = `${appUrl}/seguimiento?codigo=${encodeURIComponent(payload.orderCode)}`;
-  const subject = `Confirmación de Pedido ${payload.orderCode} — Matacos Deportes`;
+  const subject = `Confirmación de Pedido ${payload.orderCode} — ${storeInfo.storeName}`;
 
   const itemsHtml = payload.items
     .map(
@@ -75,7 +98,7 @@ export async function sendOrderConfirmationEmail(
 
   const htmlBody = `
     <div style="font-family: sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #06241d;">¡Gracias por tu compra en Matacos Deportes, ${payload.customerName}!</h2>
+      <h2 style="color: #06241d;">¡Gracias por tu compra en ${storeInfo.storeName}, ${payload.customerName}!</h2>
       <p>Tu pedido fue registrado con éxito. Guardá tu código de seguimiento para consultar el estado del envío en cualquier momento desde nuestra tienda online (incluso sin tener cuenta):</p>
       <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; margin: 16px 0; text-align: center;">
         <span style="font-size: 12px; color: #64748b; text-transform: uppercase;">Código de Seguimiento</span>
@@ -91,7 +114,7 @@ export async function sendOrderConfirmationEmail(
         </a>
       </p>
       <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
-        Matacos Deportes — Saavedra 241, Formosa Capital, Argentina.
+        ${storeInfo.storeName} — ${storeInfo.storeAddress}.
       </p>
     </div>
   `;
@@ -115,7 +138,8 @@ export async function sendOrderShippingUpdateEmail(
   const trackingPageUrl = `${appUrl}/seguimiento?codigo=${encodeURIComponent(payload.orderCode)}`;
   const statusLabel =
     SHIPPING_STATUS_LABELS[payload.shippingStatus] || payload.shippingStatus;
-  const subject = `Actualización de tu pedido ${payload.orderCode}: ${statusLabel} — Matacos Deportes`;
+  const storeInfo = await resolveStoreInfo();
+  const subject = `Actualización de tu pedido ${payload.orderCode}: ${statusLabel} — ${storeInfo.storeName}`;
 
   const correoBlock =
     payload.shippingMethod === "CORREO_ARGENTINO" &&
@@ -147,7 +171,7 @@ export async function sendOrderShippingUpdateEmail(
         </a>
       </p>
       <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
-        Matacos Deportes — Saavedra 241, Formosa Capital, Argentina.
+        ${storeInfo.storeName} — ${storeInfo.storeAddress}.
       </p>
     </div>
   `;
@@ -168,11 +192,12 @@ export async function sendOrderRefundNotificationEmail(
 ): Promise<EmailSendResult> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const catalogUrl = `${appUrl}/catalogo`;
-  const subject = `Aviso de reembolso automático para tu orden ${payload.orderCode} — Matacos Deportes`;
+  const storeInfo = await resolveStoreInfo();
+  const subject = `Aviso de reembolso automático para tu orden ${payload.orderCode} — ${storeInfo.storeName}`;
 
   const htmlBody = `
     <div style="font-family: sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #991b1b;">Reembolso Emitido — Matacos Deportes</h2>
+      <h2 style="color: #991b1b;">Reembolso Emitido — ${storeInfo.storeName}</h2>
       <p>Hola <strong>${payload.customerName}</strong>,</p>
       <p>Te informamos que tu pedido <strong>${payload.orderCode}</strong> no pudo concretarse debido a que la reserva de 15 minutos caducó y el stock físico ya fue adquirido en el local antes del registro del pago.</p>
       <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 8px; margin: 16px 0;">
@@ -188,7 +213,7 @@ export async function sendOrderRefundNotificationEmail(
         </a>
       </p>
       <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
-        Matacos Deportes — Saavedra 241, Formosa Capital, Argentina.
+        ${storeInfo.storeName} — ${storeInfo.storeAddress}.
       </p>
     </div>
   `;

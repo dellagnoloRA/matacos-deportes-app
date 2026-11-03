@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ChevronDown, PanelLeft, Lock } from "lucide-react";
+import { ChevronDown, PanelLeft, Lock, Settings } from "lucide-react";
 import { SidebarLeft } from "./SidebarLeft";
 import { TopHeader } from "./TopHeader";
 import { KpiCard } from "./KpiCard";
@@ -18,6 +18,7 @@ import { PosView } from "./PosView";
 import { CashShiftHistoryView } from "./CashShiftHistoryView";
 import { UsersManagementView } from "./UsersManagementView";
 import { ProfilesManagementView } from "./ProfilesManagementView";
+import { StoreSettingsView } from "./StoreSettingsView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -348,6 +349,33 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               </p>
             </div>
           )
+        ) : currentTab === "configuracion" ? (
+          <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
+            <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+              <div className="flex items-center gap-3">
+                {handleToggleLeft && (
+                  <button
+                    onClick={handleToggleLeft}
+                    className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    <PanelLeft className="w-5 h-5" />
+                  </button>
+                )}
+                <div>
+                  <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-emerald-600" />
+                    <span>Configuración Comercial y Canales de Contacto</span>
+                  </h1>
+                  <p className="text-xs text-slate-500">
+                    Edite el WhatsApp comercial, correos y datos del local con validación en tiempo real.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 lg:p-8 max-w-5xl mx-auto w-full">
+              <StoreSettingsView />
+            </div>
+          </div>
         ) : currentTab === "pos" ? (
           currentPosSubView === "arqueo" ? (
             <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
