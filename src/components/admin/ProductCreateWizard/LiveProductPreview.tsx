@@ -17,6 +17,11 @@ import {
   ShieldCheck,
   ArrowRight,
   Sparkles,
+  Minus,
+  Maximize2,
+  Minimize2,
+  X,
+  GripHorizontal,
 } from "lucide-react";
 
 interface LiveProductPreviewProps {
@@ -24,6 +29,11 @@ interface LiveProductPreviewProps {
   brandName?: string;
   categoryName?: string;
   selectedSizeGuide?: SizeGuideItem | null;
+  onClose?: () => void;
+  onMinimize?: () => void;
+  onToggleMaximize?: () => void;
+  isMaximized?: boolean;
+  onHeaderMouseDown?: (e: React.MouseEvent) => void;
 }
 
 export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
@@ -31,6 +41,11 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
   brandName,
   categoryName,
   selectedSizeGuide,
+  onClose,
+  onMinimize,
+  onToggleMaximize,
+  isMaximized = false,
+  onHeaderMouseDown,
 }) => {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [activeImgIndex, setActiveImgIndex] = useState(0);
@@ -102,28 +117,40 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
   const installmentAmount = salePrice > 0 ? Math.round(salePrice / installments) : 0;
 
   return (
-    <div className="flex flex-col h-full bg-slate-100 rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
-      {/* Barra superior de control de la Preview */}
-      <div className="bg-white px-4 py-2.5 border-b border-slate-200 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col h-full w-full bg-white rounded-none border-0 overflow-hidden shadow-none">
+      {/* Barra superior UNIFICADA de control y ventana de la Preview */}
+      <div
+        onMouseDown={onHeaderMouseDown}
+        className={`bg-slate-900 text-white px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0 select-none rounded-none ${
+          !isMaximized && onHeaderMouseDown ? "cursor-grab active:cursor-grabbing" : ""
+        }`}
+      >
+        {/* Izquierda: Indicador en vivo + Título (y agarre para mover) */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {!isMaximized && onHeaderMouseDown && (
+            <GripHorizontal className="w-4 h-4 text-slate-500 hover:text-slate-300 shrink-0 cursor-grab" />
+          )}
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-            <Eye className="w-3.5 h-3.5 text-emerald-600" />
-            Vista previa pública en vivo
-          </span>
+          <div className="flex items-center gap-1.5">
+            <Eye className="w-3.5 h-3.5 text-[#00D615]" />
+            <span className="text-xs font-extrabold text-white tracking-wide">
+              Vista Previa en Vivo
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+        {/* Centro: Switcher Desktop / Mobile */}
+        <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
           <button
             type="button"
             onClick={() => setViewMode("desktop")}
-            className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               viewMode === "desktop"
-                ? "bg-white text-slate-900 shadow-2xs font-bold"
-                : "text-slate-500 hover:text-slate-900"
+                ? "bg-slate-950 text-[#00D615] shadow-xs"
+                : "text-slate-400 hover:text-white"
             }`}
             title="Vista de Escritorio"
           >
@@ -133,10 +160,10 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
           <button
             type="button"
             onClick={() => setViewMode("mobile")}
-            className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               viewMode === "mobile"
-                ? "bg-white text-slate-900 shadow-2xs font-bold"
-                : "text-slate-500 hover:text-slate-900"
+                ? "bg-slate-950 text-[#00D615] shadow-xs"
+                : "text-slate-400 hover:text-white"
             }`}
             title="Vista Móvil"
           >
@@ -144,26 +171,117 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
             <span className="hidden sm:inline">Mobile</span>
           </button>
         </div>
+
+        {/* Derecha: Controles de Ventana (Minimizar, Agrandar/Restaurar, Cerrar) */}
+        <div className="flex items-center gap-1">
+          {onMinimize && (
+            <button
+              type="button"
+              onClick={onMinimize}
+              className="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Minimizar a la esquina"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {onToggleMaximize && (
+            <button
+              type="button"
+              onClick={onToggleMaximize}
+              className="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              title={isMaximized ? "Restaurar tamaño normal" : "Agrandar pantalla completa"}
+            >
+              {isMaximized ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+              title="Cerrar vista previa"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Contenedor del dispositivo o lienzo */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex justify-center bg-slate-200/40">
+      {/* Contenedor del dispositivo o página web completa con SCROLLBAR fluido */}
+      <div
+        className={`flex-1 overflow-y-scroll [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 transition-colors ${
+          viewMode === "mobile"
+            ? "p-4 sm:p-6 flex justify-center bg-slate-100"
+            : "p-0 bg-white"
+        }`}
+      >
         <div
-          className={`bg-white rounded-xl border border-slate-200/90 shadow-md transition-all duration-300 overflow-hidden ${
-            viewMode === "mobile" ? "w-[390px] text-xs" : "w-full max-w-4xl"
+          className={`transition-all duration-200 ${
+            viewMode === "mobile"
+              ? "w-[390px] bg-white border border-slate-300 shadow-xl rounded-2xl overflow-hidden self-start text-xs my-4"
+              : "w-full bg-white rounded-none border-0 shadow-none min-h-full flex flex-col"
           }`}
         >
-          {/* Top banner simulación tienda */}
-          <div className="bg-[#051c16] text-white px-4 py-2 flex items-center justify-between text-[11px] font-medium border-b border-emerald-950">
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold tracking-wider text-emerald-400">MATACOS</span>
-              <span className="text-slate-400">|</span>
-              <span className="text-slate-300 truncate">Saavedra 241, Formosa</span>
+          {/* 1. Barra de promociones superior (Idéntica a la tienda en vivo) */}
+          <div className="bg-[#051c16] text-white px-4 sm:px-8 py-2 flex items-center justify-between text-xs font-medium border-b border-emerald-950 shrink-0 select-none">
+            <div className="flex items-center gap-2 text-[11px] sm:text-xs">
+              <span className="font-black tracking-wider text-[#00D615]">MATACOS DEPORTES</span>
+              <span className="text-slate-500">|</span>
+              <span className="text-slate-300 truncate">Saavedra 241, Formosa Capital</span>
             </div>
-            <span className="text-emerald-400 font-bold hidden sm:inline">Envío Gratis &gt; $109.999</span>
+            <div className="flex items-center gap-4 text-[11px] text-slate-300 hidden sm:flex">
+              <span className="text-emerald-400 font-bold">¡Envío Gratis &gt; $ 109.999!</span>
+              <span>•</span>
+              <span>3 y 6 Cuotas Sin Interés</span>
+            </div>
           </div>
 
-          <div className="p-4 sm:p-6 space-y-6">
+          {/* 2. Header completo de tienda en modo escritorio */}
+          {viewMode === "desktop" && (
+            <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-6 shrink-0 select-none">
+              <div className="flex items-center gap-8">
+                <div className="text-xl font-black text-slate-950 tracking-tighter flex items-center gap-1">
+                  <span>MATACOS</span>
+                  <span className="text-[#00D615] text-2xl leading-none">•</span>
+                </div>
+                <nav className="hidden md:flex items-center gap-5 text-xs font-extrabold text-slate-700">
+                  <span className="hover:text-emerald-600 transition-colors cursor-pointer">CALZADO</span>
+                  <span className="hover:text-emerald-600 transition-colors cursor-pointer">INDUMENTARIA</span>
+                  <span className="hover:text-emerald-600 transition-colors cursor-pointer">ACCESORIOS</span>
+                  <span className="hover:text-emerald-600 transition-colors cursor-pointer">DISCIPLINAS</span>
+                  <span className="text-rose-600 font-black hover:text-rose-700 transition-colors cursor-pointer">OFERTAS</span>
+                </nav>
+              </div>
+              <div className="hidden sm:flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-400 text-xs w-48 lg:w-64 border border-slate-200">
+                  <span>Buscar en el catálogo...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Breadcrumbs reales de la tienda */}
+          <nav className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-2 text-xs font-medium text-slate-500 select-none">
+            <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+              <span className="hover:text-slate-950 transition-colors cursor-pointer">Inicio</span>
+              <span className="text-slate-300">/</span>
+              <span className="hover:text-slate-950 transition-colors cursor-pointer">
+                {categoryName || "Catálogo"}
+              </span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-900 font-semibold truncate max-w-xs sm:max-w-md">
+                {form.name || "Nuevo Producto"}
+              </span>
+            </div>
+          </nav>
+
+          <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-8">
             {/* Grid Principal: Fotos a la izquierda, detalles a la derecha */}
             <div className={`grid gap-6 ${viewMode === "mobile" ? "grid-cols-1" : "grid-cols-1 md:grid-cols-12"}`}>
               {/* Fotos (Columna Izquierda) */}

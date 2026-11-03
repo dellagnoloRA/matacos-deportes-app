@@ -2,11 +2,10 @@
 
 import React, { useState } from "react";
 import { WizardFormState } from "./types";
-import { Plus, Check, Sparkles, Tag, Layers, Compass, HelpCircle } from "lucide-react";
+import { Plus, Check, Tag } from "lucide-react";
 import {
   createQuickBrand,
   createQuickCategory,
-  createQuickSubcategory,
   createQuickDiscipline,
 } from "@/server/actions/taxonomyActions";
 
@@ -15,7 +14,7 @@ interface Step1Props {
   updateForm: (updates: Partial<WizardFormState>) => void;
   taxonomies: {
     brands: { id: string; name: string }[];
-    categories: { id: string; name: string; subcategories: { id: string; name: string }[] }[];
+    categories: { id: string; name: string }[];
     disciplines: { id: string; name: string }[];
   };
   refreshTaxonomies: () => Promise<void>;
@@ -33,17 +32,10 @@ export const Step1Identification: React.FC<Step1Props> = ({
   const [isAddingCat, setIsAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
 
-  const [isAddingSubcat, setIsAddingSubcat] = useState(false);
-  const [newSubcatName, setNewSubcatName] = useState("");
-
   const [isAddingDisc, setIsAddingDisc] = useState(false);
   const [newDiscName, setNewDiscName] = useState("");
 
-  // Subcategorías de la categoría elegida
-  const currentCategory = taxonomies.categories.find((c) => c.id === form.categoryId);
-  const subcategories = currentCategory?.subcategories || [];
-
-  // Helper para autogenerar slug
+  // Helper para autogenerar slug silenciosamente (opcional para el usuario)
   const handleNameChange = (newName: string) => {
     const slug = newName
       .toLowerCase()
@@ -54,7 +46,7 @@ export const Step1Identification: React.FC<Step1Props> = ({
 
     const updates: Partial<WizardFormState> = {
       name: newName,
-      slug: form.slug ? form.slug : slug,
+      slug: slug,
     };
 
     // Si aún no hay SKU, sugerir uno
@@ -88,21 +80,9 @@ export const Step1Identification: React.FC<Step1Props> = ({
     const res = await createQuickCategory(newCatName.trim());
     if (res.success && res.data) {
       await refreshTaxonomies();
-      updateForm({ categoryId: res.data.id, subcategoryId: "" });
+      updateForm({ categoryId: res.data.id });
       setNewCatName("");
       setIsAddingCat(false);
-    }
-  };
-
-  // Crear subcategoría rápida
-  const handleCreateSubcategory = async () => {
-    if (!newSubcatName.trim() || !form.categoryId) return;
-    const res = await createQuickSubcategory(form.categoryId, newSubcatName.trim());
-    if (res.success && res.data) {
-      await refreshTaxonomies();
-      updateForm({ subcategoryId: res.data.id });
-      setNewSubcatName("");
-      setIsAddingSubcat(false);
     }
   };
 
@@ -159,49 +139,21 @@ export const Step1Identification: React.FC<Step1Props> = ({
         </div>
       </div>
 
-      {/* Grid: SKU Modelo y Slug */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* SKU / Código Modelo */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-900">
-            SKU / Código de Modelo <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder="Ej: AS-NIMB-26"
-            value={form.skuModel}
-            onChange={(e) => updateForm({ skuModel: e.target.value.toUpperCase().replace(/\s+/g, "-") })}
-            className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-          />
-          <span className="text-[10px] text-slate-400 block">Identificador matriz del modelo.</span>
-        </div>
-
-        {/* Slug URL */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-900">
-            Slug URL <span className="text-red-500">*</span>
-          </label>
-          <div className="flex items-center rounded-lg border border-slate-300 overflow-hidden bg-white focus-within:ring-2 focus-within:ring-emerald-500">
-            <span className="px-2.5 text-xs text-slate-400 bg-slate-50 border-r border-slate-200 select-none">
-              /productos/
-            </span>
-            <input
-              type="text"
-              placeholder="zapatillas-gel-nimbus-26"
-              value={form.slug}
-              onChange={(e) =>
-                updateForm({
-                  slug: e.target.value
-                    .toLowerCase()
-                    .replace(/\s+/g, "-")
-                    .replace(/[^a-z0-9-]/g, ""),
-                })
-              }
-              className="w-full h-10 px-2.5 text-xs font-mono focus:outline-none bg-white"
-            />
-          </div>
-          <span className="text-[10px] text-slate-400 block">Dirección amigable para SEO.</span>
-        </div>
+      {/* SKU / Código de Modelo */}
+      <div className="space-y-1.5">
+        <label className="block text-xs font-bold text-slate-900">
+          SKU / Código de Modelo <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          placeholder="Ej: AS-NIMB-26"
+          value={form.skuModel}
+          onChange={(e) => updateForm({ skuModel: e.target.value.toUpperCase().replace(/\s+/g, "-") })}
+          className="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white shadow-2xs"
+        />
+        <span className="text-[11px] text-slate-400 block">
+          Identificador matriz del modelo (se sugiere automáticamente con el nombre).
+        </span>
       </div>
 
       {/* Género (Pills) */}
@@ -230,8 +182,8 @@ export const Step1Identification: React.FC<Step1Props> = ({
         </div>
       </div>
 
-      {/* Grid: Marca y Disciplina */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Grid: Marca, Disciplina y Categoría (3 columnas equilibradas) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Marca */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -244,7 +196,7 @@ export const Step1Identification: React.FC<Step1Props> = ({
               className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-0.5 cursor-pointer"
             >
               <Plus className="w-3 h-3" />
-              <span>{isAddingBrand ? "Cancelar" : "Nueva Marca"}</span>
+              <span>{isAddingBrand ? "Cancelar" : "Nueva"}</span>
             </button>
           </div>
 
@@ -252,15 +204,15 @@ export const Step1Identification: React.FC<Step1Props> = ({
             <div className="flex items-center gap-1.5">
               <input
                 type="text"
-                placeholder="Nombre de la marca"
+                placeholder="Nombre marca"
                 value={newBrandName}
                 onChange={(e) => setNewBrandName(e.target.value)}
-                className="flex-1 h-9 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
+                className="flex-1 h-10 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
               />
               <button
                 type="button"
                 onClick={handleCreateBrand}
-                className="h-9 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
+                className="h-10 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
               >
                 Guardar
               </button>
@@ -304,12 +256,12 @@ export const Step1Identification: React.FC<Step1Props> = ({
                 placeholder="Ej: Pádel, Hockey"
                 value={newDiscName}
                 onChange={(e) => setNewDiscName(e.target.value)}
-                className="flex-1 h-9 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
+                className="flex-1 h-10 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
               />
               <button
                 type="button"
                 onClick={handleCreateDiscipline}
-                className="h-9 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
+                className="h-10 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
               >
                 Guardar
               </button>
@@ -329,10 +281,7 @@ export const Step1Identification: React.FC<Step1Props> = ({
             </select>
           )}
         </div>
-      </div>
 
-      {/* Grid: Categoría y Subcategoría */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Categoría */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -356,12 +305,12 @@ export const Step1Identification: React.FC<Step1Props> = ({
                 placeholder="Ej: Calzado, Indumentaria"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                className="flex-1 h-9 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
+                className="flex-1 h-10 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
               />
               <button
                 type="button"
                 onClick={handleCreateCategory}
-                className="h-9 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
+                className="h-10 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
               >
                 Guardar
               </button>
@@ -369,65 +318,13 @@ export const Step1Identification: React.FC<Step1Props> = ({
           ) : (
             <select
               value={form.categoryId}
-              onChange={(e) => updateForm({ categoryId: e.target.value, subcategoryId: "" })}
+              onChange={(e) => updateForm({ categoryId: e.target.value })}
               className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer font-medium"
             >
               <option value="">-- Seleccionar Categoría --</option>
               {taxonomies.categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Subcategoría */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-900">Subcategoría</label>
-            {form.categoryId && (
-              <button
-                type="button"
-                onClick={() => setIsAddingSubcat(!isAddingSubcat)}
-                className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-0.5 cursor-pointer"
-              >
-                <Plus className="w-3 h-3" />
-                <span>{isAddingSubcat ? "Cancelar" : "Nueva"}</span>
-              </button>
-            )}
-          </div>
-
-          {isAddingSubcat ? (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                placeholder="Ej: Zapatillas de Running"
-                value={newSubcatName}
-                onChange={(e) => setNewSubcatName(e.target.value)}
-                className="flex-1 h-9 px-2.5 rounded-lg border border-emerald-400 text-xs focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleCreateSubcategory}
-                className="h-9 px-3 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer"
-              >
-                Guardar
-              </button>
-            </div>
-          ) : (
-            <select
-              value={form.subcategoryId || ""}
-              onChange={(e) => updateForm({ subcategoryId: e.target.value })}
-              disabled={!form.categoryId}
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 font-medium"
-            >
-              <option value="">
-                {form.categoryId ? "-- Seleccionar Subcategoría --" : "(Elige categoría primero)"}
-              </option>
-              {subcategories.map((sc) => (
-                <option key={sc.id} value={sc.id}>
-                  {sc.name}
                 </option>
               ))}
             </select>
