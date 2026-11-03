@@ -41,6 +41,7 @@ import {
   type GuestOrderCreatedResult,
   type WebOrderPaymentResult,
 } from "@/server/actions/ecommerce/checkoutActions";
+import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadopagoActions";
 import type { CustomerProfileDTO } from "@/server/actions/ecommerce/customerActions";
 import type {
   ShippingMethod,
@@ -215,7 +216,7 @@ export function CheckoutView({
 
   // Campos del Paso 2: Selección y Ejecución de Pago
   const [paymentOption, setPaymentOption] =
-    useState<WebPaymentOption>("TARJETA_CREDITO");
+    useState<WebPaymentOption>("MERCADOPAGO");
   const [cardBrand, setCardBrand] = useState<WebCardBrand>("VISA");
   const [installments, setInstallments] = useState<number>(3);
   const [cardNumber, setCardNumber] = useState("");
@@ -523,6 +524,35 @@ export function CheckoutView({
       setPaymentError(
         "El tiempo de reserva de 15 minutos expiró. Cancelá o volvé al catálogo para iniciar una nueva compra."
       );
+      return;
+    }
+
+    if (paymentOption === "MERCADOPAGO") {
+      startPaymentTransition(async () => {
+        const prefRes = await createMercadoPagoPreference(
+          createdOrder.orderCode
+        );
+
+        if (!prefRes.success || !prefRes.data) {
+          setPaymentError(
+            prefRes.error ||
+              "No se pudo generar la preferencia en Mercado Pago. Revisá tus credenciales."
+          );
+          return;
+        }
+
+        const targetUrl =
+          prefRes.data.initPoint || prefRes.data.sandboxInitPoint;
+
+        if (!targetUrl) {
+          setPaymentError(
+            "No se obtuvo la URL de pago de Mercado Pago Sandbox."
+          );
+          return;
+        }
+
+        window.location.href = targetUrl;
+      });
       return;
     }
 
@@ -1316,6 +1346,39 @@ export function CheckoutView({
 
                 {/* Opciones de Medio de Pago */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Opción Destacada: Mercado Pago Checkout Pro (Sandbox) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentOption("MERCADOPAGO");
+                      setPaymentError(null);
+                    }}
+                    className={`sm:col-span-2 p-4 rounded-2xl border text-left transition-all cursor-pointer space-y-1.5 ${
+                      paymentOption === "MERCADOPAGO"
+                        ? "border-[#009ee3] bg-sky-50/70 ring-2 ring-[#009ee3]"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-7 h-7 rounded-lg bg-[#009ee3] text-white flex items-center justify-center font-black text-xs shrink-0">
+                          MP
+                        </span>
+                        <div>
+                          <p className="text-xs sm:text-sm font-black text-slate-900">
+                            Mercado Pago Checkout Pro (Sandbox)
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Tarjetas de prueba oficiales, dinero en cuenta o efectivo en puntos de cobro
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#009ee3]/15 text-[#0074a6] shrink-0">
+                        Oficial Sandbox
+                      </span>
+                    </div>
+                  </button>
+
                   {/* Opción 1: Tarjeta de Crédito */}
                   <button
                     type="button"
@@ -1336,7 +1399,7 @@ export function CheckoutView({
                       </span>
                     </div>
                     <p className="text-xs sm:text-sm font-black text-slate-900">
-                      Tarjeta de Crédito
+                      Tarjeta de Crédito Directa
                     </p>
                     <p className="text-[11px] text-slate-500">
                       Acreditación instantánea • Confirmación en el acto
@@ -1363,7 +1426,7 @@ export function CheckoutView({
                       </span>
                     </div>
                     <p className="text-xs sm:text-sm font-black text-slate-900">
-                      Tarjeta de Débito
+                      Tarjeta de Débito Directa
                     </p>
                     <p className="text-[11px] text-slate-500">
                       1 pago sin recargo • Confirmación en el acto
@@ -1432,6 +1495,72 @@ export function CheckoutView({
                 </div>
 
                 {/* Formulario dinámico según medio de pago seleccionado */}
+                {paymentOption === "MERCADOPAGO" && (
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-5 space-y-3.5 text-xs text-sky-950">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-black text-sm text-[#0074a6]">
+                          <span>Pasarela Oficial Mercado Pago Checkout Pro</span>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#009ee3] text-white">
+                          Sandbox
+                        </span>
+                      </div>
+                      <p className="text-sky-900 leading-relaxed">
+                        Al presionar <strong>PAGAR CON MERCADO PAGO</strong> se creará una preferencia oficial en tiempo real y te redirigiremos a la pasarela protegida de Mercado Pago.
+                      </p>
+
+                      {/* Tarjetas de prueba oficiales de la guía */}
+                      <div className="bg-white rounded-2xl p-4 border border-sky-200/80 space-y-2.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                          Tarjetas de Prueba Oficiales para Sandbox (Argentina)
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-0.5">
+                            <span className="font-black text-emerald-800 block text-[10px] uppercase">
+                              Pago Aprobado (Éxito)
+                            </span>
+                            <span className="font-mono font-bold text-slate-900 block text-xs">
+                              4000 0000 0000 0001
+                            </span>
+                            <p className="text-[10px] text-slate-500">
+                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: APRO
+                            </p>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-red-50 border border-red-200 space-y-0.5">
+                            <span className="font-black text-red-800 block text-[10px] uppercase">
+                              Rechazado (Fondos)
+                            </span>
+                            <span className="font-mono font-bold text-slate-900 block text-xs">
+                              4000 0000 0000 0002
+                            </span>
+                            <p className="text-[10px] text-slate-500">
+                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: RECH
+                            </p>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-0.5">
+                            <span className="font-black text-amber-800 block text-[10px] uppercase">
+                              Pendiente Acreditación
+                            </span>
+                            <span className="font-mono font-bold text-slate-900 block text-xs">
+                              4000 0000 0000 0003
+                            </span>
+                            <p className="text-[10px] text-slate-500">
+                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: PEND
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-sky-800">
+                        Al completar el pago, Mercado Pago te retornará automáticamente a <strong>/checkout/resultado</strong> actualizando el estado de tu orden y vaciando el carrito.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {isCardSelected && (
                   <div className="pt-4 border-t border-slate-100 space-y-4">
                     {/* Botonera de prueba rápida para entorno local sin Mercado Pago */}
@@ -1815,15 +1944,28 @@ export function CheckoutView({
                 <button
                   type="submit"
                   disabled={isProcessingPayment || isCancellingOrder || isExpired}
-                  className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  className={`w-full py-4 px-6 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed ${
+                    paymentOption === "MERCADOPAGO"
+                      ? "bg-[#009ee3] hover:bg-[#008ac7] text-white shadow-[#009ee3]/20 disabled:bg-slate-200 disabled:text-slate-400"
+                      : "bg-[#00D615] hover:bg-[#00b812] text-slate-950 shadow-[#00D615]/20 disabled:bg-slate-200 disabled:text-slate-400"
+                  }`}
                 >
                   {isProcessingPayment ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>
-                        {isCardSelected
-                          ? "Autorizando pago con tarjeta..."
-                          : "Registrando modalidad de pago..."}
+                        {paymentOption === "MERCADOPAGO"
+                          ? "Conectando con Mercado Pago Sandbox..."
+                          : isCardSelected
+                            ? "Autorizando pago con tarjeta..."
+                            : "Registrando modalidad de pago..."}
+                      </span>
+                    </>
+                  ) : paymentOption === "MERCADOPAGO" ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>
+                        PAGAR CON MERCADO PAGO ({formatCurrency(createdOrder.totals.total)})
                       </span>
                     </>
                   ) : isCardSelected ? (

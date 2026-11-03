@@ -225,11 +225,17 @@ export type GuestCheckoutOutput = z.output<typeof GuestCheckoutSchema>;
  */
 
 export const WebPaymentOptionEnum = z.enum(
-  ["TARJETA_CREDITO", "TARJETA_DEBITO", "TRANSFERENCIA", "PAGO_LOCAL"],
+  [
+    "MERCADOPAGO",
+    "TARJETA_CREDITO",
+    "TARJETA_DEBITO",
+    "TRANSFERENCIA",
+    "PAGO_LOCAL",
+  ],
   {
     errorMap: () => ({
       message:
-        "Medio de pago inválido. Use TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA o PAGO_LOCAL",
+        "Medio de pago inválido. Use MERCADOPAGO, TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA o PAGO_LOCAL",
     }),
   }
 );
