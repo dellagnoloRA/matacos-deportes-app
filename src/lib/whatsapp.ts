@@ -210,3 +210,24 @@ export function formatCheckoutContingencyWhatsAppUrl(
 
   return buildWhatsAppChatUrl(params.phoneNumber, message);
 }
+
+/**
+ * Helper tipado para que el personal de mostrador o depósito inicie conversación con el comprador web
+ * Estructura: "¡Hola [Nombre]! Te escribimos desde Matacos Deportes (Saavedra 241) respecto a tu compra online *[OrderCode]*..."
+ */
+export function formatStaffToCustomerWhatsAppUrl(params: {
+  customerPhone: string;
+  customerName?: string | null;
+  orderCode: string;
+  shippingStatus?: string | null;
+  customMessage?: string | null;
+}): string {
+  const name = params.customerName?.trim() || "Cliente";
+  const status = formatOrderStatusLabel(params.shippingStatus);
+  const baseMessage =
+    params.customMessage?.trim() ||
+    `¡Hola ${name}! Te escribimos desde Matacos Deportes (Saavedra 241) respecto a tu compra online *${params.orderCode}* (Estado: ${status}).`;
+
+  return buildWhatsAppChatUrl(params.customerPhone, baseMessage);
+}
+

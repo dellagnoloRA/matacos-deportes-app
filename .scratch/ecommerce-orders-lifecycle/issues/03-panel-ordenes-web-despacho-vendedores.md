@@ -5,11 +5,11 @@ Vista de gestión en el Dashboard del comercio (`WebOrdersView`) para que vended
 
 **Blocked by:** 01: Expiración de Reservas con TTL, Expiración en Mercado Pago y Cron Autónomo
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Crear Server Action para consulta y mutación de estados logísticos de órdenes web.
-- [ ] Desarrollar componente `WebOrdersView` e integrarlo en la navegación lateral del Dashboard.
-- [ ] Integrar modal de detalle de orden con visualización de artículos para picking y datos de entrega.
-- [ ] Implementar asignación de código de guía de Correo Argentino con notificación automática por correo.
-- [ ] Añadir modal/función de impresión de etiqueta térmica o remito de embalaje.
-- [ ] Crear suite de pruebas automatizadas `scripts/test-ticket03-web-orders-dashboard.ts` y verificar con `pnpm`.
+- [x] Crear Server Action para consulta y mutación de estados logísticos de órdenes web.
+- [x] Desarrollar componente `WebOrdersView` e integrarlo en la navegación lateral del Dashboard.
+- [x] Integrar modal de detalle de orden con visualización de artículos para picking y datos de entrega.
+- [x] Implementar asignación de código de guía de Correo Argentino con notificación automática por correo.
+- [x] Añadir modal/función de impresión de etiqueta térmica o remito de embalaje.
+- [x] Crear suite de pruebas automatizadas `scripts/test-ticket03-web-orders-dashboard.ts` y verificar con `pnpm`.

@@ -19,6 +19,7 @@ import { CashShiftHistoryView } from "./CashShiftHistoryView";
 import { UsersManagementView } from "./UsersManagementView";
 import { ProfilesManagementView } from "./ProfilesManagementView";
 import { StoreSettingsView } from "./StoreSettingsView";
+import { WebOrdersView } from "./WebOrdersView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -376,6 +377,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               <StoreSettingsView />
             </div>
           </div>
+        ) : currentTab === "ecommerce" ? (
+          <WebOrdersView />
         ) : currentTab === "pos" ? (
           currentPosSubView === "arqueo" ? (
             <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
