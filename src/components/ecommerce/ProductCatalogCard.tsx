@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { EcommerceProduct } from "./types";
 import { Heart, Flame } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -101,13 +102,18 @@ export function ProductCatalogCard({
 
   // Cuotas: 3 cuotas sin interés
   const installmentCount = 3;
+  const router = useRouter();
   const installmentAmount = Math.round(product.price / installmentCount);
 
   const hasImage = Boolean(product.image && product.image.trim() !== "" && !imageError);
 
+  const handleCardClick = () => {
+    router.push(`/productos/${product.id}`);
+  };
+
   return (
     <article
-      onClick={() => onQuickView?.(product)}
+      onClick={handleCardClick}
       className="group flex flex-col bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 cursor-pointer select-none overflow-hidden h-full"
     >
       {/* 1. Contenedor de Imagen (borde a borde en la parte superior, idéntico al diseño de referencia) */}

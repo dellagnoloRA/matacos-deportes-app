@@ -824,11 +824,18 @@ export const MOCK_CATALOG_PRODUCTS: EcommerceProduct[] = [
  * Función que mapea productos provenientes de Prisma a EcommerceProduct
  */
 export function mapPrismaProductToEcommerceProduct(prismaProd: any): EcommerceProduct {
-  const primaryImg =
-    prismaProd.images && prismaProd.images.length > 0
-      ? prismaProd.images[0].url
-      : prismaProd.imageUrl || SHARED_IMAGE;
+  const imageList: string[] = [];
+  if (Array.isArray(prismaProd.images) && prismaProd.images.length > 0) {
+    for (const img of prismaProd.images) {
+      if (img?.url && typeof img.url === "string") {
+        imageList.push(img.url);
+      }
+    }
+  } else if (prismaProd.imageUrl) {
+    imageList.push(prismaProd.imageUrl);
+  }
 
+  const primaryImg = imageList[0] || SHARED_IMAGE;
   const rawPrice = Number(prismaProd.price || 0);
 
   // Mapear talles y disponibilidad desde variants
@@ -867,6 +874,7 @@ export function mapPrismaProductToEcommerceProduct(prismaProd: any): EcommercePr
     discipline: prismaProd.discipline?.name || "Deportes",
     price: rawPrice,
     image: primaryImg,
+    images: imageList.length > 0 ? imageList : [primaryImg],
     description: prismaProd.description || undefined,
     installments: "3 y 6 cuotas sin interés",
     sizes: sizes.length > 0 ? sizes : undefined,

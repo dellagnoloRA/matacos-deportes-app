@@ -165,9 +165,11 @@ export function FeaturedProductsSection({
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                     {product.brand}
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-1">
-                    {product.name}
-                  </h3>
+                  <Link href={`/productos/${product.id}`} className="block">
+                    <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-1">
+                      {product.name}
+                    </h3>
+                  </Link>
                 </div>
 
                 <div className="space-y-3 pt-1">
@@ -184,12 +186,12 @@ export function FeaturedProductsSection({
                   </div>
 
                   {/* Ver producto action button */}
-                  <button
-                    onClick={() => setActiveModalProduct(product)}
-                    className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-98 transition-all duration-150 text-center"
+                  <Link
+                    href={`/productos/${product.id}`}
+                    className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-98 transition-all duration-150 text-center block"
                   >
                     Ver producto
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

@@ -20,6 +20,7 @@ export interface EcommerceProduct {
   isOffer?: boolean;
   offerTag?: string;
   image: string;
+  images?: string[];
   secondaryImage?: string;
   description?: string;
   installments?: string;
