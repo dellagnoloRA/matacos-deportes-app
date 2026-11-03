@@ -18,6 +18,14 @@ export interface OrderConfirmationEmailPayload {
   }>;
 }
 
+export interface OrderRefundEmailPayload {
+  to: string;
+  customerName: string;
+  orderCode: string;
+  total: number;
+  paymentId: string | number;
+}
+
 export interface OrderShippingUpdateEmailPayload {
   to: string;
   customerName: string;
@@ -149,6 +157,47 @@ export async function sendOrderShippingUpdateEmail(
     subject,
     html: htmlBody,
     previewUrl: trackingPageUrl,
+  });
+}
+
+/**
+ * Envía notificación por correo cuando se emite un reembolso automático tras expiración sin stock
+ */
+export async function sendOrderRefundNotificationEmail(
+  payload: OrderRefundEmailPayload
+): Promise<EmailSendResult> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const catalogUrl = `${appUrl}/catalogo`;
+  const subject = `Aviso de reembolso automático para tu orden ${payload.orderCode} — Matacos Deportes`;
+
+  const htmlBody = `
+    <div style="font-family: sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #991b1b;">Reembolso Emitido — Matacos Deportes</h2>
+      <p>Hola <strong>${payload.customerName}</strong>,</p>
+      <p>Te informamos que tu pedido <strong>${payload.orderCode}</strong> no pudo concretarse debido a que la reserva de 15 minutos caducó y el stock físico ya fue adquirido en el local antes del registro del pago.</p>
+      <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 8px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #991b1b;">
+          <strong>Importe reintegrado:</strong> ${formatCurrency(payload.total)}<br/>
+          <strong>ID Transacción Mercado Pago:</strong> #${payload.paymentId}
+        </p>
+      </div>
+      <p>El dinero fue devuelto automáticamente a tu medio de pago original en Mercado Pago. Podés corroborar el reintegro en tu cuenta o resumen bancario.</p>
+      <p style="margin-top: 24px;">
+        <a href="${catalogUrl}" style="background: #0f172a; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+          Volver a la Tienda Online
+        </a>
+      </p>
+      <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
+        Matacos Deportes — Saavedra 241, Formosa Capital, Argentina.
+      </p>
+    </div>
+  `;
+
+  return dispatchEmail({
+    to: payload.to,
+    subject,
+    html: htmlBody,
+    previewUrl: catalogUrl,
   });
 }
 

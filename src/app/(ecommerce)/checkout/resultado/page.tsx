@@ -9,9 +9,13 @@ import {
   ShoppingBag,
   Store,
   ShieldCheck,
+  MessageCircle,
+  Truck,
 } from "lucide-react";
 import { ClearCartOnSuccess } from "./ClearCartOnSuccess";
 import { processMercadoPagoPayment } from "@/server/actions/ecommerce/mercadopagoActions";
+import { formatOrderWhatsAppUrl, buildWhatsAppChatUrl } from "@/lib/whatsapp";
+import { companyConfig } from "@/config/company";
 
 export const metadata: Metadata = {
   title: "Resultado de tu Compra — Matacos Deportes",
@@ -59,6 +63,16 @@ export default async function CheckoutResultadoPage({
     rawStatus === "rejected" ||
     rawStatus === "cancelled";
 
+  const whatsappSuccessUrl = formatOrderWhatsAppUrl({
+    orderCode,
+    status: "COMPLETADA",
+  });
+
+  const whatsappHelpUrl = buildWhatsAppChatUrl(
+    companyConfig.whatsappNumber,
+    `Hola Matacos Deportes! Quiero consultar por el pago de mi pedido *${orderCode}*.`
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between">
       <ClearCartOnSuccess isApproved={isApproved} />
@@ -96,8 +110,7 @@ export default async function CheckoutResultadoPage({
               </h1>
 
               <p className="text-sm text-slate-600 leading-relaxed">
-                Tu compra fue acreditada y confirmada. Ya comenzamos a preparar
-                tus artículos en nuestro local de Saavedra 241.
+                Tu compra fue acreditada y confirmada. Te enviamos el resumen de compra y seguimiento a tu correo. Ya comenzamos a preparar tu pedido en nuestro local de Saavedra 241.
               </p>
 
               <div className="my-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2 text-xs">
@@ -121,13 +134,33 @@ export default async function CheckoutResultadoPage({
                 </div>
               </div>
 
-              <Link
-                href="/catalogo"
-                className="w-full py-3.5 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all text-center"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Seguir Comprando</span>
-              </Link>
+              <div className="space-y-2.5 pt-1">
+                <a
+                  href={whatsappSuccessUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-6 rounded-xl bg-[#25D366] hover:bg-[#20ba59] active:scale-98 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20 transition-all text-center"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Avisar / Coordinar por WhatsApp</span>
+                </a>
+
+                <Link
+                  href={`/seguimiento?codigo=${encodeURIComponent(orderCode)}`}
+                  className="w-full py-3 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
+                >
+                  <Truck className="w-4 h-4 text-[#00D615]" />
+                  <span>Ver Estado del Envío</span>
+                </Link>
+
+                <Link
+                  href="/catalogo"
+                  className="w-full py-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>Seguir Comprando</span>
+                </Link>
+              </div>
             </div>
           )}
 
@@ -160,7 +193,7 @@ export default async function CheckoutResultadoPage({
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <Link
                   href="/checkout"
                   className="w-full py-3.5 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
@@ -169,9 +202,19 @@ export default async function CheckoutResultadoPage({
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 
+                <a
+                  href={whatsappHelpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                  <span>Consultar Asistencia por WhatsApp</span>
+                </a>
+
                 <Link
                   href="/"
-                  className="block text-xs font-semibold text-slate-500 hover:text-slate-800 py-2"
+                  className="block text-xs font-semibold text-slate-500 hover:text-slate-800 py-1"
                 >
                   Volver al inicio
                 </Link>
@@ -216,13 +259,32 @@ export default async function CheckoutResultadoPage({
                 </div>
               </div>
 
-              <Link
-                href="/catalogo"
-                className="w-full py-3.5 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
-              >
-                <span>Volver al Catálogo</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              <div className="space-y-2.5">
+                <Link
+                  href={`/seguimiento?codigo=${encodeURIComponent(orderCode)}`}
+                  className="w-full py-3.5 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
+                >
+                  <span>Ver Estado del Envío</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+
+                <a
+                  href={whatsappHelpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all text-center"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                  <span>Consultar por WhatsApp</span>
+                </a>
+
+                <Link
+                  href="/catalogo"
+                  className="block text-xs font-semibold text-slate-500 hover:text-slate-800 py-1"
+                >
+                  Volver al Catálogo
+                </Link>
+              </div>
             </div>
           )}
         </div>

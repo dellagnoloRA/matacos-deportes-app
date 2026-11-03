@@ -5,9 +5,9 @@ Disparo automático de la notificación de confirmación de compra por correo el
 
 **Blocked by:** 01: Expiración de Reservas con TTL, Expiración en Mercado Pago y Cron Autónomo
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Conectar `sendOrderConfirmationEmail` en `processMercadoPagoPayment` ante evento `approved`.
-- [ ] Incorporar botón interactivo de WhatsApp (`wa.me`) con mensaje prearmado en `src/app/(ecommerce)/checkout/resultado/page.tsx`.
-- [ ] Crear suite de pruebas automatizadas `scripts/test-ticket02-order-confirmations.ts` para validar el envío de email y los enlaces de WhatsApp.
-- [ ] Ejecutar la suite con `pnpm` y verificar que todos los casos pasen en verde.
+- [x] Conectar `sendOrderConfirmationEmail` en `processMercadoPagoPayment` ante evento `approved`.
+- [x] Incorporar botón interactivo de WhatsApp (`wa.me`) con mensaje prearmado en `src/app/(ecommerce)/checkout/resultado/page.tsx`.
+- [x] Crear suite de pruebas automatizadas `scripts/test-ticket02-order-confirmations.ts` para validar el envío de email y los enlaces de WhatsApp.
+- [x] Ejecutar la suite con `pnpm` y verificar que todos los casos pasen en verde.

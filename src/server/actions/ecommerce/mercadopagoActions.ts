@@ -11,6 +11,10 @@ import {
 } from "@/lib/mercadopago";
 import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
+import {
+  sendOrderConfirmationEmail,
+  sendOrderRefundNotificationEmail,
+} from "@/lib/emailService";
 
 export interface PreferenceCreatedResult {
   preferenceId: string;
@@ -231,6 +235,8 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
       return { success: true, alreadyProcessed: true, status: payment.status };
     }
 
+    let capturedSale: any = null;
+
     // Ejecutar mutaciones atómicas dentro de prisma.$transaction
     const result = await prisma.$transaction(async (tx) => {
       // 1. Control de Idempotencia: Verificar si el pago ya fue asentado previamente
@@ -246,11 +252,25 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
         };
       }
 
-      // 2. Obtener la orden de venta vinculada
+      // 2. Obtener la orden de venta vinculada con variantes y datos de producto
       const sale = await tx.sale.findUnique({
         where: { id: saleId },
-        include: { items: true },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: {
+                  product: {
+                    select: { name: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
+
+      capturedSale = sale;
 
       if (!sale) {
         throw new Error(`Orden de venta ${saleId} no encontrada`);
@@ -451,6 +471,38 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
     // Invalida el caché del catálogo público para reflejar las nuevas existencias
     if (payment.status === "approved" || payment.status === "rejected" || payment.status === "cancelled") {
       await revalidateEcommerceCatalogCache();
+    }
+
+    // Despacho asíncrono de confirmaciones por correo electrónico
+    if (result.status === "approved" && !result.alreadyProcessed && capturedSale?.customerEmail) {
+      sendOrderConfirmationEmail({
+        to: capturedSale.customerEmail,
+        customerName: capturedSale.customerName || "Cliente",
+        orderCode: capturedSale.invoiceNumber || capturedSale.id,
+        shippingMethod: capturedSale.shippingMethod || "RETIRO_LOCAL",
+        shippingAddress: capturedSale.shippingAddress || "Saavedra 241, Formosa Capital",
+        shippingCity: capturedSale.shippingCity || "Formosa",
+        total: Number(capturedSale.total),
+        items: (capturedSale.items || []).map((it: any) => ({
+          productName: it.variant?.product?.name || "Artículo deportivo",
+          size: it.variant?.size || "Único",
+          color: it.variant?.color || "Estándar",
+          quantity: it.quantity,
+          subtotal: Number(it.subtotal || Number(it.price) * it.quantity),
+        })),
+      }).catch((emailErr) => {
+        console.error("[MercadoPago Webhook] Error al enviar email de confirmación:", emailErr);
+      });
+    } else if (result.status === "refunded_due_to_stock_shortage" && capturedSale?.customerEmail) {
+      sendOrderRefundNotificationEmail({
+        to: capturedSale.customerEmail,
+        customerName: capturedSale.customerName || "Cliente",
+        orderCode: capturedSale.invoiceNumber || capturedSale.id,
+        total: Number(capturedSale.total),
+        paymentId,
+      }).catch((refundEmailErr) => {
+        console.error("[MercadoPago Webhook] Error al enviar email de reembolso:", refundEmailErr);
+      });
     }
 
     return {
