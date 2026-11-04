@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Banner } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { invalidateLandingCache } from "@/lib/landingCache";
 import {
   CreateBannerSchema,
   UpdateBannerSchema,
@@ -116,17 +116,11 @@ export function serializeBanner(
 }
 
 /**
- * Revalida la caché de la Landing ('/') y paneles relacionados de forma segura.
+ * Revalida la caché de la Landing ('/' y etiqueta 'landing-data' de RF-28) y paneles relacionados de forma segura.
  * Ignora el error Invariant si se invoca desde scripts CLI fuera de un request HTTP de Next.js.
  */
 export function safeRevalidateBannerPaths(): void {
-  try {
-    revalidatePath("/");
-    revalidatePath("/admin");
-    revalidatePath("/admin/banners");
-  } catch {
-    // Fuera del ciclo de vida HTTP de Next.js (ej. suite de tests con tsx)
-  }
+  invalidateLandingCache("banner");
 }
 
 /**

@@ -68,6 +68,11 @@ const SUITES = [
     script: "scripts/test-rf26-banners.ts",
   },
   {
+    name: "Landing Page de Alto Rendimiento y Caché ISR",
+    rf: "RF-28",
+    script: "scripts/test-rf28-landing-page.ts",
+  },
+  {
     name: "Portal de Clientes, Favoritos y Seguimiento Web",
     rf: "RF-29",
     script: "scripts/test-rf29-customer-portal.ts",

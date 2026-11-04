@@ -23,6 +23,7 @@ import {
   LogOut,
   Users,
   Shield,
+  Sparkles,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -57,7 +58,8 @@ export function SidebarLeft({
 
   const hasPerm = (code: string) => {
     if (!currentUser) return false;
-        return currentUser.permissions?.includes(code) ?? false;
+    if (currentUser.role === "ADMIN") return true;
+    return currentUser.permissions?.includes(code) ?? false;
   };
 
   const isInventoryActive =
@@ -321,7 +323,7 @@ export function SidebarLeft({
 )}
 
           {/* 6. Administración (Personal y Perfiles) */}
-          {(hasPerm("admin.usuarios") || hasPerm("admin.perfiles")) && (
+          {(hasPerm("admin.usuarios") || hasPerm("admin.perfiles") || hasPerm("ecommerce.banners")) && (
             <div className="space-y-1 pt-1.5 border-t border-emerald-900/40">
               <div className="px-3.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400/60">
                 Administración
@@ -355,6 +357,22 @@ export function SidebarLeft({
                   <div className="flex items-center gap-3">
                     <Shield className={`w-4 h-4 ${activeItem === "admin-perfiles" ? "text-slate-950" : "text-emerald-300"}`} />
                     <span>Perfiles & Roles</span>
+                  </div>
+                </button>
+              )}
+              {hasPerm("ecommerce.banners") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-banners")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-banners"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Sparkles className={`w-4 h-4 ${activeItem === "admin-banners" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Banners Web</span>
                   </div>
                 </button>
               )}

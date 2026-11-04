@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
 import { generateModelCode } from "@/lib/textUtils";
 import { revalidatePath } from "next/cache";
+import { invalidateLandingCache } from "@/lib/landingCache";
 import { hasPermission } from "./authActions";
 
 export interface ProductFilterOptions {
@@ -452,6 +453,7 @@ export async function deleteProduct(id: string) {
     });
 
     try {
+      invalidateLandingCache("product");
       revalidatePath("/");
       revalidatePath("/admin");
     } catch {
@@ -496,6 +498,7 @@ export async function toggleProductActive(id: string) {
     });
 
     try {
+      invalidateLandingCache("product");
       revalidatePath("/");
       revalidatePath("/admin");
     } catch {

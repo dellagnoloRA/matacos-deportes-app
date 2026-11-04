@@ -1,7 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
+import { invalidateLandingCache } from "@/lib/landingCache";
 import type {
   CreateBannerInput,
   UpdateBannerInput,
@@ -13,27 +13,13 @@ import {
   updateBannerService,
   deleteBannerService,
   reorderBannersService,
-  type SerializedBanner,
-  type BannerValidityStatus,
   type BannerListResult,
   type BannerSingleResult,
   type BannerDeleteResult,
 } from "@/server/services/bannerService";
 
-export type {
-  SerializedBanner,
-  BannerValidityStatus,
-  BannerListResult,
-  BannerSingleResult,
-  BannerDeleteResult,
-};
-
 function revalidateLandingCache(): void {
-  try {
-    revalidatePath("/");
-  } catch {
-    // Silenciado fuera del ciclo de petición HTTP de Next.js (ej. scripts CLI / tests)
-  }
+  invalidateLandingCache("banner");
 }
 
 async function resolveAuthenticatedUserId(): Promise<string | null> {

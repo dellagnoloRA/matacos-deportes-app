@@ -10,12 +10,17 @@ import { EcommerceOfferBanner } from "./EcommerceOfferBanner";
 import { EcommerceFooter } from "./EcommerceFooter";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
 import { EcommerceProduct } from "./types";
+import type { SerializedBanner } from "@/server/services/bannerService";
 
 interface EcommerceHomeViewProps {
   initialProducts?: EcommerceProduct[];
+  banners?: SerializedBanner[];
 }
 
-export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
+export function EcommerceHomeView({
+  initialProducts,
+  banners,
+}: EcommerceHomeViewProps) {
   const products =
     initialProducts && initialProducts.length > 0
       ? initialProducts
@@ -58,7 +63,7 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
       {/* Main Page Flow */}
       <main className="flex-1 flex flex-col">
         {/* 2. Hero Section */}
-        <EcommerceHero />
+        <EcommerceHero banners={banners} />
 
         {/* 3. Explorá por Categoría */}
         <CategoryGrid

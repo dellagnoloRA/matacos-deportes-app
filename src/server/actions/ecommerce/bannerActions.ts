@@ -11,20 +11,12 @@ import {
   updateBanner as baseUpdateBanner,
   deleteBanner as baseDeleteBanner,
   reorderBanners as baseReorderBanners,
-  type SerializedBanner,
-  type BannerValidityStatus,
-  type BannerListResult,
-  type BannerSingleResult,
-  type BannerDeleteResult,
 } from "@/server/actions/bannerActions";
-
-export type {
-  SerializedBanner,
-  BannerValidityStatus,
+import type {
   BannerListResult,
   BannerSingleResult,
   BannerDeleteResult,
-};
+} from "@/server/services/bannerService";
 
 export async function getActiveBanners(): Promise<BannerListResult> {
   return baseGetActiveBanners();

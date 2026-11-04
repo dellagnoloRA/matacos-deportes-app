@@ -347,13 +347,15 @@ export interface GenerateBannerImageFilenameParams {
   title?: string | null;
   variant?: "desktop" | "mobile" | string | null;
   originalName?: string | null;
+  extension?: string;
 }
 
 /**
- * Genera un nombre de archivo normalizado y seguro para imágenes de Banners (WebP).
+ * Genera un nombre de archivo normalizado y seguro para imágenes o videos de Banners (WebP / MP4).
  * Ejemplos:
  *  - "promo-invierno-2026-desktop-3a8f1.webp"
  *  - "liquidacion-calzado-mobile-9c4d2.webp"
+ *  - "hero-running-desktop-7b3e1.mp4"
  */
 export function generateBannerImageFilename(
   params: GenerateBannerImageFilenameParams
@@ -370,6 +372,7 @@ export function generateBannerImageFilename(
         : "";
   const uniqueHash = Math.random().toString(36).substring(2, 7);
 
+  const ext = (params.extension || "webp").replace(/^\./, "").toLowerCase();
   const parts = [baseSlug.slice(0, 60), variantSlug, uniqueHash].filter(Boolean);
-  return `${parts.join("-")}.webp`;
+  return `${parts.join("-")}.${ext}`;
 }

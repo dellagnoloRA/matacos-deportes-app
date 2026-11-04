@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import type { SerializedBanner } from "@/server/services/bannerService";
 
 interface EcommerceHeroProps {
+  banners?: SerializedBanner[];
   onExploreClick?: () => void;
 }
 
@@ -34,11 +37,25 @@ const HERO_SLIDES = [
   },
 ];
 
-export function EcommerceHero({ onExploreClick }: EcommerceHeroProps) {
+function isVideoMedia(url?: string | null): boolean {
+  if (!url) return false;
+  const clean = url.split("?")[0].toLowerCase();
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".mov") ||
+    clean.endsWith(".ogg") ||
+    clean.includes("/videos/")
+  );
+}
+
+export function EcommerceHero({ banners, onExploreClick }: EcommerceHeroProps) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [failedVideos, setFailedVideos] = useState<Record<number, boolean>>({});
 
-  const totalSlides = HERO_SLIDES.length;
+  const hasCustomBanners = Boolean(banners && banners.length > 0);
+  const totalSlides = hasCustomBanners ? banners!.length : HERO_SLIDES.length;
+  const safeIdx = totalSlides > 0 ? currentIdx % totalSlides : 0;
 
   const handleNext = useCallback(() => {
     setCurrentIdx((prev) => (prev + 1) % totalSlides);
@@ -50,44 +67,94 @@ export function EcommerceHero({ onExploreClick }: EcommerceHeroProps) {
 
   // Rotación automática cada 7 segundos
   useEffect(() => {
+    if (totalSlides <= 1) return;
     const timer = setInterval(() => {
       handleNext();
     }, 7000);
 
     return () => clearInterval(timer);
-  }, [handleNext, currentIdx]);
+  }, [handleNext, safeIdx, totalSlides]);
 
-  const currentSlide = HERO_SLIDES[currentIdx];
-  const isCurrentVideoFailed = failedVideos[currentIdx];
+  const currentSlide = HERO_SLIDES[safeIdx % HERO_SLIDES.length]!;
+  const currentBanner = hasCustomBanners ? banners![safeIdx] : undefined;
+  const isCurrentVideoFailed = failedVideos[safeIdx];
+
+  const slideKey = currentBanner ? currentBanner.id : String(currentSlide.id);
+  const eyebrowTag = currentBanner ? "PROMOCIÓN DESTACADA" : currentSlide.tag;
+  const headingTitle = currentBanner ? currentBanner.title : currentSlide.title;
+  const descriptionText = currentBanner
+    ? currentBanner.subtitle
+    : currentSlide.desc;
+  const targetHref = currentBanner?.linkUrl || "#productos";
+  const ctaLabel = currentBanner?.linkUrl
+    ? "VER PROMOCIÓN"
+    : currentSlide.ctaText;
+  const isExternalLink =
+    targetHref.startsWith("http://") || targetHref.startsWith("https://");
 
   return (
     <section className="relative w-full h-[480px] sm:h-[540px] lg:h-[600px] overflow-hidden bg-slate-950 select-none">
-      {/* 1. Background Video / Media Container */}
+      {/* 1. Background Video / Promotional Banner Media Container */}
       <div className="absolute inset-0 overflow-hidden bg-slate-950">
-        {!isCurrentVideoFailed && (
-          <video
-            key={currentSlide.video}
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            onError={() => {
-              setFailedVideos((prev) => ({ ...prev, [currentIdx]: true }));
-            }}
-            className="absolute inset-0 w-full h-full object-cover scale-105 transition-opacity duration-700"
-          >
-            <source src={currentSlide.video} type="video/mp4" />
-          </video>
-        )}
+        {currentBanner ? (
+          isVideoMedia(currentBanner.imageUrl) ? (
+            <video
+              key={currentBanner.imageUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+            >
+              {currentBanner.mobileUrl && isVideoMedia(currentBanner.mobileUrl) && (
+                <source src={currentBanner.mobileUrl} media="(max-width: 640px)" />
+              )}
+              <source src={currentBanner.imageUrl} />
+            </video>
+          ) : (
+            <picture key={currentBanner.id}>
+              {currentBanner.mobileUrl && !isVideoMedia(currentBanner.mobileUrl) && (
+                <source
+                  media="(max-width: 640px)"
+                  srcSet={currentBanner.mobileUrl}
+                />
+              )}
+              <img
+                src={currentBanner.imageUrl}
+                alt={currentBanner.title}
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+              />
+            </picture>
+          )
+        ) : (
+          <>
+            {!isCurrentVideoFailed && (
+              <video
+                key={currentSlide.video}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+                onError={() => {
+                  setFailedVideos((prev) => ({ ...prev, [safeIdx]: true }));
+                }}
+                className="absolute inset-0 w-full h-full object-cover scale-105 transition-opacity duration-700"
+              >
+                <source src={currentSlide.video} type="video/mp4" />
+              </video>
+            )}
 
-        {/* Fallback Poster Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center -z-10"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1526676037777-05a232554f77?auto=format&fit=crop&w=1920&q=80')`,
-          }}
-        />
+            {/* Fallback Poster Background Image */}
+            <div
+              className="absolute inset-0 bg-cover bg-center -z-10"
+              style={{
+                backgroundImage: `url('https://images.unsplash.com/photo-1526676037777-05a232554f77?auto=format&fit=crop&w=1920&q=80')`,
+              }}
+            />
+          </>
+        )}
 
         {/* Dark Contrast Overlays: Opacidad y gradiente para contraste perfecto del texto */}
         <div className="absolute inset-0 bg-black/45 pointer-events-none" />
@@ -98,75 +165,95 @@ export function EcommerceHero({ onExploreClick }: EcommerceHeroProps) {
       {/* 2. Hero Content Container */}
       <div className="relative max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
         <div
-          key={currentSlide.id}
+          key={slideKey}
           className="max-w-2xl space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500"
         >
           {/* Eyebrow Tag */}
           <div className="inline-flex items-center gap-2">
             <span className="text-[#00D615] font-black tracking-[0.25em] text-xs sm:text-sm uppercase drop-shadow-xs">
-              {currentSlide.tag}
+              {eyebrowTag}
             </span>
           </div>
 
           {/* Main Title */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] drop-shadow-md">
-            {currentSlide.title}
+            {headingTitle}
           </h1>
 
           {/* Description */}
-          <p className="text-sm sm:text-base lg:text-lg text-slate-200 font-medium leading-relaxed max-w-xl">
-            {currentSlide.desc}
-          </p>
+          {descriptionText && (
+            <p className="text-sm sm:text-base lg:text-lg text-slate-200 font-medium leading-relaxed max-w-xl">
+              {descriptionText}
+            </p>
+          )}
 
           {/* CTA Button */}
           <div className="pt-2 sm:pt-4 flex items-center gap-4">
-            <a
-              href="#productos"
-              onClick={onExploreClick}
-              className="inline-flex items-center gap-3 bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl shadow-lg shadow-[#00D615]/20 hover:shadow-[#00D615]/40 transition-all duration-200"
-            >
-              <span>{currentSlide.ctaText}</span>
-              <ArrowRight className="w-4 h-4" />
-            </a>
+            {targetHref.startsWith("#") || isExternalLink ? (
+              <a
+                href={targetHref}
+                onClick={
+                  targetHref.startsWith("#") ? onExploreClick : undefined
+                }
+                target={isExternalLink ? "_blank" : undefined}
+                rel={isExternalLink ? "noopener noreferrer" : undefined}
+                className="inline-flex items-center gap-3 bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl shadow-lg shadow-[#00D615]/20 hover:shadow-[#00D615]/40 transition-all duration-200"
+              >
+                <span>{ctaLabel}</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            ) : (
+              <Link
+                href={targetHref}
+                className="inline-flex items-center gap-3 bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl shadow-lg shadow-[#00D615]/20 hover:shadow-[#00D615]/40 transition-all duration-200"
+              >
+                <span>{ctaLabel}</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
       {/* 3. Navigation Arrows at both ends */}
-      <button
-        onClick={handlePrev}
-        className="group absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/75 border border-white/20 text-white backdrop-blur-md shadow-2xl hover:scale-110 active:scale-90 transition-all duration-200"
-        title="Video anterior"
-        aria-label="Video anterior"
-      >
-        <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:-translate-x-0.5 transition-transform" />
-      </button>
-
-      <button
-        onClick={handleNext}
-        className="group absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/75 border border-white/20 text-white backdrop-blur-md shadow-2xl hover:scale-110 active:scale-90 transition-all duration-200"
-        title="Siguiente video"
-        aria-label="Siguiente video"
-      >
-        <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:translate-x-0.5 transition-transform" />
-      </button>
-
-      {/* 4. Bottom Switcher Dots */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-8 z-20 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 shadow-lg">
-        {HERO_SLIDES.map((_, idx) => (
+      {totalSlides > 1 && (
+        <>
           <button
-            key={idx}
-            onClick={() => setCurrentIdx(idx)}
-            className={`transition-all rounded-full ${
-              currentIdx === idx
-                ? "w-7 h-2 bg-[#00D615] shadow-xs"
-                : "w-2 h-2 bg-white/40 hover:bg-white/80"
-            }`}
-            title={`Slide ${idx + 1}`}
-            aria-label={`Slide ${idx + 1}`}
-          />
-        ))}
-      </div>
+            onClick={handlePrev}
+            className="group absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/75 border border-white/20 text-white backdrop-blur-md shadow-2xl hover:scale-110 active:scale-90 transition-all duration-200"
+            title="Slide anterior"
+            aria-label="Slide anterior"
+          >
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:-translate-x-0.5 transition-transform" />
+          </button>
+
+          <button
+            onClick={handleNext}
+            className="group absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/75 border border-white/20 text-white backdrop-blur-md shadow-2xl hover:scale-110 active:scale-90 transition-all duration-200"
+            title="Siguiente slide"
+            aria-label="Siguiente slide"
+          >
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* 4. Bottom Switcher Dots */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-8 z-20 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15 shadow-lg">
+            {Array.from({ length: totalSlides }).map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentIdx(idx)}
+                className={`transition-all rounded-full ${
+                  safeIdx === idx
+                    ? "w-7 h-2 bg-[#00D615] shadow-xs"
+                    : "w-2 h-2 bg-white/40 hover:bg-white/80"
+                }`}
+                title={`Slide ${idx + 1}`}
+                aria-label={`Slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
