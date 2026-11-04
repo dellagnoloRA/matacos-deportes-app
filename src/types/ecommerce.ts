@@ -1,5 +1,7 @@
+import type { SerializedBanner } from "@/server/services/bannerService";
+
 /**
- * DTOs Públicos y Contratos de Datos para el E-commerce de Matacos Deportes (RF-13)
+ * DTOs Públicos y Contratos de Datos para el E-commerce de Matacos Deportes (RF-13 / RF-28)
  * Diseñados estrictamente sin datos sensibles internos (sin precios de costo ni proveedores).
  */
 
@@ -57,6 +59,17 @@ export interface PublicProductItem {
   minPrice: number;
   maxPrice: number;
   createdAt: string;
+
+  // Campos opcionales de Descuento Promocional (RF-27 / RF-28) y Analítica de Ventas
+  discountActive?: boolean;
+  discountPercentage?: number | null;
+  discountPrice?: number | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
+  effectivePrice?: number;
+  formattedPrice?: string;
+  formattedEffectivePrice?: string;
+  unitsSold?: number;
 }
 
 export interface CatalogPagination {
@@ -85,19 +98,23 @@ export interface PredictiveSearchItem {
   availableStock: number;
 }
 
-export interface CatalogFacetOption {
-  name: string;
-  slug: string;
-  count: number;
-}
-
 export interface CatalogFacetsResponse {
   disciplines: CatalogFacetOption[];
   categories: CatalogFacetOption[];
   brands: CatalogFacetOption[];
-  genders: { gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX"; label: string; count: number }[];
+  genders: {
+    gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
+    label: string;
+    count: number;
+  }[];
   sizes: { size: string; count: number }[];
   priceRange: { min: number; max: number };
+}
+
+export interface CatalogFacetOption {
+  name: string;
+  slug: string;
+  count: number;
 }
 
 /**
@@ -137,3 +154,54 @@ export interface VariantStockCheckResult {
   price: number;
 }
 
+/**
+ * ============================================================================
+ * CONTRATOS DE DATOS PARA LANDING PAGE OPTIMIZADA (RF-28)
+ * ============================================================================
+ */
+
+export type FlagshipDisciplineKey =
+  | "natacion"
+  | "voley"
+  | "crocs"
+  | "fitness"
+  | "calzado";
+
+export interface FeaturedDisciplineItem {
+  id: string;
+  key: FlagshipDisciplineKey;
+  name: string;
+  slug: string;
+  subtitle: string;
+  imageUrl: string;
+  linkUrl: string;
+  filterType: "discipline" | "category";
+  availableProductsCount: number;
+}
+
+export interface LandingProductItem extends PublicProductItem {
+  discountActive: boolean;
+  discountPercentage: number | null;
+  discountPrice: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+  effectivePrice: number;
+  formattedPrice: string;
+  formattedEffectivePrice: string;
+  unitsSold: number;
+}
+
+export interface LandingDataResponse {
+  banners: SerializedBanner[];
+  featuredDisciplines: FeaturedDisciplineItem[];
+  newArrivals: LandingProductItem[];
+  bestSellers: LandingProductItem[];
+  promoProducts: LandingProductItem[];
+  generatedAt: string;
+}
+
+export interface GetLandingPageDataResult {
+  success: boolean;
+  data?: LandingDataResponse;
+  error?: string;
+}

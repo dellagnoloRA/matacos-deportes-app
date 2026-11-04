@@ -1533,3 +1533,12 @@ export async function processWebOrderPayment(
     };
   }
 }
+
+// Re-exportación de acciones de Transferencia Bancaria (RF-17)
+export {
+  getBankTransferDetails,
+  submitTransferProof,
+  verifyTransferPayment,
+  getPendingTransferOrders,
+} from "./bankTransferActions";
+

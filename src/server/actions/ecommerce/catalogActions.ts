@@ -16,6 +16,7 @@ import type {
 } from "@/types/ecommerce";
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
+import { invalidateLandingCache } from "@/lib/landingCache";
 
 /**
  * Serializador seguro para Client Components (convierte Decimals de Prisma a numbers nativos)
@@ -597,6 +598,7 @@ export async function getCatalogFacets() {
  */
 export async function revalidateEcommerceCatalogCache() {
   try {
+    invalidateLandingCache("product");
     revalidateTag("ecommerce-catalog");
     revalidateTag("catalog-facets");
     revalidatePath("/catalogo");

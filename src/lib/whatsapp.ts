@@ -66,6 +66,8 @@ export function formatOrderStatusLabel(status?: string | null): string {
   switch (normalized) {
     case "PENDIENTE_PAGO":
       return "Pendiente de pago";
+    case "PENDIENTE_VERIFICACION":
+      return "Pendiente de verificación";
     case "EN_PREPARACION":
       return "En preparación";
     case "LISTO_RETIRO":
