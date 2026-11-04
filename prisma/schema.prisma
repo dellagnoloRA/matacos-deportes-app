@@ -372,3 +372,25 @@ model ProfilePermission {
 
   @@id([profileId, permissionId])
 }
+
+// =========================================================================
+// GESTIÓN DE BANNERS Y CARRUSEL PROMOCIONAL EN LANDING (RF-26)
+// =========================================================================
+
+model Banner {
+  id        String    @id @default(uuid())
+  title     String
+  subtitle  String?
+  imageUrl  String
+  mobileUrl String?
+  linkUrl   String?
+  order     Int       @default(0)
+  active    Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([active, order])
+  @@index([startDate, endDate])
+}

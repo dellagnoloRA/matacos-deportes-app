@@ -19,6 +19,7 @@
     "test:rf11": "tsx scripts/test-rf11-cash-shifts.ts",
     "test:rf17": "tsx scripts/test-rf17-bank-transfer.ts",
     "test:rf18": "tsx scripts/test-rf18-whatsapp-contingency.ts",
+    "test:rf26": "tsx scripts/test-rf26-banners.ts",
     "test:rf29": "tsx scripts/test-rf29-customer-portal.ts"
   },
   "prisma": {

@@ -63,6 +63,11 @@ const SUITES = [
     script: "scripts/test-rf17-bank-transfer.ts",
   },
   {
+    name: "Gestión y Publicación de Banners en Landing",
+    rf: "RF-26",
+    script: "scripts/test-rf26-banners.ts",
+  },
+  {
     name: "Portal de Clientes, Favoritos y Seguimiento Web",
     rf: "RF-29",
     script: "scripts/test-rf29-customer-portal.ts",

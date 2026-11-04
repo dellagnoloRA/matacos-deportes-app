@@ -342,3 +342,34 @@ export function generateProductImageFilename(params: GenerateProductImageFilenam
   return `${parts.join("-")}.webp`;
 }
 
+
+export interface GenerateBannerImageFilenameParams {
+  title?: string | null;
+  variant?: "desktop" | "mobile" | string | null;
+  originalName?: string | null;
+}
+
+/**
+ * Genera un nombre de archivo normalizado y seguro para imágenes de Banners (WebP).
+ * Ejemplos:
+ *  - "promo-invierno-2026-desktop-3a8f1.webp"
+ *  - "liquidacion-calzado-mobile-9c4d2.webp"
+ */
+export function generateBannerImageFilename(
+  params: GenerateBannerImageFilenameParams
+): string {
+  const rawBaseName = params.originalName
+    ? params.originalName.replace(/\.[^/.]+$/, "")
+    : "";
+  const baseSlug = slugify(params.title || rawBaseName || "banner") || "banner";
+  const variantSlug =
+    params.variant === "mobile"
+      ? "mobile"
+      : params.variant === "desktop"
+        ? "desktop"
+        : "";
+  const uniqueHash = Math.random().toString(36).substring(2, 7);
+
+  const parts = [baseSlug.slice(0, 60), variantSlug, uniqueHash].filter(Boolean);
+  return `${parts.join("-")}.webp`;
+}
