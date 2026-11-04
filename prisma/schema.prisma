@@ -45,6 +45,13 @@ enum CashMovementType {
   AJUSTE_ARQUEO
 }
 
+enum Gender {
+  HOMBRE
+  MUJER
+  NINO
+  UNISEX
+}
+
 model User {
   id             String      @id @default(uuid())
   username       String?     @unique
@@ -100,6 +107,7 @@ model Product {
   category     Category         @relation(fields: [categoryId], references: [id])
   brandId      String
   brand        Brand            @relation(fields: [brandId], references: [id])
+  gender       Gender           @default(UNISEX)
   variants     ProductVariant[]
   images       ProductImage[]
   createdAt    DateTime         @default(now())

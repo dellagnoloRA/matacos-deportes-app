@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import {
   CreatePendingSaleSchema,
   CreatePendingSaleInput,
+  CreatePendingExchangeSaleSchema,
+  CreatePendingExchangeSaleInput,
   UpdatePendingSaleSchema,
   UpdatePendingSaleInput,
   CompletePendingSaleSchema,
@@ -16,6 +18,7 @@ import {
   RawSaleItemInput,
   DiscountConfig,
 } from "@/lib/discounts";
+import { CreateQuickPosProductSchema, CreateQuickPosProductInput } from "@/schemas/product";
 import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { formatCurrency } from "@/lib/utils";
@@ -33,6 +36,7 @@ export interface PendingSaleSummaryResult {
   totalDiscount: number;
   totalNet: number;
   itemsCount: number;
+  sale?: any;
 }
 
 function serializeData<T>(obj: any): T {
@@ -68,80 +72,168 @@ export async function searchPosProducts(query: string) {
 
   try {
     const words = q.split(/\s+/).filter(Boolean);
-    const variants = await prisma.productVariant.findMany({
+
+    // 1. Verificar si hay coincidencia exacta por código de barras o SKU
+    const exactVariant = await prisma.productVariant.findFirst({
       where: {
         product: { active: true },
-        ...(words.length === 1
-          ? {
-              OR: [
-                { barcode: q },
-                { sku: q },
-                { product: { name: { contains: q, mode: "insensitive" } } },
-                { product: { brand: { name: { contains: q, mode: "insensitive" } } } },
-                { color: { contains: q, mode: "insensitive" } },
-                { size: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {
-              AND: words.map((w) => ({
-                OR: [
-                  { barcode: { contains: w, mode: "insensitive" } },
-                  { sku: { contains: w, mode: "insensitive" } },
-                  { color: { contains: w, mode: "insensitive" } },
-                  { size: { contains: w, mode: "insensitive" } },
-                  { product: { name: { contains: w, mode: "insensitive" } } },
-                  { product: { brand: { name: { contains: w, mode: "insensitive" } } } },
-                  { product: { category: { name: { contains: w, mode: "insensitive" } } } },
-                ],
-              })),
-            }),
+        OR: [{ barcode: q }, { sku: q }],
       },
-      take: 20,
-      orderBy: [{ stockStore: "desc" }],
-      select: {
-        id: true,
-        size: true,
-        color: true,
-        sku: true,
-        barcode: true,
-        stockStore: true,
-        stockWarehouse: true,
-        stockReserved: true,
-        price: true,
+      include: {
         product: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-            price: true,
+          include: {
             brand: { select: { name: true } },
             category: { select: { name: true } },
+            variants: {
+              select: {
+                id: true,
+                size: true,
+                color: true,
+                sku: true,
+                barcode: true,
+                stockStore: true,
+                stockWarehouse: true,
+                stockReserved: true,
+                price: true,
+              },
+            },
           },
         },
       },
     });
 
-    const items = variants.map((v) => {
-      const effectivePrice = Number(v.price ?? v.product.price);
-      const stockAvailable = Math.max(0, v.stockStore - v.stockReserved);
+    // 2. Buscar productos que coincidan por nombre, marca, categoría o variantes
+    const products = await prisma.product.findMany({
+      where: {
+        active: true,
+        ...(words.length === 1
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { brand: { name: { contains: q, mode: "insensitive" } } },
+                { category: { name: { contains: q, mode: "insensitive" } } },
+                { variants: { some: { barcode: q } } },
+                { variants: { some: { sku: { contains: q, mode: "insensitive" } } } },
+                { variants: { some: { color: { contains: q, mode: "insensitive" } } } },
+                { variants: { some: { size: { contains: q, mode: "insensitive" } } } },
+              ],
+            }
+          : {
+              AND: words.map((w) => ({
+                OR: [
+                  { name: { contains: w, mode: "insensitive" } },
+                  { brand: { name: { contains: w, mode: "insensitive" } } },
+                  { category: { name: { contains: w, mode: "insensitive" } } },
+                  { variants: { some: { barcode: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { sku: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { color: { contains: w, mode: "insensitive" } } } },
+                  { variants: { some: { size: { contains: w, mode: "insensitive" } } } },
+                ],
+              })),
+            }),
+      },
+      take: 20,
+      orderBy: [{ name: "asc" }],
+      include: {
+        brand: { select: { name: true } },
+        category: { select: { name: true } },
+        variants: {
+          select: {
+            id: true,
+            size: true,
+            color: true,
+            sku: true,
+            barcode: true,
+            stockStore: true,
+            stockWarehouse: true,
+            stockReserved: true,
+            price: true,
+          },
+        },
+      },
+    });
+
+    const items = products.map((prod) => {
+      const totalStockStore = prod.variants.reduce(
+        (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
+        0
+      );
+
       return {
-        variantId: v.id,
-        productId: v.product.id,
-        name: v.product.name,
-        brand: v.product.brand.name,
-        category: v.product.category.name,
-        size: v.size,
-        color: v.color,
-        barcode: v.barcode,
-        sku: v.sku,
-        price: effectivePrice,
-        stockStore: v.stockStore,
-        stockWarehouse: v.stockWarehouse,
-        stockReserved: v.stockReserved,
-        stockAvailable,
-        imageUrl: v.product.imageUrl,
+        productId: prod.id,
+        name: prod.name,
+        brand: prod.brand.name,
+        category: prod.category.name,
+        price: Number(prod.price),
+        imageUrl: prod.imageUrl,
+        totalStockStore,
+        variantsCount: prod.variants.length,
+        isExactBarcodeMatch: exactVariant && exactVariant.product.id === prod.id,
+        exactVariant:
+          exactVariant && exactVariant.product.id === prod.id
+            ? {
+                id: exactVariant.id,
+                size: exactVariant.size,
+                color: exactVariant.color,
+                sku: exactVariant.sku,
+                barcode: exactVariant.barcode,
+                stockStore: exactVariant.stockStore,
+                stockReserved: exactVariant.stockReserved || 0,
+                price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+              }
+            : undefined,
+        availableVariants: prod.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          sku: v.sku,
+          barcode: v.barcode,
+          stockStore: v.stockStore,
+          stockReserved: v.stockReserved || 0,
+          price: v.price ? Number(v.price) : Number(prod.price),
+        })),
       };
     });
+
+    // Si hubo coincidencia exacta y no estaba en la lista, anteponerla
+    if (exactVariant && !items.some((it) => it.productId === exactVariant.product.id)) {
+      const prod = exactVariant.product;
+      const totalStockStore = prod.variants.reduce(
+        (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
+        0
+      );
+      items.unshift({
+        productId: prod.id,
+        name: prod.name,
+        brand: prod.brand.name,
+        category: prod.category.name,
+        price: Number(prod.price),
+        imageUrl: prod.imageUrl,
+        totalStockStore,
+        variantsCount: prod.variants.length,
+        isExactBarcodeMatch: true,
+        exactVariant: {
+          id: exactVariant.id,
+          size: exactVariant.size,
+          color: exactVariant.color,
+          sku: exactVariant.sku,
+          barcode: exactVariant.barcode,
+          stockStore: exactVariant.stockStore,
+          stockReserved: exactVariant.stockReserved || 0,
+          price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+        },
+        availableVariants: prod.variants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          sku: v.sku,
+          barcode: v.barcode,
+          stockStore: v.stockStore,
+          stockReserved: v.stockReserved || 0,
+          price: v.price ? Number(v.price) : Number(prod.price),
+        })),
+      });
+    }
 
     return { success: true, items };
   } catch (error) {
@@ -378,13 +470,21 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
 
       // 4. Recalcular importes y descuentos
       const totals = calculateSaleTotals(
-        validated.items.map((i) => ({
-          variantId: i.variantId,
-          quantity: i.quantity,
-          originalPrice: i.originalPrice,
-          discountType: i.discountType,
-          discountValue: i.discountValue,
-        })),
+        validated.items.map((i) => {
+          let dType = i.discountType;
+          let dVal = i.discountValue;
+          if (!dType && !dVal && i.unitPrice !== undefined && i.unitPrice < i.originalPrice) {
+            dType = "FIXED";
+            dVal = Math.round((i.originalPrice - i.unitPrice) * 100) / 100;
+          }
+          return {
+            variantId: i.variantId,
+            quantity: i.quantity,
+            originalPrice: i.originalPrice,
+            discountType: dType,
+            discountValue: dVal,
+          };
+        }),
         validated.globalDiscount
       );
 
@@ -426,6 +526,54 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
         },
       });
 
+      const fullUpdatedSale = await tx.sale.findUnique({
+        where: { id: existingSale.id },
+        include: {
+          seller: {
+            select: { id: true, name: true },
+          },
+          items: {
+            include: {
+              variant: {
+                select: {
+                  id: true,
+                  size: true,
+                  color: true,
+                  sku: true,
+                  barcode: true,
+                  stockStore: true,
+                  stockWarehouse: true,
+                  stockReserved: true,
+                  price: true,
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                      imageUrl: true,
+                      price: true,
+                      brand: { select: { name: true } },
+                      category: { select: { name: true } },
+                      variants: {
+                        select: {
+                          id: true,
+                          size: true,
+                          color: true,
+                          sku: true,
+                          barcode: true,
+                          stockStore: true,
+                          stockReserved: true,
+                          price: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
       return {
         saleId: updated.id,
         ticketCode: updated.ticketCode,
@@ -434,6 +582,7 @@ export async function updatePendingSale(input: UpdatePendingSaleInput) {
         totalDiscount: totals.totalDiscount,
         totalNet: totals.totalNet,
         itemsCount: totals.items.length,
+        sale: fullUpdatedSale,
       };
     });
 
@@ -480,15 +629,35 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         throw new Error(`La venta ya se encuentra en estado ${sale.status}`);
       }
 
-      // 2. Validar turno de caja si fue especificado
-      if (validated.cashShiftId) {
+      // 2. Validar o resolver turno de caja activo (RF-11: Bloqueo de cobro sin caja abierta)
+      let resolvedCashShiftId = validated.cashShiftId ?? null;
+      let shiftUserId: string | null = null;
+
+      if (resolvedCashShiftId) {
         const shift = await tx.cashShift.findUnique({
-          where: { id: validated.cashShiftId },
+          where: { id: resolvedCashShiftId },
         });
-        if (!shift) throw new Error("Turno de caja no encontrado");
+        if (!shift) throw new Error("Turno de caja no encontrado.");
         if (shift.status !== "ABIERTA") {
           throw new Error("El turno de caja especificado ya se encuentra cerrado.");
         }
+        shiftUserId = shift.userId;
+      } else {
+        const activeShift = await tx.cashShift.findFirst({
+          where: {
+            ...(validated.terminalId ? { terminalId: validated.terminalId } : {}),
+            status: "ABIERTA",
+          },
+          orderBy: { openedAt: "desc" },
+        });
+
+        if (!activeShift) {
+          throw new Error(
+            "No se puede procesar el cobro: La caja se encuentra cerrada en el mostrador. Debe abrir el turno de caja antes de cobrar."
+          );
+        }
+        resolvedCashShiftId = activeShift.id;
+        shiftUserId = activeShift.userId;
       }
 
       // 3. Validar que la suma de pagos cubra el total neto
@@ -534,6 +703,40 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         });
       }
 
+      // 5.1 Reingreso de prenda devuelta si la preventa provino de un Cambio / Devolución
+      const exchangeMatch = sale.notes?.match(/\[CAMBIO:returnVariantId=([^:]+):qty=(\d+)(?::reason=([^\]]*))?\]/);
+      if (exchangeMatch) {
+        const returnVariantId = exchangeMatch[1];
+        const returnQty = parseInt(exchangeMatch[2], 10);
+        const rawReason = exchangeMatch[3] ? decodeURIComponent(exchangeMatch[3]) : "Cambio de producto";
+
+        const returnVariant = await tx.productVariant.findUnique({
+          where: { id: returnVariantId },
+          include: { product: true },
+        });
+
+        if (returnVariant) {
+          const newReturnStore = returnVariant.stockStore + returnQty;
+          const totalReturnAfter = newReturnStore + returnVariant.stockWarehouse;
+
+          await tx.productVariant.update({
+            where: { id: returnVariant.id },
+            data: { stockStore: newReturnStore },
+          });
+
+          await tx.inventoryMovement.create({
+            data: {
+              variantId: returnVariant.id,
+              type: "DEVOLUCION_CLIENTE",
+              quantity: returnQty,
+              stockAfter: totalReturnAfter,
+              location: "STORE",
+              reason: `Reingreso por cambio de prenda (Ticket ${sale.ticketCode || "Salón"} - Comprobante ${invoiceNumber}): Devuelto por ${sale.customerName || "Cliente"}. Motivo: ${rawReason}`,
+            },
+          });
+        }
+      }
+
       // 6. Registrar los medios de pago con cálculo de vuelto
       let totalChangeGiven = 0;
 
@@ -573,8 +776,8 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         data: {
           invoiceNumber,
           status: "COMPLETADA",
-          cashierId: validated.cashierId ?? null,
-          cashShiftId: validated.cashShiftId ?? null,
+          cashierId: validated.cashierId ?? shiftUserId ?? null,
+          cashShiftId: resolvedCashShiftId,
         },
         include: {
           items: {
@@ -622,6 +825,10 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
 
   } catch (error: any) {
     console.error("Error en completePendingSale:", error);
+    if (error?.issues && Array.isArray(error.issues)) {
+      const messages = error.issues.map((i: any) => i.message).join(", ");
+      return { success: false, error: messages };
+    }
     return { success: false, error: error.message || "Error al procesar el cobro" };
   }
 }
@@ -635,12 +842,32 @@ export async function createDirectSale(input: CreateSaleInput) {
     const validated = CreateSaleSchema.parse(input);
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Verificar turno de caja si fue provisto
-      if (validated.cashShiftId) {
-        const shift = await tx.cashShift.findUnique({ where: { id: validated.cashShiftId } });
+      // 1. Verificar o resolver turno de caja activo (RF-11: Bloqueo de cobro sin caja abierta)
+      let resolvedCashShiftId = validated.cashShiftId ?? null;
+      let shiftUserId: string | null = null;
+
+      if (resolvedCashShiftId) {
+        const shift = await tx.cashShift.findUnique({ where: { id: resolvedCashShiftId } });
         if (!shift || shift.status !== "ABIERTA") {
           throw new Error("El turno de caja especificado se encuentra cerrado o no existe.");
         }
+        shiftUserId = shift.userId;
+      } else {
+        const activeShift = await tx.cashShift.findFirst({
+          where: {
+            ...(validated.terminalId ? { terminalId: validated.terminalId } : {}),
+            status: "ABIERTA",
+          },
+          orderBy: { openedAt: "desc" },
+        });
+
+        if (!activeShift) {
+          throw new Error(
+            "No se puede procesar el cobro: La caja se encuentra cerrada en el mostrador. Debe abrir el turno de caja antes de cobrar."
+          );
+        }
+        resolvedCashShiftId = activeShift.id;
+        shiftUserId = activeShift.userId;
       }
 
       // 2. Verificar disponibilidad de stock en salón
@@ -694,8 +921,8 @@ export async function createDirectSale(input: CreateSaleInput) {
           invoiceNumber,
           offlineId: validated.offlineId ?? null,
           sellerId: validated.sellerId ?? validated.userId ?? null,
-          cashierId: validated.cashierId ?? validated.userId ?? null,
-          cashShiftId: validated.cashShiftId ?? null,
+          cashierId: validated.cashierId ?? validated.userId ?? shiftUserId ?? null,
+          cashShiftId: resolvedCashShiftId,
           customerName: validated.customerName || "Cliente Mostrador",
           channel: validated.channel || "MOSTRADOR",
           status: "COMPLETADA",
@@ -836,12 +1063,29 @@ export async function getPendingSales() {
                 sku: true,
                 barcode: true,
                 stockStore: true,
+                stockWarehouse: true,
+                stockReserved: true,
+                price: true,
                 product: {
                   select: {
                     id: true,
                     name: true,
+                    imageUrl: true,
+                    price: true,
                     brand: { select: { name: true } },
                     category: { select: { name: true } },
+                    variants: {
+                      select: {
+                        id: true,
+                        size: true,
+                        color: true,
+                        sku: true,
+                        barcode: true,
+                        stockStore: true,
+                        stockReserved: true,
+                        price: true,
+                      },
+                    },
                   },
                 },
               },
@@ -990,6 +1234,186 @@ export async function getPosVariantStockSnapshot(): Promise<{
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error al obtener snapshot de stock";
+    return { success: false, error: msg };
+  }
+}
+
+export interface CreatePendingExchangeSaleResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: {
+    saleId: string;
+    ticketCode: string;
+    customerName: string;
+    subtotalGross: number;
+    totalDiscount: number;
+    totalNet: number;
+    balance: number;
+    stockDeltas: Array<{
+      variantId: string;
+      stockReservedDelta: number;
+    }>;
+  };
+}
+
+/**
+ * Generar Preventa de Cambio de Producto hacia Caja Mostrador (Pase de Ticket a Caja)
+ * Reserva stock de la prenda entregada y emite ticket correlativo pendiente en Caja,
+ * sin ejecutar la devolución física ni emitir ticket definitivo hasta que Caja complete el cobro.
+ */
+export async function createPendingExchangeSale(
+  input: CreatePendingExchangeSaleInput
+): Promise<CreatePendingExchangeSaleResult> {
+  try {
+    const validated = CreatePendingExchangeSaleSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const [returnVariant, exchangeVariant] = await Promise.all([
+        tx.productVariant.findUnique({
+          where: { id: validated.returnVariantId },
+          include: {
+            product: { select: { id: true, name: true, price: true, active: true } },
+          },
+        }),
+        tx.productVariant.findUnique({
+          where: { id: validated.exchangeVariantId },
+          include: {
+            product: { select: { id: true, name: true, price: true, active: true } },
+          },
+        }),
+      ]);
+
+      if (!returnVariant) {
+        throw new Error("La variante a devolver no existe en la base de datos.");
+      }
+      if (!exchangeVariant) {
+        throw new Error("La variante a entregar no existe en la base de datos.");
+      }
+      if (returnVariant.id === exchangeVariant.id) {
+        throw new Error("La prenda devuelta y la prenda a entregar no pueden ser el mismo talle y color.");
+      }
+      if (!exchangeVariant.product.active) {
+        throw new Error(`El producto "${exchangeVariant.product.name}" se encuentra inactivo.`);
+      }
+
+      const qty = validated.quantity;
+      const stockAvailable = exchangeVariant.stockStore - (exchangeVariant.stockReserved || 0);
+      if (stockAvailable < qty) {
+        throw new Error(
+          `Stock insuficiente en salón para "${exchangeVariant.product.name}" (Talle ${exchangeVariant.size}). Disponible: ${stockAvailable}, Solicitado: ${qty}`
+        );
+      }
+
+      const returnPrice =
+        returnVariant.price !== null && returnVariant.price !== undefined && Number(returnVariant.price) > 0
+          ? Number(returnVariant.price)
+          : Number(returnVariant.product.price);
+
+      const exchangePrice =
+        exchangeVariant.price !== null && exchangeVariant.price !== undefined && Number(exchangeVariant.price) > 0
+          ? Number(exchangeVariant.price)
+          : Number(exchangeVariant.product.price);
+
+      const totalReturn = Math.round(returnPrice * qty * 100) / 100;
+      const totalExchange = Math.round(exchangePrice * qty * 100) / 100;
+      const balance = Math.round((totalExchange - totalReturn) * 100) / 100;
+      const totalNet = Math.max(0, balance);
+      const totalDiscount = Math.min(totalExchange, totalReturn);
+
+      // Generar código de ticket correlativo del día (#001, #002...)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const countToday = await tx.sale.count({
+        where: { createdAt: { gte: todayStart } },
+      });
+      const ticketCode = `#${String(countToday + 1).padStart(3, "0")}`;
+      const invoiceNumber = `PRV-CAMBIO-${Date.now().toString().slice(-6)}`;
+
+      const customerLabel = validated.customerName?.trim() || "Consumidor Final";
+      const returnDesc = `${returnVariant.product.name} (Talle ${returnVariant.size}${returnVariant.color ? ` • ${returnVariant.color}` : ""})`;
+      const exchangeDesc = `${exchangeVariant.product.name} (Talle ${exchangeVariant.size}${exchangeVariant.color ? ` • ${exchangeVariant.color}` : ""})`;
+
+      const notes =
+        `[CAMBIO:returnVariantId=${returnVariant.id}:qty=${qty}:reason=${encodeURIComponent(validated.reason)}] ` +
+        `Devuelve: ${returnDesc} x${qty}. ` +
+        `Entrega: ${exchangeDesc} x${qty}. ` +
+        (balance > 0
+          ? `Diferencia a cobrar: $ ${balance.toFixed(2)}.`
+          : balance < 0
+          ? `Saldo a favor del cliente: $ ${Math.abs(balance).toFixed(2)}.`
+          : `Cambio directo sin diferencia ($ 0,00).`);
+
+      const sale = await tx.sale.create({
+        data: {
+          ticketCode,
+          invoiceNumber,
+          sellerId: validated.sellerId ?? null,
+          customerName: customerLabel,
+          channel: "MOSTRADOR",
+          status: "PENDIENTE_PAGO",
+          subtotalGross: new Prisma.Decimal(totalExchange),
+          discount: new Prisma.Decimal(totalDiscount),
+          discountType: "FIXED",
+          discountValue: new Prisma.Decimal(totalDiscount),
+          total: new Prisma.Decimal(totalNet),
+          notes,
+        },
+      });
+
+      await tx.saleItem.create({
+        data: {
+          saleId: sale.id,
+          variantId: exchangeVariant.id,
+          quantity: qty,
+          originalPrice: new Prisma.Decimal(exchangePrice),
+          discount: new Prisma.Decimal(Math.round((totalDiscount / qty) * 100) / 100),
+          discountType: "FIXED",
+          discountValue: new Prisma.Decimal(Math.round((totalDiscount / qty) * 100) / 100),
+          unitPrice: new Prisma.Decimal(Math.round((totalNet / qty) * 100) / 100),
+          price: new Prisma.Decimal(Math.round((totalNet / qty) * 100) / 100),
+          subtotal: new Prisma.Decimal(totalNet),
+        },
+      });
+
+      // Reservar preventivamente la prenda a entregar en salón
+      await tx.productVariant.update({
+        where: { id: exchangeVariant.id },
+        data: { stockReserved: { increment: qty } },
+      });
+
+      return {
+        saleId: sale.id,
+        ticketCode,
+        customerName: sale.customerName || customerLabel,
+        subtotalGross: totalExchange,
+        totalDiscount,
+        totalNet,
+        balance,
+        stockDeltas: [
+          {
+            variantId: exchangeVariant.id,
+            stockReservedDelta: qty,
+          },
+        ],
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+    } catch {
+      // Ignorado fuera del contexto Next.js
+    }
+
+    return {
+      success: true,
+      message: `Ticket de cambio generado (${result.ticketCode}). Pasado a Caja para su cobro.`,
+      data: serializeData(result),
+    };
+  } catch (error: unknown) {
+    console.error("Error en createPendingExchangeSale:", error);
+    const msg = error instanceof Error ? error.message : "Error al generar ticket de cambio para caja";
     return { success: false, error: msg };
   }
 }
@@ -1247,9 +1671,13 @@ export async function processPosProductExchange(
       };
     });
 
-    revalidatePath("/admin");
-    revalidatePath("/");
-    revalidatePath("/pos");
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/");
+      revalidatePath("/pos");
+    } catch {
+      // Ignorado fuera del contexto de solicitud Next.js
+    }
 
     const message =
       result.settlementType === "PAY_DIFFERENCE"
@@ -1274,6 +1702,221 @@ export async function processPosProductExchange(
     console.error("Error al procesar cambio de producto en POS:", error);
     const msg =
       error instanceof Error ? error.message : "Error inesperado al procesar el cambio en POS";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Carga Rápida de Producto para Casos de Emergencia (POS / Preventa Mostrador)
+ * Permite dar de alta un producto no catalogado en stock, asignar stock inicial en salón
+ * y retornarlo listo para agregarse inmediatamente a la preventa.
+ */
+export async function createQuickPosProduct(input: CreateQuickPosProductInput) {
+  try {
+    const validated = CreateQuickPosProductSchema.parse(input);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Validar código de barras si se especificó
+      if (validated.barcode && validated.barcode.trim()) {
+        const barcodeTrimmed = validated.barcode.trim();
+        const existingWithBarcode = await tx.productVariant.findFirst({
+          where: { barcode: barcodeTrimmed },
+          include: { product: { select: { name: true } } },
+        });
+
+        if (existingWithBarcode) {
+          throw new Error(
+            `El código de barras "${barcodeTrimmed}" ya está registrado en el producto "${existingWithBarcode.product.name}" (Talle ${existingWithBarcode.size}).`
+          );
+        }
+      }
+
+      // 2. Resolver o crear Disciplina
+      const discName = (validated.disciplineName?.trim() || "Multideporte");
+      const discSlug = discName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let discipline = await tx.discipline.findFirst({
+        where: {
+          OR: [
+            { name: { equals: discName, mode: "insensitive" } },
+            { slug: { equals: discSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!discipline) {
+        discipline = await tx.discipline.create({
+          data: { name: discName, slug: discSlug || "multideporte" },
+        });
+      }
+
+      // 3. Resolver o crear Categoría
+      const catName = (validated.categoryName?.trim() || "General");
+      const catSlug = catName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let category = await tx.category.findFirst({
+        where: {
+          OR: [
+            { name: { equals: catName, mode: "insensitive" } },
+            { slug: { equals: catSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!category) {
+        category = await tx.category.create({
+          data: { name: catName, slug: catSlug || "general" },
+        });
+      }
+
+      // 4. Resolver o crear Marca
+      const brName = (validated.brandName?.trim() || "Genérica");
+      const brSlug = brName.toLowerCase().replace(/[\s\W-]+/g, "-");
+      let brand = await tx.brand.findFirst({
+        where: {
+          OR: [
+            { name: { equals: brName, mode: "insensitive" } },
+            { slug: { equals: brSlug, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (!brand) {
+        brand = await tx.brand.create({
+          data: { name: brName, slug: brSlug || "generica" },
+        });
+      }
+
+      // 5. Generar SKU único para la variante
+      const cleanSize = validated.size.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const generatedSku = `EMG-${Date.now().toString().slice(-6)}-${cleanSize || "U"}`;
+
+      // 6. Crear Producto
+      const product = await tx.product.create({
+        data: {
+          name: validated.name.trim(),
+          price: new Prisma.Decimal(validated.price),
+          costPrice: validated.costPrice ? new Prisma.Decimal(validated.costPrice) : null,
+          disciplineId: discipline.id,
+          categoryId: category.id,
+          brandId: brand.id,
+          active: true,
+          gender: validated.gender ?? "UNISEX",
+          description: "Carga rápida de emergencia desde mostrador",
+          modelCode: `EMG-${Date.now().toString().slice(-6)}`,
+        },
+      });
+
+      // 7. Crear Variante con stock en salón
+      const variant = await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          size: validated.size.trim(),
+          color: validated.color?.trim() || "Único",
+          sku: generatedSku,
+          barcode: validated.barcode?.trim() || null,
+          stockStore: validated.initialStock || 1,
+          stockWarehouse: 0,
+          stockReserved: 0,
+          minStoreStock: 1,
+          minStock: 2,
+        },
+      });
+
+      // 8. Crear Movimiento inicial de inventario
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: variant.id,
+          type: "INGRESO_INICIAL",
+          quantity: validated.initialStock || 1,
+          stockAfter: validated.initialStock || 1,
+          location: "STORE",
+          reason: "Carga rápida de emergencia desde Preventa Salón",
+        },
+      });
+
+      function getDisciplineGradient(dName: string): string {
+        const d = dName.toLowerCase();
+        if (d.includes("nataci") || d.includes("acu")) return "from-cyan-500 to-blue-600";
+        if (d.includes("vóley") || d.includes("voley")) return "from-amber-500 to-orange-600";
+        if (d.includes("running") || d.includes("atlet")) return "from-emerald-500 to-teal-700";
+        if (d.includes("fútbol") || d.includes("futbol")) return "from-green-600 to-emerald-800";
+        if (d.includes("basquet") || d.includes("básquet")) return "from-orange-500 to-red-600";
+        if (d.includes("pádel") || d.includes("padel") || d.includes("tenis")) return "from-lime-500 to-green-700";
+        return "from-slate-700 to-slate-900";
+      }
+
+      const mappedProduct = {
+        id: product.id,
+        name: product.name,
+        description: product.description || "",
+        brand: brand.name,
+        discipline: discipline.name,
+        category: category.name,
+        subcategory: category.name,
+        modelCode: product.modelCode || generatedSku,
+        sku: variant.sku,
+        barcode: variant.barcode || "",
+        costPrice: product.costPrice ? Number(product.costPrice) : null,
+        price: Number(product.price),
+        stockLocal: variant.stockStore,
+        stockWeb: 0,
+        minStock: 2,
+        minStoreStock: 1,
+        active: true,
+        updatedAt: new Date().toISOString(),
+        gender: product.gender,
+        iconBg: getDisciplineGradient(discipline.name),
+        variants: [
+          {
+            id: variant.id,
+            size: variant.size,
+            color: variant.color,
+            barcode: variant.barcode || "",
+            sku: variant.sku,
+            stockStore: variant.stockStore,
+            stockWarehouse: 0,
+            stockReserved: 0,
+            minStoreStock: 1,
+            minStock: 2,
+            price: null,
+          },
+        ],
+      };
+
+      const mappedVariant = {
+        id: variant.id,
+        size: variant.size,
+        color: variant.color,
+        barcode: variant.barcode || "",
+        sku: variant.sku,
+        stockStore: variant.stockStore,
+        stockWarehouse: 0,
+        stockReserved: 0,
+        minStoreStock: 1,
+        minStock: 2,
+        price: null,
+      };
+
+      return {
+        product: mappedProduct,
+        variant: mappedVariant,
+      };
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/pos");
+      revalidatePath("/");
+    } catch {
+      // Ignorado fuera del contexto de solicitud
+    }
+
+    return {
+      success: true,
+      product: result.product,
+      variant: result.variant,
+      message: `Producto "${result.product.name}" cargado exitosamente.`,
+    };
+  } catch (error: unknown) {
+    console.error("Error en createQuickPosProduct:", error);
+    const msg =
+      error instanceof Error ? error.message : "Error inesperado al crear el producto rápido";
     return { success: false, error: msg };
   }
 }

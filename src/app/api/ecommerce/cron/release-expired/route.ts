@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { releaseExpiredWebOrders } from "@/server/actions/ecommerce/checkoutActions";
-import { WEB_ORDER_RESERVATION_MINUTES } from "@/schemas/ecommerce";
+import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 
 /**
  * Endpoint de Tarea Programada / Cron para liberar reservas de stock de órdenes web impagas
@@ -26,12 +26,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    timestamp: new Date().toISOString(),
-    expirationMinutes,
-    ...result.data,
+    data: result.data,
   });
-}
-
-export async function POST(request: NextRequest) {
-  return GET(request);
 }

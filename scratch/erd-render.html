@@ -1,0 +1,289 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 30px;
+      background-color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #wrapper {
+      display: inline-block;
+      padding: 20px;
+      background: #ffffff;
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrapper">
+    <div class="title">Matacos Deportes — Modelo Relacional de Base de Datos (PostgreSQL / Prisma)</div>
+    <div class="subtitle">Generado automáticamente desde prisma/schema.prisma con prisma-erd-generator</div>
+    <div id="diagram" class="mermaid">
+erDiagram
+
+        Role {
+            ADMIN ADMIN
+CAJERO CAJERO
+DESPACHO DESPACHO
+        }
+    
+
+
+        PaymentMethod {
+            EFECTIVO EFECTIVO
+DEBITO DEBITO
+CREDITO CREDITO
+TRANSFERENCIA TRANSFERENCIA
+QR_MERCADOPAGO QR_MERCADOPAGO
+        }
+    
+
+
+        SaleStatus {
+            PENDIENTE_PAGO PENDIENTE_PAGO
+COMPLETADA COMPLETADA
+CANCELADA CANCELADA
+        }
+    
+
+
+        DiscountType {
+            PERCENTAGE PERCENTAGE
+FIXED FIXED
+        }
+    
+
+
+        CashShiftStatus {
+            ABIERTA ABIERTA
+CERRADA CERRADA
+        }
+    
+
+
+        CashMovementType {
+            INGRESO_EXTRAORDINARIO INGRESO_EXTRAORDINARIO
+RETIRO_CAJA_FUERTE RETIRO_CAJA_FUERTE
+GASTO_MENOR GASTO_MENOR
+AJUSTE_ARQUEO AJUSTE_ARQUEO
+        }
+    
+  "User" {
+    String id "🗝️"
+    String email 
+    String name 
+    String password 
+    Role role 
+    Boolean active 
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "Category" {
+    String id "🗝️"
+    String name 
+    String slug 
+    }
+  
+
+  "Brand" {
+    String id "🗝️"
+    String name 
+    String slug 
+    }
+  
+
+  "Discipline" {
+    String id "🗝️"
+    String name 
+    String slug 
+    }
+  
+
+  "Product" {
+    String id "🗝️"
+    String name 
+    String description "❓"
+    String imageUrl "❓"
+    String modelCode "❓"
+    Decimal costPrice "❓"
+    Decimal price 
+    Boolean active 
+    Boolean ignoreAlerts 
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "ProductImage" {
+    String id "🗝️"
+    String url 
+    String color "❓"
+    Boolean isPrimary 
+    Int order 
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "ProductVariant" {
+    String id "🗝️"
+    String size 
+    String color 
+    String sku 
+    String barcode "❓"
+    Int stockStore 
+    Int stockWarehouse 
+    Int stockReserved 
+    Int minStoreStock 
+    Int minStock 
+    Decimal price "❓"
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "InventoryMovement" {
+    String id "🗝️"
+    String type 
+    Int quantity 
+    Int stockAfter 
+    String location "❓"
+    String reason "❓"
+    DateTime createdAt 
+    }
+  
+
+  "CashShift" {
+    String id "🗝️"
+    String terminalId 
+    CashShiftStatus status 
+    DateTime openedAt 
+    DateTime closedAt "❓"
+    Decimal initialAmount 
+    Decimal expectedCash "❓"
+    Decimal expectedDebit "❓"
+    Decimal expectedCredit "❓"
+    Decimal expectedTransfer "❓"
+    Decimal expectedQr "❓"
+    Decimal actualCash "❓"
+    Decimal actualDebit "❓"
+    Decimal actualCredit "❓"
+    Decimal actualTransfer "❓"
+    Decimal actualQr "❓"
+    Decimal differenceCash "❓"
+    String notes "❓"
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "CashMovement" {
+    String id "🗝️"
+    CashMovementType type 
+    Decimal amount 
+    String reason 
+    String receiptNumber "❓"
+    String performedBy 
+    DateTime createdAt 
+    }
+  
+
+  "Sale" {
+    String id "🗝️"
+    String invoiceNumber "❓"
+    String ticketCode "❓"
+    String offlineId "❓"
+    String customerName "❓"
+    String channel 
+    SaleStatus status 
+    Decimal subtotalGross 
+    Decimal discount 
+    DiscountType discountType "❓"
+    Decimal discountValue "❓"
+    Decimal total 
+    String notes "❓"
+    DateTime syncedAt "❓"
+    DateTime createdAt 
+    DateTime updatedAt 
+    }
+  
+
+  "SaleItem" {
+    String id "🗝️"
+    Int quantity 
+    Decimal originalPrice 
+    Decimal discount 
+    DiscountType discountType "❓"
+    Decimal discountValue "❓"
+    Decimal unitPrice 
+    Decimal price 
+    Decimal subtotal 
+    }
+  
+
+  "SalePayment" {
+    String id "🗝️"
+    PaymentMethod method 
+    Decimal amount 
+    Decimal receivedAmount "❓"
+    Decimal change "❓"
+    String cardBrand "❓"
+    String cardVoucher "❓"
+    Int installments "❓"
+    String referenceCode "❓"
+    }
+  
+    "User" |o--|| "Role" : "enum:role"
+    "Product" }o--|| "Discipline" : "discipline"
+    "Product" }o--|| "Category" : "category"
+    "Product" }o--|| "Brand" : "brand"
+    "ProductImage" }o--|| "Product" : "product"
+    "ProductVariant" }o--|| "Product" : "product"
+    "InventoryMovement" }o--|| "ProductVariant" : "variant"
+    "CashShift" }o--|| "User" : "user"
+    "CashShift" |o--|| "CashShiftStatus" : "enum:status"
+    "CashMovement" }o--|| "CashShift" : "cashShift"
+    "CashMovement" |o--|| "CashMovementType" : "enum:type"
+    "Sale" |o--|| "SaleStatus" : "enum:status"
+    "Sale" |o--|o "DiscountType" : "enum:discountType"
+    "Sale" }o--|o "User" : "user"
+    "Sale" }o--|o "User" : "seller"
+    "Sale" }o--|o "User" : "cashier"
+    "Sale" }o--|o "CashShift" : "cashShift"
+    "SaleItem" }o--|| "Sale" : "sale"
+    "SaleItem" }o--|| "ProductVariant" : "variant"
+    "SaleItem" |o--|o "DiscountType" : "enum:discountType"
+    "SalePayment" }o--|| "Sale" : "sale"
+    "SalePayment" |o--|| "PaymentMethod" : "enum:method"
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      er: {
+        useMaxWidth: false
+      }
+    });
+  </script>
+</body>
+</html>
+  

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ChevronDown, PanelLeft } from "lucide-react";
+import { ChevronDown, PanelLeft, Lock } from "lucide-react";
 import { SidebarLeft } from "./SidebarLeft";
 import { TopHeader } from "./TopHeader";
 import { KpiCard } from "./KpiCard";
@@ -15,6 +15,11 @@ import { SidebarRight } from "./SidebarRight";
 import { InventoryView } from "./InventoryView";
 import { StockAlertsDrawer } from "./StockAlertsDrawer";
 import { PosView } from "./PosView";
+import { CashShiftHistoryView } from "./CashShiftHistoryView";
+import { UsersManagementView } from "./UsersManagementView";
+import { ProfilesManagementView } from "./ProfilesManagementView";
+import { getCurrentUserAction } from "@/server/actions/authActions";
+import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
 import { DetailedProductItem, KpiData } from "./types";
 
@@ -58,6 +63,16 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [currentUser, setCurrentUser] = useState<SessionPayload | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then(setCurrentUser);
+  }, []);
+
+  const hasPerm = useCallback((code: string) => {
+    if (!currentUser) return false;
+        return currentUser.permissions?.includes(code) ?? false;
+  }, [currentUser]);
 
   // Pestaña actual sincronizada con la URL del navegador
   const currentTab = useMemo(() => {
@@ -67,6 +82,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "caja") return "caja";
     if (tab === "ecommerce") return "ecommerce";
     if (tab === "configuracion") return "configuracion";
+    if (tab === "usuarios") return "usuarios";
+    if (tab === "perfiles") return "perfiles";
     return "inventario";
   }, [searchParams]);
 
@@ -79,11 +96,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return "productos";
   }, [searchParams]);
 
-  // Sub-vista de POS sincronizada con la URL (preventa, cobrar, historial)
-  const currentPosSubView = useMemo<"preventa" | "cobrar" | "historial">(() => {
+  // Sub-vista de POS sincronizada con la URL (preventa, cobrar, historial, arqueo)
+  const currentPosSubView = useMemo<"preventa" | "cobrar" | "historial" | "arqueo">(() => {
     const seccion = searchParams.get("seccion");
     if (seccion === "cobrar") return "cobrar";
     if (seccion === "historial" || seccion === "transacciones") return "historial";
+    if (seccion === "arqueo" || seccion === "cajas") return "arqueo";
     return "preventa";
   }, [searchParams]);
 
@@ -137,7 +155,21 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const handleSelectTab = useCallback(
     (id: string) => {
       setSelectedProductId(null);
-      if (id === "pos" || id === "pos-preventa" || id === "preventa") {
+      if (id === "admin-usuarios" || id === "usuarios") {
+        updateUrl({
+          tab: "usuarios",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "admin-perfiles" || id === "perfiles") {
+        updateUrl({
+          tab: "perfiles",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "pos" || id === "pos-preventa" || id === "preventa") {
         updateUrl({
           tab: "pos",
           seccion: "preventa",
@@ -153,6 +185,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         updateUrl({
           tab: "pos",
           seccion: "historial",
+          producto: null,
+        });
+      } else if (id === "pos-arqueo" || id === "arqueo" || id === "cajas") {
+        updateUrl({
+          tab: "pos",
+          seccion: "arqueo",
           producto: null,
         });
       } else if (id === "inventario" || id === "inventario-productos") {
@@ -267,7 +305,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {isDesktopLeftOpen && (
           <SidebarLeft
             activeItem={
-              currentTab === "inventario"
+              currentTab === "usuarios"
+                ? "admin-usuarios"
+                : currentTab === "perfiles"
+                ? "admin-perfiles"
+                : currentTab === "inventario"
                 ? `inventario-${currentInventorySubView}`
                 : currentTab === "pos"
                 ? `pos-${currentPosSubView}`
@@ -284,17 +326,83 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         )}
 
         {/* 2. Main Content Area */}
-        {currentTab === "pos" ? (
-          <PosView
-            initialProducts={initialProducts}
-            subView={currentPosSubView}
-            onNavigateSubView={(sub) =>
-              updateUrl({ tab: "pos", seccion: sub, producto: null })
-            }
-            onPendingCountChange={setPendingSalesCount}
-            isSidebarOpen={isDesktopLeftOpen}
-            onToggleSidebar={handleToggleLeft}
-          />
+        {currentTab === "usuarios" ? (
+          hasPerm("admin.usuarios") ? (
+            <UsersManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar personal (admin.usuarios).
+              </p>
+            </div>
+          )
+        ) : currentTab === "perfiles" ? (
+          hasPerm("admin.perfiles") ? (
+            <ProfilesManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar perfiles (admin.perfiles).
+              </p>
+            </div>
+          )
+        ) : currentTab === "pos" ? (
+          currentPosSubView === "arqueo" ? (
+            <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
+              <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  {handleToggleLeft && (
+                    <button
+                      onClick={handleToggleLeft}
+                      className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      <PanelLeft className="w-5 h-5" />
+                    </button>
+                  )}
+                  <div>
+                    <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-indigo-600" />
+                      <span>Auditoría e Historial de Turnos de Caja</span>
+                    </h1>
+                    <p className="text-xs text-slate-500">
+                      Control de arqueos, fondos iniciales, diferencias y reimpresión de comprobantes en 80mm.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => updateUrl({ tab: "pos", seccion: "cobrar", producto: null })}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
+                  >
+                    <span>Ir a Cobro en Caja</span>
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 lg:p-8 max-w-7xl mx-auto w-full">
+                {hasPerm("caja.auditoria_historial") ? (
+                  <CashShiftHistoryView />
+                ) : (
+                  <div className="p-8 text-center bg-white border border-rose-200 rounded-2xl shadow-sm">
+                    <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+                    <p className="text-xs text-slate-500 mt-1">Tu perfil no cuenta con permisos para auditar arqueos de caja (caja.auditoria_historial).</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <PosView
+              initialProducts={initialProducts}
+              subView={currentPosSubView}
+              onNavigateSubView={(sub) =>
+                updateUrl({ tab: "pos", seccion: sub, producto: null })
+              }
+              onPendingCountChange={setPendingSalesCount}
+              isSidebarOpen={isDesktopLeftOpen}
+              onToggleSidebar={handleToggleLeft}
+            />
+          )
         ) : currentTab === "inventario" ? (
           <div className="flex-1 flex flex-col min-w-0 bg-white relative min-h-screen">
             {/* Mobile Top App Bar for Inventory */}
@@ -448,7 +556,11 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
           className="h-full w-full bg-[#06241d]"
           isMobile
           activeItem={
-            currentTab === "inventario"
+            currentTab === "usuarios"
+              ? "admin-usuarios"
+              : currentTab === "perfiles"
+              ? "admin-perfiles"
+              : currentTab === "inventario"
               ? `inventario-${currentInventorySubView}`
               : currentTab === "pos"
               ? `pos-${currentPosSubView}`

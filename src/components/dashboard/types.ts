@@ -95,6 +95,7 @@ export interface DetailedProductItem {
   category: string;
   subcategory?: string;
   modelCode?: string;
+  gender?: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
   sku: string;
   barcode: string;
   costPrice: number | null;

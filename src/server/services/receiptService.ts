@@ -332,7 +332,7 @@ export function buildReceiptPayloadFromSaleRecord(sale: any): ReceiptData {
       ticketCode: sale.ticketCode || null,
       pointOfSale: pointOfSaleStr,
       voucherNumber: voucherNumberStr,
-      voucherType: `Cód. ${companyConfig.voucherTypeCode} - ${companyConfig.voucherTypeName}`,
+      voucherType: "COMPROBANTE NO FISCAL",
       date: dt.date,
       time: dt.time,
       dateTimeIso: dt.iso,

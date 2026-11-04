@@ -59,6 +59,10 @@ async function runRf14Tests() {
       ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"].includes(detail.stockStatus),
       `Estado de stock válido: ${detail.stockStatus} (${detail.totalAvailableStock} un. totales)`
     );
+    assert(
+      ["HOMBRE", "MUJER", "NINO", "UNISEX"].includes(detail.gender),
+      `Clasificación de género válida: ${detail.gender}`
+    );
 
     // Verificar cálculo de stock en variantes
     if (detail.variants.length > 0) {

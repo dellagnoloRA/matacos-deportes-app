@@ -54,6 +54,7 @@ interface ProductFormModalProps {
 }
 
 interface FormVariant {
+  _clientId: string;
   id?: string;
   size: string;
   color: string;
@@ -89,6 +90,7 @@ export function ProductFormModal({
   const [disciplineId, setDisciplineId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [gender, setGender] = useState<"HOMBRE" | "MUJER" | "NINO" | "UNISEX">("UNISEX");
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
@@ -107,6 +109,7 @@ export function ProductFormModal({
   // Variantes
   const [variants, setVariants] = useState<FormVariant[]>([
     {
+      _clientId: "var_init_0",
       size: "Único",
       color: "Negro",
       sku: "",
@@ -125,7 +128,7 @@ export function ProductFormModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
-  const [generatingBarcodeIndex, setGeneratingBarcodeIndex] = useState<number | null>(null);
+  const [generatingBarcodeIndex, setGeneratingBarcodeIndex] = useState<string | null>(null);
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
 
@@ -432,6 +435,7 @@ export function ProductFormModal({
           : ""
       );
       setPrice(productToEdit.price);
+      setGender(productToEdit.gender || "UNISEX");
       setImageUrl(productToEdit.imageUrl || null);
 
       if (productToEdit.images && productToEdit.images.length > 0) {
@@ -460,7 +464,8 @@ export function ProductFormModal({
       // Mapear variantes existentes
       if (productToEdit.variants && productToEdit.variants.length > 0) {
         setVariants(
-          productToEdit.variants.map((v) => ({
+          productToEdit.variants.map((v, idx) => ({
+            _clientId: v.id || `var_edit_${idx}_${Date.now()}`,
             id: v.id,
             size: v.size,
             color: v.color,
@@ -522,6 +527,7 @@ export function ProductFormModal({
             ? Number(productToEdit.costPrice)
             : 0,
         price: Number(productToEdit.price) || 0,
+        gender: productToEdit.gender || "UNISEX",
         images: editImagesSnapshot,
         variants: editVariantsSnapshot,
       });
@@ -532,6 +538,7 @@ export function ProductFormModal({
       setDisciplineId("");
       setCategoryId("");
       setBrandId("");
+      setGender("UNISEX");
       setCostPrice("");
       setPrice("");
       setImageUrl(null);
@@ -539,6 +546,7 @@ export function ProductFormModal({
       if (fileInputRef.current) fileInputRef.current.value = "";
       setVariants([
         {
+          _clientId: `var_new_${Date.now()}_0`,
           size: "Único",
           color: "Negro",
           sku: "",
@@ -559,6 +567,7 @@ export function ProductFormModal({
         category: "",
         brand: "",
         costPrice: 0,
+        gender: "UNISEX",
         price: 0,
         images: [],
         variants: [
@@ -767,7 +776,9 @@ export function ProductFormModal({
     const lastColor = referenceVariant?.color || "Negro";
     const lastMinStore = referenceVariant?.minStoreStock ?? 1;
     const lastMinStock = referenceVariant?.minStock ?? 2;
+    const newClientId = `var_new_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newVariant: FormVariant = {
+      _clientId: newClientId,
       size: "",
       color: lastColor,
       sku: "",
@@ -778,16 +789,29 @@ export function ProductFormModal({
       minStock: lastMinStock,
       price: "",
     };
-    // Insertar la nueva variante al principio del array (índice 0)
+
+    // 1. Limpiar filtros activos para garantizar que la nueva variante sea inmediatamente visible arriba de todo
+    setVariantSearchQuery("");
+    setSelectedColorFilter("ALL");
+    setSelectedSizeFilter("ALL");
+    setSelectedStockFilter("ALL");
+
+    // 2. Insertar la nueva variante al principio del array (índice 0, arriba de todos los talles)
     setVariants((prev) => [newVariant, ...prev]);
-    // Enfocar automáticamente el campo Talle de la nueva variante agregada arriba
+
+    // 3. Enfocar automáticamente el campo Talle de la nueva variante agregada arriba y asegurar visibilidad
     setTimeout(() => {
-      const firstInput = document.getElementById("variant-size-0") as HTMLInputElement | null;
+      const card = document.getElementById(`variant-card-${newClientId}`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      const firstInput = (document.getElementById(`variant-size-${newClientId}`) ||
+        document.getElementById("variant-size-0")) as HTMLInputElement | null;
       if (firstInput) {
         firstInput.focus();
         firstInput.select();
       }
-    }, 50);
+    }, 60);
   };
 
   // Replicar los umbrales de stock mínimo de la primera variante a todas las demás
@@ -808,42 +832,50 @@ export function ProductFormModal({
     );
   };
 
-  const handleRemoveVariant = (index: number) => {
+  const handleRemoveVariant = (target: number | string) => {
     if (variants.length <= 1) {
       setErrorMessage("El producto debe tener al menos una variante de talle/color.");
       return;
     }
-    setVariants((prev) => prev.filter((_, i) => i !== index));
+    setVariants((prev) =>
+      typeof target === "number"
+        ? prev.filter((_, i) => i !== target)
+        : prev.filter((v) => v._clientId !== target)
+    );
   };
 
   const handleVariantChange = (
-    index: number,
+    target: number | string,
     field: keyof FormVariant,
     value: string | number
   ) => {
     setVariants((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
+      return prev.map((item, idx) => {
+        const matches = typeof target === "number" ? idx === target : item._clientId === target;
+        if (!matches) return item;
+        return { ...item, [field]: value };
+      });
     });
     if (typeof value === "string" && value.trim().length > 0) {
-      fulfillFieldError(`variant_${index}_${field}`, field === "size" ? "talle" : "color");
+      fulfillFieldError(`variant_${target}_${field}`, field === "size" ? "talle" : "color");
     }
   };
 
   // Generar código EAN-13 correlativo oficial con prefijo GS1 200 (Circulación interna)
-  const handleGenerateInternalBarcode = async (variantIndex: number) => {
+  const handleGenerateInternalBarcode = async (target: number | string) => {
     try {
-      setGeneratingBarcodeIndex(variantIndex);
+      const targetKey = String(target);
+      setGeneratingBarcodeIndex(targetKey);
 
       // 1. Analizar códigos internos que ya existen en el formulario (React state) para evitar colisiones
       let maxFormSequence = 0;
       const assignedBarcodesInForm = new Set<string>();
 
       variants.forEach((v, idx) => {
+        const isTarget = typeof target === "number" ? idx === target : v._clientId === target;
         const b = v.barcode ? v.barcode.trim() : "";
         if (b) {
-          if (idx !== variantIndex) {
+          if (!isTarget) {
             assignedBarcodesInForm.add(b);
           }
           if (b.startsWith(GS1_INTERNAL_PREFIX) && b.length === 13 && /^\d{13}$/.test(b)) {
@@ -864,7 +896,7 @@ export function ProductFormModal({
         }
       } catch (err) {
         console.warn("Utilizando generador local de códigos GS1 EAN-13:", err);
-        const fallbackSeed = (Math.floor(Date.now() / 1000) + variantIndex) % 900000000;
+        const fallbackSeed = Math.floor(Date.now() / 1000) % 900000000;
         nextSeq = Math.max(1, fallbackSeed);
       }
 
@@ -880,7 +912,7 @@ export function ProductFormModal({
         codeToUse = generateEan13FromSequence(nextSeq, GS1_INTERNAL_PREFIX);
       }
 
-      handleVariantChange(variantIndex, "barcode", codeToUse);
+      handleVariantChange(target, "barcode", codeToUse);
     } catch (err) {
       console.error("Error al generar código de barra:", err);
       setErrorMessage("No se pudo generar el código de barra correlativo.");
@@ -1004,7 +1036,7 @@ export function ProductFormModal({
   };
 
   // Manejador del campo Talle: en Crocs/Calzado impide letras en tiempo real y alerta al usuario
-  const handleSizeChange = (index: number, rawValue: string) => {
+  const handleSizeChange = (target: number | string, rawValue: string) => {
     let cleanValue = rawValue;
 
     if (isCrocsOrFootwear) {
@@ -1018,7 +1050,7 @@ export function ProductFormModal({
       }
     }
 
-    handleVariantChange(index, "size", cleanValue);
+    handleVariantChange(target, "size", cleanValue);
   };
 
   // Ejecución centralizada de guardado (desde el formulario o desde el diálogo de confirmación)
@@ -1056,8 +1088,14 @@ export function ProductFormModal({
 
     // Validar talle y color en cada variante
     variants.forEach((v, idx) => {
-      if (!v.size.trim()) errors[`variant_${idx}_size`] = true;
-      if (!v.color.trim()) errors[`variant_${idx}_color`] = true;
+      if (!v.size.trim()) {
+        errors[`variant_${idx}_size`] = true;
+        errors[`variant_${v._clientId}_size`] = true;
+      }
+      if (!v.color.trim()) {
+        errors[`variant_${idx}_color`] = true;
+        errors[`variant_${v._clientId}_color`] = true;
+      }
     });
 
     if (Object.keys(errors).length > 0) {
@@ -1251,6 +1289,7 @@ export function ProductFormModal({
           disciplineId,
           categoryId,
           brandId,
+          gender,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1273,6 +1312,7 @@ export function ProductFormModal({
           disciplineId,
           categoryId,
           brandId,
+          gender,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1317,6 +1357,30 @@ export function ProductFormModal({
     onClose();
   };
 
+  // Atajo de teclado: Ctrl+S / Cmd+S para guardar inmediatamente desde cualquier campo
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        executeSubmit();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, hasUnsavedChanges, isEditing]);
+
+  // Advertencia de navegador si el usuario intenta refrescar o cerrar la pestaña con cambios sin guardar
+  useEffect(() => {
+    if (!isOpen || !hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isOpen, hasUnsavedChanges]);
+
   if (!isOpen) return null;
 
   return (
@@ -1328,17 +1392,24 @@ export function ProductFormModal({
         className="relative bg-white w-full max-w-5xl rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Modal */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-900 to-emerald-950 text-[#c2f25b] flex items-center justify-center shadow-xs">
+        {/* Header Modal (Sticky con botón de Guardar a mano arriba a la derecha) */}
+        <div className="sticky top-0 z-20 flex items-center justify-between px-6 py-3.5 border-b border-slate-200/90 bg-white/95 backdrop-blur-xs shadow-2xs shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-900 to-emerald-950 text-[#c2f25b] flex items-center justify-center shadow-xs shrink-0">
               <Package className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                {isEditing ? "Editar Producto" : "Nuevo Producto"}
-              </h2>
-              <p className="text-xs text-slate-400">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 leading-tight truncate">
+                  {isEditing ? "Editar Producto" : "Nuevo Producto"}
+                </h2>
+                {hasUnsavedChanges && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0 animate-in fade-in duration-150">
+                    Cambios sin guardar
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 truncate">
                 {isEditing
                   ? "Actualiza los datos del catálogo y precios"
                   : "Carga un nuevo artículo al catálogo de Matacos Deportes"}
@@ -1346,13 +1417,40 @@ export function ProductFormModal({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRequestClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Botón de Guardar accesible arriba a la derecha */}
+            <button
+              type="button"
+              onClick={executeSubmit}
+              disabled={isSubmitting}
+              className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-4 py-2 rounded-xl border border-emerald-400/40 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed select-none"
+              title="Guardar producto inmediatamente (Atajo: Ctrl+S)"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{isUploadingImage ? "Subiendo..." : "Guardando..."}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                  <span>{isEditing ? "Guardar Cambios" : "Crear Producto"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Botón de Cierre / Cancelar */}
+            <button
+              type="button"
+              onClick={handleRequestClose}
+              disabled={isSubmitting}
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="Cerrar modal (Esc)"
+              aria-label="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Avisos de Alerta / Éxito (con botón X y auto-cierre a los 5s) */}
@@ -1885,6 +1983,47 @@ export function ProductFormModal({
                 )}
               </div>
             </div>
+
+            {/* Selector de Género / Público Objetivo */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-700 font-semibold text-xs">
+                  Género / Público Objetivo <span className="text-slate-400 font-normal">(Filtro de tienda)</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                  {gender === "UNISEX" && "Aplica para todos o accesorio neutro"}
+                  {gender === "HOMBRE" && "Indumentaria y calzado masculino"}
+                  {gender === "MUJER" && "Indumentaria y calzado femenino"}
+                  {gender === "NINO" && "Línea infantil y juvenil"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                {(
+                  [
+                    { id: "UNISEX", label: "Unisex" },
+                    { id: "HOMBRE", label: "Hombre" },
+                    { id: "MUJER", label: "Mujer" },
+                    { id: "NINO", label: "Niños" },
+                  ] as const
+                ).map((item) => {
+                  const isSelected = gender === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setGender(item.id)}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer active:scale-95 ${
+                        isSelected
+                          ? "bg-slate-900 text-white shadow-xs ring-1 ring-slate-900"
+                          : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* 2. Precios y Margen de Ganancia */}
@@ -2229,299 +2368,342 @@ export function ProductFormModal({
                   </button>
                 </div>
               ) : (
-                filteredIndexedVariants.map(({ variant, originalIndex: idx }) => (
-                <div
-                  key={idx}
-                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-start gap-2.5"
-                >
-                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start">
-                    {/* 1. Talle */}
-                    <div className="col-span-1 sm:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">
-                        Talle <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        id={`variant-size-${idx}`}
-                        type="text"
-                        value={variant.size}
-                        onChange={(e) => handleSizeChange(idx, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const next = document.getElementById(`variant-color-${idx}`) as HTMLInputElement | null;
-                            if (next) {
-                              next.focus();
-                              next.select();
-                            }
-                          }
-                        }}
-                        placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
-                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
-                          fieldErrors[`variant_${idx}_size`]
-                            ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
-                            : "bg-white border-slate-200 text-slate-900"
-                        }`}
-                      />
-                    </div>
-
-                    {/* 2. Color */}
-                    <div className="col-span-1 sm:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">
-                        Color <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        id={`variant-color-${idx}`}
-                        type="text"
-                        value={variant.color}
-                        onChange={(e) => handleVariantChange(idx, "color", e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const next = document.getElementById(`variant-barcode-${idx}`) as HTMLInputElement | null;
-                            if (next) {
-                              next.focus();
-                              next.select();
-                            }
-                          }
-                        }}
-                        placeholder="Negro / Azul"
-                        className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                          fieldErrors[`variant_${idx}_color`]
-                            ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
-                            : "bg-white border-slate-200 text-slate-800"
-                        }`}
-                      />
-                    </div>
-
-                    {/* 3. Precio Variante (Opcional / Diferencial) */}
-                    <div className="col-span-2 sm:col-span-2">
-                      <label
-                        className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between"
-                        title="Precio diferencial para este talle. Dejar vacío para usar el precio base."
-                      >
-                        <span className="flex items-center gap-1 text-emerald-800">
-                          <Tag className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                          <span>Precio Dif.</span>
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <span className="absolute left-2 text-[11px] font-bold text-slate-400 select-none">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={variant.price !== undefined && variant.price !== null ? variant.price : ""}
-                          onChange={(e) =>
-                            handleVariantChange(
-                              idx,
-                              "price",
-                              e.target.value === "" ? "" : Number(e.target.value)
-                            )
-                          }
-                          placeholder={priceNum > 0 ? `${priceNum}` : "Base"}
-                          className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none ${
-                            variant.price !== "" &&
-                            variant.price !== undefined &&
-                            Number(variant.price) > 0
-                              ? "bg-emerald-50/40 border-emerald-400 text-emerald-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20"
-                              : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-300 focus:border-emerald-500"
-                          }`}
-                        />
-                      </div>
-                      {/* Micro-indicador de estado del precio */}
-                      <div className="min-h-[14px] mt-0.5">
-                        {variant.price !== "" &&
-                        variant.price !== undefined &&
-                        Number(variant.price) > 0 ? (
-                          <span
-                            className="text-[9px] font-bold text-emerald-700 truncate block"
-                            title={`Precio específico para este talle: ${formatCurrency(
-                              Number(variant.price)
-                            )}`}
-                          >
-                            {Number(variant.price) === priceNum
-                              ? "Igual al base"
-                              : Number(variant.price) > priceNum
-                              ? `+${formatCurrency(Number(variant.price) - priceNum)} vs base`
-                              : `-${formatCurrency(priceNum - Number(variant.price))} vs base`}
-                          </span>
-                        ) : (
-                          <span
-                            className="text-[9px] text-slate-400 truncate block"
-                            title="Hereda el precio de venta base configurado arriba"
-                          >
-                            Hereda base ({priceNum > 0 ? formatCurrency(priceNum) : "—"})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 4. Cód. Barra */}
-                    <div className="col-span-2 sm:col-span-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">
-                          Cód. Barra
-                        </label>
-                      </div>
-                      <div className="relative flex items-center">
-                        <input
-                          id={`variant-barcode-${idx}`}
-                          type="text"
-                          value={variant.barcode}
-                          onChange={(e) => handleVariantChange(idx, "barcode", e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              // Si la pistola de código de barras escanea y envía Enter:
-                              // Saltar automáticamente al código de barra de la siguiente variante
-                              if (idx + 1 < variants.length) {
-                                const nextInput = document.getElementById(
-                                  `variant-barcode-${idx + 1}`
+                <>
+                  {filteredIndexedVariants.map(({ variant, originalIndex: idx }, renderIdx) => (
+                    <div
+                      key={variant._clientId}
+                      id={`variant-card-${variant._clientId}`}
+                      className={`p-3 rounded-xl border flex items-start gap-2.5 transition-all animate-in fade-in duration-150 ${
+                        !variant.id
+                          ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
+                          : "bg-slate-50/80 border-slate-200/70"
+                      }`}
+                    >
+                      <div className="flex-1 grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start">
+                        {/* 1. Talle */}
+                        <div className="col-span-1 sm:col-span-2">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">
+                              Talle <span className="text-rose-500">*</span>
+                            </label>
+                            {!variant.id && (
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                Nuevo
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            id={`variant-size-${variant._clientId}`}
+                            type="text"
+                            value={variant.size}
+                            onChange={(e) => handleSizeChange(variant._clientId, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const next = document.getElementById(
+                                  `variant-color-${variant._clientId}`
                                 ) as HTMLInputElement | null;
-                                if (nextInput) {
-                                  nextInput.focus();
-                                  nextInput.select();
-                                }
-                              } else {
-                                // Si es la última variante, enfocar el stock en salón
-                                const stockInput = document.getElementById(
-                                  `variant-stockStore-${idx}`
-                                ) as HTMLInputElement | null;
-                                if (stockInput) {
-                                  stockInput.focus();
-                                  stockInput.select();
+                                if (next) {
+                                  next.focus();
+                                  next.select();
                                 }
                               }
-                            }
-                          }}
-                          placeholder="779... / 200..."
-                          className="w-full bg-white pl-2 pr-6 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleGenerateInternalBarcode(idx)}
-                          disabled={generatingBarcodeIndex === idx}
-                          className="absolute right-1 p-0.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
-                          title="Generar código interno GS1 (Prefijo 200)"
-                        >
-                          <Wand2
-                            className={`w-3.5 h-3.5 ${
-                              generatingBarcodeIndex === idx ? "animate-spin text-emerald-600" : ""
+                            }}
+                            placeholder={isCrocsOrFootwear ? "Ej: 38, 40 o 4/6 (36)" : "41 / M / Único"}
+                            className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                              fieldErrors[`variant_${variant._clientId}_size`] ||
+                              fieldErrors[`variant_${idx}_size`]
+                                ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                                : "bg-white border-slate-200 text-slate-900"
                             }`}
                           />
-                        </button>
+                        </div>
+
+                        {/* 2. Color */}
+                        <div className="col-span-1 sm:col-span-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-0.5">
+                            Color <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            id={`variant-color-${variant._clientId}`}
+                            type="text"
+                            value={variant.color}
+                            onChange={(e) => handleVariantChange(variant._clientId, "color", e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const next = document.getElementById(
+                                  `variant-barcode-${variant._clientId}`
+                                ) as HTMLInputElement | null;
+                                if (next) {
+                                  next.focus();
+                                  next.select();
+                                }
+                              }
+                            }}
+                            placeholder="Negro / Azul"
+                            className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                              fieldErrors[`variant_${variant._clientId}_color`] ||
+                              fieldErrors[`variant_${idx}_color`]
+                                ? "bg-rose-50/40 border-rose-400 focus:bg-white focus:border-rose-500 text-slate-900"
+                                : "bg-white border-slate-200 text-slate-800"
+                            }`}
+                          />
+                        </div>
+
+                        {/* 3. Precio Variante (Opcional / Diferencial) */}
+                        <div className="col-span-2 sm:col-span-2">
+                          <label
+                            className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between mb-0.5"
+                            title="Precio diferencial para este talle. Dejar vacío para usar el precio base."
+                          >
+                            <span className="flex items-center gap-1 text-emerald-800">
+                              <Tag className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                              <span>Precio Dif.</span>
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-normal">Opcional</span>
+                          </label>
+                          <div className="relative flex items-center">
+                            <span className="absolute left-2 text-[11px] font-bold text-slate-400 select-none">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={variant.price !== undefined && variant.price !== null ? variant.price : ""}
+                              onChange={(e) =>
+                                handleVariantChange(
+                                  variant._clientId,
+                                  "price",
+                                  e.target.value === "" ? "" : Number(e.target.value)
+                                )
+                              }
+                              placeholder={priceNum > 0 ? `${priceNum}` : "Base"}
+                              className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none ${
+                                variant.price !== "" &&
+                                variant.price !== undefined &&
+                                Number(variant.price) > 0
+                                  ? "bg-emerald-50/40 border-emerald-400 text-emerald-900 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20"
+                                  : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-300 focus:border-emerald-500"
+                              }`}
+                            />
+                          </div>
+                          {/* Micro-indicador de estado del precio */}
+                          <div className="min-h-[14px] mt-0.5">
+                            {variant.price !== "" &&
+                            variant.price !== undefined &&
+                            Number(variant.price) > 0 ? (
+                              <span
+                                className="text-[9px] font-bold text-emerald-700 truncate block"
+                                title={`Precio específico para este talle: ${formatCurrency(
+                                  Number(variant.price)
+                                )}`}
+                              >
+                                {Number(variant.price) === priceNum
+                                  ? "Igual al base"
+                                  : Number(variant.price) > priceNum
+                                  ? `+${formatCurrency(Number(variant.price) - priceNum)} vs base`
+                                  : `-${formatCurrency(priceNum - Number(variant.price))} vs base`}
+                              </span>
+                            ) : (
+                              <span
+                                className="text-[9px] text-slate-400 truncate block"
+                                title="Hereda el precio de venta base configurado arriba"
+                              >
+                                Hereda base ({priceNum > 0 ? formatCurrency(priceNum) : "—"})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 4. Cód. Barra */}
+                        <div className="col-span-2 sm:col-span-2">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">
+                              Cód. Barra
+                            </label>
+                          </div>
+                          <div className="relative flex items-center">
+                            <input
+                              id={`variant-barcode-${variant._clientId}`}
+                              type="text"
+                              value={variant.barcode}
+                              onChange={(e) => handleVariantChange(variant._clientId, "barcode", e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  // Si la pistola de código de barras escanea y envía Enter:
+                                  // Saltar automáticamente al código de barra de la siguiente variante
+                                  if (renderIdx + 1 < filteredIndexedVariants.length) {
+                                    const nextKey = filteredIndexedVariants[renderIdx + 1].variant._clientId;
+                                    const nextInput = document.getElementById(
+                                      `variant-barcode-${nextKey}`
+                                    ) as HTMLInputElement | null;
+                                    if (nextInput) {
+                                      nextInput.focus();
+                                      nextInput.select();
+                                    }
+                                  } else {
+                                    // Si es la última variante, enfocar el stock en salón
+                                    const stockInput = document.getElementById(
+                                      `variant-stockStore-${variant._clientId}`
+                                    ) as HTMLInputElement | null;
+                                    if (stockInput) {
+                                      stockInput.focus();
+                                      stockInput.select();
+                                    }
+                                  }
+                                }
+                              }}
+                              placeholder="779... / 200..."
+                              className="w-full bg-white pl-2 pr-6 py-1.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-700 focus:border-emerald-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateInternalBarcode(variant._clientId)}
+                              disabled={generatingBarcodeIndex === variant._clientId}
+                              className="absolute right-1 p-0.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
+                              title="Generar código interno GS1 (Prefijo 200)"
+                            >
+                              <Wand2
+                                className={`w-3.5 h-3.5 ${
+                                  generatingBarcodeIndex === variant._clientId ? "animate-spin text-emerald-600" : ""
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 5. Stock Salón */}
+                        <div className="col-span-1 sm:col-span-1">
+                          <label
+                            className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
+                            title="Stock actual en Salón Saavedra 241"
+                          >
+                            Salón
+                          </label>
+                          <input
+                            id={`variant-stockStore-${variant._clientId}`}
+                            type="number"
+                            min="0"
+                            value={variant.stockStore}
+                            onChange={(e) =>
+                              handleVariantChange(
+                                variant._clientId,
+                                "stockStore",
+                                Math.max(0, parseInt(e.target.value, 10) || 0)
+                              )
+                            }
+                            title="Existencias actuales en Salón comercial"
+                            className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* 6. Mínimo Alerta Salón / Local */}
+                        <div className="col-span-1 sm:col-span-1">
+                          <label
+                            className="text-[10px] font-bold text-emerald-800 uppercase text-center block mb-0.5 truncate"
+                            title="Umbral de alerta para reposición interna de mostrador (Salón <= este valor y hay en depósito)"
+                          >
+                            Mín. Local
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.minStoreStock !== undefined && variant.minStoreStock !== null ? variant.minStoreStock : 1}
+                            onChange={(e) =>
+                              handleVariantChange(
+                                variant._clientId,
+                                "minStoreStock",
+                                e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
+                              )
+                            }
+                            title="Alerta de Reposición Interna: se activa si stock en mostrador <= este valor y hay en depósito"
+                            className="w-full bg-emerald-50/70 px-1.5 py-1.5 rounded-lg border border-emerald-300 text-xs font-extrabold text-emerald-950 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all text-center"
+                          />
+                        </div>
+
+                        {/* 7. Stock Depósito */}
+                        <div className="col-span-1 sm:col-span-1">
+                          <label
+                            className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
+                            title="Stock actual en Depósito interno"
+                          >
+                            Depósito
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.stockWarehouse}
+                            onChange={(e) =>
+                              handleVariantChange(
+                                variant._clientId,
+                                "stockWarehouse",
+                                Math.max(0, parseInt(e.target.value, 10) || 0)
+                              )
+                            }
+                            title="Existencias actuales en Depósito interno"
+                            className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* 8. Mínimo Alerta Depósito / Proveedor */}
+                        <div className="col-span-1 sm:col-span-1">
+                          <label
+                            className="text-[10px] font-bold text-amber-900 uppercase text-center block mb-0.5 truncate"
+                            title="Umbral de alerta de compra a proveedor cuando existencias totales (Salón + Depósito) <= este valor"
+                          >
+                            Mín. Dep.
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={variant.minStock !== undefined && variant.minStock !== null ? variant.minStock : 2}
+                            onChange={(e) =>
+                              handleVariantChange(
+                                variant._clientId,
+                                "minStock",
+                                e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
+                              )
+                            }
+                            title="Alerta de Stock Crítico: compra a proveedor si existencias totales <= este valor"
+                            className="w-full bg-amber-50/70 px-1.5 py-1.5 rounded-lg border border-amber-300 text-xs font-extrabold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    {/* 5. Stock Salón */}
-                    <div className="col-span-1 sm:col-span-1">
-                      <label
-                        className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
-                        title="Stock actual en Salón Saavedra 241"
-                      >
-                        Salón
-                      </label>
-                      <input
-                        id={`variant-stockStore-${idx}`}
-                        type="number"
-                        min="0"
-                        value={variant.stockStore}
-                        onChange={(e) =>
-                          handleVariantChange(idx, "stockStore", Math.max(0, parseInt(e.target.value, 10) || 0))
-                        }
-                        title="Existencias actuales en Salón comercial"
-                        className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-emerald-800 text-center focus:border-emerald-500 focus:outline-none"
-                      />
+                      {/* 9. Botón Eliminar Talle al extremo derecho */}
+                      {variants.length > 1 && (
+                        <div className="pt-4 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariant(variant._clientId)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-100/70 hover:text-rose-700 rounded-lg transition-colors cursor-pointer"
+                            title="Eliminar este talle"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
+                  ))}
 
-                    {/* 6. Mínimo Alerta Salón / Local */}
-                    <div className="col-span-1 sm:col-span-1">
-                      <label
-                        className="text-[10px] font-bold text-emerald-800 uppercase text-center block mb-0.5 truncate"
-                        title="Umbral de alerta para reposición interna de mostrador (Salón <= este valor y hay en depósito)"
-                      >
-                        Mín. Local
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={variant.minStoreStock !== undefined && variant.minStoreStock !== null ? variant.minStoreStock : 1}
-                        onChange={(e) =>
-                          handleVariantChange(
-                            idx,
-                            "minStoreStock",
-                            e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
-                          )
-                        }
-                        title="Alerta de Reposición Interna: se activa si stock en mostrador <= este valor y hay en depósito"
-                        className="w-full bg-emerald-50/70 px-1.5 py-1.5 rounded-lg border border-emerald-300 text-xs font-extrabold text-emerald-950 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all text-center"
-                      />
-                    </div>
-
-                    {/* 7. Stock Depósito */}
-                    <div className="col-span-1 sm:col-span-1">
-                      <label
-                        className="text-[10px] font-bold text-slate-500 uppercase text-center block mb-0.5 truncate"
-                        title="Stock actual en Depósito interno"
-                      >
-                        Depósito
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={variant.stockWarehouse}
-                        onChange={(e) =>
-                          handleVariantChange(idx, "stockWarehouse", Math.max(0, parseInt(e.target.value, 10) || 0))
-                        }
-                        title="Existencias actuales en Depósito interno"
-                        className="w-full bg-white px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 text-center focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    {/* 8. Mínimo Alerta Depósito / Proveedor */}
-                    <div className="col-span-1 sm:col-span-1">
-                      <label
-                        className="text-[10px] font-bold text-amber-900 uppercase text-center block mb-0.5 truncate"
-                        title="Umbral de alerta de compra a proveedor cuando existencias totales (Salón + Depósito) <= este valor"
-                      >
-                        Mín. Dep.
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={variant.minStock !== undefined && variant.minStock !== null ? variant.minStock : 2}
-                        onChange={(e) =>
-                          handleVariantChange(
-                            idx,
-                            "minStock",
-                            e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0)
-                          )
-                        }
-                        title="Alerta de Stock Crítico: compra a proveedor si existencias totales <= este valor"
-                        className="w-full bg-amber-50/70 px-1.5 py-1.5 rounded-lg border border-amber-300 text-xs font-extrabold text-amber-950 focus:border-amber-500 focus:bg-white focus:outline-none transition-all text-center"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 9. Botón Eliminar Talle al extremo derecho */}
+                  {/* Botón rápido al pie para agregar otro talle al tope */}
                   {variants.length > 1 && (
-                    <div className="pt-4 shrink-0">
+                    <div className="pt-1 flex items-center justify-center">
                       <button
                         type="button"
-                        onClick={() => handleRemoveVariant(idx)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-100/70 hover:text-rose-700 rounded-lg transition-colors"
-                        title="Eliminar este talle"
+                        onClick={handleAddVariant}
+                        className="flex items-center gap-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer border border-slate-200/80 hover:border-emerald-300 shadow-2xs"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar otro talle</span>
                       </button>
                     </div>
                   )}
-                </div>
-              ))
-            )}
+                </>
+              )}
           </div>
           </div>
 

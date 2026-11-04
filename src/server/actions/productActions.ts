@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
 import { generateModelCode } from "@/lib/textUtils";
 import { revalidatePath } from "next/cache";
+import { hasPermission } from "./authActions";
 
 export interface ProductFilterOptions {
   search?: string;
@@ -18,6 +19,7 @@ export interface ProductFilterOptions {
   brandId?: string;
   disciplineId?: string;
   disciplineSlug?: string;
+  gender?: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
   activeOnly?: boolean;
 }
 
@@ -43,14 +45,16 @@ function serializeData<T>(data: T): T {
  */
 export async function getProducts(options: ProductFilterOptions = {}) {
   try {
-    const { search, categoryId, brandId, disciplineId, disciplineSlug, activeOnly = true } = options;
+    const { search, categoryId, brandId, disciplineId, disciplineSlug, gender, activeOnly = true } = options;
 
+    const canViewCost = await hasPermission("inventario.costos");
     const whereClause: Prisma.ProductWhereInput = {
       ...(activeOnly ? { active: true } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(brandId ? { brandId } : {}),
       ...(disciplineId ? { disciplineId } : {}),
       ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
+      ...(gender ? { gender } : {}),
       ...(search
         ? {
             OR: [
@@ -88,7 +92,8 @@ export async function getProducts(options: ProductFilterOptions = {}) {
       orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: serializeData(products) };
+    const sanitized = canViewCost ? products : products.map((p) => ({ ...p, costPrice: null }));
+    return { success: true, data: serializeData(sanitized) };
   } catch (error) {
     console.error("Error al obtener productos:", error);
     return { success: false, error: "No se pudieron obtener los productos" };
@@ -122,6 +127,11 @@ export async function getProductById(id: string) {
 
     if (!product) {
       return { success: false, error: "Producto no encontrado" };
+    }
+
+    const canViewCost = await hasPermission("inventario.costos");
+    if (!canViewCost) {
+      product.costPrice = null;
     }
 
     return { success: true, data: serializeData(product) };
@@ -205,6 +215,7 @@ export async function createProduct(input: CreateProductInput) {
           price: new Prisma.Decimal(validated.price),
           categoryId: validated.categoryId,
           brandId: validated.brandId,
+          gender: validated.gender ?? "UNISEX",
           active: validated.active,
           variants: {
             create: validated.variants.map((v) => ({
@@ -308,6 +319,7 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.price !== undefined ? { price: new Prisma.Decimal(validated.price) } : {}),
           ...(validated.categoryId ? { categoryId: validated.categoryId } : {}),
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
+          ...(validated.gender ? { gender: validated.gender } : {}),
           ...(validated.active !== undefined ? { active: validated.active } : {}),
         },
       });
@@ -532,6 +544,7 @@ export async function getDetailedInventoryProducts(options?: {
   error?: string;
 }> {
   try {
+    const canViewCost = await hasPermission("inventario.costos");
     const whereClause: Prisma.ProductWhereInput =
       options?.includeInactive === false ? { active: true } : {};
 
@@ -574,10 +587,11 @@ export async function getDetailedInventoryProducts(options?: {
         discipline: p.discipline.name,
         category: p.category.name,
         subcategory: p.category.name,
+        gender: p.gender,
         modelCode: canonicalModelCode,
         sku: canonicalModelCode,
         barcode: p.variants.length === 1 ? (firstVariant?.barcode || "") : "",
-        costPrice: p.costPrice !== null && p.costPrice !== undefined ? Number(p.costPrice) : null,
+        costPrice: canViewCost && p.costPrice !== null && p.costPrice !== undefined ? Number(p.costPrice) : null,
         price: Number(p.price),
         stockLocal: stockStore,
         stockWeb: stockWarehouse,

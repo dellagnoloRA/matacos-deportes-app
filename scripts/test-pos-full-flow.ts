@@ -6,6 +6,7 @@ import {
   cancelPendingSale,
   searchPosProducts,
 } from "../src/server/actions/posSaleActions";
+import { openCashShift, getCurrentCashShift } from "../src/server/actions/cashShiftActions";
 
 async function testPosLifecycle() {
   console.log("================================================================================");
@@ -99,11 +100,26 @@ async function testPosLifecycle() {
 
   // 5. Cobrar la preventa en Caja (Terminal 2) con Efectivo y vuelto
   console.log(`\n5. Cobrando la preventa en Caja Mostrador (Terminal 2)...`);
+  const activeShiftCheck = await getCurrentCashShift("TERMINAL_2_CAJA");
+  let activeShiftId = activeShiftCheck.activeShift?.id;
+
+  if (!activeShiftId) {
+    const openRes = await openCashShift({
+      terminalId: "TERMINAL_2_CAJA",
+      userName: "Cajero Mostrador",
+      initialAmount: 10000,
+      notes: "Apertura para test-pos-full-flow",
+    });
+    activeShiftId = openRes.data?.id;
+  }
+
   const totalToPay = Number(foundTicket.total);
   const paidCash = Math.ceil(totalToPay / 1000) * 1000; // redondear hacia arriba para calcular vuelto
 
   const completeRes = await completePendingSale({
     saleId: saleData.saleId,
+    terminalId: "TERMINAL_2_CAJA",
+    cashShiftId: activeShiftId,
     payments: [
       {
         method: "EFECTIVO",

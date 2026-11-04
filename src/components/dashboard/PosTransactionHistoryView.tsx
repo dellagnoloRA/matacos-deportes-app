@@ -10,6 +10,7 @@ import {
   QrCode,
   ArrowUpRight,
   Printer,
+  Eye,
   ChevronDown,
   ChevronUp,
   RotateCcw,
@@ -24,9 +25,67 @@ import {
   DollarSign,
   Layers,
   ArrowRight,
+  ArrowLeft,
+  ArrowLeftRight,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getSaleHistory } from "@/server/actions/saleActions";
+
+export interface ParsedExchangeData {
+  isExchange: boolean;
+  reason?: string;
+  returnedItem?: string;
+  deliveredItem?: string;
+  financialSummary?: string;
+  rawDetails?: string;
+}
+
+export function parseExchangeDetails(notes?: string | null): ParsedExchangeData | null {
+  if (!notes) return null;
+  const isExchange =
+    notes.includes("[CAMBIO:") ||
+    notes.toLowerCase().includes("cambio de producto") ||
+    notes.toLowerCase().includes("cambio directo") ||
+    notes.includes("VALE DE COMPRA");
+  if (!isExchange) return null;
+
+  let reason = "";
+  const reasonMatch = notes.match(/reason=([^\]]*)/);
+  if (reasonMatch && reasonMatch[1]) {
+    try {
+      reason = decodeURIComponent(reasonMatch[1]);
+    } catch {
+      reason = reasonMatch[1];
+    }
+  }
+
+  // Remover etiqueta interna [CAMBIO:...]
+  const clean = notes.replace(/\[CAMBIO:[^\]]*\]\s*/, "").trim();
+
+  let returnedItem = "";
+  let deliveredItem = "";
+  let financialSummary = "";
+
+  const devuelveMatch = clean.match(/Devuelve:\s*([^.]+)\./i);
+  if (devuelveMatch) returnedItem = devuelveMatch[1].trim();
+
+  const entregaMatch = clean.match(/Entrega:\s*([^.]+)\./i);
+  if (entregaMatch) deliveredItem = entregaMatch[1].trim();
+
+  const diffMatch = clean.match(
+    /(Diferencia a cobrar:[^.]+|Saldo a favor del cliente:[^.]+|Cambio directo sin diferencia[^.]+)/i
+  );
+  if (diffMatch) financialSummary = diffMatch[1].trim();
+
+  return {
+    isExchange: true,
+    reason: reason || undefined,
+    returnedItem: returnedItem || undefined,
+    deliveredItem: deliveredItem || undefined,
+    financialSummary: financialSummary || undefined,
+    rawDetails: clean,
+  };
+}
 
 export interface PosTransactionItem {
   id: string;
@@ -116,10 +175,23 @@ export function PosTransactionHistoryView({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMethod, setSelectedMethod] = useState<string>("ALL");
   const [dateFilter, setDateFilter] = useState<PosDateFilter>("TODAY");
+  const [operationFilter, setOperationFilter] = useState<"ALL" | "SALES" | "EXCHANGES">("ALL");
 
   // Transacción activa para modal de comprobante térmico
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] =
     useState<PosTransactionItem | null>(null);
+
+  // Cerrar modal de comprobante con tecla Escape
+  useEffect(() => {
+    if (!selectedSaleForReceipt) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedSaleForReceipt(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSaleForReceipt]);
 
   // Filas expandidas para ver desglose de artículos en la tabla
   const [expandedSaleIds, setExpandedSaleIds] = useState<Set<string>>(new Set());
@@ -185,9 +257,16 @@ export function PosTransactionHistoryView({
     fetchSales();
   }, [fetchSales]);
 
-  // Filtrado en memoria por búsqueda y método de pago
+  // Filtrado en memoria por búsqueda, método de pago y tipo de operación
   const filteredSales = useMemo(() => {
     return sales.filter((s) => {
+      // Filtro por tipo de operación (Ventas regulares vs Cambios)
+      if (operationFilter !== "ALL") {
+        const isEx = !!parseExchangeDetails(s.notes);
+        if (operationFilter === "EXCHANGES" && !isEx) return false;
+        if (operationFilter === "SALES" && isEx) return false;
+      }
+
       // Filtro por método de pago
       if (selectedMethod !== "ALL") {
         const hasMethod = s.payments.some((p) => p.method === selectedMethod);
@@ -202,6 +281,8 @@ export function PosTransactionHistoryView({
         const cust = s.customerName?.toLowerCase() || "";
         const seller = s.seller?.name?.toLowerCase() || "";
         const cashier = s.cashier?.name?.toLowerCase() || "";
+        const notes = (s.notes || "").toLowerCase();
+        const matchNotes = notes.includes(q);
         const matchItem = s.items.some(
           (it) =>
             it.variant.product.name.toLowerCase().includes(q) ||
@@ -218,7 +299,8 @@ export function PosTransactionHistoryView({
           !cust.includes(q) &&
           !seller.includes(q) &&
           !cashier.includes(q) &&
-          !matchItem
+          !matchItem &&
+          !matchNotes
         ) {
           return false;
         }
@@ -226,7 +308,7 @@ export function PosTransactionHistoryView({
 
       return true;
     });
-  }, [sales, searchQuery, selectedMethod]);
+  }, [sales, searchQuery, selectedMethod, operationFilter]);
 
   // Métricas agregadas
   const metrics = useMemo(() => {
@@ -350,24 +432,11 @@ export function PosTransactionHistoryView({
           {/* Quick Sub-Navigation Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={onNavigateToPreventa}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all"
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Preventa Salón</span>
-            </button>
-
-            <button
               onClick={onNavigateToCobrar}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-all relative"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold shadow-2xs transition-all"
             >
-              <Store className="w-3.5 h-3.5 text-amber-600" />
-              <span>Caja Cobrar</span>
-              {pendingSalesCount > 0 && (
-                <span className="ml-1 bg-amber-500 text-white font-black text-[10px] px-1.5 py-0.2 rounded-full">
-                  {pendingSalesCount}
-                </span>
-              )}
+              <ArrowLeft className="w-3.5 h-3.5 text-amber-700" />
+              <span>Volver a Caja</span>
             </button>
 
             <button
@@ -464,11 +533,11 @@ export function PosTransactionHistoryView({
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             {/* Buscador */}
-            <div className="md:col-span-6 relative">
+            <div className="md:col-span-4 relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por ticket, comprobante, cliente, prenda o SKU..."
+                placeholder="Buscar por ticket, comprobante, cliente, prenda o motivo..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
@@ -484,8 +553,25 @@ export function PosTransactionHistoryView({
               )}
             </div>
 
-            {/* Filtro por Medio de Pago */}
+            {/* Filtro por Tipo de Operación */}
             <div className="md:col-span-3 relative">
+              <select
+                value={operationFilter}
+                onChange={(e) =>
+                  setOperationFilter(e.target.value as "ALL" | "SALES" | "EXCHANGES")
+                }
+                aria-label="Filtrar por tipo de operación"
+                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none transition-all"
+              >
+                <option value="ALL">Operación: Todas</option>
+                <option value="SALES">Solo Ventas Directas</option>
+                <option value="EXCHANGES">Solo Cambios de Prenda</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Filtro por Medio de Pago */}
+            <div className="md:col-span-2 relative">
               <select
                 value={selectedMethod}
                 onChange={(e) => setSelectedMethod(e.target.value)}
@@ -496,8 +582,8 @@ export function PosTransactionHistoryView({
                 <option value="EFECTIVO">Solo Efectivo</option>
                 <option value="DEBITO">Solo Débito</option>
                 <option value="CREDITO">Solo Crédito</option>
-                <option value="QR_MERCADOPAGO">Solo QR Mercado Pago</option>
-                <option value="TRANSFERENCIA">Solo Transferencia</option>
+                <option value="QR_MERCADOPAGO">Solo QR MP</option>
+                <option value="TRANSFERENCIA">Solo Transf.</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -572,6 +658,7 @@ export function PosTransactionHistoryView({
                 (acc, it) => acc + (it.quantity || 0),
                 0
               );
+              const exchangeInfo = parseExchangeDetails(sale.notes);
 
               return (
                 <div
@@ -589,6 +676,12 @@ export function PosTransactionHistoryView({
                         {sale.ticketCode && sale.invoiceNumber && (
                           <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                             Ticket {sale.ticketCode}
+                          </span>
+                        )}
+                        {exchangeInfo && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1 shadow-2xs">
+                            <ArrowLeftRight className="w-3 h-3 text-purple-600" />
+                            <span>CAMBIO</span>
                           </span>
                         )}
                         <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
@@ -677,14 +770,17 @@ export function PosTransactionHistoryView({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
+                        {/* Botón explícito para VISUALIZAR el Ticket No Fiscal */}
                         <button
                           onClick={() => setSelectedSaleForReceipt(sale)}
-                          className="p-2 text-slate-600 hover:text-slate-950 hover:bg-slate-100 rounded-xl transition-colors"
-                          title="Ver e Imprimir Ticket Térmico"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-[0.98] cursor-pointer"
+                          title="Visualizar ticket no fiscal emitido para esta venta"
                         >
-                          <Printer className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Ver Ticket</span>
                         </button>
+
                         <button
                           onClick={() => toggleExpand(sale.id)}
                           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
@@ -705,6 +801,51 @@ export function PosTransactionHistoryView({
                     </div>
                   </div>
 
+                  {/* Banner Informativo si es Cambio de Prenda */}
+                  {exchangeInfo && (
+                    <div className="mx-4 sm:mx-5 mb-4 p-3 rounded-xl bg-purple-50/70 border border-purple-200/90 text-xs text-purple-950 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700 shrink-0 mt-0.5">
+                          <ArrowLeftRight className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-purple-950 text-xs">
+                              Operación de Cambio de Producto
+                            </span>
+                            {exchangeInfo.reason && (
+                              <span className="text-[10px] font-bold text-purple-800 bg-purple-200/60 px-2 py-0.2 rounded-full border border-purple-300/60">
+                                Motivo: {exchangeInfo.reason}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-purple-900/90 flex items-center gap-1.5 flex-wrap">
+                            {exchangeInfo.returnedItem && (
+                              <span>
+                                <strong className="text-purple-950 font-semibold">Devuelve:</strong>{" "}
+                                {exchangeInfo.returnedItem}
+                              </span>
+                            )}
+                            {exchangeInfo.returnedItem && exchangeInfo.deliveredItem && (
+                              <span className="text-purple-400 font-bold">➔</span>
+                            )}
+                            {exchangeInfo.deliveredItem && (
+                              <span>
+                                <strong className="text-purple-950 font-semibold">Se entrega:</strong>{" "}
+                                {exchangeInfo.deliveredItem}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {exchangeInfo.financialSummary && (
+                        <span className="text-[11px] font-black px-2.5 py-1 bg-white rounded-lg border border-purple-200 text-purple-900 shadow-2xs self-end md:self-center shrink-0 font-mono">
+                          {exchangeInfo.financialSummary}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Detalle Expandible de Artículos Vendidos */}
                   {isExpanded && (
                     <div className="bg-slate-50/70 border-t border-slate-100 p-4 sm:p-5 space-y-3">
@@ -713,7 +854,27 @@ export function PosTransactionHistoryView({
                           <Package className="w-4 h-4 text-indigo-600" />
                           <span>Artículos incluidos en la venta ({sale.items.length} líneas)</span>
                         </h4>
+
+                        <button
+                          onClick={() => setSelectedSaleForReceipt(sale)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 text-[11px] font-bold rounded-lg transition-colors border border-emerald-200/60 cursor-pointer"
+                          title="Visualizar ticket no fiscal de esta venta"
+                        >
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span>Visualizar Ticket No Fiscal</span>
+                        </button>
                       </div>
+
+                      {exchangeInfo && (
+                        <div className="p-2.5 bg-purple-50/60 rounded-xl border border-purple-200 text-[11px] text-purple-950 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                            <span>
+                              <strong>Auditoría de Stock:</strong> La prenda devuelta (<em>{exchangeInfo.returnedItem || "devuelta"}</em>) reingresó a stock en Saavedra 241 con tipo <strong>Devolución Cliente</strong> (+1 un.).
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
@@ -798,85 +959,129 @@ export function PosTransactionHistoryView({
               {/* Header Modal */}
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-indigo-600" />
-                  <span className="text-sm font-bold text-slate-900">
-                    Comprobante de Venta Térmico
-                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-slate-900 block leading-tight">
+                      Ticket No Fiscal de Venta
+                    </span>
+                    <span className="text-[10.5px] text-slate-500 font-medium">
+                      Control interno de mostrador • Saavedra 241
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedSaleForReceipt(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  title="Cerrar (Esc)"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Ticket Preview Body */}
+              {/* Ticket Preview Body (80mm Continuo no fiscal) */}
               <div className="p-6 overflow-y-auto font-mono text-xs text-slate-800 space-y-4">
-                {/* Cabecera del Comercio con Datos Reales (Boceto Oficial) */}
-                <div className="border-b border-dashed border-slate-300 pb-3">
-                  <div className="text-center font-black tracking-[0.25em] text-[15px] leading-tight pt-1 text-slate-950">
+                {/* Cabecera del Comercio */}
+                <div className="border-b border-dashed border-slate-300 pb-3 text-center">
+                  <div className="font-black tracking-[0.25em] text-base leading-tight pt-1 text-slate-950">
                     M A T A C O S
                   </div>
-                  <div className="text-center font-black tracking-[0.2em] text-[15px] leading-tight mb-2.5 text-slate-950">
+                  <div className="font-black tracking-[0.2em] text-base leading-tight mb-2 text-slate-950">
                     D E P O R T E S
                   </div>
-                  <div className="text-left text-[11px] leading-[1.3] text-neutral-900 space-y-0.5 pt-1">
-                    <div className="font-semibold text-slate-950">MUJICA SANDRA ISABEL</div>
-                    <div>CUIT Nro.: 27-18036080-3</div>
-                    <div>Ing. Brutos 01-2718036080-3</div>
-                    <div>Dirección: SAAVEDRA 241</div>
-                    <div>FORMOSA - CAPITAL</div>
-                    <div>C.P.3600</div>
-                    <div>Inicio de Actividades: 25/07/2007</div>
-                    <div>IVA RESPONSABLE INSCRIPTO</div>
-                    <div className="font-medium pt-0.5">A CONSUMIDOR FINAL</div>
+                  <div className="text-[11px] text-neutral-600 space-y-0.5">
+                    <div>Saavedra 241 — Formosa Capital</div>
+                    <div className="font-semibold text-slate-900 pt-0.5">
+                      Instagram: @matacosdeportes
+                    </div>
                   </div>
                 </div>
 
+                {/* Identificación de Control Operativo */}
                 <div className="space-y-1 text-[11px] border-b border-dashed border-slate-300 pb-3">
-                  <div className="text-center text-[12px] space-y-0.5 pb-1">
-                    <div className="font-bold text-[12.5px]">Cód. 083 - TIQUE</div>
-                    <div>
-                      P.V. Nro. {sale.invoiceNumber?.split("-")[0] || "00008"} - Nro. T. {sale.invoiceNumber?.split("-")[1] || sale.ticketCode || "00000001"}
-                    </div>
+                  <div className="text-center pb-1">
+                    <span className="font-bold text-[12px] uppercase tracking-wider block text-slate-900">
+                      COMPROBANTE NO FISCAL
+                    </span>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">
+                      Control Interno de Venta
+                    </span>
                   </div>
+
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-500">Ticket Nro.:</span>
+                    <span className="font-bold text-slate-950 font-mono">
+                      {sale.invoiceNumber || sale.ticketCode || "00008-00000001"}
+                      {sale.ticketCode && sale.invoiceNumber ? ` (${sale.ticketCode})` : ""}
+                    </span>
+                  </div>
+
                   <div className="flex justify-between">
-                    <span>Fecha {formattedDate}</span>
-                    <span>Hora {formattedTime}</span>
+                    <span className="text-slate-500">Fecha y Hora:</span>
+                    <span className="font-medium text-slate-900">
+                      {formattedDate} {formattedTime}
+                    </span>
                   </div>
-                  {sale.customerName && sale.customerName !== "Consumidor Final" && sale.customerName !== "CONSUMIDOR FINAL" && (
-                    <div className="flex justify-between pt-0.5">
-                      <span>Cliente:</span>
-                      <strong className="text-slate-950">{sale.customerName}</strong>
-                    </div>
-                  )}
-                  {sale.cashier?.name && (
-                    <div className="flex justify-between">
-                      <span>Cajero:</span>
-                      <span>{sale.cashier.name}</span>
-                    </div>
-                  )}
+
+                  {sale.customerName &&
+                    sale.customerName !== "Consumidor Final" &&
+                    sale.customerName !== "CONSUMIDOR FINAL" && (
+                      <div className="flex justify-between pt-0.5">
+                        <span className="text-slate-500">Cliente:</span>
+                        <strong className="text-slate-950">{sale.customerName}</strong>
+                      </div>
+                    )}
                 </div>
+
+                {/* Comprobante de cambio si corresponde */}
+                {(() => {
+                  const receiptEx = parseExchangeDetails(sale.notes);
+                  if (!receiptEx) return null;
+                  return (
+                    <div className="py-2.5 px-3 bg-purple-50/80 rounded-xl border border-dashed border-purple-300 text-[10.5px] text-purple-950 space-y-1">
+                      <div className="font-black uppercase tracking-wider text-[10px] text-purple-900 flex items-center gap-1.5">
+                        <ArrowLeftRight className="w-3 h-3 text-purple-700" />
+                        <span>COMPROBANTE DE CAMBIO DE PRODUCTO</span>
+                      </div>
+                      {receiptEx.reason && (
+                        <div>
+                          <strong>Motivo:</strong> {receiptEx.reason}
+                        </div>
+                      )}
+                      {receiptEx.returnedItem && (
+                        <div>
+                          <strong>Prenda devuelta:</strong> {receiptEx.returnedItem}
+                        </div>
+                      )}
+                      {receiptEx.financialSummary && (
+                        <div className="font-bold text-purple-900 pt-0.5 border-t border-purple-200/60 font-mono">
+                          {receiptEx.financialSummary}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Items */}
                 <div className="space-y-2 border-b border-dashed border-slate-300 pb-3">
                   <div className="flex justify-between font-bold text-[11px] text-slate-500 uppercase">
-                    <span>Cant / Descripción</span>
+                    <span>Cant. / Descripción</span>
                     <span>Subtotal</span>
                   </div>
                   {sale.items.map((it) => (
                     <div key={it.id} className="space-y-0.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-bold text-slate-900">
+                      <div className="flex justify-between text-xs gap-2">
+                        <span className="font-bold text-slate-900 break-words flex-1">
                           {it.quantity}x {it.variant.product.name}
                         </span>
-                        <span className="font-bold text-slate-950">
+                        <span className="font-bold text-slate-950 shrink-0 font-mono">
                           {formatCurrency(Number(it.subtotal))}
                         </span>
                       </div>
                       <div className="text-[10.5px] text-slate-500 pl-4">
-                        Talle: {it.variant.size} {it.variant.color ? `(${it.variant.color})` : ""} • P.U: {formatCurrency(Number(it.unitPrice || it.price))}
+                        Talle: {it.variant.size} {it.variant.color ? `• Color: ${it.variant.color}` : ""}
+                        {" • "}P.U: {formatCurrency(Number(it.unitPrice || it.price))}
                       </div>
                     </div>
                   ))}
@@ -890,24 +1095,26 @@ export function PosTransactionHistoryView({
                       <span>-{formatCurrency(Number(sale.discount))}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base font-black border-t border-slate-300 pt-1.5">
-                    <span>TOTAL:</span>
-                    <span>{formatCurrency(Number(sale.total))}</span>
+                  <div className="flex justify-between text-base font-black border-y-2 border-slate-900 py-1.5 text-slate-950">
+                    <span className="tracking-wide">TOTAL:</span>
+                    <span className="font-mono">{formatCurrency(Number(sale.total))}</span>
                   </div>
 
                   {/* Medios de Pago */}
-                  <div className="pt-2 space-y-1 text-[11px] border-t border-dashed border-slate-200">
-                    <span className="font-bold text-slate-600 block">Detalle de Pagos:</span>
+                  <div className="pt-2 space-y-1 text-[11px]">
+                    <span className="font-bold text-slate-600 block text-[10px] uppercase tracking-wider">
+                      Detalle de Pagos:
+                    </span>
                     {sale.payments.map((p, idx) => (
                       <div key={idx} className="flex justify-between pl-2">
                         <span>{p.method}:</span>
-                        <span className="font-bold">{formatCurrency(Number(p.amount))}</span>
+                        <span className="font-bold font-mono">{formatCurrency(Number(p.amount))}</span>
                       </div>
                     ))}
                     {sale.payments.some((p) => p.change != null && Number(p.change) > 0) && (
-                      <div className="flex justify-between pl-2 text-emerald-800 font-bold border-t border-slate-200 pt-0.5">
-                        <span>Vuelto Entregado:</span>
-                        <span>
+                      <div className="flex justify-between pl-2 text-emerald-800 font-bold border-t border-slate-200 pt-1 mt-1">
+                        <span>Su Vuelto:</span>
+                        <span className="font-mono">
                           {formatCurrency(
                             sale.payments.reduce((acc, p) => acc + Number(p.change || 0), 0)
                           )}
@@ -917,9 +1124,22 @@ export function PosTransactionHistoryView({
                   </div>
                 </div>
 
-                <div className="text-center text-[10px] text-slate-400 pt-2 border-t border-dashed border-slate-300">
-                  <p>¡Gracias por su compra en Matacos Deportes!</p>
-                  <p>Conserve este ticket para cambios (plazo 30 días)</p>
+                {/* Leyenda Legal No Fiscal (RF-10 / Modelo Burger Joint) */}
+                <div className="py-2.5 px-3 bg-slate-100 rounded-xl text-center border border-slate-200">
+                  <span className="font-black text-[11px] text-slate-950 tracking-wider block">
+                    DOCUMENTO NO VALIDO COMO FACTURA
+                  </span>
+                </div>
+
+                {/* Pie de Políticas y Agradecimiento */}
+                <div className="text-center text-[10px] text-slate-500 pt-2 border-t border-dashed border-slate-300 space-y-1">
+                  <p className="font-semibold text-slate-700">
+                    Conserve este ticket para cambios (plazo 30 días)
+                  </p>
+                  <p>Prendas sin uso y con etiquetas originales adheridas.</p>
+                  <p className="font-bold text-slate-900 pt-0.5">
+                    ¡Gracias por su compra en Matacos Deportes!
+                  </p>
                 </div>
               </div>
 
@@ -927,14 +1147,14 @@ export function PosTransactionHistoryView({
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs"
+                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Imprimir Ticket</span>
+                  <span>Imprimir Ticket (80mm)</span>
                 </button>
                 <button
                   onClick={() => setSelectedSaleForReceipt(null)}
-                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>
