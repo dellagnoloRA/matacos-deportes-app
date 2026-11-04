@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "@/components/ecommerce/EcommerceCartDrawer";
+import { useCartStore } from "@/stores/cartStore";
 import { ProductImageGallery } from "./ProductImageGallery";
 import { ProductVariantSelector } from "./ProductVariantSelector";
 import { ProductActionBox } from "./ProductActionBox";
@@ -43,8 +43,6 @@ export function ProductDetailView({
 
   // Modals state
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
   // Resolve matching active variant
@@ -80,63 +78,41 @@ export function ProductDetailView({
 
   // Cart actions
   const handleAddToCart = (quantity: number) => {
-    const itemToAdd: EcommerceProduct = {
-      ...mapPublicProductToEcommerce(product),
-      price: effectivePrice,
-      name: `${product.name}${selectedSize ? ` (Talle: ${selectedSize})` : ""}${
-        selectedColor ? ` - ${selectedColor}` : ""
-      }`,
-    };
+    if (!activeVariant) return;
 
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === itemToAdd.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === itemToAdd.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prev, { product: itemToAdd, quantity }];
-    });
+    useCartStore.getState().addItem(
+      {
+        variantId: activeVariant.id,
+        productId: product.id,
+        name: product.name,
+        brand: product.brand.name,
+        size: selectedSize || activeVariant.size,
+        color: selectedColor || activeVariant.color,
+        image:
+          product.images?.find((img) => img.color === activeVariant.color)?.url ||
+          product.images?.[0]?.url ||
+          product.imageUrl ||
+          "/placeholder-product.svg",
+        unitPrice: effectivePrice,
+        maxAvailableStock: activeVariant.availableStock,
+      },
+      quantity
+    );
 
-    setAddedNotice(itemToAdd.name);
+    setAddedNotice(product.name);
     setTimeout(() => setAddedNotice(null), 3000);
-    setIsCartDrawerOpen(true);
   };
 
   const handleBuyNow = (quantity: number) => {
     handleAddToCart(quantity);
+    useCartStore.getState().closeDrawer();
     router.push("/checkout");
   };
 
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
-      {/* 1. Header */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-      />
+      {/* 1. Header (automatically connected to cartStore) */}
+      <EcommerceHeader />
 
       {/* 2. Main PDP Content */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12">
@@ -332,16 +308,7 @@ export function ProductDetailView({
       {/* 3. Footer */}
       <EcommerceFooter />
 
-      {/* 4. Slide-Over Cart Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
-
-      {/* 5. Size Guide Modal */}
+      {/* 4. Size Guide Modal */}
       <SizeGuideModal
         isOpen={isSizeGuideOpen}
         onClose={() => setIsSizeGuideOpen(false)}

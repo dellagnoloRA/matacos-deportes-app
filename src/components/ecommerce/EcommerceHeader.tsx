@@ -24,6 +24,8 @@ import {
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
+import { useCart } from "@/stores/cartStore";
+import { EcommerceCartDrawer } from "./EcommerceCartDrawer";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -50,6 +52,9 @@ export function EcommerceHeader({
   onSearchChange,
 }: EcommerceHeaderProps) {
   const router = useRouter();
+  const cart = useCart();
+  const effectiveCartCount = cartCount > 0 ? cartCount : cart.itemCount;
+  const handleOpenCart = onOpenCart || cart.openDrawer;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -414,14 +419,14 @@ export function EcommerceHeader({
 
           {/* Cart with Badge */}
           <button
-            onClick={onOpenCart}
+            onClick={handleOpenCart}
             className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
             title="Carrito de compras"
           >
             <ShoppingBag className="w-5 h-5" />
-            {cartCount > 0 && (
+            {effectiveCartCount > 0 && (
               <span className="absolute top-1 right-1 w-4 h-4 bg-[#00D615] text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center shadow-xs">
-                {cartCount}
+                {effectiveCartCount}
               </span>
             )}
           </button>
@@ -504,6 +509,8 @@ export function EcommerceHeader({
           </div>
         </div>
       )}
+      {/* Persistent Global Cart Drawer */}
+      <EcommerceCartDrawer />
     </header>
   );
 }
