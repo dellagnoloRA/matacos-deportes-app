@@ -25,6 +25,7 @@ export function CatalogTopBar({
 }: CatalogTopBarProps) {
   // Count active filters (excluding sort, page, limit)
   const activeCount = [
+    activeFilters.gender,
     activeFilters.disciplineSlug,
     activeFilters.categorySlug,
     activeFilters.brandSlug,
@@ -35,6 +36,14 @@ export function CatalogTopBar({
   ].filter(Boolean).length;
 
   // Resolve human-readable names for tags
+  const genderMatch = activeFilters.gender
+    ? facets.genders?.find((g) => g.gender === activeFilters.gender)
+    : null;
+  const genderLabel: string | null = genderMatch
+    ? genderMatch.label
+    : activeFilters.gender
+    ? String(activeFilters.gender)
+    : null;
   const disciplineName = facets.disciplines.find(
     (d) => d.slug === activeFilters.disciplineSlug
   )?.name;
@@ -129,6 +138,20 @@ export function CatalogTopBar({
                 type="button"
                 onClick={() => onFilterChange({ search: undefined, page: 1 })}
                 className="hover:text-red-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
+
+          {genderLabel && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-semibold">
+              <span>Género: {genderLabel}</span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ gender: undefined, page: 1 })}
+                className="hover:text-red-600 cursor-pointer"
+                title="Quitar filtro de género"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

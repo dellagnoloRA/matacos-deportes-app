@@ -27,6 +27,7 @@ import { CheckoutHeader } from "@/components/ecommerce/checkout/CheckoutHeader";
 import { useCart, useCartStore } from "@/stores/cartStore";
 import { formatCurrency } from "@/lib/utils";
 import { createGuestOrder } from "@/server/actions/ecommerce/checkoutActions";
+import { getCurrentUserAction } from "@/server/actions/authActions";
 import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadopagoActions";
 import { ShippingMethod } from "@/schemas/ecommerce";
 import { getProvinces, getLocalitiesForProvince } from "@/data/argentinaLocations";
@@ -122,6 +123,30 @@ export default function CheckoutPage() {
     dni?: string;
     phone?: string;
   }>({});
+
+  const [loggedInUser, setLoggedInUser] = useState<{
+    userId: string;
+    name: string;
+    email: string;
+  } | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction()
+      .then((user) => {
+        if (user) {
+          setLoggedInUser({
+            userId: user.userId,
+            name: user.name,
+            email: user.email,
+          });
+          setEmail((prev) => prev || user.email);
+          const parts = user.name.trim().split(" ");
+          setFirstName((prev) => prev || parts[0] || "");
+          setLastName((prev) => prev || parts.slice(1).join(" ") || "");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ==========================================================
   // STEP 2: MÉTODO DE ENTREGA
@@ -541,6 +566,7 @@ export default function CheckoutPage() {
         shippingCost,
         paymentMethod: paymentMethod === "CREDITO" ? "TARJETA_CREDITO" : paymentMethod === "DEBITO" ? "TARJETA_DEBITO" : paymentMethod,
         installments: paymentMethod === "CREDITO" ? creditInstallments : 1,
+        customerId: loggedInUser?.userId || null,
         notes: paymentNotes,
         items: cartItemsPayload,
       });
@@ -735,6 +761,18 @@ export default function CheckoutPage() {
                   <p className="text-xs text-slate-500">
                     Solicitamos únicamente la información esencial para finalizar la compra.
                   </p>
+
+                  {loggedInUser && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-[#00A811] shrink-0" />
+                        <span>Sesión activa: <strong>{loggedInUser.name}</strong> ({loggedInUser.email})</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                        Autocompletado
+                      </span>
+                    </div>
+                  )}
 
                   {step1Error && (
                     <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">

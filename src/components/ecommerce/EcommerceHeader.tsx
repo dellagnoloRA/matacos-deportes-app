@@ -20,8 +20,10 @@ import {
   Loader2,
   PackageCheck,
   ArrowRight,
+  LogOut,
 } from "lucide-react";
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
+import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
 import { useCart } from "@/stores/cartStore";
@@ -61,6 +63,54 @@ export function EcommerceHeader({
   const [predictiveResults, setPredictiveResults] = useState<PredictiveSearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [, startTransition] = useTransition();
+
+  const [currentUser, setCurrentUser] = useState<{
+    name: string;
+    email: string;
+    level: number;
+    profileName: string | null;
+  } | null>(null);
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getCurrentUserAction()
+      .then((u) => {
+        if (u) {
+          setCurrentUser({
+            name: u.name,
+            email: u.email,
+            level: u.level,
+            profileName: u.profileName,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleAccountOutside(event: MouseEvent) {
+      if (
+        accountDropdownRef.current &&
+        !accountDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsAccountDropdownOpen(false);
+      }
+    }
+    if (isAccountDropdownOpen) {
+      document.addEventListener("mousedown", handleAccountOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleAccountOutside);
+    };
+  }, [isAccountDropdownOpen]);
+
+  const handleLogout = async () => {
+    await logoutAction();
+    setCurrentUser(null);
+    setIsAccountDropdownOpen(false);
+    router.refresh();
+  };
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -207,6 +257,27 @@ export function EcommerceHeader({
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
             CATÁLOGO
+              </Link>
+              <Link
+                href="/catalogo?genero=HOMBRE"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                HOMBRE
+              </Link>
+              <Link
+                href="/catalogo?genero=MUJER"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                MUJER
+              </Link>
+              <Link
+                href="/catalogo?genero=NINO"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                NIÑOS
           </Link>
           <a
             href="#disciplinas"
@@ -410,11 +481,22 @@ export function EcommerceHeader({
 
           {/* User Account / Admin Link */}
           <Link
-            href="/admin"
+            href="/cuenta"
             className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-            title="Mi Cuenta / Gestión"
+            title="Mi Cuenta"
           >
-            <User className="w-5 h-5" />
+            {currentUser ? (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden md:inline max-w-20 truncate">
+                  {currentUser.name.split(" ")[0]}
+                </span>
+              </span>
+            ) : (
+              <User className="w-5 h-5" />
+            )}
           </Link>
 
           {/* Cart with Badge */}
@@ -466,21 +548,42 @@ export function EcommerceHeader({
               <Link
                 href="/catalogo"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
               >
                 CATÁLOGO
+              </Link>
+              <Link
+                href="/catalogo?genero=HOMBRE"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                HOMBRE
+              </Link>
+              <Link
+                href="/catalogo?genero=MUJER"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                MUJER
+              </Link>
+              <Link
+                href="/catalogo?genero=NINO"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+              >
+                NIÑOS
               </Link>
               <a
                 href="#disciplinas"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
               >
                 DISCIPLINAS
               </a>
               <a
                 href="#productos"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
               >
                 PRODUCTOS
               </a>
@@ -496,11 +599,11 @@ export function EcommerceHeader({
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
               <Link
-                href="/admin"
+                href="/cuenta"
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
               >
                 <User className="w-4 h-4" />
-                <span>Panel de Gestión</span>
+                <span>{currentUser ? "Mi Cuenta" : "Iniciar Sesión / Mi Cuenta"}</span>
               </Link>
               <p className="text-[11px] text-center text-slate-400">
                 Saavedra 241, Formosa Capital

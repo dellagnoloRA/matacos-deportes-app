@@ -56,6 +56,7 @@ export function CatalogView({
       if (key === "categorySlug") paramKey = "categoria";
       if (key === "brandSlug") paramKey = "marca";
       if (key === "size") paramKey = "talle";
+      if (key === "gender") paramKey = "genero";
 
       if (val === undefined || val === null || val === "") {
         params.delete(paramKey);

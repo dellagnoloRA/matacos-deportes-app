@@ -168,6 +168,20 @@ export function ProductDetailView({
                     <span className="text-slate-400">Cód: {product.modelCode}</span>
                   </>
                 )}
+                {product.gender && (
+                  <>
+                    <span>•</span>
+                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-[10px] font-black tracking-wider uppercase">
+                      {product.gender === "HOMBRE"
+                        ? "Hombre"
+                        : product.gender === "MUJER"
+                        ? "Mujer"
+                        : product.gender === "NINO"
+                        ? "Niños"
+                        : "Unisex"}
+                    </span>
+                  </>
+                )}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-black text-slate-950 uppercase tracking-tight leading-tight">
@@ -311,6 +325,7 @@ export function ProductDetailView({
       {/* 4. Size Guide Modal */}
       <SizeGuideModal
         isOpen={isSizeGuideOpen}
+        gender={product.gender}
         onClose={() => setIsSizeGuideOpen(false)}
         defaultTab={
           product.discipline?.slug === "crocs" || product.category.slug === "calzado"
