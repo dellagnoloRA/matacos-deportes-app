@@ -54,6 +54,7 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
     disciplines: [],
     categories: [],
     brands: [],
+    genders: [],
     sizes: [],
     priceRange: { min: 0, max: 150000 },
   };
@@ -61,7 +62,7 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
   try {
     const [catalogRes, facetsRes] = await Promise.all([
       getPublicCatalog(filters),
-      getCatalogFacets(filters),
+      getCatalogFacets(),
     ]);
 
     const products = catalogRes.success && catalogRes.data ? catalogRes.data.products : [];

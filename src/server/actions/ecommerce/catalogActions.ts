@@ -48,6 +48,7 @@ async function fetchPublicCatalogRaw(
       disciplineSlug,
       categorySlug,
       brandSlug,
+      gender,
       size,
       color,
       minPrice,
@@ -64,6 +65,7 @@ async function fetchPublicCatalogRaw(
       ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
       ...(categorySlug ? { category: { slug: categorySlug } } : {}),
       ...(brandSlug ? { brand: { slug: brandSlug } } : {}),
+      ...(gender ? { gender } : {}),
       ...(minPrice !== undefined || maxPrice !== undefined
         ? {
             price: {
@@ -132,6 +134,7 @@ async function fetchPublicCatalogRaw(
           imageUrl: true,
           modelCode: true,
           price: true,
+          gender: true,
           createdAt: true,
           category: {
             select: { id: true, name: true, slug: true },
@@ -208,6 +211,7 @@ async function fetchPublicCatalogRaw(
         imageUrl: p.imageUrl,
         modelCode: p.modelCode,
         price: basePrice,
+        gender: p.gender,
         category: p.category,
         brand: p.brand,
         discipline: p.discipline,
@@ -338,25 +342,13 @@ export async function getPredictiveSearch(
  * Consulta de Facetas y Filtros Dinámicos con Disponibilidad Real (RF-13)
  * Devuelve opciones de disciplinas, categorías, marcas y talles con stock para la barra lateral.
  */
-async function fetchCatalogFacetsRaw(
-  contextFilters?: CatalogFilterInput
-): Promise<{
+async function fetchCatalogFacetsRaw(): Promise<{
   success: boolean;
   data?: CatalogFacetsResponse;
   error?: string;
 }> {
   try {
-    const disciplineFilter = contextFilters?.disciplineSlug
-      ? { discipline: { slug: contextFilters.disciplineSlug } }
-      : {};
-    const categoryFilter = contextFilters?.categorySlug
-      ? { category: { slug: contextFilters.categorySlug } }
-      : {};
-    const brandFilter = contextFilters?.brandSlug
-      ? { brand: { slug: contextFilters.brandSlug } }
-      : {};
-
-    // 1. Obtener disciplinas con productos activos y con stock (siempre globales para permitir cambio rápido)
+    // 1. Obtener disciplinas con productos activos y con stock
     const disciplines = await prisma.discipline.findMany({
       where: {
         products: {
@@ -392,13 +384,12 @@ async function fetchCatalogFacetsRaw(
       orderBy: { name: "asc" },
     });
 
-    // 2. Obtener categorías con productos activos y con stock (contextualizadas si hay disciplina)
+    // 2. Obtener categorías con productos activos y con stock
     const categories = await prisma.category.findMany({
       where: {
         products: {
           some: {
             active: true,
-            ...disciplineFilter,
             variants: {
               some: {
                 OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -416,7 +407,6 @@ async function fetchCatalogFacetsRaw(
             products: {
               where: {
                 active: true,
-                ...disciplineFilter,
                 variants: {
                   some: {
                     OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -430,14 +420,12 @@ async function fetchCatalogFacetsRaw(
       orderBy: { name: "asc" },
     });
 
-    // 3. Obtener marcas con productos activos y con stock (contextualizadas si hay disciplina o categoría)
+    // 3. Obtener marcas con productos activos y con stock
     const brands = await prisma.brand.findMany({
       where: {
         products: {
           some: {
             active: true,
-            ...disciplineFilter,
-            ...categoryFilter,
             variants: {
               some: {
                 OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -455,8 +443,6 @@ async function fetchCatalogFacetsRaw(
             products: {
               where: {
                 active: true,
-                ...disciplineFilter,
-                ...categoryFilter,
                 variants: {
                   some: {
                     OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -470,15 +456,10 @@ async function fetchCatalogFacetsRaw(
       orderBy: { name: "asc" },
     });
 
-    // 4. Obtener talles disponibles en stock (contextualizados estrictamente al filtro activo)
+    // 4. Obtener talles disponibles en stock
     const activeVariants = await prisma.productVariant.findMany({
       where: {
-        product: {
-          active: true,
-          ...disciplineFilter,
-          ...categoryFilter,
-          ...brandFilter,
-        },
+        product: { active: true },
         OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
       },
       select: {
@@ -524,6 +505,36 @@ async function fetchCatalogFacetsRaw(
       _max: { price: true },
     });
 
+        // 6. Conteo por género
+    const genderCounts = await prisma.product.groupBy({
+      by: ["gender"],
+      where: {
+        active: true,
+        variants: {
+          some: {
+            OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
+          },
+        },
+      },
+      _count: { _all: true },
+    });
+
+    const genderLabels: Record<string, string> = {
+      HOMBRE: "Hombre",
+      MUJER: "Mujer",
+      NINO: "Niños",
+      UNISEX: "Unisex",
+    };
+
+    const gendersFacet = (["HOMBRE", "MUJER", "NINO", "UNISEX"] as const).map((g) => {
+      const found = genderCounts.find((gc) => gc.gender === g);
+      return {
+        gender: g,
+        label: genderLabels[g] || g,
+        count: found ? found._count._all : 0,
+      };
+    });
+
     const response: CatalogFacetsResponse = {
       disciplines: disciplines.map((d) => ({
         name: d.name,
@@ -540,6 +551,7 @@ async function fetchCatalogFacetsRaw(
         slug: b.slug,
         count: b._count.products,
       })),
+      genders: gendersFacet,
       sizes: sortedSizes,
       priceRange: {
         min: priceAggregate._min.price ? Number(priceAggregate._min.price) : 0,
@@ -570,15 +582,7 @@ const getCachedCatalogFacets = unstable_cache(
   }
 );
 
-export async function getCatalogFacets(contextFilters?: CatalogFilterInput) {
-  if (
-    contextFilters?.disciplineSlug ||
-    contextFilters?.categorySlug ||
-    contextFilters?.brandSlug
-  ) {
-    return await fetchCatalogFacetsRaw(contextFilters);
-  }
-
+export async function getCatalogFacets() {
   try {
     return await getCachedCatalogFacets();
   } catch {
