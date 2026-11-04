@@ -326,3 +326,84 @@ export type ProcessWebOrderPaymentInput = z.input<
 export type ProcessWebOrderPaymentOutput = z.output<
   typeof ProcessWebOrderPaymentSchema
 >;
+
+/**
+ * ============================================================================
+ * TRANSFERENCIA BANCARIA Y COMPROBANTES DE PAGO (RF-17)
+ * ============================================================================
+ */
+
+/**
+ * Esquema de validación para Carga de Comprobante de Transferencia Bancaria por el Cliente (RF-17)
+ */
+export const SubmitTransferProofSchema = z.object({
+  orderId: z
+    .string()
+    .trim()
+    .min(1, "El identificador o código de la orden es obligatorio"),
+  proofUrl: z
+    .string()
+    .trim()
+    .min(1, "La URL o ruta del comprobante es obligatoria")
+    .refine(
+      (val) =>
+        val.startsWith("http://") ||
+        val.startsWith("https://") ||
+        val.startsWith("/uploads/"),
+      {
+        message:
+          "La URL del comprobante debe ser una URL válida o una ruta relativa de carga local",
+      }
+    ),
+  reference: z
+    .string()
+    .trim()
+    .max(100, "El número de referencia o comprobante no puede superar 100 caracteres")
+    .optional()
+    .nullable(),
+  customerNotes: z
+    .string()
+    .trim()
+    .max(500, "Las notas adicionales no pueden superar 500 caracteres")
+    .optional()
+    .nullable(),
+});
+
+export type SubmitTransferProofInput = z.infer<typeof SubmitTransferProofSchema>;
+
+/**
+ * Esquema de validación para Verificación y Acreditación de Transferencia por el Administrador (RF-17)
+ */
+export const VerifyTransferPaymentSchema = z.object({
+  orderId: z
+    .string()
+    .trim()
+    .min(1, "El identificador de la orden es obligatorio"),
+  approved: z.boolean({
+    required_error: "Debés indicar si la transferencia fue aprobada o rechazada",
+  }),
+  rejectionReason: z
+    .string()
+    .trim()
+    .max(500, "El motivo de rechazo no puede superar 500 caracteres")
+    .optional()
+    .nullable(),
+  cancelOrderOnReject: z.boolean().optional().default(false),
+  adminNotes: z
+    .string()
+    .trim()
+    .max(500, "Las notas de conciliación no pueden superar 500 caracteres")
+    .optional()
+    .nullable(),
+  reconciledBy: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .nullable(),
+});
+
+export type VerifyTransferPaymentInput = z.infer<
+  typeof VerifyTransferPaymentSchema
+>;
+

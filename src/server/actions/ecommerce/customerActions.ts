@@ -80,7 +80,11 @@ export interface CustomerOrderDetailDTO {
   id: string;
   orderCode: string;
   channel: "WEB";
-  status: "PENDIENTE_PAGO" | "COMPLETADA" | "CANCELADA";
+  status:
+    | "PENDIENTE_PAGO"
+    | "PENDIENTE_VERIFICACION"
+    | "COMPLETADA"
+    | "CANCELADA";
   shippingStatus: ShippingStatusType;
   shippingMethod: string;
   shippingTrackingCode: string | null;
@@ -97,6 +101,8 @@ export interface CustomerOrderDetailDTO {
   customerPhone: string | null;
   customerDni: string | null;
   canSelfCancel: boolean;
+  transferProofUrl?: string | null;
+  reconciliationNotes?: string | null;
   correoArgentinoTrackingUrl: string | null;
   whatsappSupportUrl: string;
   createdAt: string;
@@ -995,7 +1001,11 @@ function mapSaleToOrderDetailDTO(sale: {
   id: string;
   invoiceNumber: string | null;
   ticketCode: string | null;
-  status: "PENDIENTE_PAGO" | "COMPLETADA" | "CANCELADA";
+  status:
+    | "PENDIENTE_PAGO"
+    | "PENDIENTE_VERIFICACION"
+    | "COMPLETADA"
+    | "CANCELADA";
   shippingStatus: ShippingStatusType;
   shippingMethod: string | null;
   shippingTrackingCode: string | null;
@@ -1010,6 +1020,8 @@ function mapSaleToOrderDetailDTO(sale: {
   customerEmail: string | null;
   customerPhone: string | null;
   customerDni: string | null;
+  transferProofUrl?: string | null;
+  reconciliationNotes?: string | null;
   createdAt: Date;
   items: Array<{
     id: string;
@@ -1066,6 +1078,8 @@ function mapSaleToOrderDetailDTO(sale: {
     customerPhone: sale.customerPhone,
     customerDni: sale.customerDni,
     canSelfCancel: sale.status === "PENDIENTE_PAGO",
+    transferProofUrl: sale.transferProofUrl ?? null,
+    reconciliationNotes: sale.reconciliationNotes ?? null,
     correoArgentinoTrackingUrl: correoUrl,
     whatsappSupportUrl: buildWhatsappOrderSupportUrl(
       orderCode,

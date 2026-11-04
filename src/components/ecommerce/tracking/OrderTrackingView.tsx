@@ -160,6 +160,12 @@ export function OrderTrackingView({
                       Pendiente de pago
                     </span>
                   )}
+                  {order.status === "PENDIENTE_VERIFICACION" && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500 text-white shadow-xs">
+                      <Clock className="w-3 h-3" />
+                      Comprobante en verificación
+                    </span>
+                  )}
                   {order.status === "COMPLETADA" && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#00D615] text-slate-950">
                       <CheckCircle2 className="w-3 h-3" />

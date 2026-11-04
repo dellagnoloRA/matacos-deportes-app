@@ -58,6 +58,11 @@ const SUITES = [
     script: "scripts/test-rf18-whatsapp-contingency.ts",
   },
   {
+    name: "Transferencia Bancaria y Comprobantes de Pago",
+    rf: "RF-17",
+    script: "scripts/test-rf17-bank-transfer.ts",
+  },
+  {
     name: "Portal de Clientes, Favoritos y Seguimiento Web",
     rf: "RF-29",
     script: "scripts/test-rf29-customer-portal.ts",

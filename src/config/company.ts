@@ -73,6 +73,13 @@ export interface CompanyConfig {
   fiscalSerialNumber: string;
   softwareVersion: string;
   defaultCashierCode: string;
+
+  // Datos bancarios institucionales para transferencias (RF-17)
+  bankName: string;
+  bankAccountType: string;
+  bankAccountHolder: string;
+  bankCbu: string;
+  bankAlias: string;
 }
 
 export function getCompanyConfig(): CompanyConfig {
@@ -123,6 +130,16 @@ export function getCompanyConfig(): CompanyConfig {
     fiscalSerialNumber: process.env.COMPANY_FISCAL_SERIAL || "SESHRA000022252",
     softwareVersion: process.env.COMPANY_SOFTWARE_VERSION || "V: 1.02",
     defaultCashierCode: process.env.POS_DEFAULT_CASHIER_CODE || "CAJERO01",
+
+    // Datos bancarios institucionales para transferencias (RF-17)
+    bankName: process.env.COMPANY_BANK_NAME || "Banco de Formosa S.A. / Red Link",
+    bankAccountType: process.env.COMPANY_BANK_ACCOUNT_TYPE || "Cuenta Corriente en Pesos",
+    bankAccountHolder:
+      process.env.COMPANY_BANK_ACCOUNT_HOLDER ||
+      process.env.COMPANY_LEGAL_NAME ||
+      "MUJICA SANDRA ISABEL",
+    bankCbu: process.env.COMPANY_BANK_CBU || "0110263720026300489124",
+    bankAlias: process.env.COMPANY_BANK_ALIAS || "MATACOS.DEPORTES.FSA",
   };
 }
 

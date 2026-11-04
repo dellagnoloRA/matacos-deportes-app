@@ -383,6 +383,12 @@ export function CustomerAccountView({
                               Pendiente de pago (Reserva activa)
                             </span>
                           )}
+                          {order.status === "PENDIENTE_VERIFICACION" && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-900 border border-sky-300">
+                              <Clock className="w-3 h-3" />
+                              Comprobante en verificación
+                            </span>
+                          )}
                           {order.status === "COMPLETADA" && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
                               <CheckCircle2 className="w-3 h-3" />

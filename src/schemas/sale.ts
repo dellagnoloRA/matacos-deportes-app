@@ -12,6 +12,7 @@ export const PaymentMethodEnum = z.enum([
 
 export const SaleStatusEnum = z.enum([
   "PENDIENTE_PAGO",
+  "PENDIENTE_VERIFICACION",
   "COMPLETADA",
   "CANCELADA",
 ]);
