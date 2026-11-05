@@ -10,16 +10,19 @@ export function mapPublicProductToEcommerce(
 ): EcommerceProduct {
   const hasPromoDiscount =
     Boolean(item.discountActive) &&
-    typeof item.effectivePrice === "number" &&
-    item.effectivePrice > 0 &&
-    item.effectivePrice < item.price;
+    (
+      (typeof item.originalPrice === "number" && item.originalPrice > item.price) ||
+      (typeof item.effectivePrice === "number" && item.effectivePrice > 0 && item.effectivePrice < item.price)
+    );
 
   const isVariantSpreadOffer = !hasPromoDiscount && item.maxPrice > item.price;
   const isOffer = hasPromoDiscount || isVariantSpreadOffer;
 
-  const displayPrice = hasPromoDiscount ? item.effectivePrice! : item.price;
+  const displayPrice = hasPromoDiscount
+    ? (typeof item.effectivePrice === "number" && item.effectivePrice > 0 && item.effectivePrice < item.price ? item.effectivePrice : item.price)
+    : item.price;
   const originalPrice = hasPromoDiscount
-    ? item.price
+    ? (typeof item.originalPrice === "number" && item.originalPrice > displayPrice ? item.originalPrice : item.price)
     : isVariantSpreadOffer
       ? item.maxPrice
       : undefined;

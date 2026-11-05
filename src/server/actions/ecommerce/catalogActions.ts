@@ -199,7 +199,11 @@ async function fetchPublicCatalogRaw(
         );
         totalStock += netStock;
 
-        const variantBase = v.price !== null ? Number(v.price) : basePrice;
+        const rawVariantPrice = v.price !== null ? Number(v.price) : null;
+        const hasSpecificVariantPrice =
+          rawVariantPrice !== null && Math.abs(rawVariantPrice - basePrice) > 0.01;
+
+        const variantBase = hasSpecificVariantPrice ? rawVariantPrice : basePrice;
         let variantEffective = variantBase;
         if (promo.isPromoActive && promo.discountPercentage) {
           const vDiscount = Math.round(((variantBase * promo.discountPercentage) / 100) * 100) / 100;
@@ -209,13 +213,26 @@ async function fetchPublicCatalogRaw(
         if (variantEffective < minVariantPrice) minVariantPrice = variantEffective;
         if (variantEffective > maxVariantPrice) maxVariantPrice = variantEffective;
 
+        const resolvedVariantPrice = promo.isPromoActive
+          ? variantEffective
+          : hasSpecificVariantPrice
+          ? variantBase
+          : null;
+
+        const resolvedVariantOriginalPrice = promo.isPromoActive
+          ? variantBase
+          : hasSpecificVariantPrice
+          ? variantBase
+          : undefined;
+
         return {
           id: v.id,
           size: v.size,
           color: v.color,
           sku: v.sku,
           barcode: v.barcode,
-          price: v.price !== null ? Number(v.price) : null,
+          price: resolvedVariantPrice,
+          originalPrice: resolvedVariantOriginalPrice,
           availableStock: netStock,
           inStock: netStock > 0,
         };

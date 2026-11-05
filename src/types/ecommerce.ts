@@ -17,6 +17,7 @@ export interface PublicVariantItem {
   sku: string;
   barcode: string | null;
   price: number | null; // Precio diferencial si difiere del base
+  originalPrice?: number | null; // Precio regular de lista para tachar si difiere
   availableStock: number; // Existencias netas: (stockStore + stockWarehouse) - stockReserved
   inStock: boolean;
 }

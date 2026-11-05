@@ -73,18 +73,22 @@ export function ProductDetailView({
   }, [product.variants, selectedColor, selectedSize]);
 
   // Pricing calculations
-  const effectivePrice = activeVariant?.price ? activeVariant.price : product.price;
+  const effectivePrice = activeVariant?.price
+    ? activeVariant.price
+    : product.price;
+
+  const originalPrice =
+    activeVariant?.originalPrice && activeVariant.originalPrice > effectivePrice
+      ? activeVariant.originalPrice
+      : product.originalPrice && product.originalPrice > effectivePrice
+      ? product.originalPrice
+      : undefined;
+
   const isOffer = Boolean(
     product.discountActive ||
-    (product.originalPrice && product.originalPrice > product.price) ||
+    (originalPrice && originalPrice > effectivePrice) ||
     product.maxPrice > product.price
   );
-  const originalPrice =
-    product.originalPrice && product.originalPrice > effectivePrice
-      ? product.originalPrice
-      : isOffer && product.maxPrice > effectivePrice
-      ? product.maxPrice
-      : undefined;
 
   const resolveVariantImageUrl = (variant: PublicVariantItem): string => {
     const byColor = product.images.find(
@@ -178,6 +182,7 @@ export function ProductDetailView({
               defaultImageUrl={product.imageUrl}
               images={product.images}
               isOffer={isOffer}
+              offerTag={product.discountPercentage ? `${product.discountPercentage}% OFF` : "OFERTA"}
             />
           </div>
 
@@ -203,10 +208,21 @@ export function ProductDetailView({
 
               {/* Pricing section */}
               <div className="pt-2">
-                {originalPrice && (
-                  <span className="text-sm text-slate-400 line-through font-semibold block">
-                    {formatCurrency(originalPrice)}
-                  </span>
+                {originalPrice && originalPrice > effectivePrice && (
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <span className="text-base sm:text-lg text-slate-400 line-through font-semibold">
+                      {formatCurrency(originalPrice)}
+                    </span>
+                    {product.discountPercentage ? (
+                      <span className="text-xs font-black bg-rose-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                        {product.discountPercentage}% OFF
+                      </span>
+                    ) : (
+                      <span className="text-xs font-black bg-[#00A811] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                        OFERTA
+                      </span>
+                    )}
+                  </div>
                 )}
                 <div className="flex items-baseline gap-3">
                   <span className="text-3xl sm:text-4xl font-black text-[#00A811] tracking-tight">
