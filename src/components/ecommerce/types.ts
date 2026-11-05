@@ -23,6 +23,8 @@ export interface EcommerceProduct {
   images?: string[];
   secondaryImage?: string;
   description?: string;
+  highlights?: { icon: string; title: string; text: string }[];
+  specs?: Record<string, string>;
   installments?: string;
   sizes?: ProductSizeOption[];
   colors?: string[];

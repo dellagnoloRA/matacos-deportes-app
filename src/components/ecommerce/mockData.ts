@@ -876,6 +876,8 @@ export function mapPrismaProductToEcommerceProduct(prismaProd: any): EcommercePr
     image: primaryImg,
     images: imageList.length > 0 ? imageList : [primaryImg],
     description: prismaProd.description || undefined,
+    highlights: Array.isArray(prismaProd.highlights) ? prismaProd.highlights : undefined,
+    specs: prismaProd.specs && typeof prismaProd.specs === "object" ? prismaProd.specs : undefined,
     installments: "3 y 6 cuotas sin interés",
     sizes: sizes.length > 0 ? sizes : undefined,
     colors: colorsSet.size > 0 ? Array.from(colorsSet) : undefined,

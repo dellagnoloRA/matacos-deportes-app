@@ -426,22 +426,44 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
 
                 {/* Logos de Pago */}
                 <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#ff5e00] text-white font-black text-[9px]">
-                    Galicia
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#008d36] text-white font-bold text-[9px]">
-                    Provincia
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#009ee3] text-white font-bold text-[9px]">
-                    mercado pago
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#1a1f71] text-white font-black text-[9px]">
+                  {/* VISA */}
+                  <span
+                    className="inline-flex items-center justify-center h-4.5 px-1.5 rounded bg-[#1a1f71] text-white font-black text-[9px] tracking-wider shadow-2xs select-none"
+                    title="Visa"
+                  >
                     VISA
                   </span>
-                  <span className="inline-flex items-center h-4.5 px-1 rounded bg-white border border-slate-200">
-                    <span className="w-2 h-2 rounded-full bg-red-500 -mr-0.5 inline-block" />
-                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+
+                  {/* Mastercard */}
+                  <span
+                    className="inline-flex items-center justify-center h-4.5 px-1.5 rounded bg-white border border-slate-200 shadow-2xs select-none"
+                    title="Mastercard"
+                  >
+                    <svg className="h-2.5 w-auto" viewBox="0 0 24 15" fill="none">
+                      <circle cx="7.5" cy="7.5" r="7.5" fill="#EB001B" />
+                      <circle cx="16.5" cy="7.5" r="7.5" fill="#F79E1B" />
+                      <path d="M12 2.2a7.5 7.5 0 0 0 0 10.6 7.5 7.5 0 0 0 0-10.6z" fill="#FF5F00" />
+                    </svg>
                   </span>
+
+                  {/* Cabal */}
+                  <span
+                    className="inline-flex items-center justify-center h-4.5 px-1.5 rounded bg-[#004a98] text-white font-black text-[9px] tracking-wider shadow-2xs select-none"
+                    title="Cabal"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#e30613] mr-1 inline-block shrink-0" />
+                    CABAL
+                  </span>
+
+                  {/* Naranja X */}
+                  <span
+                    className="inline-flex items-center justify-center h-4.5 px-1.5 rounded bg-[#ff6200] text-white font-bold text-[9px] tracking-tight shadow-2xs select-none"
+                    title="Naranja X"
+                  >
+                    <span>naranja</span>
+                    <span className="font-black text-white ml-0.5 text-[9px]">X</span>
+                  </span>
+
                   <span className="text-[11px] text-slate-600 underline font-medium cursor-pointer ml-1">
                     Ver detalle
                   </span>

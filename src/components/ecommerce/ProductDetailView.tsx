@@ -25,6 +25,7 @@ import {
   ThumbsDown,
   Sparkles,
   ShoppingBag,
+  Zap,
 } from "lucide-react";
 
 interface ProductDetailViewProps {
@@ -225,23 +226,81 @@ export function ProductDetailView({
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
-  // Productos de compra en conjunto ("Cómpralo con:")
-  const crossSellProducts = React.useMemo(() => {
+  // Lista de tecnologías aplicadas al producto (Apartado Tecnología)
+  const technologiesList = React.useMemo(() => {
+    if (product.highlights && product.highlights.length > 0) {
+      return product.highlights.map((h) => ({
+        title: h.title,
+        description: h.text,
+      }));
+    }
+
+    const nameLower = (product.name || "").toLowerCase();
+    const categoryLower = (product.category || "").toLowerCase();
+    const disciplineLower = (product.discipline || "").toLowerCase();
+
+    // Natación / Acuático / Malla
+    if (
+      nameLower.includes("malla") ||
+      nameLower.includes("endurance") ||
+      categoryLower.includes("nataci") ||
+      disciplineLower.includes("nataci") ||
+      disciplineLower.includes("acu")
+    ) {
+      return [
+        {
+          title: "Endurance+ (Anti-cloro)",
+          description: "Tejido técnico de polibutileno 100% resistente al cloro y a los efectos solares, garantizando máxima vida útil sin perder compresión.",
+        },
+        {
+          title: "4-Way Stretch",
+          description: "Elasticidad multidireccional que asegura total libertad de movimiento en el agua sin deformarse ni perder su calce ergonómico.",
+        },
+        {
+          title: "Secado Rápido (Quick Dry)",
+          description: "Tecnología de rápida evaporación de humedad que optimiza el confort térmico al salir de la pileta.",
+        },
+      ];
+    }
+
+    // Calzado / Zapatillas / Running
+    if (
+      nameLower.includes("zapatilla") ||
+      categoryLower.includes("calzado") ||
+      disciplineLower.includes("running")
+    ) {
+      return [
+        {
+          title: "Amortiguación Reactiva",
+          description: "Espuma de retorno de energía continuo que absorbe el impacto articular y favorece la propulsión en cada pisada.",
+        },
+        {
+          title: "Malla Engineered Transpirable",
+          description: "Tejido técnico con microperforaciones estratégicas que regulan el flujo de aire y previenen la humedad interna.",
+        },
+        {
+          title: "Suela Grippy Multisuperficie",
+          description: "Compuesto de goma de alta resistencia al desgaste con tracción multidireccional apta para asfalto, pista y gimnasio.",
+        },
+      ];
+    }
+
+    // Indumentaria deportiva general
     return [
       {
-        id: "cross-1",
-        name: "Short Seamless Training",
-        price: 55990,
-        image: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=500&q=80",
+        title: "Tejido Técnico Transpirable",
+        description: "Fibras de ventilación avanzada que absorben el sudor y lo trasladan al exterior para mantener el cuerpo seco y fresco.",
       },
       {
-        id: "cross-2",
-        name: "Gorra Deportiva Matacos Cap",
-        price: 15990,
-        image: "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&w=500&q=80",
+        title: "Costuras Planas Flatlock",
+        description: "Costuras anatómicas ultra lisas desarrolladas para reducir la fricción con la piel y eliminar rozaduras durante el entrenamiento.",
+      },
+      {
+        title: "Corte Ergonómico Anatómico",
+        description: "Diseño ceñido que se adapta a la silueta corporal, reduciendo la fatiga muscular sin restringir la flexibilidad.",
       },
     ];
-  }, []);
+  }, [product.highlights, product.name, product.category, product.discipline]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased selection:bg-[#00D615] selection:text-slate-950">
@@ -346,28 +405,44 @@ export function ProductDetailView({
               </span>
             </div>
 
-            {/* 5. Fila de Logos Bancarios y Enlace "Ver detalle" */}
-            <div className="flex items-center gap-2 pt-1 flex-wrap">
-              {/* Galicia */}
-              <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#ff5e00] text-white font-black text-[10px] tracking-tight">
-                Galicia
-              </span>
-              {/* Banco Provincia */}
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#008d36] text-white font-bold text-[9px] tracking-tight">
-                Provincia
-              </span>
-              {/* Mercado Pago */}
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#009ee3] text-white font-bold text-[9px] tracking-tight">
-                mercado pago
-              </span>
+            {/* 5. Fila de Logos de Tarjetas y Enlace "Ver detalle" */}
+            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
               {/* VISA */}
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#1a1f71] text-white font-black text-[9px] tracking-wider">
+              <span
+                className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-[#1a1f71] text-white font-black text-[9px] tracking-wider shadow-2xs select-none"
+                title="Visa"
+              >
                 VISA
               </span>
+
               {/* Mastercard */}
-              <span className="inline-flex items-center h-5 px-1.5 rounded bg-white border border-slate-200">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 -mr-1 inline-block" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+              <span
+                className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-white border border-slate-200 shadow-2xs select-none"
+                title="Mastercard"
+              >
+                <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="none">
+                  <circle cx="7.5" cy="7.5" r="7.5" fill="#EB001B" />
+                  <circle cx="16.5" cy="7.5" r="7.5" fill="#F79E1B" />
+                  <path d="M12 2.2a7.5 7.5 0 0 0 0 10.6 7.5 7.5 0 0 0 0-10.6z" fill="#FF5F00" />
+                </svg>
+              </span>
+
+              {/* Cabal */}
+              <span
+                className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-[#004a98] text-white font-black text-[9px] tracking-wider shadow-2xs select-none"
+                title="Cabal"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#e30613] mr-1 inline-block shrink-0" />
+                CABAL
+              </span>
+
+              {/* Naranja X */}
+              <span
+                className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-[#ff6200] text-white font-bold text-[9px] tracking-tight shadow-2xs select-none"
+                title="Naranja X"
+              >
+                <span>naranja</span>
+                <span className="font-black text-white ml-0.5 text-[10px]">X</span>
               </span>
 
               <button
@@ -621,8 +696,8 @@ export function ProductDetailView({
             
             {/* ----------------- PESTAÑA 1: DESCRIPCIÓN ----------------- */}
             {activeTab === "descripcion" && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-                <div className="lg:col-span-8 space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed">
+              <div className="max-w-4xl space-y-6 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                <div className="space-y-3">
                   <h3 className="text-base sm:text-lg font-extrabold uppercase text-slate-950 tracking-tight">
                     {product.name}
                   </h3>
@@ -630,7 +705,7 @@ export function ProductDetailView({
                     {product.description ||
                       "Diseñado para atletas y entusiastas del deporte que buscan el equilibrio definitivo entre respuesta, amortiguación y soporte. Cada costura y material ha sido testeado en condiciones reales de entrenamiento para garantizar durabilidad insuperable y confort durante todo el día."}
                   </p>
-                  <ul className="list-disc list-inside space-y-1.5 text-slate-600 pt-2">
+                  <ul className="list-disc list-inside space-y-1.5 text-slate-600 pt-1">
                     <li>Capellada técnica de malla transpirable con refuerzos termosellados.</li>
                     <li>Entresuela reactiva con retorno de energía constante en cada pisada.</li>
                     <li>Suela de tracción multidireccional apta para asfalto, pista y superficies de gimnasio.</li>
@@ -638,29 +713,23 @@ export function ProductDetailView({
                   </ul>
                 </div>
 
-                {/* Columna Lateral "CÓMPRALO CON:" */}
-                <div className="lg:col-span-4 border-l border-slate-100 lg:pl-8">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-4">
-                    Cómpralo con:
+                {/* Apartado de Tecnología */}
+                <div className="pt-6 border-t border-slate-200 space-y-3">
+                  <h4 className="text-sm sm:text-base font-extrabold uppercase tracking-tight text-slate-950 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Tecnología</span>
                   </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    {crossSellProducts.map((p) => (
-                      <div key={p.id} className="border border-slate-200 rounded p-2 text-center space-y-1.5 bg-[#fafafa]">
-                        <div className="aspect-square rounded overflow-hidden bg-white">
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                    {technologiesList.map((t, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-1 hover:border-emerald-300 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 font-bold text-xs text-slate-950">
+                          <Zap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{t.title}</span>
                         </div>
-                        <p className="text-[11px] font-bold text-slate-900 truncate">{p.name}</p>
-                        <p className="text-xs font-black text-slate-900">{formatCurrency(p.price)}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCartItems((prev) => [...prev, { product: { ...product, id: p.id, name: p.name, price: p.price, image: p.image }, quantity: 1 }]);
-                            setIsCartOpen(true);
-                          }}
-                          className="w-full py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-950 text-white rounded hover:bg-black transition-colors"
-                        >
-                          + Agregar
-                        </button>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">{t.description}</p>
                       </div>
                     ))}
                   </div>
@@ -670,111 +739,78 @@ export function ProductDetailView({
 
             {/* ----------------- PESTAÑA 2: LAVADO Y CUIDADO (IMÁGENES 1 Y 5 DE REFERENCIA) ----------------- */}
             {activeTab === "cuidados" && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-                <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  
-                  {/* Columna Izquierda: Instrucciones con Iconos */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
-                      INSTRUCCIONES DE LAVADO
-                    </h3>
-                    <div className="space-y-3.5 text-xs text-slate-700">
-                      <div className="flex items-center gap-3">
-                        <BleachNoIcon />
-                        <span>No usar blanqueador</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <TumbleDryLowIcon />
-                        <span>Puede utilizarse secadora en temperatura baja.</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <DryCleanNoIcon />
-                        <span>No lavar en seco.</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <IronLowIcon />
-                        <span>Planchar a temperatura baja.</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Wash30ColdIcon />
-                        <span>Lavar a máquina en temperatura fría.</span>
-                      </div>
+              <div className="max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Columna Izquierda: Instrucciones con Iconos */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
+                    INSTRUCCIONES DE LAVADO
+                  </h3>
+                  <div className="space-y-3.5 text-xs text-slate-700">
+                    <div className="flex items-center gap-3">
+                      <BleachNoIcon />
+                      <span>No usar blanqueador</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <TumbleDryLowIcon />
+                      <span>Puede utilizarse secadora en temperatura baja.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <DryCleanNoIcon />
+                      <span>No lavar en seco.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <IronLowIcon />
+                      <span>Planchar a temperatura baja.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Wash30ColdIcon />
+                      <span>Lavar a máquina en temperatura fría.</span>
                     </div>
                   </div>
-
-                  {/* Columna Derecha: Información Adicional sobre el Cuidado */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
-                      INFORMACIÓN ADICIONAL SOBRE EL CUIDADO
-                    </h3>
-                    <ul className="space-y-2 text-xs text-slate-700 list-none">
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Lavar a máquina dentro de bolsa para lavar ropa</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Lavar con cierres ajustados</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Usar únicamente detergente suave</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>No planchar las cintas ni estampas termoselladas</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Retirar rápidamente después de lavar</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>No usar suavizante</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Lavar por separado al revés</span>
-                      </li>
-                    </ul>
-                  </div>
-
                 </div>
 
-                {/* Columna Lateral "CÓMPRALO CON:" */}
-                <div className="lg:col-span-4 border-l border-slate-100 lg:pl-8">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-4">
-                    Cómpralo con:
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    {crossSellProducts.map((p) => (
-                      <div key={p.id} className="border border-slate-200 rounded p-2 text-center space-y-1.5 bg-[#fafafa]">
-                        <div className="aspect-square rounded overflow-hidden bg-white">
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                        </div>
-                        <p className="text-[11px] font-bold text-slate-900 truncate">{p.name}</p>
-                        <p className="text-xs font-black text-slate-900">{formatCurrency(p.price)}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCartItems((prev) => [...prev, { product: { ...product, id: p.id, name: p.name, price: p.price, image: p.image }, quantity: 1 }]);
-                            setIsCartOpen(true);
-                          }}
-                          className="w-full py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-950 text-white rounded hover:bg-black transition-colors"
-                        >
-                          + Agregar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                {/* Columna Derecha: Información Adicional sobre el Cuidado */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
+                    INFORMACIÓN ADICIONAL SOBRE EL CUIDADO
+                  </h3>
+                  <ul className="space-y-2 text-xs text-slate-700 list-none">
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>Lavar a máquina dentro de bolsa para lavar ropa</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>Lavar con cierres ajustados</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>Usar únicamente detergente suave</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>No planchar las cintas ni estampas termoselladas</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>Retirar rápidamente después de lavar</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>No usar suavizante</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-900 font-bold">•</span>
+                      <span>Lavar por separado al revés</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             )}
 
             {/* ----------------- PESTAÑA 3: TABLA DE TALLES (IMÁGENES 4 Y 2 DE REFERENCIA) ----------------- */}
             {activeTab === "talles" && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-                <div className="lg:col-span-8 space-y-8">
+              <div className="max-w-4xl space-y-8">
                   
                   {/* Tabla 1: MUJER CALZAS, SHORTS, JOGGERS */}
                   <div className="space-y-2.5">
@@ -961,37 +997,7 @@ export function ProductDetailView({
                       </div>
                     </div>
                   </div>
-
                 </div>
-
-                {/* Columna Lateral "CÓMPRALO CON:" */}
-                <div className="lg:col-span-4 border-l border-slate-100 lg:pl-8">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-4">
-                    Cómpralo con:
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    {crossSellProducts.map((p) => (
-                      <div key={p.id} className="border border-slate-200 rounded p-2 text-center space-y-1.5 bg-[#fafafa]">
-                        <div className="aspect-square rounded overflow-hidden bg-white">
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                        </div>
-                        <p className="text-[11px] font-bold text-slate-900 truncate">{p.name}</p>
-                        <p className="text-xs font-black text-slate-900">{formatCurrency(p.price)}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCartItems((prev) => [...prev, { product: { ...product, id: p.id, name: p.name, price: p.price, image: p.image }, quantity: 1 }]);
-                            setIsCartOpen(true);
-                          }}
-                          className="w-full py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-950 text-white rounded hover:bg-black transition-colors"
-                        >
-                          + Agregar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             )}
 
             {/* ----------------- PESTAÑA 4: VALORACIONES (IMAGEN 3 DE REFERENCIA) ----------------- */}
@@ -1215,74 +1221,6 @@ export function ProductDetailView({
 
           </div>
 
-          {/* =========================================================================
-              BANNER INFERIOR: "EL LOOK COMPLETO" (IMAGEN 5 DE REFERENCIA)
-             ========================================================================= */}
-          <div className="mt-10 relative rounded-2xl overflow-hidden bg-slate-900 text-white min-h-[340px] flex items-center">
-            {/* Imagen de fondo estilo editorial / lifestyle */}
-            <div className="absolute inset-0">
-              <img
-                src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1600&q=85"
-                alt="El look completo"
-                className="w-full h-full object-cover object-top opacity-70"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
-            </div>
-
-            {/* Badge central flotante sobre la prenda */}
-            <div className="absolute top-6 right-6 hidden sm:block bg-black/80 backdrop-blur-md text-white text-[11px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full border border-white/20">
-              {product.name}
-            </div>
-
-            {/* Tarjeta flotante blanca sobre el banner: "EL LOOK COMPLETO" */}
-            <div className="relative z-10 m-6 sm:m-10 max-w-xs bg-white text-slate-900 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                EL LOOK COMPLETO
-              </h4>
-
-              <div className="flex items-center gap-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0">
-                  <img
-                    src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=300&q=80"
-                    alt="Sport Bag"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900 block truncate">
-                    SPORT BAG MATACOS
-                  </span>
-                  <span className="text-xs font-black text-slate-900">
-                    $ 20.990
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCartItems((prev) => [
-                    ...prev,
-                    {
-                      product: {
-                        ...product,
-                        id: "sport-bag-companion",
-                        name: "Sport Bag Matacos",
-                        price: 20990,
-                        image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=300&q=80",
-                      },
-                      quantity: 1,
-                    },
-                  ]);
-                  setIsCartOpen(true);
-                }}
-                className="w-full py-2 bg-slate-950 hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
-              >
-                COMPRAR
-              </button>
-            </div>
-          </div>
-
         </section>
 
         {/* ================= SECCIÓN INFERIOR: PRODUCTOS RECOMENDADOS ================= */}
@@ -1402,7 +1340,7 @@ export function ProductDetailView({
                 </span>
                 <p className="text-slate-600">• 2 cuotas sin interés de {formatCurrency(cuota2)}</p>
                 <p className="text-slate-600">• 3 cuotas sin interés de {formatCurrency(cuota3)}</p>
-                <p className="text-slate-600">• 6 cuotas sin interés con tarjetas bancarias Visa y Mastercard.</p>
+                <p className="text-slate-600">• 6 cuotas sin interés con tarjetas Visa, Mastercard, Cabal y Naranja X.</p>
               </div>
 
               <div className="p-3 rounded bg-slate-50 border border-slate-200 space-y-1">
