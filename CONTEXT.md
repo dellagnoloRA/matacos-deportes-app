@@ -98,3 +98,47 @@ Procedimiento de salvaguarda reactiva ejecutado en el backend si un pago llega a
 
 ### Despacho y Gestión Logística de Salón
 Módulo operativo del personal de salón y administración en Saavedra 241 para preparar paquetes de compras web. Permite filtrar órdenes por estado logístico, ingresar el código de guía de Correo Argentino, contactar al comprador por WhatsApp para coordinar la entrega o retiro, y confirmar la entrega final.
+
+
+## 6. Precios Promocionales y Ofertas Temporales (RF-27)
+
+### Descuento Promocional Omnicanal
+Reducción porcentual temporal sobre el precio de venta de un artículo base (`Product`) o rubro. Rige con idéntico valor tanto en la tienda online (`channel: "WEB"`) como en las terminales físicas del local de Saavedra 241 (`channel: "MOSTRADOR"`). En mostrador, el comprobante térmico refleja el precio de lista original y el importe descontado en el renglón.
+
+### Salvaguarda de Costo de Reposición
+Restricción de protección financiera que impide fijar precios bonificados cuyo valor resultante sea inferior al costo de reposición (`costPrice`). Exige autorización expresa y permisos de auditoría para liquidaciones extraordinarias por debajo del costo.
+
+### Precio Promocional Efectivo por Variante
+Monto monetario final redondeado al centavo obtenido al aplicar el porcentaje de descuento sobre el precio particular de cada variante (`variant.price ?? product.price`), asegurando la proporcionalidad en talles o modelos con sobreprecio.
+
+### Resguardo de Oferta en Reserva Web (Inmutabilidad TTL)
+Compromiso transaccional de precio pactado al iniciar una orden web. Si la orden se genera durante la vigencia de la oferta, el importe bonificado queda congelado durante la ventana de reserva de 15 minutos (`reservedUntil`), permitiendo al comprador finalizar su pago en pasarela al precio promocional aun si la oferta expira en el servidor durante la transacción.
+
+### Descuento Masivo por Rubro o Disciplina
+Acción operativa para asignar un porcentaje de oferta a la totalidad de artículos pertenecientes a una Categoría o Disciplina deportiva, aplicando la rebaja a los productos aptos y generando un reporte discriminado de aquellos omitidos por salvaguarda de costo.
+
+
+### Permiso Atómico de Venta Bajo Costo (`product:discount_below_cost`)
+Permiso de seguridad granular en la matriz RBAC que habilita a un usuario con perfil autorizado a forzar la aplicación de un precio promocional cuyo valor neto resultante se ubique por debajo del costo de reposición (`costPrice`), destinado a liquidaciones extraordinarias de fin de temporada.
+
+### Descuento Sucesivo en Mostrador (Cascada RF-27 + RF-08)
+Mecánica de liquidación aplicable en terminales físicas de Saavedra 241 cuando un artículo en promoción activa recibe una bonificación manual adicional (por ejemplo, descuento por pago en efectivo). El descuento manual se calcula de forma escalonada sobre el precio promocional ya rebajado, garantizando que ambas ventajas comerciales convivan transparentemente.
+
+### Tolerancia a Costo No Informado
+Tratamiento para artículos que posean `costPrice: null` (existencias históricas o rezagos de catálogo). El sistema permite fijar promociones individuales o masivas sin bloquear la operación por falta de costo de referencia.
+
+### Presentación Visual de Oferta (Precio Tachado y Badge)
+Convención de diseño frontend en catálogo, PDP y mostrador consistente en exponer el precio de lista original en tipografía secundaria tachada (`line-through`), acompañado por una insignia visual destacada con el porcentaje bonificado (ej. `-20% OFF`) y el precio efectivo final destacado en color de acento.
+
+
+### Módulo Administrativo de Campañas y Promociones
+Sección dedicada en el panel de control (`/admin?tab=promociones`) desacoplada del formulario individual de productos. Permite monitorear el estado de todas las ofertas vigentes, pausadas o programadas, aplicar descuentos masivos por rubro o disciplina, y auditar los productos bajo promoción.
+
+### Ventana de Vigencia con Precisión de Fecha y Hora
+Intervalo temporal delimitado por `discountStartDate` y `discountEndDate` con exactitud de minutos en el huso horario oficial `America/Argentina/Buenos_Aires`, habilitando campañas relámpago programadas y corte automático de ofertas.
+
+### Reversión Masiva de Ofertas
+Acción de despublicación atómica que restablece el precio regular a todos los productos comprendidos en una Categoría o Disciplina de forma simultánea, limpiando los estados promocionales sin alterar el inventario ni los precios base.
+
+### Métrica de Ahorro Visible al Comprador
+Cálculo en tiempo real expuesto en el carrito (`EcommerceCartDrawer`) y la pantalla de checkout que consolida la diferencia monetaria total entre los precios de lista y los precios promocionados de los renglones, reforzando la transparencia comercial antes del cobro.
