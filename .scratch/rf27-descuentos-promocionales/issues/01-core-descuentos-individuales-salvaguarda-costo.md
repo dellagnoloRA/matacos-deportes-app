@@ -7,9 +7,9 @@ Al completarse, debe invalidar bajo demanda la etiqueta de caché `landing-data`
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Crear esquema Zod `ProductDiscountSchema` en `src/schemas/productDiscount.ts` validando porcentaje (1 al 90 con hasta 2 decimales), fechas de vigencia coherentes (`startDate <= endDate`) y flag de autorización bajo costo.
-- [ ] Registrar el permiso atómico `product:discount_below_cost` en la tabla `Permission` (módulo `PRODUCTOS`) y asociarlo al perfil de Administrador en el seed/script correspondiente.
-- [ ] Implementar la Server Action `setProductDiscount(productId, data)` con cálculo matemático exacto (`resolveEffectiveProductPromo`), validación de sesión/permisos, persistencia atómica en Prisma y llamada a `revalidateLandingPageData('discount')`.
-- [ ] Implementar la suite automatizada `scripts/test-rf27-promotional-discounts.ts` con casos de prueba para: asignación válida, rechazo por venta bajo costo sin permiso, aprobación con permiso autorizado, expiración temporal y persistencia en base de datos.
+- [x] Crear esquema Zod `ProductDiscountSchema` en `src/schemas/productDiscount.ts` validando porcentaje (1 al 90 con hasta 2 decimales), fechas de vigencia coherentes (`startDate <= endDate`) y flag de autorización bajo costo.
+- [x] Registrar el permiso atómico `product:discount_below_cost` en la tabla `Permission` (módulo `PRODUCTOS`) y asociarlo al perfil de Administrador en el seed/script correspondiente.
+- [x] Implementar la Server Action `setProductDiscount(productId, data)` con cálculo matemático exacto (`resolveEffectiveProductPromo`), validación de sesión/permisos, persistencia atómica en Prisma y llamada a `revalidateLandingPageData('discount')`.
+- [x] Implementar la suite automatizada `scripts/test-rf27-promotional-discounts.ts` con casos de prueba para: asignación válida, rechazo por venta bajo costo sin permiso, aprobación con permiso autorizado, expiración temporal y persistencia en base de datos.

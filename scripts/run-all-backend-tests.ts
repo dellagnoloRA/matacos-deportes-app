@@ -7,7 +7,12 @@
  * 4. Gestión Transaccional de Productos, Variantes y Baja Lógica (RF-01, RF-02)
  * 5. Control de Stock Dual, Movimientos Atómicos y Ventas (RF-03, CU-INV-03, CU-INV-04)
  * 6. Ingestión Masiva y Carga Progresiva de Inventario (RF-04, CU-INV-02)
- * 7. Portal de Clientes, Autenticación Web, Favoritos y Seguimiento (RF-29)
+ * 7. Botón Contextual de WhatsApp y Asistencia (RF-18)
+ * 8. Transferencia Bancaria y Comprobantes de Pago (RF-17)
+ * 9. Gestión y Publicación de Banners en Landing (RF-26)
+ * 10. Descuentos Promocionales y Salvaguarda de Costos (RF-27)
+ * 11. Landing Page de Alto Rendimiento y Caché ISR (RF-28)
+ * 12. Portal de Clientes, Favoritos y Seguimiento Web (RF-29)
  */
 
 import { execSync } from "child_process";
@@ -66,6 +71,11 @@ const SUITES = [
     name: "Gestión y Publicación de Banners en Landing",
     rf: "RF-26",
     script: "scripts/test-rf26-banners.ts",
+  },
+  {
+    name: "Descuentos Promocionales y Salvaguarda de Costos",
+    rf: "RF-27",
+    script: "scripts/test-rf27-promotional-discounts.ts",
   },
   {
     name: "Landing Page de Alto Rendimiento y Caché ISR",
