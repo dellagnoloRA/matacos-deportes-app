@@ -35,6 +35,12 @@ export function EcommerceCartDrawer({
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+  const totalSavings = items.reduce((acc, item) => {
+    if (item.originalPrice && item.originalPrice > item.price) {
+      return acc + (item.originalPrice - item.price) * item.quantity;
+    }
+    return acc;
+  }, 0);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -191,6 +197,11 @@ export function EcommerceCartDrawer({
                         </div>
 
                         <div className="text-right">
+                          {item.originalPrice && item.originalPrice > item.price && (
+                            <span className="text-[10px] text-slate-400 line-through block font-medium">
+                              {formatCurrency(item.originalPrice * item.quantity)}
+                            </span>
+                          )}
                           <span className="text-xs font-black text-[#00A811] block">
                             {formatCurrency(item.price * item.quantity)}
                           </span>
@@ -218,6 +229,12 @@ export function EcommerceCartDrawer({
                     {formatCurrency(totalAmount)}
                   </span>
                 </div>
+                {totalSavings > 0 && (
+                  <div className="flex items-center justify-between text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-bold">
+                    <span>Ahorro en ofertas:</span>
+                    <span className="text-emerald-700 font-black">- {formatCurrency(totalSavings)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Entrega</span>
                   <span className="text-emerald-700 font-bold">

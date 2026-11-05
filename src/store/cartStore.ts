@@ -14,6 +14,8 @@ export interface CartStoreItem {
   color: string;
   sku: string;
   price: number;
+  originalPrice?: number;
+  discountActive?: boolean;
   imageUrl: string;
   quantity: number;
   availableStock: number;
@@ -28,6 +30,8 @@ export interface AddCartItemInput {
   color: string;
   sku: string;
   price: number;
+  originalPrice?: number;
+  discountActive?: boolean;
   imageUrl: string;
   availableStock: number;
   quantity?: number;
@@ -91,6 +95,8 @@ export const useCartStore = create<CartStoreState>()(
             color: input.color,
             sku: input.sku,
             price: input.price,
+            originalPrice: input.originalPrice !== undefined ? input.originalPrice : existing.originalPrice,
+            discountActive: input.discountActive !== undefined ? input.discountActive : existing.discountActive,
             imageUrl: input.imageUrl,
             availableStock: maxStock,
             quantity: nextQty,
@@ -115,6 +121,8 @@ export const useCartStore = create<CartStoreState>()(
           color: input.color,
           sku: input.sku,
           price: input.price,
+          originalPrice: input.originalPrice,
+          discountActive: input.discountActive,
           imageUrl: input.imageUrl || "/placeholder-product.svg",
           quantity: initialQty,
           availableStock: maxStock,
@@ -180,6 +188,8 @@ export const useCartStore = create<CartStoreState>()(
               color: v.color || item.color,
               sku: v.sku || item.sku,
               price: v.currentUnitPrice > 0 ? v.currentUnitPrice : item.price,
+              originalPrice: v.originalUnitPrice !== undefined ? v.originalUnitPrice : item.originalPrice,
+              discountActive: v.discountActive !== undefined ? v.discountActive : item.discountActive,
               imageUrl: v.imageUrl || item.imageUrl,
               availableStock: safeStock,
               quantity: adjustedQty,
@@ -235,6 +245,9 @@ export function buildCartItemFromEcommerceProduct(
       img.color.trim().toLowerCase() === chosenVariant.color.trim().toLowerCase()
   )?.url;
 
+  const originalPrice = product.originalPrice ?? undefined;
+  const isOffer = Boolean(product.isOffer || (originalPrice && originalPrice > unitPrice));
+
   return {
     variantId: chosenVariant.id,
     productId: product.id,
@@ -244,6 +257,8 @@ export function buildCartItemFromEcommerceProduct(
     color: chosenVariant.color,
     sku: chosenVariant.sku,
     price: unitPrice,
+    originalPrice: originalPrice && originalPrice > unitPrice ? originalPrice : undefined,
+    discountActive: isOffer,
     imageUrl: colorImage || product.image || "/placeholder-product.svg",
     availableStock: chosenVariant.availableStock,
     quantity,

@@ -9,8 +9,8 @@ Brindar una experiencia visual de alto impacto en el e-commerce para compras que
 **Blocked by:**
 - 03: Consumo Omnicanal, Inmutabilidad en Reserva Web (TTL) y Cobro Mostrador
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Extender los ítems de `cartStore.ts` con campos de precio regular y precio de oferta.
-- [ ] Actualizar `EcommerceCartDrawer.tsx` para renderizar precios tachados y la fila consolidada de ahorro.
-- [ ] Actualizar la vista de checkout y detalle de pedido para mantener coherencia visual con la métrica de ahorro.
+- [x] Extender los ítems de `cartStore.ts` con campos de precio regular y precio de oferta.
+- [x] Actualizar `EcommerceCartDrawer.tsx` para renderizar precios tachados y la fila consolidada de ahorro.
+- [x] Actualizar la vista de checkout y detalle de pedido para mantener coherencia visual con la métrica de ahorro.

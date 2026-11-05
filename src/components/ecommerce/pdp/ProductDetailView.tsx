@@ -74,8 +74,17 @@ export function ProductDetailView({
 
   // Pricing calculations
   const effectivePrice = activeVariant?.price ? activeVariant.price : product.price;
-  const isOffer = product.maxPrice > product.price;
-  const originalPrice = isOffer ? product.maxPrice : undefined;
+  const isOffer = Boolean(
+    product.discountActive ||
+    (product.originalPrice && product.originalPrice > product.price) ||
+    product.maxPrice > product.price
+  );
+  const originalPrice =
+    product.originalPrice && product.originalPrice > effectivePrice
+      ? product.originalPrice
+      : isOffer && product.maxPrice > effectivePrice
+      ? product.maxPrice
+      : undefined;
 
   const resolveVariantImageUrl = (variant: PublicVariantItem): string => {
     const byColor = product.images.find(
@@ -105,6 +114,8 @@ export function ProductDetailView({
       color: activeVariant.color,
       sku: activeVariant.sku,
       price: effectivePrice,
+      originalPrice,
+      discountActive: isOffer,
       imageUrl: resolveVariantImageUrl(activeVariant),
       availableStock: activeVariant.availableStock,
       quantity,
