@@ -21,6 +21,7 @@ import { ProfilesManagementView } from "./ProfilesManagementView";
 import { StoreSettingsView } from "./StoreSettingsView";
 import { WebOrdersView } from "./WebOrdersView";
 import { BannersManagementView } from "./BannersManagementView";
+import { PromotionManagementView } from "./PromotionManagementView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -89,6 +90,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "usuarios") return "usuarios";
     if (tab === "perfiles") return "perfiles";
     if (tab === "banners" || tab === "admin-banners") return "banners";
+    if (tab === "promociones" || tab === "admin-promociones") return "promociones";
     return "inventario";
   }, [searchParams]);
 
@@ -374,6 +376,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               </p>
             </div>
           )
+        ) : currentTab === "promociones" ? (
+          <PromotionManagementView />
         ) : currentTab === "configuracion" ? (
           <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
             <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">

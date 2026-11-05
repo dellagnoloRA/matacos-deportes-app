@@ -24,6 +24,7 @@ import {
   Users,
   Shield,
   Sparkles,
+  Percent,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -376,6 +377,20 @@ export function SidebarLeft({
                   </div>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => handleItemClick("admin-promociones")}
+                className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                  activeItem === "admin-promociones"
+                    ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                    : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Percent className={`w-4 h-4 ${activeItem === "admin-promociones" ? "text-slate-950" : "text-emerald-300"}`} />
+                  <span>Promociones & Ofertas</span>
+                </div>
+              </button>
               <button
                 type="button"
                 onClick={() => handleItemClick("configuracion")}

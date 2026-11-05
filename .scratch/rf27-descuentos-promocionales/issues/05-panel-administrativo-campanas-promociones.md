@@ -13,9 +13,9 @@ Proveer una interfaz de usuario dedicada en el panel administrativo (`/admin?tab
 - 01: Core de Descuentos Individuales y Salvaguarda de Costos con Permiso RBAC
 - 02: Descuentos Masivos por Categoría o Disciplina con Reporte 2B y Reversión
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Crear el componente `PromotionManagementView.tsx` e integrarlo en la barra lateral y pestañas de `DashboardView.tsx` (`/admin?tab=promociones`).
-- [ ] Desarrollar la tabla de promociones con badge de estado, margen de ganancia y acciones rápidas.
-- [ ] Desarrollar los modales de asignación individual y masiva con previsualización de impacto financiero.
-- [ ] Conectar con las Server Actions de `setProductDiscount`, `applyCategoryDiscount` y `removeCategoryDiscount`.
+- [x] Crear el componente `PromotionManagementView.tsx` e integrarlo en la barra lateral y pestañas de `DashboardView.tsx` (`/admin?tab=promociones`).
+- [x] Desarrollar la tabla de promociones con badge de estado, margen de ganancia y acciones rápidas.
+- [x] Desarrollar los modales de asignación individual y masiva con previsualización de impacto financiero.
+- [x] Conectar con las Server Actions de `setProductDiscount`, `applyCategoryDiscount` y `removeCategoryDiscount`.
