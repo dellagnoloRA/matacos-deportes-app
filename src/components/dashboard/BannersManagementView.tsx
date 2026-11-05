@@ -19,6 +19,10 @@ import {
   Film,
   Info,
   Link2,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Loader2,
 } from "lucide-react";
 import {
   getAllBannersAdmin,
@@ -138,6 +142,19 @@ export function BannersManagementView() {
   const [editingBanner, setEditingBanner] = useState<SerializedBanner | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [bannerToDelete, setBannerToDelete] = useState<SerializedBanner | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [toast, setToast] = useState<{
+    type: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+
+  const showToast = useCallback((type: "success" | "error" | "info", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 4000);
+  }, []);
 
   // Formulario
   const [title, setTitle] = useState("");
@@ -309,41 +326,50 @@ export function BannersManagementView() {
     setSubmitting(false);
 
     if (res.success) {
-      setSuccessMessage(
+      showToast(
+        "success",
         editingBanner
           ? "¡Banner modificado exitosamente!"
-          : "¡Banner creado y publicado en la Landing!"
+          : "¡Banner creado y publicado en la tienda online!"
       );
-      setTimeout(() => setSuccessMessage(null), 4000);
       setIsModalOpen(false);
       resetForm();
       loadBanners();
     } else {
-      setErrorMessage(res.error || "No se pudo guardar el banner.");
+      showToast("error", res.error || "No se pudo guardar el banner.");
     }
   };
 
   const handleToggleActive = async (banner: SerializedBanner) => {
     const res = await updateBanner(banner.id, { active: !banner.active });
     if (res.success) {
+      showToast("info", banner.active ? "Banner pausado." : "Banner activado en la tienda online.");
       loadBanners();
     } else {
-      setErrorMessage(res.error || "No se pudo actualizar el estado del banner");
+      showToast("error", res.error || "No se pudo actualizar el estado del banner");
     }
   };
 
-  const handleDelete = async (id: string, bannerTitle: string) => {
-    if (!confirm(`¿Eliminar el banner "${bannerTitle}" definitivamente?`)) {
-      return;
-    }
+  const handleDeleteClick = (banner: SerializedBanner) => {
+    setBannerToDelete(banner);
+  };
 
-    const res = await deleteBanner(id);
-    if (res.success) {
-      setSuccessMessage("Banner eliminado.");
-      setTimeout(() => setSuccessMessage(null), 3000);
-      loadBanners();
-    } else {
-      setErrorMessage(res.error || "No se pudo eliminar el banner");
+  const handleConfirmDelete = async () => {
+    if (!bannerToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await deleteBanner(bannerToDelete.id);
+      if (res.success) {
+        showToast("success", `El banner "${bannerToDelete.title}" fue eliminado correctamente.`);
+        setBannerToDelete(null);
+        loadBanners();
+      } else {
+        showToast("error", res.error || "No se pudo eliminar el banner");
+      }
+    } catch {
+      showToast("error", "Error inesperado al intentar eliminar el banner");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -419,18 +445,9 @@ export function BannersManagementView() {
 
       {/* Alertas */}
       {errorMessage && (
-        <div className="mx-4 lg:mx-8 mt-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center justify-between">
+        <div className="mx-4 lg:mx-8 mt-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center justify-between animate-in fade-in">
           <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage(null)} className="text-rose-500 hover:text-rose-800">
-            ✕
-          </button>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="mx-4 lg:mx-8 mt-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center justify-between">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-800">
+          <button onClick={() => setErrorMessage(null)} className="text-rose-500 hover:text-rose-800 cursor-pointer">
             ✕
           </button>
         </div>
@@ -596,7 +613,7 @@ export function BannersManagementView() {
 
                     <button
                       type="button"
-                      onClick={() => handleDelete(banner.id, banner.title)}
+                      onClick={() => handleDeleteClick(banner)}
                       className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
                       title="Eliminar banner"
                     >
@@ -741,7 +758,7 @@ export function BannersManagementView() {
                 {/* Vista Previa Multimedia */}
                 {imageUrl && (
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono truncate">
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono">
                       <span className="font-bold text-emerald-700 flex items-center gap-1">
                         {isVideoMedia(imageUrl) ? (
                           <>
@@ -753,7 +770,20 @@ export function BannersManagementView() {
                           </>
                         )}
                       </span>
-                      <span className="truncate max-w-[200px] text-slate-400">{imageUrl}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate max-w-[180px] text-slate-400 font-mono text-[10px]">{imageUrl}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageUrl("");
+                            showToast("info", "Archivo multimedia principal removido.");
+                          }}
+                          className="text-[11px] text-rose-500 hover:text-rose-700 hover:underline flex items-center gap-1 font-sans cursor-pointer shrink-0"
+                          title="Quitar archivo seleccionado"
+                        >
+                          <X className="w-3.5 h-3.5" /> Quitar
+                        </button>
+                      </div>
                     </div>
 
                     <div className="w-full h-32 rounded-lg overflow-hidden bg-slate-950 border border-slate-200">
@@ -919,6 +949,114 @@ export function BannersManagementView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación */}
+      {bannerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden flex flex-col p-6 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0 text-rose-600">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">¿Eliminar este banner?</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Se quitará definitivamente del carrusel principal de la tienda online. Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+
+            {/* Mini ficha previa del banner */}
+            <div className="my-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center gap-3.5">
+              <div className="w-16 h-12 rounded-xl bg-slate-950 overflow-hidden shrink-0 border border-slate-200">
+                {bannerToDelete.imageUrl && (
+                  isVideoMedia(bannerToDelete.imageUrl) ? (
+                    <video src={bannerToDelete.imageUrl} className="w-full h-full object-cover" muted />
+                  ) : (
+                    <img src={bannerToDelete.imageUrl} alt="" className="w-full h-full object-cover" />
+                  )
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 truncate">{bannerToDelete.title}</p>
+                {bannerToDelete.subtitle && (
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">{bannerToDelete.subtitle}</p>
+                )}
+                <span
+                  className={`inline-block text-[10px] font-semibold mt-1 px-2 py-0.5 rounded-full ${
+                    bannerToDelete.active
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                  }`}
+                >
+                  {bannerToDelete.active ? "Actualmente Activo" : "Pausado"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setBannerToDelete(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all shadow-sm shadow-rose-600/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Eliminar Banner</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notificación Flotante Elegante (Toast) */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-200 pointer-events-auto">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md ${
+              toast.type === "success"
+                ? "bg-slate-900/95 text-white border-emerald-500/40 shadow-emerald-950/20"
+                : toast.type === "error"
+                ? "bg-slate-900/95 text-white border-rose-500/40 shadow-rose-950/20"
+                : "bg-slate-900/95 text-white border-slate-700 shadow-slate-950/20"
+            }`}
+          >
+            {toast.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : toast.type === "error" ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <Info className="w-4 h-4 text-sky-400 shrink-0" />
+            )}
+            <span className="text-xs font-semibold">{toast.message}</span>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors ml-2 cursor-pointer"
+              aria-label="Cerrar notificación"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
