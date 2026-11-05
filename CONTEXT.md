@@ -118,7 +118,7 @@ Compromiso transaccional de precio pactado al iniciar una orden web. Si la orden
 Acción operativa para asignar un porcentaje de oferta a la totalidad de artículos pertenecientes a una Categoría o Disciplina deportiva, aplicando la rebaja a los productos aptos y generando un reporte discriminado de aquellos omitidos por salvaguarda de costo.
 
 
-### Permiso Atómico de Venta Bajo Costo (`product:discount_below_cost`)
+### Permiso Atómico de Venta Bajo Costo (`productos.descuento_bajo_costo`)
 Permiso de seguridad granular en la matriz RBAC que habilita a un usuario con perfil autorizado a forzar la aplicación de un precio promocional cuyo valor neto resultante se ubique por debajo del costo de reposición (`costPrice`), destinado a liquidaciones extraordinarias de fin de temporada.
 
 ### Descuento Sucesivo en Mostrador (Cascada RF-27 + RF-08)

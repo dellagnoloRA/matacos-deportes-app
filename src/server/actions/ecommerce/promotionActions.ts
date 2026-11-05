@@ -50,6 +50,31 @@ export interface BulkDiscountResult {
   };
 }
 
+export interface BulkDiscountPreviewResult {
+  success: boolean;
+  error?: string;
+  code?: string;
+  data?: {
+    totalEvaluated: number;
+    willApplyCount: number;
+    willSkipCount: number;
+    skippedProducts: Array<{
+      productId: string;
+      productName: string;
+      regularPrice: number;
+      costPrice: number;
+      attemptedDiscountPrice: number;
+      reason: string;
+    }>;
+    sampleAffectedProducts: Array<{
+      productId: string;
+      productName: string;
+      regularPrice: number;
+      newDiscountPrice: number;
+    }>;
+  };
+}
+
 export interface RemoveBulkDiscountResult {
   success: boolean;
   error?: string;
@@ -59,7 +84,7 @@ export interface RemoveBulkDiscountResult {
 /**
  * Server Action (RF-27 / Ticket 1): Fijar o actualizar descuento individual en un producto
  * Valida esquema Zod, cálculo determinista al centavo, protección contra venta a quebranto (costPrice)
- * y autorización mediante permiso atómico `product:discount_below_cost`.
+ * y autorización mediante permiso atómico `productos.descuento_bajo_costo`.
  */
 export async function setProductDiscount(
   productId: string,
@@ -143,7 +168,7 @@ export async function setProductDiscount(
         }
 
         // Validar permisos atómicos RBAC
-        const hasBelowCostPerm = await hasPermission("product:discount_below_cost");
+        const hasBelowCostPerm = await hasPermission("productos.descuento_bajo_costo");
         const session = await getSession();
         const isAdmin = session?.level !== undefined && session.level >= 100;
 
@@ -152,7 +177,7 @@ export async function setProductDiscount(
             success: false,
             code: "FORBIDDEN_BELOW_COST",
             error:
-              "Acceso denegado: No posee el permiso atómico [product:discount_below_cost] para autorizar ventas por debajo del costo de reposición.",
+              "Acceso denegado: No posee el permiso atómico [productos.descuento_bajo_costo] para autorizar ventas por debajo del costo de reposición.",
           };
         }
       }
@@ -204,6 +229,141 @@ export async function setProductDiscount(
 }
 
 /**
+ * Server Action (RF-27 / Ticket 2): Previsualizar impacto de descuento masivo antes de aplicar
+ */
+export async function previewCategoryDiscount(
+  rawInput: unknown
+): Promise<BulkDiscountPreviewResult> {
+  try {
+    const parseResult = CategoryDiscountSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return {
+        success: false,
+        error: parseResult.error.errors[0]?.message || "Criterios de previsualización inválidos",
+      };
+    }
+
+    const validated = parseResult.data;
+
+    const whereClause: Prisma.ProductWhereInput = {
+      active: true,
+    };
+
+    if (validated.categoryId) {
+      whereClause.categoryId = validated.categoryId;
+    }
+    if (validated.disciplineId) {
+      whereClause.disciplineId = validated.disciplineId;
+    }
+
+    const products = await prisma.product.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        costPrice: true,
+        variants: {
+          select: {
+            id: true,
+            price: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const sampleAffectedProducts: Array<{
+      productId: string;
+      productName: string;
+      regularPrice: number;
+      newDiscountPrice: number;
+    }> = [];
+
+    const skippedProducts: Array<{
+      productId: string;
+      productName: string;
+      regularPrice: number;
+      costPrice: number;
+      attemptedDiscountPrice: number;
+      reason: string;
+    }> = [];
+
+    let willApplyCount = 0;
+
+    for (const prod of products) {
+      const regularPrice = Number(prod.price);
+      const discountAmount =
+        Math.round(((regularPrice * validated.discountPercentage) / 100) * 100) / 100;
+      const discountPrice = Math.max(
+        0,
+        Math.round((regularPrice - discountAmount) * 100) / 100
+      );
+
+      let violatesCost = false;
+      const cost = prod.costPrice !== null ? Number(prod.costPrice) : null;
+
+      if (cost !== null) {
+        if (discountPrice < cost) {
+          violatesCost = true;
+        }
+
+        for (const variant of prod.variants) {
+          if (variant.price !== null) {
+            const varPrice = Number(variant.price);
+            const varDiscount =
+              Math.round(((varPrice * validated.discountPercentage) / 100) * 100) / 100;
+            const varFinal = Math.max(0, Math.round((varPrice - varDiscount) * 100) / 100);
+            if (varFinal < cost) {
+              violatesCost = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (violatesCost && !validated.allowBelowCost) {
+        skippedProducts.push({
+          productId: prod.id,
+          productName: prod.name,
+          regularPrice,
+          costPrice: cost ?? 0,
+          attemptedDiscountPrice: discountPrice,
+          reason: "Precio promocional resultante inferior al costo de reposición",
+        });
+      } else {
+        willApplyCount++;
+        if (sampleAffectedProducts.length < 5) {
+          sampleAffectedProducts.push({
+            productId: prod.id,
+            productName: prod.name,
+            regularPrice,
+            newDiscountPrice: discountPrice,
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        totalEvaluated: products.length,
+        willApplyCount,
+        willSkipCount: skippedProducts.length,
+        skippedProducts,
+        sampleAffectedProducts,
+      },
+    };
+  } catch (error) {
+    console.error("Error en previewCategoryDiscount:", error);
+    return {
+      success: false,
+      error: "Error interno al previsualizar el descuento masivo.",
+    };
+  }
+}
+
+/**
  * Server Action (RF-27 / Ticket 2): Aplicar descuento masivo por Categoría o Disciplina (Estrategia 2B)
  */
 export async function applyCategoryDiscount(
@@ -222,7 +382,7 @@ export async function applyCategoryDiscount(
 
     // Verificar permisos si se solicita forzar venta bajo costo
     if (validated.allowBelowCost) {
-      const hasBelowCostPerm = await hasPermission("product:discount_below_cost");
+      const hasBelowCostPerm = await hasPermission("productos.descuento_bajo_costo");
       const session = await getSession();
       const isAdmin = session?.level !== undefined && session.level >= 100;
       if (!hasBelowCostPerm && !isAdmin) {
@@ -230,7 +390,7 @@ export async function applyCategoryDiscount(
           success: false,
           code: "FORBIDDEN_BELOW_COST",
           error:
-            "Acceso denegado: No posee el permiso [product:discount_below_cost] para aplicar descuentos masivos por debajo del costo.",
+            "Acceso denegado: No posee el permiso [productos.descuento_bajo_costo] para aplicar descuentos masivos por debajo del costo.",
         };
       }
     }
@@ -390,19 +550,26 @@ export async function removeCategoryDiscount(
 
     const validated = parseResult.data;
 
-    const whereClause: Prisma.ProductWhereInput = {
-      discountActive: true,
-    };
+    const whereConditions: Prisma.ProductWhereInput[] = [
+      {
+        OR: [
+          { discountActive: true },
+          { discountPercentage: { not: null } },
+        ],
+      },
+    ];
 
     if (validated.categoryId) {
-      whereClause.categoryId = validated.categoryId;
+      whereConditions.push({ categoryId: validated.categoryId });
     }
     if (validated.disciplineId) {
-      whereClause.disciplineId = validated.disciplineId;
+      whereConditions.push({ disciplineId: validated.disciplineId });
     }
 
     const updateRes = await prisma.product.updateMany({
-      where: whereClause,
+      where: {
+        AND: whereConditions,
+      },
       data: {
         discountActive: false,
         discountPercentage: null,
@@ -519,5 +686,155 @@ export async function getPromoCampaigns(filter?: "all" | "active" | "scheduled" 
       success: false,
       error: "Error interno al cargar el listado de promociones.",
     };
+  }
+}
+
+
+/**
+ * Server Action (RF-27 / Ticket 5): Búsqueda rápida de productos para modal de asignación de promoción
+ */
+export async function searchProductsForPromotion(query: string) {
+  try {
+    const q = query.trim();
+    if (!q) return { success: true, data: [] };
+
+    const products = await prisma.product.findMany({
+      where: {
+        active: true,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { modelCode: { contains: q, mode: "insensitive" } },
+          { variants: { some: { barcode: q } } },
+          { variants: { some: { sku: { contains: q, mode: "insensitive" } } } },
+        ],
+      },
+      take: 15,
+      select: {
+        id: true,
+        name: true,
+        modelCode: true,
+        price: true,
+        costPrice: true,
+        imageUrl: true,
+        discountActive: true,
+        discountPercentage: true,
+        discountPrice: true,
+        discountStartDate: true,
+        discountEndDate: true,
+        category: { select: { name: true } },
+        brand: { select: { name: true } },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return {
+      success: true,
+      data: products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        modelCode: p.modelCode,
+        price: Number(p.price),
+        costPrice: p.costPrice !== null ? Number(p.costPrice) : null,
+        imageUrl: p.imageUrl,
+        discountActive: p.discountActive,
+        discountPercentage: p.discountPercentage !== null ? Number(p.discountPercentage) : null,
+        discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : null,
+        categoryName: p.category.name,
+        brandName: p.brand.name,
+      })),
+    };
+  } catch (error) {
+    console.error("Error en searchProductsForPromotion:", error);
+    return { success: false, error: "Error al buscar productos." };
+  }
+}
+
+/**
+ * Server Action (RF-27 / Ticket 5): Taxonomías para dropdowns de descuento masivo (Categorías y Disciplinas)
+ */
+export async function getPromotionTaxonomies() {
+  try {
+    const [categories, disciplines] = await Promise.all([
+      prisma.category.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, slug: true, _count: { select: { products: true } } },
+      }),
+      prisma.discipline.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, slug: true, _count: { select: { products: true } } },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        categories: categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          productCount: c._count.products,
+        })),
+        disciplines: disciplines.map((d) => ({
+          id: d.id,
+          name: d.name,
+          slug: d.slug,
+          productCount: d._count.products,
+        })),
+      },
+    };
+  } catch (error) {
+    console.error("Error en getPromotionTaxonomies:", error);
+    return { success: false, error: "Error al cargar taxonomías." };
+  }
+}
+
+/**
+ * Server Action (RF-27 / Ticket 5): Alternar pausa / reanudación de una promoción individual
+ */
+export async function toggleProductDiscountActive(productId: string, active: boolean) {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        price: true,
+        costPrice: true,
+        discountPercentage: true,
+        discountPrice: true,
+      },
+    });
+
+    if (!product) {
+      return { success: false, error: "Producto no encontrado." };
+    }
+
+    if (active && product.discountPercentage) {
+      const regularPrice = Number(product.price);
+      const costPrice = product.costPrice !== null ? Number(product.costPrice) : null;
+      const discountPct = Number(product.discountPercentage);
+      const discountAmount = Math.round(((regularPrice * discountPct) / 100) * 100) / 100;
+      const finalPrice = Math.max(0, Math.round((regularPrice - discountAmount) * 100) / 100);
+
+      if (costPrice !== null && finalPrice < costPrice) {
+        return {
+          success: false,
+          error: `No se puede reactivar: el precio bonificado (${finalPrice}) es inferior al costo (${costPrice}).`,
+        };
+      }
+    }
+
+    await prisma.product.update({
+      where: { id: productId },
+      data: { discountActive: active },
+    });
+
+    try {
+      await revalidateLandingPageData("discount");
+    } catch {}
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error en toggleProductDiscountActive:", error);
+    return { success: false, error: "Error al actualizar estado de la promoción." };
   }
 }

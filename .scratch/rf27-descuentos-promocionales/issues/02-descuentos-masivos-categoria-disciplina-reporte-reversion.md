@@ -8,9 +8,9 @@ Asimismo, provee la Server Action simétrica de reversión masiva (`removeCatego
 **Blocked by:**
 - 01: Core de Descuentos Individuales y Salvaguarda de Costos con Permiso RBAC
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Crear esquema Zod `CategoryDiscountSchema` y `RemoveCategoryDiscountSchema` en `src/schemas/productDiscount.ts`.
-- [ ] Implementar la Server Action `applyCategoryDiscount` con transacción atómica, reporte estructurado `{ appliedCount, skippedProducts }` e invalidación de caché.
-- [ ] Implementar la Server Action `removeCategoryDiscount` restableciendo `discountActive = false`, `discountPercentage = null`, `discountPrice = null`, etc.
-- [ ] Incorporar pruebas de aplicación y reversión masiva en `scripts/test-rf27-promotional-discounts.ts`.
+- [x] Crear esquema Zod `CategoryDiscountSchema` y `RemoveCategoryDiscountSchema` en `src/schemas/productDiscount.ts`.
+- [x] Implementar la Server Action `applyCategoryDiscount` con transacción atómica, reporte estructurado `{ appliedCount, skippedProducts }` e invalidación de caché.
+- [x] Implementar la Server Action `removeCategoryDiscount` restableciendo `discountActive = false`, `discountPercentage = null`, `discountPrice = null`, etc.
+- [x] Incorporar pruebas de aplicación y reversión masiva en `scripts/test-rf27-promotional-discounts.ts`.

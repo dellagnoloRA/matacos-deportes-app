@@ -322,7 +322,7 @@ async function main() {
     { code: "ecommerce.banners", module: "ECOMMERCE", description: "Modificar banners del carrusel hero y vitrinas destacadas" },
     { code: "ecommerce.cupones", module: "ECOMMERCE", description: "Crear y gestionar cupones de descuento y promociones online" },
     { code: "ecommerce.clientes", module: "ECOMMERCE", description: "Visualizar cartera de clientes registrados en la tienda online" },
-    { code: "product:discount_below_cost", module: "PRODUCTOS", description: "Permite fijar precios promocionales inferiores al costo de reposición" },
+    { code: "productos.descuento_bajo_costo", module: "PRODUCTOS", description: "Permite fijar precios promocionales inferiores al costo de reposición" },
 
     // REPORTES (Métricas de Negocio)
     { code: "reportes.ver_kpis", module: "REPORTES", description: "Visualizar facturación global, ticket promedio y gráficos financieros" },

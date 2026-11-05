@@ -24,7 +24,7 @@ Actualmente, Matacos Deportes no dispone de un mecanismo para fijar precios prom
 Implementar un sistema integral de **Descuentos Promocionales y Ofertas Temporales (RF-27)** con alcance omnicanal (tienda online y terminales físicas de Saavedra 241):
 
 1. **Gestión Granular y Masiva de Ofertas:** Permitir la asignación de porcentajes de descuento individuales por producto o masivos por Categoría o Disciplina deportiva, con soporte para ventanas de vigencia exactas (fecha y hora en `America/Argentina/Buenos_Aires`) o duración indefinida.
-2. **Salvaguarda de Costo de Reposición y Permiso RBAC:** Validar en tiempo real que ningún precio bonificado resulte inferior a `costPrice`. La operación se rechaza por defecto, requiriendo el permiso atómico `product:discount_below_cost` para liquidaciones de fin de temporada autorizadas.
+2. **Salvaguarda de Costo de Reposición y Permiso RBAC:** Validar en tiempo real que ningún precio bonificado resulte inferior a `costPrice`. La operación se rechaza por defecto, requiriendo el permiso atómico `productos.descuento_bajo_costo` para liquidaciones de fin de temporada autorizadas.
 3. **Consistencia Matemática Determinista al Centavo:** Integrar el motor de cálculo con redondeo a dos decimales, proyectando el porcentaje bonificado sobre el precio específico de cada variante (`variant.price ?? product.price`).
 4. **Resguardo de Precio en Reserva Web (TTL 15 Minutos):** Si una orden web se inicia dentro de la vigencia de la oferta, el precio promocional queda garantizado durante los 15 minutos de la reserva transaccional, aun si la oferta finaliza mientras el cliente efectúa el pago en la pasarela.
 5. **Módulo Administrativo Dedicado:** Proveer un panel operativo en `/admin?tab=promociones` para monitorear, pausar, editar y revertir masivamente promociones con un solo clic.
@@ -39,8 +39,8 @@ Implementar un sistema integral de **Descuentos Promocionales y Ofertas Temporal
 3. As a store administrator, I want to set an optional expiration date and time in Argentina timezone, so that the promotion automatically shuts down when the campaign ends.
 4. As a store administrator, I want to create indefinite discounts without an end date, so that I can maintain permanent outlet or clearance sections until manually paused.
 5. As a store administrator, I want the system to reject any discount that causes the final price to fall below the product's replacement cost (`costPrice`), so that the store does not lose money by mistake.
-6. As a store manager with the `product:discount_below_cost` permission, I want to check an "Allow below cost" option, so that I can execute emergency liquidations of obsolete or out-of-curve merchandise.
-7. As a store employee without the `product:discount_below_cost` permission, I want the system to forbid me from overriding cost safeguards, so that margins remain strictly protected by management.
+6. As a store manager with the `productos.descuento_bajo_costo` permission, I want to check an "Allow below cost" option, so that I can execute emergency liquidations of obsolete or out-of-curve merchandise.
+7. As a store employee without the `productos.descuento_bajo_costo` permission, I want the system to forbid me from overriding cost safeguards, so that margins remain strictly protected by management.
 8. As a store administrator, I want to apply a bulk percentage discount to an entire Category (e.g., all "Mallas"), so that I can set up season campaigns in seconds.
 9. As a store administrator, I want to apply a bulk percentage discount to an entire Discipline (e.g., all "Natación"), so that I can launch sport-specific promotions with a single action.
 10. As a store administrator running a bulk discount, I want the system to apply the promotion to all safe products and report an itemized list of any products skipped due to cost safeguard violations, so that I have complete transparency on the outcome.
@@ -82,7 +82,7 @@ Implementar un sistema integral de **Descuentos Promocionales y Ofertas Temporal
 
 2. **Permiso Atómico RBAC para Venta Bajo Costo:**
    Se incorpora en la tabla `Permission` el código atómico:
-   `code: "product:discount_below_cost"`, perteneciente al módulo `PRODUCTOS`.
+   `code: "productos.descuento_bajo_costo"`, perteneciente al módulo `PRODUCTOS`.
    Este permiso se asigna por defecto al perfil `Administrador` y se audita en la Server Action para validar la bandera `{ allowBelowCost: true }`.
 
 3. **Imputación Contable en Renglones de Venta (`SaleItem`):**
@@ -101,7 +101,7 @@ Implementar un sistema integral de **Descuentos Promocionales y Ofertas Temporal
    donde $\text{effectiveListPrice} = \text{variant.price} \ ?? \ \text{product.price}$.
 
 5. **Salvaguarda de Costo de Reposición:**
-   - Si `product.costPrice !== null` y `finalUnitPrice < product.costPrice`, la acción falla con código de error `DISCOUNT_BELOW_COST`, a menos que la petición incluya `{ allowBelowCost: true }` y la sesión posea el permiso `product:discount_below_cost` o rol `ADMIN`.
+   - Si `product.costPrice !== null` y `finalUnitPrice < product.costPrice`, la acción falla con código de error `DISCOUNT_BELOW_COST`, a menos que la petición incluya `{ allowBelowCost: true }` y la sesión posea el permiso `productos.descuento_bajo_costo` o rol `ADMIN`.
    - Si `product.costPrice === null`, la validación de costo se considera satisfecha por defecto.
 
 6. **Descuento Masivo con Reporte Discriminado (2B):**
