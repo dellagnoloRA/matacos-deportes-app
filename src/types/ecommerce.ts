@@ -61,6 +61,7 @@ export interface PublicProductItem {
   createdAt: string;
 
   // Campos opcionales de Descuento Promocional (RF-27 / RF-28) y Analítica de Ventas
+  originalPrice?: number;
   discountActive?: boolean;
   discountPercentage?: number | null;
   discountPrice?: number | null;

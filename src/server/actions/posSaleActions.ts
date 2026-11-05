@@ -22,6 +22,7 @@ import { CreateQuickPosProductSchema, CreateQuickPosProductInput } from "@/schem
 import { Prisma, PaymentMethod } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { formatCurrency } from "@/lib/utils";
+import { resolveEffectiveProductPromo } from "@/server/services/landingService";
 import {
   getNextOfficialInvoiceNumber,
   buildReceiptPayloadFromSaleRecord,
@@ -153,18 +154,26 @@ export async function searchPosProducts(query: string) {
       },
     });
 
+    const now = new Date();
     const items = products.map((prod) => {
       const totalStockStore = prod.variants.reduce(
         (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
         0
       );
 
+      const promo = resolveEffectiveProductPromo(prod, now);
+      const prodBasePrice = Number(prod.price);
+      const prodPrice = promo.isPromoActive ? promo.effectivePrice : prodBasePrice;
+
       return {
         productId: prod.id,
         name: prod.name,
         brand: prod.brand.name,
         category: prod.category.name,
-        price: Number(prod.price),
+        price: prodPrice,
+        originalPrice: promo.isPromoActive ? prodBasePrice : undefined,
+        discountActive: promo.isPromoActive,
+        discountPercentage: promo.isPromoActive ? promo.discountPercentage : null,
         imageUrl: prod.imageUrl,
         totalStockStore,
         variantsCount: prod.variants.length,
@@ -179,19 +188,36 @@ export async function searchPosProducts(query: string) {
                 barcode: exactVariant.barcode,
                 stockStore: exactVariant.stockStore,
                 stockReserved: exactVariant.stockReserved || 0,
-                price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+                price: (() => {
+                  const vBase = exactVariant.price ? Number(exactVariant.price) : prodBasePrice;
+                  if (promo.isPromoActive && promo.discountPercentage) {
+                    const vDiscount = Math.round(((vBase * promo.discountPercentage) / 100) * 100) / 100;
+                    return Math.max(0, Math.round((vBase - vDiscount) * 100) / 100);
+                  }
+                  return vBase;
+                })(),
+                originalPrice: exactVariant.price ? Number(exactVariant.price) : prodBasePrice,
               }
             : undefined,
-        availableVariants: prod.variants.map((v) => ({
-          id: v.id,
-          size: v.size,
-          color: v.color,
-          sku: v.sku,
-          barcode: v.barcode,
-          stockStore: v.stockStore,
-          stockReserved: v.stockReserved || 0,
-          price: v.price ? Number(v.price) : Number(prod.price),
-        })),
+        availableVariants: prod.variants.map((v) => {
+          const vBase = v.price ? Number(v.price) : prodBasePrice;
+          let vEffective = vBase;
+          if (promo.isPromoActive && promo.discountPercentage) {
+            const vDiscount = Math.round(((vBase * promo.discountPercentage) / 100) * 100) / 100;
+            vEffective = Math.max(0, Math.round((vBase - vDiscount) * 100) / 100);
+          }
+          return {
+            id: v.id,
+            size: v.size,
+            color: v.color,
+            sku: v.sku,
+            barcode: v.barcode,
+            stockStore: v.stockStore,
+            stockReserved: v.stockReserved || 0,
+            price: vEffective,
+            originalPrice: promo.isPromoActive ? vBase : undefined,
+          };
+        }),
       };
     });
 
@@ -202,12 +228,19 @@ export async function searchPosProducts(query: string) {
         (sum, v) => sum + Math.max(0, v.stockStore - (v.stockReserved || 0)),
         0
       );
+      const promo = resolveEffectiveProductPromo(prod, now);
+      const prodBasePrice = Number(prod.price);
+      const prodPrice = promo.isPromoActive ? promo.effectivePrice : prodBasePrice;
+
       items.unshift({
         productId: prod.id,
         name: prod.name,
         brand: prod.brand.name,
         category: prod.category.name,
-        price: Number(prod.price),
+        price: prodPrice,
+        originalPrice: promo.isPromoActive ? prodBasePrice : undefined,
+        discountActive: promo.isPromoActive,
+        discountPercentage: promo.isPromoActive ? promo.discountPercentage : null,
         imageUrl: prod.imageUrl,
         totalStockStore,
         variantsCount: prod.variants.length,
@@ -220,18 +253,35 @@ export async function searchPosProducts(query: string) {
           barcode: exactVariant.barcode,
           stockStore: exactVariant.stockStore,
           stockReserved: exactVariant.stockReserved || 0,
-          price: exactVariant.price ? Number(exactVariant.price) : Number(prod.price),
+          price: (() => {
+            const vBase = exactVariant.price ? Number(exactVariant.price) : prodBasePrice;
+            if (promo.isPromoActive && promo.discountPercentage) {
+              const vDiscount = Math.round(((vBase * promo.discountPercentage) / 100) * 100) / 100;
+              return Math.max(0, Math.round((vBase - vDiscount) * 100) / 100);
+            }
+            return vBase;
+          })(),
+          originalPrice: exactVariant.price ? Number(exactVariant.price) : prodBasePrice,
         },
-        availableVariants: prod.variants.map((v) => ({
-          id: v.id,
-          size: v.size,
-          color: v.color,
-          sku: v.sku,
-          barcode: v.barcode,
-          stockStore: v.stockStore,
-          stockReserved: v.stockReserved || 0,
-          price: v.price ? Number(v.price) : Number(prod.price),
-        })),
+        availableVariants: prod.variants.map((v) => {
+          const vBase = v.price ? Number(v.price) : prodBasePrice;
+          let vEffective = vBase;
+          if (promo.isPromoActive && promo.discountPercentage) {
+            const vDiscount = Math.round(((vBase * promo.discountPercentage) / 100) * 100) / 100;
+            vEffective = Math.max(0, Math.round((vBase - vDiscount) * 100) / 100);
+          }
+          return {
+            id: v.id,
+            size: v.size,
+            color: v.color,
+            sku: v.sku,
+            barcode: v.barcode,
+            stockStore: v.stockStore,
+            stockReserved: v.stockReserved || 0,
+            price: vEffective,
+            originalPrice: promo.isPromoActive ? vBase : undefined,
+          };
+        }),
       });
     }
 

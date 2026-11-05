@@ -17,6 +17,8 @@ import type {
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { invalidateLandingCache } from "@/lib/landingCache";
+import { resolveEffectiveProductPromo } from "@/server/services/landingService";
+import { formatCurrency } from "@/lib/utils";
 
 /**
  * Serializador seguro para Client Components (convierte Decimals de Prisma a numbers nativos)
@@ -137,6 +139,11 @@ async function fetchPublicCatalogRaw(
           price: true,
           gender: true,
           createdAt: true,
+          discountActive: true,
+          discountPercentage: true,
+          discountPrice: true,
+          discountStartDate: true,
+          discountEndDate: true,
           category: {
             select: { id: true, name: true, slug: true },
           },
@@ -175,10 +182,13 @@ async function fetchPublicCatalogRaw(
     ]);
 
     // 5. Mapeo a DTOs públicos calculando disponibilidad real por variante
+    const now = new Date();
     const mappedProducts: PublicProductItem[] = productsRaw.map((p) => {
-      const basePrice = Number(p.price);
-      let minVariantPrice = basePrice;
-      let maxVariantPrice = basePrice;
+      const promo = resolveEffectiveProductPromo(p, now);
+      const basePrice = promo.basePrice;
+      const effectiveProductPrice = promo.effectivePrice;
+      let minVariantPrice = effectiveProductPrice;
+      let maxVariantPrice = effectiveProductPrice;
       let totalStock = 0;
 
       const variantsDto: PublicVariantItem[] = p.variants.map((v) => {
@@ -189,9 +199,15 @@ async function fetchPublicCatalogRaw(
         );
         totalStock += netStock;
 
-        const effectivePrice = v.price !== null ? Number(v.price) : basePrice;
-        if (effectivePrice < minVariantPrice) minVariantPrice = effectivePrice;
-        if (effectivePrice > maxVariantPrice) maxVariantPrice = effectivePrice;
+        const variantBase = v.price !== null ? Number(v.price) : basePrice;
+        let variantEffective = variantBase;
+        if (promo.isPromoActive && promo.discountPercentage) {
+          const vDiscount = Math.round(((variantBase * promo.discountPercentage) / 100) * 100) / 100;
+          variantEffective = Math.max(0, Math.round((variantBase - vDiscount) * 100) / 100);
+        }
+
+        if (variantEffective < minVariantPrice) minVariantPrice = variantEffective;
+        if (variantEffective > maxVariantPrice) maxVariantPrice = variantEffective;
 
         return {
           id: v.id,
@@ -211,7 +227,8 @@ async function fetchPublicCatalogRaw(
         description: p.description,
         imageUrl: p.imageUrl,
         modelCode: p.modelCode,
-        price: basePrice,
+        price: promo.isPromoActive ? effectiveProductPrice : basePrice,
+        originalPrice: promo.isPromoActive ? basePrice : undefined,
         gender: p.gender,
         category: p.category,
         brand: p.brand,
@@ -223,6 +240,14 @@ async function fetchPublicCatalogRaw(
         minPrice: minVariantPrice,
         maxPrice: maxVariantPrice,
         createdAt: p.createdAt.toISOString(),
+        discountActive: promo.isPromoActive,
+        discountPercentage: promo.discountPercentage,
+        discountPrice: promo.discountPrice,
+        discountStartDate: p.discountStartDate ? p.discountStartDate.toISOString() : null,
+        discountEndDate: p.discountEndDate ? p.discountEndDate.toISOString() : null,
+        effectivePrice: effectiveProductPrice,
+        formattedPrice: formatCurrency(basePrice),
+        formattedEffectivePrice: formatCurrency(effectiveProductPrice),
       };
     });
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveEffectiveProductPromo } from "@/server/services/landingService";
 import { Prisma } from "@prisma/client";
 import {
   ValidateCartItemsSchema,
@@ -50,6 +51,8 @@ export interface ValidatedCartItem {
   hasEnoughStock: boolean;
   currentUnitPrice: number;
   expectedUnitPrice: number | null;
+  originalUnitPrice?: number;
+  discountActive?: boolean;
   priceChanged: boolean;
   subtotal: number;
   issueMessage: string | null;
@@ -72,6 +75,8 @@ export interface GuestOrderItemSummary {
   color: string;
   sku: string;
   quantity: number;
+  originalPrice?: number;
+  discount?: number;
   unitPrice: number;
   subtotal: number;
 }
@@ -97,6 +102,8 @@ export interface GuestOrderCreatedResult {
   };
   totals: {
     subtotalProducts: number;
+    subtotalGross?: number;
+    discount?: number;
     shippingCost: number;
     total: number;
     totalFormatted: string;
@@ -386,6 +393,11 @@ export async function validateCartItems(
             price: true,
             active: true,
             imageUrl: true,
+            discountActive: true,
+            discountPercentage: true,
+            discountPrice: true,
+            discountStartDate: true,
+            discountEndDate: true,
             brand: {
               select: { name: true },
             },
@@ -441,10 +453,18 @@ export async function validateCartItems(
         hasStockIssues = true;
       }
 
-      const currentUnitPrice =
+      const now = new Date();
+      const promo = resolveEffectiveProductPromo(dbVariant.product, now);
+      const listPrice =
         dbVariant.price !== null
           ? Number(dbVariant.price)
           : Number(dbVariant.product.price);
+
+      let currentUnitPrice = listPrice;
+      if (promo.isPromoActive && promo.discountPercentage) {
+        const vDisc = Math.round(((listPrice * promo.discountPercentage) / 100) * 100) / 100;
+        currentUnitPrice = Math.max(0, Math.round((listPrice - vDisc) * 100) / 100);
+      }
 
       const priceChanged =
         reqInfo.expectedUnitPrice !== undefined &&
@@ -482,6 +502,8 @@ export async function validateCartItems(
         hasEnoughStock,
         currentUnitPrice,
         expectedUnitPrice: reqInfo.expectedUnitPrice ?? null,
+        originalUnitPrice: promo.isPromoActive ? listPrice : undefined,
+        discountActive: promo.isPromoActive,
         priceChanged,
         subtotal,
         issueMessage,
@@ -578,6 +600,11 @@ export async function createGuestOrder(
               name: true,
               price: true,
               active: true,
+              discountActive: true,
+              discountPercentage: true,
+              discountPrice: true,
+              discountStartDate: true,
+              discountEndDate: true,
             },
           },
         },
@@ -586,6 +613,8 @@ export async function createGuestOrder(
       const variantMap = new Map(variants.map((v) => [v.id, v]));
 
       let subtotalProducts = 0;
+      let subtotalGrossTotal = 0;
+      let totalOrderDiscount = 0;
       const preparedItems: GuestOrderItemSummary[] = [];
 
       // Verificar disponibilidad real y congelar precios vigentes en DB
@@ -613,12 +642,25 @@ export async function createGuestOrder(
           );
         }
 
-        const unitPrice =
+        const now = new Date();
+        const promo = resolveEffectiveProductPromo(variant.product, now);
+        const listPrice =
           variant.price !== null
             ? Number(variant.price)
             : Number(variant.product.price);
-        const itemSubtotal = unitPrice * quantity;
+
+        let finalUnitPrice = listPrice;
+        let unitDiscount = 0;
+
+        if (promo.isPromoActive && promo.discountPercentage) {
+          unitDiscount = Math.round(((listPrice * promo.discountPercentage) / 100) * 100) / 100;
+          finalUnitPrice = Math.max(0, Math.round((listPrice - unitDiscount) * 100) / 100);
+        }
+
+        const itemSubtotal = finalUnitPrice * quantity;
         subtotalProducts += itemSubtotal;
+        subtotalGrossTotal += listPrice * quantity;
+        totalOrderDiscount += unitDiscount * quantity;
 
         preparedItems.push({
           variantId: variant.id,
@@ -628,7 +670,9 @@ export async function createGuestOrder(
           color: variant.color,
           sku: variant.sku,
           quantity,
-          unitPrice,
+          originalPrice: listPrice,
+          discount: unitDiscount,
+          unitPrice: finalUnitPrice,
           subtotal: itemSubtotal,
         });
       }
@@ -667,8 +711,8 @@ export async function createGuestOrder(
           shippingAddress: effectiveAddress,
           shippingCity: validated.shippingCity,
           shippingPostalCode: validated.shippingPostalCode,
-          subtotalGross: new Prisma.Decimal(subtotalProducts),
-          discount: new Prisma.Decimal(0),
+          subtotalGross: new Prisma.Decimal(subtotalGrossTotal),
+          discount: new Prisma.Decimal(totalOrderDiscount),
           total: new Prisma.Decimal(totalOrder),
           notes: validated.notes ?? null,
         },
@@ -690,8 +734,8 @@ export async function createGuestOrder(
             saleId: sale.id,
             variantId: item.variantId,
             quantity: item.quantity,
-            originalPrice: new Prisma.Decimal(item.unitPrice),
-            discount: new Prisma.Decimal(0),
+            originalPrice: new Prisma.Decimal(item.originalPrice ?? item.unitPrice),
+            discount: new Prisma.Decimal(item.discount ?? 0),
             unitPrice: new Prisma.Decimal(item.unitPrice),
             price: new Prisma.Decimal(item.unitPrice),
             subtotal: new Prisma.Decimal(item.subtotal),
@@ -732,6 +776,8 @@ export async function createGuestOrder(
         },
         totals: {
           subtotalProducts,
+          subtotalGross: subtotalGrossTotal,
+          discount: totalOrderDiscount,
           shippingCost,
           total: totalOrder,
           totalFormatted: formatCurrency(totalOrder),

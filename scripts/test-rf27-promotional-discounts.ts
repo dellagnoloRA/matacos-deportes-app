@@ -8,10 +8,15 @@ import { Prisma } from "@prisma/client";
 import {
   setProductDiscount,
   applyCategoryDiscount,
+  previewCategoryDiscount,
   removeCategoryDiscount,
   getPromoCampaigns,
 } from "../src/server/actions/ecommerce/promotionActions";
 import { ProductDiscountSchema, CategoryDiscountSchema } from "../src/schemas/productDiscount";
+import { getPublicCatalog } from "../src/server/actions/ecommerce/catalogActions";
+import { getProductDetail } from "../src/server/actions/ecommerce/productDetailActions";
+import { createGuestOrder } from "../src/server/actions/ecommerce/checkoutActions";
+import { searchPosProducts, createPendingSale } from "../src/server/actions/posSaleActions";
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -54,15 +59,30 @@ async function runTests() {
     },
   });
 
-  // Limpiar productos de prueba previos si existen
+  // Limpiar productos y ventas de prueba previos si existen
+  const existingTestProducts = await prisma.product.findMany({
+    where: { name: { startsWith: "TEST-PROMO-" } },
+    select: { id: true, variants: { select: { id: true } } },
+  });
+  const existingTestVariantIds = existingTestProducts.flatMap((p) => p.variants.map((v) => v.id));
+  if (existingTestVariantIds.length > 0) {
+    const saleItems = await prisma.saleItem.findMany({
+      where: { variantId: { in: existingTestVariantIds } },
+      select: { saleId: true },
+    });
+    const saleIds = Array.from(new Set(saleItems.map((si) => si.saleId)));
+    await prisma.saleItem.deleteMany({ where: { variantId: { in: existingTestVariantIds } } });
+    if (saleIds.length > 0) {
+      await prisma.sale.deleteMany({ where: { id: { in: saleIds } } });
+    }
+    await prisma.productVariant.deleteMany({ where: { id: { in: existingTestVariantIds } } });
+  }
   await prisma.product.deleteMany({
-    where: {
-      name: { startsWith: "TEST-PROMO-" },
-    },
+    where: { name: { startsWith: "TEST-PROMO-" } },
   });
 
   // 1. Validación de Esquema Zod (ProductDiscountSchema)
-  console.log("\n[1/8] Probando esquemas Zod de validación...");
+  console.log("\n[1/10] Probando esquemas Zod de validación...");
   const validZod = ProductDiscountSchema.safeParse({
     discountPercentage: 25.5,
     discountActive: true,
@@ -87,7 +107,7 @@ async function runTests() {
   assert(!invalidZodDates.success, "Esquema rechaza fecha de inicio posterior a la fecha de fin");
 
   // 2. Creación de producto de prueba y asignación válida de descuento individual
-  console.log("\n[2/8] Probando asignación individual de descuento con margen positivo...");
+  console.log("\n[2/10] Probando asignación individual de descuento con margen positivo...");
   const productA = await prisma.product.create({
     data: {
       name: "TEST-PROMO-Producto-A",
@@ -115,7 +135,7 @@ async function runTests() {
   assert(dbProductA?.discountActive === true, "discountActive confirmado en true");
 
   // 3. Salvaguarda de Costo de Reposición (Rechazo estricto sin forzado)
-  console.log("\n[3/8] Probando rechazo de oferta que quiebra el costo de reposición...");
+  console.log("\n[3/10] Probando rechazo de oferta que quiebra el costo de reposición...");
   const resBelowCostBlocked = await setProductDiscount(productA.id, {
     discountPercentage: 60, // 60% OFF de $100.000 -> $40.000 (INFERIOR al costo de $50.000)
     discountActive: true,
@@ -129,7 +149,7 @@ async function runTests() {
   );
 
   // 4. Tolerancia para productos sin costo de reposición (costPrice: null)
-  console.log("\n[4/8] Probando producto con costo no informado (costPrice = null)...");
+  console.log("\n[4/10] Probando producto con costo no informado (costPrice = null)...");
   const productNoCost = await prisma.product.create({
     data: {
       name: "TEST-PROMO-Sin-Costo",
@@ -152,7 +172,7 @@ async function runTests() {
   assert(resNoCost.data?.discountPrice === 28000, "discountPrice calculado en $ 28.000,00");
 
   // 5. Ventana de vigencia temporal (Programada a futuro vs Activa)
-  console.log("\n[5/8] Probando programación temporal a futuro (status = PROGRAMADA)...");
+  console.log("\n[5/10] Probando programación temporal a futuro (status = PROGRAMADA)...");
   const futureStart = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Dentro de 7 días
   const futureEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
@@ -170,9 +190,8 @@ async function runTests() {
   assert(Boolean(foundScheduled), "getPromoCampaigns('scheduled') incluye la oferta programada");
   assert(foundScheduled?.status === "PROGRAMADA", "Estado reportado exactamente como 'PROGRAMADA'");
 
-  // 6. Descuento masivo por Categoría con reporte discriminado (Estrategia 2B)
-  console.log("\n[6/8] Probando descuento masivo por Categoría con reporte 2B...");
-  // Crear producto que soportará el descuento
+  // 6. Previsualización de descuento masivo (previewCategoryDiscount)
+  console.log("\n[6/10] Probando previsualización de descuento masivo (previewCategoryDiscount)...");
   const productBulkOk = await prisma.product.create({
     data: {
       name: "TEST-PROMO-Bulk-OK",
@@ -186,7 +205,6 @@ async function runTests() {
     },
   });
 
-  // Crear producto cuyo margen quebrará
   const productBulkFail = await prisma.product.create({
     data: {
       name: "TEST-PROMO-Bulk-Fail",
@@ -200,6 +218,22 @@ async function runTests() {
     },
   });
 
+  const previewRes = await previewCategoryDiscount({
+    categoryId: category.id,
+    discountPercentage: 30,
+    allowBelowCost: false,
+  });
+
+  assert(previewRes.success, "previewCategoryDiscount responde con éxito");
+  assert((previewRes.data?.willApplyCount ?? 0) >= 1, "Previsualiza productos que se aplicarán");
+  assert((previewRes.data?.willSkipCount ?? 0) >= 1, "Previsualiza productos que se omitirán por costo");
+  assert(
+    previewRes.data?.skippedProducts.some((p) => p.productId === productBulkFail.id) === true,
+    "El producto quebrado aparece en la lista previa de omitidos"
+  );
+
+  // 7. Aplicación de descuento masivo por Categoría con reporte discriminado 2B
+  console.log("\n[7/10] Probando aplicación de descuento masivo por Categoría (Reporte 2B)...");
   const resBulk = await applyCategoryDiscount({
     categoryId: category.id,
     discountPercentage: 30, // 30% OFF
@@ -217,8 +251,17 @@ async function runTests() {
     "Reporte 2B detalla precio de costo y precio de oferta intentado"
   );
 
-  // 7. Reversión masiva atómica
-  console.log("\n[7/8] Probando reversión masiva de ofertas por categoría...");
+  // 8. Descuento masivo por Disciplina deportiva
+  console.log("\n[8/10] Probando descuento masivo filtrado por Disciplina...");
+  const resBulkDiscipline = await applyCategoryDiscount({
+    disciplineId: discipline.id,
+    discountPercentage: 25,
+    allowBelowCost: false,
+  });
+  assert(resBulkDiscipline.success, "applyCategoryDiscount opera por disciplineId correctamente");
+
+  // 9. Reversión masiva atómica por Rubro
+  console.log("\n[9/10] Probando reversión masiva de ofertas (removeCategoryDiscount)...");
   const resRevert = await removeCategoryDiscount({
     categoryId: category.id,
   });
@@ -231,8 +274,157 @@ async function runTests() {
   assert(revertedProduct?.discountPercentage === null, "discountPercentage limpiado a null");
   assert(revertedProduct?.discountPrice === null, "discountPrice limpiado a null");
 
-  // 8. Limpieza final de datos de prueba
-  console.log("\n[8/8] Limpieza de entorno de pruebas...");
+  // 10. Consumo en Catálogo Público y Ficha PDP (Precio tachado y cálculo en vivo)
+  console.log("\n[10/13] Probando consumo en Catálogo Web y PDP con precio tachado...");
+
+  // Crear variante con stock para productA
+  const variantA = await prisma.productVariant.create({
+    data: {
+      productId: productA.id,
+      size: "M",
+      color: "Azul",
+      sku: "TEST-PROMO-A-M",
+      barcode: "779999900001",
+      stockStore: 10,
+      stockWarehouse: 5,
+    },
+  });
+  
+  // Asignar 20% OFF a productA ($100.000 -> $80.000)
+  await setProductDiscount(productA.id, {
+    discountPercentage: 20,
+    discountActive: true,
+  });
+
+  const catalogRes = await getPublicCatalog({
+    categorySlug: category.slug,
+    limit: 10,
+  });
+  assert(catalogRes.success, "getPublicCatalog responde exitosamente");
+  const foundInCatalog = catalogRes.data?.products.find((p) => p.id === productA.id);
+  assert(Boolean(foundInCatalog), "Producto con oferta aparece en el catálogo");
+  assert(foundInCatalog?.price === 80000, "Catálogo expone precio de oferta ($ 80.000,00)");
+  assert(foundInCatalog?.originalPrice === 100000, "Catálogo expone precio regular tachado ($ 100.000,00)");
+  assert(foundInCatalog?.discountActive === true, "Catálogo expone discountActive = true");
+  assert(foundInCatalog?.discountPercentage === 20, "Catálogo expone discountPercentage = 20");
+
+  const pdpRes = await getProductDetail(productA.id);
+  assert(pdpRes.success, "getProductDetail responde exitosamente");
+  assert(pdpRes.data?.price === 80000, "PDP expone precio de oferta ($ 80.000,00)");
+  assert(pdpRes.data?.originalPrice === 100000, "PDP expone originalPrice para tachar");
+  assert(pdpRes.data?.discountActive === true, "PDP expone bandera promocional activa");
+
+  // 11. Checkout Web: Inmutabilidad en Reserva Web (15 min) e imputación contable en SaleItem
+  console.log("\n[11/13] Probando creación de orden web con congelamiento de oferta y SaleItem...");
+  
+// Variante ya creada arriba
+
+  const webOrderRes = await createGuestOrder({
+    customerName: "Cliente Test Descuentos",
+    customerDni: "35123456",
+    customerEmail: "testpromo@matacos.com",
+    customerPhone: "3704123456",
+    shippingMethod: "RETIRO_LOCAL",
+    items: [
+      {
+        variantId: variantA.id,
+        quantity: 1,
+      },
+    ],
+  });
+
+  assert(webOrderRes.success, "createGuestOrder crea la orden exitosamente");
+  const orderId = webOrderRes.data?.saleId;
+  assert(Boolean(orderId), "Se genera el saleId correspondiente");
+
+  const createdSale = await prisma.sale.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { items: true },
+  });
+
+  assert(Number(createdSale.subtotalGross) === 100000, "Subtotal bruto congelado en $ 100.000,00");
+  assert(Number(createdSale.discount) === 20000, "Descuento total congelado en $ 20.000,00");
+  assert(Number(createdSale.total) === 80000, "Total neto a pagar congelado en $ 80.000,00");
+  assert(Boolean(createdSale.reservedUntil), "La orden cuenta con reservedUntil para 15 min TTL");
+
+  const saleItem = createdSale.items[0];
+  assert(Boolean(saleItem), "La orden contiene el ítem de venta");
+  assert(Number(saleItem.originalPrice) === 100000, "SaleItem.originalPrice almacena $ 100.000,00");
+  assert(Number(saleItem.discount) === 20000, "SaleItem.discount almacena $ 20.000,00");
+  assert(Number(saleItem.unitPrice) === 80000, "SaleItem.unitPrice almacena $ 80.000,00");
+
+  // Desactivar oferta del producto en DB para verificar inmutabilidad de la orden reservada
+  await prisma.product.update({
+    where: { id: productA.id },
+    data: { discountActive: false },
+  });
+
+  const saleAfterExpiry = await prisma.sale.findUniqueOrThrow({
+    where: { id: orderId },
+  });
+  assert(
+    Number(saleAfterExpiry.total) === 80000,
+    "La orden preliminar preserva inmutablemente su precio de $ 80.000,00 aunque la oferta haya terminado"
+  );
+
+  // 12. Mostrador Saavedra 241: Escaneo con precio promocional y descuentos en cascada (RF-27 + RF-08)
+  console.log("\n[12/13] Probando liquidación sucesiva en Mostrador (RF-27 + RF-08)...");
+
+  // Reactivar oferta al 20%
+  await setProductDiscount(productA.id, {
+    discountPercentage: 20,
+    discountActive: true,
+  });
+
+  const posSearchRes = await searchPosProducts(variantA.barcode || "TEST-PROMO-Producto-A");
+  assert(posSearchRes.success, "searchPosProducts responde con éxito");
+  const posItem = posSearchRes.items?.find((it) => it.productId === productA.id);
+  assert(Boolean(posItem), "searchPosProducts encuentra el producto");
+  assert(posItem?.price === 80000, "Mostrador toma el precio promocional $ 80.000,00 como precio base");
+  assert(posItem?.originalPrice === 100000, "Mostrador preserva originalPrice $ 100.000,00 para referencia");
+
+  // Crear Preventa con 10% adicional por pago en efectivo en mostrador (cascada)
+  const pendingSaleRes = await createPendingSale({
+    customerName: "Cliente Mostrador Cascada",
+    items: [
+      {
+        variantId: variantA.id,
+        quantity: 1,
+        originalPrice: posItem!.price, // $80.000 precio promocional base
+        discountType: "PERCENTAGE",
+        discountValue: 10, // 10% OFF manual en mostrador
+        unitPrice: 72000,
+      },
+    ],
+  });
+
+  assert(pendingSaleRes.success, "createPendingSale crea la preventa en cascada con éxito");
+  const posSaleId = pendingSaleRes.data?.saleId;
+  const posSaleRecord = await prisma.sale.findUniqueOrThrow({
+    where: { id: posSaleId },
+    include: { items: true },
+  });
+
+  assert(Number(posSaleRecord.subtotalGross) === 80000, "Subtotal mostrador base $ 80.000,00");
+  assert(Number(posSaleRecord.discount) === 8000, "Descuento manual 10% = $ 8.000,00");
+  assert(Number(posSaleRecord.total) === 72000, "Total neto en mostrador $ 72.000,00 (cascada RF-27 + RF-08)");
+
+  const posSaleItem = posSaleRecord.items[0];
+  assert(Number(posSaleItem.originalPrice) === 80000, "SaleItem mostrador originalPrice = $ 80.000,00");
+  assert(Number(posSaleItem.discount) === 8000, "SaleItem mostrador discount = $ 8.000,00");
+  assert(Number(posSaleItem.unitPrice) === 72000, "SaleItem mostrador unitPrice = $ 72.000,00");
+
+  // 13. Limpieza final de datos de prueba
+  console.log("\n[13/13] Limpieza de entorno de pruebas...");
+  // Eliminar ventas y reservas de prueba
+  if (orderId) {
+    await prisma.saleItem.deleteMany({ where: { saleId: orderId } });
+    await prisma.sale.delete({ where: { id: orderId } });
+  }
+  if (posSaleId) {
+    await prisma.saleItem.deleteMany({ where: { saleId: posSaleId } });
+    await prisma.sale.delete({ where: { id: posSaleId } });
+  }
   await prisma.product.deleteMany({
     where: {
       name: { startsWith: "TEST-PROMO-" },

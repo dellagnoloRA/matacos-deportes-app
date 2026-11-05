@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/utils";
+import { resolveEffectiveProductPromo } from "@/server/services/landingService";
 import {
   CheckVariantStockSchema,
   RelatedProductsSchema,
@@ -87,6 +89,11 @@ export async function getProductDetail(
         price: true,
         gender: true,
         createdAt: true,
+        discountActive: true,
+        discountPercentage: true,
+        discountPrice: true,
+        discountStartDate: true,
+        discountEndDate: true,
         category: {
           select: { id: true, name: true, slug: true },
         },
@@ -127,9 +134,12 @@ export async function getProductDetail(
       return { success: false, error: "Producto no encontrado o inactivo" };
     }
 
-    const basePrice = Number(product.price);
-    let minVariantPrice = basePrice;
-    let maxVariantPrice = basePrice;
+    const now = new Date();
+    const promo = resolveEffectiveProductPromo(product, now);
+    const basePrice = promo.basePrice;
+    const effectiveProductPrice = promo.effectivePrice;
+    let minVariantPrice = effectiveProductPrice;
+    let maxVariantPrice = effectiveProductPrice;
     let totalStock = 0;
 
     // 3. Mapear variantes calculando stock real: (Salón + Depósito) - Reservado
@@ -140,9 +150,15 @@ export async function getProductDetail(
       );
       totalStock += netStock;
 
-      const effectivePrice = v.price !== null ? Number(v.price) : basePrice;
-      if (effectivePrice < minVariantPrice) minVariantPrice = effectivePrice;
-      if (effectivePrice > maxVariantPrice) maxVariantPrice = effectivePrice;
+      const variantBase = v.price !== null ? Number(v.price) : basePrice;
+      let variantEffective = variantBase;
+      if (promo.isPromoActive && promo.discountPercentage) {
+        const vDiscount = Math.round(((variantBase * promo.discountPercentage) / 100) * 100) / 100;
+        variantEffective = Math.max(0, Math.round((variantBase - vDiscount) * 100) / 100);
+      }
+
+      if (variantEffective < minVariantPrice) minVariantPrice = variantEffective;
+      if (variantEffective > maxVariantPrice) maxVariantPrice = variantEffective;
 
       return {
         id: v.id,
@@ -214,7 +230,8 @@ export async function getProductDetail(
       description: product.description,
       imageUrl: product.imageUrl,
       modelCode: product.modelCode,
-      price: basePrice,
+      price: promo.isPromoActive ? effectiveProductPrice : basePrice,
+      originalPrice: promo.isPromoActive ? basePrice : undefined,
       gender: product.gender,
       category: product.category,
       brand: product.brand,
@@ -230,6 +247,14 @@ export async function getProductDetail(
       minPrice: minVariantPrice,
       maxPrice: maxVariantPrice,
       createdAt: product.createdAt.toISOString(),
+      discountActive: promo.isPromoActive,
+      discountPercentage: promo.discountPercentage,
+      discountPrice: promo.discountPrice,
+      discountStartDate: product.discountStartDate ? product.discountStartDate.toISOString() : null,
+      discountEndDate: product.discountEndDate ? product.discountEndDate.toISOString() : null,
+      effectivePrice: effectiveProductPrice,
+      formattedPrice: formatCurrency(basePrice),
+      formattedEffectivePrice: formatCurrency(effectiveProductPrice),
     };
 
     return { success: true, data: serialize(detail) };

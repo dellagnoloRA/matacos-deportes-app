@@ -9,9 +9,9 @@ Conectar de extremo a extremo las ofertas con los canales de consumo del sistema
 **Blocked by:**
 - 01: Core de Descuentos Individuales y Salvaguarda de Costos con Permiso RBAC
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Adaptar `catalogActions` y `productDetailActions` para integrar `resolveEffectiveProductPromo` en consultas públicas.
-- [ ] Adaptar `createGuestOrder` en `checkoutActions.ts` para respetar la oferta activa, congelar el total en la reserva de 15 minutos e imputar `originalPrice`, `discount` y `unitPrice` en `SaleItem`.
-- [ ] Adaptar la venta en mostrador (`posSaleActions.ts`) para reconocer el precio promocional y liquidar descuentos manuales de forma sucesiva.
-- [ ] Incorporar pruebas de extremo a extremo en la suite RF-27 verificando la consistencia contable de `SaleItem`.
+- [x] Adaptar `catalogActions` y `productDetailActions` para integrar `resolveEffectiveProductPromo` en consultas públicas.
+- [x] Adaptar `createGuestOrder` en `checkoutActions.ts` para respetar la oferta activa, congelar el total en la reserva de 15 minutos e imputar `originalPrice`, `discount` y `unitPrice` en `SaleItem`.
+- [x] Adaptar la venta en mostrador (`posSaleActions.ts`) para reconocer el precio promocional y liquidar descuentos manuales de forma sucesiva.
+- [x] Incorporar pruebas de extremo a extremo en la suite RF-27 verificando la consistencia contable de `SaleItem`.
