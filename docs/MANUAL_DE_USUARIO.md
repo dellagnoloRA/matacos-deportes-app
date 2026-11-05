@@ -22,6 +22,7 @@ Bienvenido al **Manual de Usuario oficial de Matacos Deportes**. Este documento 
    - [Paso 7: Cómo imprimir Etiquetas Térmicas con Código de Barras](#paso-7-cómo-imprimir-etiquetas-térmicas-con-código-de-barras)
    - [Paso 8: Cómo importar Stock Masivo desde Excel o CSV](#paso-8-cómo-importar-stock-masivo-desde-excel-o-csv)
    - [Paso 9: Cómo administrar Categorías, Disciplinas y Marcas](#paso-9-cómo-administrar-categorías-disciplinas-y-marcas)
+   - [Paso 10: Cómo gestionar Promociones, Ofertas Masivas y Liquidaciones (RF-27)](#paso-10-cómo-gestionar-promociones-ofertas-masivas-y-liquidaciones-rf-27)
 5. [Próximos Módulos del Sistema (Roadmap)](#5-próximos-módulos-del-sistema-roadmap)
 6. [Preguntas Frecuentes y Solución de Inconvenientes](#6-preguntas-frecuentes-y-solución-de-inconvenientes)
 7. [Guía de Capturas de Pantalla Recomendadas (Checklist para el Equipo)](#7-guía-de-capturas-de-pantalla-recomendadas)
@@ -400,6 +401,19 @@ Para mantener organizado el catálogo sin depender de programadores cada vez que
 > * **Pantalla:** Modal `MasterCategoriesManager`.  
 > * **Enfoque / Destacar:** Pestañas de Disciplinas, Categorías y Marcas, junto con el botón "+ Nueva Categoría".  
 > * **Archivo sugerido:** `docs/imagenes/11_gestor_categorias_marcas.png`
+
+---
+
+### Paso 10: Cómo gestionar Promociones, Ofertas Masivas y Liquidaciones (RF-27)
+
+Permite fijar precios promocionales temporales, lanzar descuentos masivos por rubro o disciplina (ej. 25% OFF en toda la línea de Natación) y liquidar prendas discontinuadas con salvaguarda automática contra venta bajo costo:
+
+1. En el menú lateral izquierdo, haz clic en **`Promociones`** (ícono de etiqueta 🏷️) bajo el bloque *Catálogo & Stock* (o accede mediante **`/admin?tab=promociones`**).
+2. **Promoción Individual:** En cualquier producto, haz clic en **`Editar Descuento`**, especifica el porcentaje y opcionalmente define la fecha y hora exacta de inicio y fin en horario de Argentina.
+3. **Descuento Masivo por Rubro:** Presiona **`Descuento Masivo`**, selecciona la Categoría o Disciplina deportiva e ingresa el porcentaje. Haz clic en **`Simular Impacto`** para auditar qué productos recibirán la oferta y cuáles serán omitidos por salvaguarda de costos (**Reporte 2B**).
+4. **Pausar o Revertir:** Puedes pausar temporalmente cualquier promoción con el interruptor de la tabla o revertir masivamente toda una categoría con un solo clic.
+
+> 💡 Para consultar la guía exhaustiva con capturas y buenas prácticas, consulta el [Manual de Gestión de Promociones y Descuentos](file:///C:/Users/della/matacos-deportes-app/docs/MANUAL_GESTION_PROMOCIONES_Y_DESCUENTOS.md).
 
 ---
 
