@@ -2,11 +2,38 @@ import type { PublicProductItem } from "@/types/ecommerce";
 import type { EcommerceProduct } from "@/components/ecommerce/types";
 
 /**
- * Convierte un PublicProductItem del backend en un EcommerceProduct listo para la UI
+ * Convierte un PublicProductItem del backend en un EcommerceProduct listo para la UI.
+ * Soporta de forma transparente descuentos promocionales activos (RF-27 / RF-28).
  */
-export function mapPublicProductToEcommerce(item: PublicProductItem): EcommerceProduct {
-  const isOffer = item.maxPrice > item.price;
-  const originalPrice = isOffer ? item.maxPrice : undefined;
+export function mapPublicProductToEcommerce(
+  item: PublicProductItem
+): EcommerceProduct {
+  const hasPromoDiscount =
+    Boolean(item.discountActive) &&
+    (
+      (typeof item.originalPrice === "number" && item.originalPrice > item.price) ||
+      (typeof item.effectivePrice === "number" && item.effectivePrice > 0 && item.effectivePrice < item.price)
+    );
+
+  const isVariantSpreadOffer = !hasPromoDiscount && item.maxPrice > item.price;
+  const isOffer = hasPromoDiscount || isVariantSpreadOffer;
+
+  const displayPrice = hasPromoDiscount
+    ? (typeof item.effectivePrice === "number" && item.effectivePrice > 0 && item.effectivePrice < item.price ? item.effectivePrice : item.price)
+    : item.price;
+  const originalPrice = hasPromoDiscount
+    ? (typeof item.originalPrice === "number" && item.originalPrice > displayPrice ? item.originalPrice : item.price)
+    : isVariantSpreadOffer
+      ? item.maxPrice
+      : undefined;
+
+  const offerTag = hasPromoDiscount
+    ? item.discountPercentage && item.discountPercentage > 0
+      ? `${Math.round(item.discountPercentage)}% OFF`
+      : "OFERTA"
+    : isVariantSpreadOffer
+      ? "OFERTA"
+      : undefined;
 
   // Priorizar imagen primaria o primera de la galería o imageUrl directo
   const primaryImage =
@@ -24,10 +51,10 @@ export function mapPublicProductToEcommerce(item: PublicProductItem): EcommerceP
     categorySlug: item.category.slug,
     discipline: item.discipline?.name,
     disciplineSlug: item.discipline?.slug,
-    price: item.price,
+    price: displayPrice,
     originalPrice,
     isOffer,
-    offerTag: isOffer ? "OFERTA" : undefined,
+    offerTag,
     image: primaryImage,
     images: item.images,
     description: item.description || undefined,
@@ -38,4 +65,3 @@ export function mapPublicProductToEcommerce(item: PublicProductItem): EcommerceP
     modelCode: item.modelCode || undefined,
   };
 }
-

@@ -2,14 +2,21 @@
 
 import React, { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "@/components/ecommerce/EcommerceCartDrawer";
 import { CatalogFilterSidebar } from "./CatalogFilterSidebar";
 import { CatalogTopBar } from "./CatalogTopBar";
 import { CatalogPaginationNav } from "./CatalogPagination";
-import { Eye, Check, ShoppingBag, X, ExternalLink, Loader2 } from "lucide-react";
+import {
+  Eye,
+  Check,
+  ShoppingBag,
+  X,
+  ExternalLink,
+  Loader2,
+  ArrowRight,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type {
   PublicProductItem,
@@ -19,6 +26,10 @@ import type {
 import type { CatalogFilterInput } from "@/schemas/ecommerce";
 import type { EcommerceProduct } from "@/components/ecommerce/types";
 import { mapPublicProductToEcommerce } from "@/lib/ecommerceProductMapper";
+import {
+  useCartStore,
+  buildCartItemFromEcommerceProduct,
+} from "@/store/cartStore";
 
 interface CatalogViewProps {
   products: PublicProductItem[];
@@ -34,32 +45,62 @@ export function CatalogView({
   activeFilters,
 }: CatalogViewProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [navigatingProductId, setNavigatingProductId] = useState<string | null>(
+    null
+  );
+  const { addItem, openDrawer } = useCartStore();
 
   // Mobile filters drawer state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  // Cart drawer state
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  // Toast notice
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
-  // Quick view modal
-  const [activeModalProduct, setActiveModalProduct] = useState<EcommerceProduct | null>(null);
+  // Quick view modal & selected variant inside Quick View
+  const [activeModalProduct, setActiveModalProduct] =
+    useState<EcommerceProduct | null>(null);
+  const [selectedQuickVariantId, setSelectedQuickVariantId] = useState<
+    string | undefined
+  >(undefined);
 
-  // URL query updater
+  const openQuickView = (product: EcommerceProduct) => {
+    const firstInStock =
+      product.variants?.find((v) => v.inStock && v.availableStock > 0) ||
+      product.variants?.[0];
+    setSelectedQuickVariantId(firstInStock?.id);
+    setActiveModalProduct(product);
+  };
+
+  const navigateToProductDetail = (
+    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
+    productId: string
+  ) => {
+    // Permitir abrir en nueva pestaña con Ctrl/Cmd/Click medio
+    if (
+      "metaKey" in e &&
+      (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)
+    ) {
+      return;
+    }
+    e.preventDefault();
+    setNavigatingProductId(productId);
+    router.push(`/productos/${productId}`);
+  };
+
+  // URL query updater sin depender de useSearchParams() en render inicial
   const updateQueryParams = (newFilters: Partial<CatalogFilterInput>) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const currentSearch =
+      typeof window !== "undefined" ? window.location.search : "";
+    const params = new URLSearchParams(currentSearch);
 
-    // Merge or delete filter keys
     Object.entries(newFilters).forEach(([key, val]) => {
-      // Mapping filter keys to query param names
       let paramKey = key;
       if (key === "disciplineSlug") paramKey = "disciplina";
       if (key === "categorySlug") paramKey = "categoria";
       if (key === "brandSlug") paramKey = "marca";
       if (key === "size") paramKey = "talle";
+      if (key === "gender") paramKey = "genero";
 
       if (val === undefined || val === null || val === "") {
         params.delete(paramKey);
@@ -68,8 +109,9 @@ export function CatalogView({
       }
     });
 
+    const qs = params.toString();
     startTransition(() => {
-      router.push(`/catalogo?${params.toString()}`);
+      router.push(qs ? `/catalogo?${qs}` : "/catalogo");
     });
   };
 
@@ -79,56 +121,42 @@ export function CatalogView({
     });
   };
 
-  // Cart actions
-  const handleAddToCart = (product: EcommerceProduct) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-
-    setAddedNotice(product.name);
-    setTimeout(() => setAddedNotice(null), 3000);
-  };
-
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
+  // Cart action from Quick View
+  const handleAddToCartFromModal = (product: EcommerceProduct) => {
+    const cartPayload = buildCartItemFromEcommerceProduct(
+      product,
+      selectedQuickVariantId,
+      1
     );
+    if (!cartPayload) return;
+
+    const res = addItem(cartPayload);
+    if (res.added) {
+      setAddedNotice(
+        `${cartPayload.name} (${cartPayload.size} • ${cartPayload.color})`
+      );
+      setTimeout(() => setAddedNotice(null), 3000);
+      openDrawer();
+    }
   };
 
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const selectedModalVariant = activeModalProduct?.variants?.find(
+    (v) => v.id === selectedQuickVariantId
+  );
+  const modalDisplayPrice =
+    selectedModalVariant?.price && selectedModalVariant.price > 0
+      ? selectedModalVariant.price
+      : activeModalProduct?.price ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
-      {/* 1. Header */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-      />
+      {/* 1. Header (incluye EcommerceCartDrawer global) */}
+      <EcommerceHeader />
 
       {/* 2. Main Catalog Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-          {/* Desktop Filter Sidebar (Compact width to allow 4 columns) */}
+          {/* Desktop Filter Sidebar */}
           <div className="hidden lg:block w-56 lg:w-60 shrink-0 sticky top-24">
             <CatalogFilterSidebar
               facets={facets}
@@ -153,7 +181,7 @@ export function CatalogView({
             {/* Products Grid with Pending State */}
             <div className="relative min-h-96">
               {isPending && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-2xs z-20 flex items-center justify-center rounded-2xl">
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
                   <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
                     <Loader2 className="w-4 h-4 animate-spin text-[#00D615]" />
                     <span>Actualizando catálogo...</span>
@@ -187,63 +215,70 @@ export function CatalogView({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                   {products.map((item) => {
                     const product = mapPublicProductToEcommerce(item);
-                    const isOutOfStock = !product.hasStock || product.totalAvailableStock === 0;
+                    const isOutOfStock =
+                      !product.hasStock || product.totalAvailableStock === 0;
                     const isLowStock =
                       !isOutOfStock &&
                       product.totalAvailableStock !== undefined &&
                       product.totalAvailableStock > 0 &&
                       product.totalAvailableStock <= 3;
+                    const isNavigatingThis = navigatingProductId === product.id;
 
                     return (
                       <div
                         key={product.id}
-                        className="group bg-white rounded-2xl border border-slate-200/90 hover:border-slate-400 shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden"
+                        className="group bg-white rounded-2xl border border-slate-200/90 hover:border-slate-400 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden"
                       >
-                        {/* Image Container */}
+                        {/* Image Container: Click en imagen navega al detalle; píldora flotante abre Vista Rápida */}
                         <div className="relative w-full aspect-square bg-[#f8fafc] overflow-hidden p-4 flex items-center justify-center">
                           {product.isOffer && (
-                            <span className="absolute top-3 left-3 z-10 bg-[#c2f25b] text-slate-950 font-black text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                            <span className="absolute top-3 left-3 z-10 bg-[#c2f25b] text-slate-950 font-black text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
                               {product.offerTag || "OFERTA"}
                             </span>
                           )}
 
                           {isOutOfStock ? (
-                            <span className="absolute top-3 right-3 z-10 bg-slate-800 text-slate-100 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                            <span className="absolute top-3 right-3 z-10 bg-slate-800 text-slate-100 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
                               Agotado
                             </span>
                           ) : isLowStock ? (
-                            <span className="absolute top-3 right-3 z-10 bg-amber-500 text-slate-950 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-xs">
+                            <span className="absolute top-3 right-3 z-10 bg-amber-500 text-slate-950 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
                               ¡Últimas {product.totalAvailableStock}!
                             </span>
                           ) : null}
 
                           <Link
                             href={`/productos/${product.id}`}
+                            prefetch={false}
+                            onClick={(e) =>
+                              navigateToProductDetail(e, product.id)
+                            }
                             className="w-full h-full flex items-center justify-center"
                           >
                             <img
                               src={product.image || "/placeholder-product.svg"}
                               alt={product.name}
-                              className="w-full h-full object-contain object-center group-hover:scale-108 transition-transform duration-500"
+                              className="w-full h-full object-contain object-center group-hover:scale-105 transition-transform duration-500"
                               loading="lazy"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                                (e.target as HTMLImageElement).src =
+                                  "/placeholder-product.svg";
                               }}
                             />
                           </Link>
 
-                          {/* Quick View Button Hover Overlay */}
+                          {/* Botón secundario compacto para Vista Rápida sin bloquear el clic de la imagen */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setActiveModalProduct(product);
+                              openQuickView(product);
                             }}
-                            className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 text-white font-bold text-xs bg-black/40 backdrop-blur-2xs transition-opacity cursor-pointer"
+                            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white font-bold text-[11px] bg-slate-950/85 hover:bg-slate-950 backdrop-blur-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
                             title="Vista rápida"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5 text-[#00D615]" />
                             <span>Vista Rápida</span>
                           </button>
                         </div>
@@ -259,7 +294,14 @@ export function CatalogView({
                                 </span>
                               )}
                             </div>
-                            <Link href={`/productos/${product.id}`}>
+                            <Link
+                              href={`/productos/${product.id}`}
+                              prefetch={false}
+                              onClick={(e) =>
+                                navigateToProductDetail(e, product.id)
+                              }
+                              className="block"
+                            >
                               <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-2">
                                 {product.name}
                               </h3>
@@ -279,13 +321,27 @@ export function CatalogView({
                               </span>
                             </div>
 
-                            {/* Actions */}
-                            <div className="grid grid-cols-1 gap-2">
+                            {/* Actions: Botón Ver producto con navegación explícita y estado de carga */}
+                            <div className="grid grid-cols-1 gap-2 relative z-10">
                               <Link
                                 href={`/productos/${product.id}`}
-                                className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-98 transition-all duration-150 text-center block"
+                                prefetch={false}
+                                onClick={(e) =>
+                                  navigateToProductDetail(e, product.id)
+                                }
+                                className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-95 transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                Ver producto
+                                {isNavigatingThis ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Abriendo...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Ver producto</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </>
+                                )}
                               </Link>
                             </div>
                           </div>
@@ -313,7 +369,7 @@ export function CatalogView({
       {isMobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileFiltersOpen(false)}
           />
           <div className="fixed inset-y-0 right-0 w-80 max-w-full bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
@@ -339,7 +395,7 @@ export function CatalogView({
 
       {/* 6. Quick View Modal */}
       {activeModalProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col md:flex-row">
             <button
               type="button"
@@ -351,7 +407,7 @@ export function CatalogView({
 
             <div className="md:w-1/2 bg-[#f8fafc] p-8 flex items-center justify-center relative">
               {activeModalProduct.isOffer && (
-                <span className="absolute top-4 left-4 bg-[#c2f25b] text-slate-950 font-black text-xs px-2.5 py-1 rounded shadow-xs">
+                <span className="absolute top-4 left-4 bg-[#c2f25b] text-slate-950 font-black text-xs px-2.5 py-1 rounded shadow-sm">
                   {activeModalProduct.offerTag || "OFERTA"}
                 </span>
               )}
@@ -360,12 +416,13 @@ export function CatalogView({
                 alt={activeModalProduct.name}
                 className="max-h-72 object-contain"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                  (e.target as HTMLImageElement).src =
+                    "/placeholder-product.svg";
                 }}
               />
             </div>
 
-            <div className="md:w-1/2 p-6 flex flex-col justify-between space-y-6">
+            <div className="md:w-1/2 p-6 flex flex-col justify-between space-y-5">
               <div className="space-y-3">
                 <div className="space-y-1">
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
@@ -376,48 +433,84 @@ export function CatalogView({
                   </h3>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed">
+                <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
                   {activeModalProduct.description ||
                     "Artículo deportivo original garantizado por Matacos Deportes. Local a la calle en Saavedra 241, Formosa."}
                 </p>
 
-                <div className="pt-2">
+                <div className="pt-1">
                   {activeModalProduct.originalPrice && (
                     <span className="text-sm text-slate-400 line-through font-semibold block">
                       {formatCurrency(activeModalProduct.originalPrice)}
                     </span>
                   )}
                   <span className="text-2xl font-black text-[#00A811]">
-                    {formatCurrency(activeModalProduct.price)}
+                    {formatCurrency(modalDisplayPrice)}
                   </span>
                   <span className="block text-[11px] text-emerald-700 font-bold mt-1">
-                    {activeModalProduct.installments || "3 y 6 cuotas sin interés en el local"}
+                    {activeModalProduct.installments ||
+                      "3 y 6 cuotas sin interés en el local"}
                   </span>
                 </div>
 
-                {activeModalProduct.totalAvailableStock !== undefined && (
-                  <div className="text-xs text-slate-600 font-semibold">
-                    Stock disponible:{" "}
-                    <span className="text-emerald-700 font-bold">
-                      {activeModalProduct.totalAvailableStock} unidades
-                    </span>
-                  </div>
-                )}
+                {/* Selector rápido de variantes (Talle / Color) */}
+                {activeModalProduct.variants &&
+                  activeModalProduct.variants.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Seleccioná variante (Talle / Color):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                        {activeModalProduct.variants.map((v) => {
+                          const isSelected = v.id === selectedQuickVariantId;
+                          const out = !v.inStock || v.availableStock <= 0;
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              disabled={out}
+                              onClick={() => setSelectedQuickVariantId(v.id)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                isSelected
+                                  ? "bg-slate-950 text-white border-slate-950"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"
+                              }`}
+                            >
+                              {v.size} • {v.color}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedModalVariant && (
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Disponibles en esta variante:{" "}
+                          <span className="text-emerald-700 font-bold">
+                            {selectedModalVariant.availableStock} un.
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
 
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => {
-                    handleAddToCart(activeModalProduct);
+                    handleAddToCartFromModal(activeModalProduct);
                     setActiveModalProduct(null);
                   }}
-                  disabled={!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0}
-                  className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  disabled={
+                    !selectedModalVariant ||
+                    !selectedModalVariant.inStock ||
+                    selectedModalVariant.availableStock <= 0
+                  }
+                  className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span>
-                    {!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0
+                    {!selectedModalVariant ||
+                    selectedModalVariant.availableStock <= 0
                       ? "Sin Stock"
                       : "Agregar al carrito"}
                   </span>
@@ -425,10 +518,14 @@ export function CatalogView({
 
                 <Link
                   href={`/productos/${activeModalProduct.id}`}
-                  onClick={() => setActiveModalProduct(null)}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
+                  prefetch={false}
+                  onClick={(e) => {
+                    setActiveModalProduct(null);
+                    navigateToProductDetail(e, activeModalProduct.id);
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <span>Ver ficha y selector de talles</span>
+                  <span>Ver ficha completa</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -445,20 +542,12 @@ export function CatalogView({
           </div>
           <div>
             <p className="text-xs font-bold">{addedNotice}</p>
-            <p className="text-[11px] text-slate-300">¡Agregado al carrito con éxito!</p>
+            <p className="text-[11px] text-slate-300">
+              ¡Agregado al carrito con éxito!
+            </p>
           </div>
         </div>
       )}
-
-      {/* 8. Slide-over Cart Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
     </div>
   );
 }
-

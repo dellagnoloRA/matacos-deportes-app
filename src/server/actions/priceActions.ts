@@ -10,6 +10,7 @@ import {
 } from "@/schemas/priceUpdate";
 import { calculateNewPrice } from "@/lib/priceCalculator";
 import { Prisma } from "@prisma/client";
+import { invalidateLandingCache } from "@/lib/landingCache";
 
 /**
  * Serializa objetos de Prisma (incluyendo Decimals y Dates) para consumo seguro en Client Components
@@ -317,6 +318,7 @@ export async function updatePricesByPercentage(
     });
 
     const totalDeltaSum = Math.round((result.totalNewSum - result.totalOldSum) * 100) / 100;
+    invalidateLandingCache("discount");
 
     return serializeData({
       success: true,

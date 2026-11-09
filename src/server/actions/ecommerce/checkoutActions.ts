@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveEffectiveProductPromo } from "@/server/services/landingService";
 import { Prisma } from "@prisma/client";
 import {
   ValidateCartItemsSchema,
@@ -12,6 +13,14 @@ import {
 import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
+import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
+import { companyConfig } from "@/config/company";
+import {
+  ProcessWebOrderPaymentSchema,
+  type ProcessWebOrderPaymentInput,
+  type WebPaymentOption,
+  type WebCardBrand,
+} from "@/schemas/ecommerce";
 
 /**
  * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
@@ -42,6 +51,8 @@ export interface ValidatedCartItem {
   hasEnoughStock: boolean;
   currentUnitPrice: number;
   expectedUnitPrice: number | null;
+  originalUnitPrice?: number;
+  discountActive?: boolean;
   priceChanged: boolean;
   subtotal: number;
   issueMessage: string | null;
@@ -64,6 +75,8 @@ export interface GuestOrderItemSummary {
   color: string;
   sku: string;
   quantity: number;
+  originalPrice?: number;
+  discount?: number;
   unitPrice: number;
   subtotal: number;
 }
@@ -89,6 +102,8 @@ export interface GuestOrderCreatedResult {
   };
   totals: {
     subtotalProducts: number;
+    subtotalGross?: number;
+    discount?: number;
     shippingCost: number;
     total: number;
     totalFormatted: string;
@@ -193,17 +208,19 @@ export async function releaseExpiredWebOrders(
   error?: string;
 }> {
   try {
+    const now = new Date();
     const safeMinutes = Math.max(1, expirationMinutes);
-    const cutoffDate = new Date(Date.now() - safeMinutes * 60 * 1000);
+    const cutoffDate = new Date(now.getTime() - safeMinutes * 60 * 1000);
 
-    // Buscar órdenes web impagas cuya creación haya superado el tiempo de reserva
+    // Buscar órdenes web impagas cuya reserva haya vencido (TTL 15 min)
     const expiredSales = await prisma.sale.findMany({
       where: {
         channel: "WEB",
         status: "PENDIENTE_PAGO",
-        createdAt: {
-          lte: cutoffDate,
-        },
+        OR: [
+          { reservedUntil: { lte: now } },
+          { reservedUntil: null, createdAt: { lte: cutoffDate } },
+        ],
       },
       include: {
         items: true,
@@ -241,7 +258,7 @@ export async function releaseExpiredWebOrders(
         for (const item of sale.items) {
           const variant = await tx.productVariant.findUnique({
             where: { id: item.variantId },
-            select: { id: true, stockReserved: true },
+            select: { id: true, stockStore: true, stockWarehouse: true, stockReserved: true },
           });
 
           if (variant) {
@@ -251,6 +268,17 @@ export async function releaseExpiredWebOrders(
               data: { stockReserved: newReserved },
             });
             releasedUnitsCount += item.quantity;
+
+            await tx.inventoryMovement.create({
+              data: {
+                variantId: variant.id,
+                type: "RESERVA_EXPIRADA",
+                quantity: item.quantity,
+                stockAfter: variant.stockStore + variant.stockWarehouse,
+                location: "STORE",
+                reason: `Liberación automática de reserva vencida Orden Web ${currentSale.invoiceNumber || currentSale.id}`,
+              },
+            });
           }
         }
 
@@ -365,6 +393,11 @@ export async function validateCartItems(
             price: true,
             active: true,
             imageUrl: true,
+            discountActive: true,
+            discountPercentage: true,
+            discountPrice: true,
+            discountStartDate: true,
+            discountEndDate: true,
             brand: {
               select: { name: true },
             },
@@ -420,10 +453,18 @@ export async function validateCartItems(
         hasStockIssues = true;
       }
 
-      const currentUnitPrice =
+      const now = new Date();
+      const promo = resolveEffectiveProductPromo(dbVariant.product, now);
+      const listPrice =
         dbVariant.price !== null
           ? Number(dbVariant.price)
           : Number(dbVariant.product.price);
+
+      let currentUnitPrice = listPrice;
+      if (promo.isPromoActive && promo.discountPercentage) {
+        const vDisc = Math.round(((listPrice * promo.discountPercentage) / 100) * 100) / 100;
+        currentUnitPrice = Math.max(0, Math.round((listPrice - vDisc) * 100) / 100);
+      }
 
       const priceChanged =
         reqInfo.expectedUnitPrice !== undefined &&
@@ -461,6 +502,8 @@ export async function validateCartItems(
         hasEnoughStock,
         currentUnitPrice,
         expectedUnitPrice: reqInfo.expectedUnitPrice ?? null,
+        originalUnitPrice: promo.isPromoActive ? listPrice : undefined,
+        discountActive: promo.isPromoActive,
         priceChanged,
         subtotal,
         issueMessage,
@@ -557,6 +600,11 @@ export async function createGuestOrder(
               name: true,
               price: true,
               active: true,
+              discountActive: true,
+              discountPercentage: true,
+              discountPrice: true,
+              discountStartDate: true,
+              discountEndDate: true,
             },
           },
         },
@@ -565,6 +613,8 @@ export async function createGuestOrder(
       const variantMap = new Map(variants.map((v) => [v.id, v]));
 
       let subtotalProducts = 0;
+      let subtotalGrossTotal = 0;
+      let totalOrderDiscount = 0;
       const preparedItems: GuestOrderItemSummary[] = [];
 
       // Verificar disponibilidad real y congelar precios vigentes en DB
@@ -592,12 +642,25 @@ export async function createGuestOrder(
           );
         }
 
-        const unitPrice =
+        const now = new Date();
+        const promo = resolveEffectiveProductPromo(variant.product, now);
+        const listPrice =
           variant.price !== null
             ? Number(variant.price)
             : Number(variant.product.price);
-        const itemSubtotal = unitPrice * quantity;
+
+        let finalUnitPrice = listPrice;
+        let unitDiscount = 0;
+
+        if (promo.isPromoActive && promo.discountPercentage) {
+          unitDiscount = Math.round(((listPrice * promo.discountPercentage) / 100) * 100) / 100;
+          finalUnitPrice = Math.max(0, Math.round((listPrice - unitDiscount) * 100) / 100);
+        }
+
+        const itemSubtotal = finalUnitPrice * quantity;
         subtotalProducts += itemSubtotal;
+        subtotalGrossTotal += listPrice * quantity;
+        totalOrderDiscount += unitDiscount * quantity;
 
         preparedItems.push({
           variantId: variant.id,
@@ -607,7 +670,9 @@ export async function createGuestOrder(
           color: variant.color,
           sku: variant.sku,
           quantity,
-          unitPrice,
+          originalPrice: listPrice,
+          discount: unitDiscount,
+          unitPrice: finalUnitPrice,
           subtotal: itemSubtotal,
         });
       }
@@ -635,6 +700,7 @@ export async function createGuestOrder(
           ticketCode: orderCode,
           channel: "WEB",
           status: "PENDIENTE_PAGO",
+          reservedUntil: new Date(Date.now() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000),
           customerId: validated.customerId ?? null,
           customerName: validated.customerName,
           customerDni: validated.customerDni,
@@ -645,8 +711,8 @@ export async function createGuestOrder(
           shippingAddress: effectiveAddress,
           shippingCity: validated.shippingCity,
           shippingPostalCode: validated.shippingPostalCode,
-          subtotalGross: new Prisma.Decimal(subtotalProducts),
-          discount: new Prisma.Decimal(0),
+          subtotalGross: new Prisma.Decimal(subtotalGrossTotal),
+          discount: new Prisma.Decimal(totalOrderDiscount),
           total: new Prisma.Decimal(totalOrder),
           notes: validated.notes ?? null,
         },
@@ -668,8 +734,8 @@ export async function createGuestOrder(
             saleId: sale.id,
             variantId: item.variantId,
             quantity: item.quantity,
-            originalPrice: new Prisma.Decimal(item.unitPrice),
-            discount: new Prisma.Decimal(0),
+            originalPrice: new Prisma.Decimal(item.originalPrice ?? item.unitPrice),
+            discount: new Prisma.Decimal(item.discount ?? 0),
             unitPrice: new Prisma.Decimal(item.unitPrice),
             price: new Prisma.Decimal(item.unitPrice),
             subtotal: new Prisma.Decimal(item.subtotal),
@@ -710,6 +776,8 @@ export async function createGuestOrder(
         },
         totals: {
           subtotalProducts,
+          subtotalGross: subtotalGrossTotal,
+          discount: totalOrderDiscount,
           shippingCost,
           total: totalOrder,
           totalFormatted: formatCurrency(totalOrder),
@@ -815,3 +883,805 @@ export async function cancelGuestOrder(
     return { success: false, error: "Error al cancelar la orden web" };
   }
 }
+
+
+/**
+ * ============================================================================
+ * PASO 2 DEL CHECKOUT: SELECCIÓN Y PROCESAMIENTO DE PAGO SOBRE RESERVA ACTIVA
+ * ============================================================================
+ */
+
+export interface WebBankTransferDetails {
+  bankName: string;
+  accountHolder: string;
+  cuit: string;
+  alias: string;
+  cbu: string;
+}
+
+export interface WebOrderPaymentResult {
+  saleId: string;
+  orderCode: string;
+  status: "COMPLETADA" | "PENDIENTE_PAGO";
+  shippingStatus: "EN_PREPARACION" | "PENDIENTE";
+  paymentOption: WebPaymentOption;
+  cardBrand: WebCardBrand | null;
+  cardLast4: string | null;
+  installments: number;
+  installmentAmount: number;
+  totalAmount: number;
+  totalFormatted: string;
+  voucherCode: string | null;
+  referenceCode: string | null;
+  transferReference: string | null;
+  bankDetails: WebBankTransferDetails | null;
+  whatsappActionUrl: string;
+  reservationExpiresAt: string | null;
+  processedAt: string;
+}
+
+export interface WebOrderResumePayload {
+  order: GuestOrderCreatedResult;
+  completedPayment: WebOrderPaymentResult | null;
+}
+
+export type WebPaymentErrorCode =
+  | "VALIDATION_ERROR"
+  | "ORDER_NOT_FOUND"
+  | "VERIFICATION_FAILED"
+  | "ORDER_EXPIRED"
+  | "ALREADY_PAID"
+  | "PAYMENT_DECLINED"
+  | "INVALID_METHOD"
+  | "STOCK_CONFLICT"
+  | "INTERNAL_ERROR";
+
+function getOfficialBankTransferDetails(): WebBankTransferDetails {
+  return {
+    bankName: process.env.COMPANY_BANK_NAME || "Banco de Formosa S.A. / Red Link",
+    accountHolder: companyConfig.legalName,
+    cuit: companyConfig.cuit,
+    alias: process.env.COMPANY_BANK_ALIAS || "MATACOS.DEPORTES.FSA",
+    cbu: process.env.COMPANY_BANK_CBU || "0110263720026300489124",
+  };
+}
+
+function matchesBuyerVerification(
+  verificationRaw: string,
+  saleDni: string | null,
+  saleEmail: string | null
+): boolean {
+  const cleanInput = verificationRaw.trim();
+  if (!cleanInput) return false;
+
+  const inputDigits = cleanInput.replace(/\D/g, "");
+  const dbDigits = (saleDni || "").replace(/\D/g, "");
+  if (inputDigits.length >= 6 && dbDigits && inputDigits === dbDigits) {
+    return true;
+  }
+
+  if (saleEmail && cleanInput.toLowerCase() === saleEmail.trim().toLowerCase()) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Recupera una orden web activa (o recién abonada) para retomar el Paso 2 de pago en /checkout
+ */
+export async function getWebOrderForCheckoutPayment(
+  orderCode: string,
+  verification: string
+): Promise<{
+  success: boolean;
+  data?: WebOrderResumePayload;
+  code?: WebPaymentErrorCode;
+  error?: string;
+}> {
+  try {
+    await releaseExpiredWebOrders(WEB_ORDER_RESERVATION_MINUTES);
+
+    const normalizedCode = orderCode.trim().toUpperCase();
+    const normalizedVerification = verification.trim();
+
+    if (!normalizedCode || !normalizedVerification) {
+      return {
+        success: false,
+        code: "VALIDATION_ERROR",
+        error: "Código de orden y verificación del comprador requeridos.",
+      };
+    }
+
+    const sale = await prisma.sale.findFirst({
+      where: {
+        channel: "WEB",
+        invoiceNumber: normalizedCode,
+      },
+      include: {
+        items: {
+          include: {
+            variant: {
+              select: {
+                id: true,
+                size: true,
+                color: true,
+                sku: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        payments: true,
+      },
+    });
+
+    if (!sale || !sale.invoiceNumber) {
+      return {
+        success: false,
+        code: "ORDER_NOT_FOUND",
+        error: `No encontramos la orden ${normalizedCode}.`,
+      };
+    }
+
+    if (
+      !matchesBuyerVerification(
+        normalizedVerification,
+        sale.customerDni,
+        sale.customerEmail
+      )
+    ) {
+      return {
+        success: false,
+        code: "VERIFICATION_FAILED",
+        error:
+          "El DNI o correo electrónico no coincide con el comprador registrado en este pedido.",
+      };
+    }
+
+    if (sale.status === "CANCELADA") {
+      return {
+        success: false,
+        code: "ORDER_EXPIRED",
+        error:
+          "El tiempo de reserva de este pedido expiró o fue cancelado, liberando el stock automáticamente.",
+      };
+    }
+
+    const shippingMethod: ShippingMethod =
+      sale.shippingMethod === "CADETERIA_FORMOSA" ||
+      sale.shippingMethod === "CORREO_ARGENTINO"
+        ? sale.shippingMethod
+        : "RETIRO_LOCAL";
+
+    const subtotalProducts = Number(sale.subtotalGross);
+    const shippingCost = Number(sale.shippingCost ?? 0);
+    const totalOrder = Number(sale.total);
+
+    const itemsSummary: GuestOrderItemSummary[] = sale.items.map((item) => ({
+      variantId: item.variantId,
+      productId: item.variant.product.id,
+      productName: item.variant.product.name,
+      size: item.variant.size,
+      color: item.variant.color,
+      sku: item.variant.sku,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      subtotal: Number(item.subtotal),
+    }));
+
+    const expiresAtDate = new Date(
+      sale.createdAt.getTime() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000
+    );
+
+    const itemsText = itemsSummary
+      .map((i) => `${i.quantity}x ${i.productName} (${i.size}/${i.color})`)
+      .join(", ");
+    const waMessage = encodeURIComponent(
+      `¡Hola Matacos Deportes! Consulto por mi pedido web *${sale.invoiceNumber}* a nombre de ${sale.customerName ?? "Cliente"} (DNI ${sale.customerDni ?? "-"}) por ${formatCurrency(totalOrder)}. Detalle: ${itemsText}.`
+    );
+
+    const orderDto: GuestOrderCreatedResult = {
+      saleId: sale.id,
+      orderCode: sale.invoiceNumber,
+      status: "PENDIENTE_PAGO",
+      channel: "WEB",
+      customer: {
+        name: sale.customerName ?? "Cliente Web",
+        dni: sale.customerDni ?? "",
+        email: sale.customerEmail ?? "",
+        phone: sale.customerPhone ?? "",
+        isGuest: !sale.customerId,
+      },
+      shipping: {
+        method: shippingMethod,
+        address:
+          sale.shippingAddress ??
+          "Retiro en Sucursal — Saavedra 241, Formosa Capital",
+        city: sale.shippingCity ?? "Formosa",
+        postalCode: sale.shippingPostalCode ?? "3600",
+        cost: shippingCost,
+      },
+      totals: {
+        subtotalProducts,
+        shippingCost,
+        total: totalOrder,
+        totalFormatted: formatCurrency(totalOrder),
+      },
+      items: itemsSummary,
+      reservation: {
+        expiresAt: expiresAtDate.toISOString(),
+        expirationMinutes: WEB_ORDER_RESERVATION_MINUTES,
+      },
+      whatsappContingencyUrl: `https://wa.me/${companyConfig.whatsappNumber}?text=${waMessage}`,
+      createdAt: sale.createdAt.toISOString(),
+    };
+
+    let completedPayment: WebOrderPaymentResult | null = null;
+    if (sale.status === "COMPLETADA") {
+      const firstPayment = sale.payments[0];
+      const installments = firstPayment?.installments ?? 1;
+      const paymentOption: WebPaymentOption =
+        firstPayment?.method === "DEBITO"
+          ? "TARJETA_DEBITO"
+          : firstPayment?.method === "TRANSFERENCIA"
+            ? "TRANSFERENCIA"
+            : "TARJETA_CREDITO";
+
+      const cardBrandCandidate = firstPayment?.cardBrand;
+      const validCardBrand: WebCardBrand | null =
+        cardBrandCandidate === "VISA" ||
+        cardBrandCandidate === "MASTERCARD" ||
+        cardBrandCandidate === "NARANJA_X" ||
+        cardBrandCandidate === "CABAL"
+          ? cardBrandCandidate
+          : null;
+
+      completedPayment = {
+        saleId: sale.id,
+        orderCode: sale.invoiceNumber,
+        status: "COMPLETADA",
+        shippingStatus: "EN_PREPARACION",
+        paymentOption,
+        cardBrand: validCardBrand,
+        cardLast4: null,
+        installments,
+        installmentAmount: totalOrder / installments,
+        totalAmount: totalOrder,
+        totalFormatted: formatCurrency(totalOrder),
+        voucherCode: firstPayment?.cardVoucher ?? null,
+        referenceCode: firstPayment?.referenceCode ?? null,
+        transferReference: null,
+        bankDetails: null,
+        whatsappActionUrl: orderDto.whatsappContingencyUrl,
+        reservationExpiresAt: null,
+        processedAt: sale.updatedAt.toISOString(),
+      };
+    }
+
+    return {
+      success: true,
+      data: serialize({
+        order: orderDto,
+        completedPayment,
+      }),
+    };
+  } catch (error) {
+    console.error("Error en getWebOrderForCheckoutPayment:", error);
+    return {
+      success: false,
+      code: "INTERNAL_ERROR",
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo recuperar el pedido para completar el pago.",
+    };
+  }
+}
+
+/**
+ * Procesa la selección y ejecución de pago sobre una orden web con stock reservado:
+ * - TARJETA_CREDITO / TARJETA_DEBITO: Simula autorización en tiempo real.
+ *   Si es aprobada -> descuenta stock físico (Depósito primero, luego Salón), libera stockReserved,
+ *   registra InventoryMovement (VENTA_WEB) y SalePayment, y pasa Sale a COMPLETADA (EN_PREPARACION).
+ *   Si es rechazada -> mantiene Sale en PENDIENTE_PAGO y conserva la reserva para reintentar.
+ * - TRANSFERENCIA / PAGO_LOCAL: Registra el compromiso de pago manteniendo Sale en PENDIENTE_PAGO
+ *   y el stock reservado hasta acreditación o cobro en caja de Saavedra 241.
+ */
+export async function processWebOrderPayment(
+  payload: ProcessWebOrderPaymentInput
+): Promise<{
+  success: boolean;
+  data?: WebOrderPaymentResult;
+  code?: WebPaymentErrorCode;
+  error?: string;
+}> {
+  try {
+    // 0. Liberar órdenes cuya ventana de 15 minutos haya vencido
+    await releaseExpiredWebOrders(WEB_ORDER_RESERVATION_MINUTES);
+
+    // 1. Validar entrada con Zod
+    const parsed = ProcessWebOrderPaymentSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        code: "VALIDATION_ERROR",
+        error:
+          parsed.error.errors[0]?.message ||
+          "Revisá los datos del medio de pago seleccionado.",
+      };
+    }
+    const validated = parsed.data;
+    const normalizedOrderCode = validated.orderCode.toUpperCase();
+
+    // 2. Buscar orden web y verificar titularidad
+    const existingSale = await prisma.sale.findFirst({
+      where: {
+        channel: "WEB",
+        invoiceNumber: normalizedOrderCode,
+      },
+      include: {
+        items: {
+          include: {
+            variant: {
+              select: {
+                id: true,
+                size: true,
+                color: true,
+                sku: true,
+                product: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingSale || !existingSale.invoiceNumber) {
+      return {
+        success: false,
+        code: "ORDER_NOT_FOUND",
+        error: `No se encontró la orden web ${normalizedOrderCode}.`,
+      };
+    }
+
+    if (
+      !matchesBuyerVerification(
+        validated.verification,
+        existingSale.customerDni,
+        existingSale.customerEmail
+      )
+    ) {
+      return {
+        success: false,
+        code: "VERIFICATION_FAILED",
+        error:
+          "Los datos de verificación del comprador no coinciden con la orden.",
+      };
+    }
+
+    if (existingSale.status === "CANCELADA") {
+      return {
+        success: false,
+        code: "ORDER_EXPIRED",
+        error:
+          "El tiempo de reserva de 15 minutos expiró y las unidades fueron liberadas. Volvé a iniciar tu compra para verificar disponibilidad.",
+      };
+    }
+
+    if (existingSale.status === "COMPLETADA") {
+      return {
+        success: false,
+        code: "ALREADY_PAID",
+        error: "Este pedido ya fue abonado y se encuentra confirmado.",
+      };
+    }
+
+    const totalAmount = Number(existingSale.total);
+    const expiresAtIso = new Date(
+      existingSale.createdAt.getTime() +
+        WEB_ORDER_RESERVATION_MINUTES * 60 * 1000
+    ).toISOString();
+
+    // =========================================================================
+    // CASO A: PAGO ONLINE INMEDIATO CON TARJETA (CRÉDITO / DÉBITO)
+    // =========================================================================
+    if (
+      validated.paymentOption === "TARJETA_CREDITO" ||
+      validated.paymentOption === "TARJETA_DEBITO"
+    ) {
+      const shouldDecline =
+        validated.simulateDecline ||
+        validated.cardLast4 === "0000" ||
+        (validated.cardHolderName?.toUpperCase().includes("RECHAZ") ?? false);
+
+      if (shouldDecline) {
+        return {
+          success: false,
+          code: "PAYMENT_DECLINED",
+          error:
+            "Pago rechazado por la entidad emisora de la tarjeta (código de prueba: autorización denegada). Tu stock continúa reservado: podés intentar con otra tarjeta o elegir otro medio de pago.",
+        };
+      }
+
+      const variantIds = existingSale.items.map((i) => i.variantId);
+      const cardBrand = validated.cardBrand!;
+      const cardLast4 = validated.cardLast4!;
+      const installments =
+        validated.paymentOption === "TARJETA_DEBITO"
+          ? 1
+          : validated.installments;
+
+      const approvedResult = await prisma.$transaction(async (tx) => {
+        // Re-verificar orden dentro de la transacción
+        const lockedSale = await tx.sale.findUnique({
+          where: { id: existingSale.id },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+            notes: true,
+          },
+        });
+
+        if (!lockedSale || lockedSale.status !== "PENDIENTE_PAGO") {
+          throw new Error(
+            "La orden ya no se encuentra pendiente de pago o expiró durante la operación."
+          );
+        }
+
+        // Bloqueo pesimista FOR UPDATE sobre las variantes involucradas (Directiva AGENTS.md)
+        await tx.$queryRaw`
+          SELECT id
+          FROM "ProductVariant"
+          WHERE id IN (${Prisma.join(variantIds)})
+          FOR UPDATE
+        `;
+
+        const lockedVariants = await tx.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          select: {
+            id: true,
+            size: true,
+            color: true,
+            stockStore: true,
+            stockWarehouse: true,
+            stockReserved: true,
+            product: {
+              select: { name: true },
+            },
+          },
+        });
+
+        const variantMap = new Map(lockedVariants.map((v) => [v.id, v]));
+
+        // Descontar stock físico real (prioridad Depósito en canal WEB) y liberar stockReserved
+        for (const saleItem of existingSale.items) {
+          const variant = variantMap.get(saleItem.variantId);
+          if (!variant) {
+            throw new Error(
+              `Variante no encontrada al confirmar pago (${saleItem.variantId}).`
+            );
+          }
+
+          const totalPhysical = variant.stockStore + variant.stockWarehouse;
+          if (totalPhysical < saleItem.quantity) {
+            throw new Error(
+              `Conflicto de inventario en "${variant.product.name}" (Talle ${variant.size}). Stock físico insuficiente.`
+            );
+          }
+
+          const deductFromWarehouse = Math.min(
+            variant.stockWarehouse,
+            saleItem.quantity
+          );
+          const deductFromStore = saleItem.quantity - deductFromWarehouse;
+
+          const newStockWarehouse =
+            variant.stockWarehouse - deductFromWarehouse;
+          const newStockStore = variant.stockStore - deductFromStore;
+          const newStockReserved = Math.max(
+            0,
+            variant.stockReserved - saleItem.quantity
+          );
+          const totalStockAfter = newStockStore + newStockWarehouse;
+
+          await tx.productVariant.update({
+            where: { id: variant.id },
+            data: {
+              stockWarehouse: newStockWarehouse,
+              stockStore: newStockStore,
+              stockReserved: newStockReserved,
+            },
+          });
+
+          let location = "STORE";
+          if (deductFromWarehouse > 0 && deductFromStore === 0) {
+            location = "WAREHOUSE";
+          } else if (deductFromWarehouse > 0 && deductFromStore > 0) {
+            location = "SPLIT";
+          }
+
+          await tx.inventoryMovement.create({
+            data: {
+              variantId: variant.id,
+              type: "VENTA_WEB",
+              quantity: saleItem.quantity,
+              stockAfter: totalStockAfter,
+              location,
+              reason: `Pago online aprobado Orden ${normalizedOrderCode} (Salón: -${deductFromStore}, Depósito: -${deductFromWarehouse})`,
+            },
+          });
+        }
+
+        const voucherCode = `AUT-${Math.floor(100000 + Math.random() * 900000)}`;
+        const referenceCode = `WEB-${Date.now().toString().slice(-6)}`;
+        const prismaMethod =
+          validated.paymentOption === "TARJETA_CREDITO" ? "CREDITO" : "DEBITO";
+
+        await tx.salePayment.create({
+          data: {
+            saleId: existingSale.id,
+            method: prismaMethod,
+            amount: existingSale.total,
+            cardBrand,
+            cardVoucher: voucherCode,
+            installments,
+            referenceCode,
+          },
+        });
+
+        const auditNote = `[PAGO ONLINE APROBADO] ${prismaMethod} ${cardBrand} ****${cardLast4} (${installments} pago/s) - Cód. Aut: ${voucherCode}`;
+        const updatedNotes = lockedSale.notes
+          ? `${lockedSale.notes} | ${auditNote}`
+          : auditNote;
+
+        const updatedSale = await tx.sale.update({
+          where: { id: existingSale.id },
+          data: {
+            status: "COMPLETADA",
+            shippingStatus: "EN_PREPARACION",
+            notes: updatedNotes,
+          },
+          select: {
+            updatedAt: true,
+          },
+        });
+
+        const waMsg = encodeURIComponent(
+          `¡Hola Matacos Deportes! Ya aboné con tarjeta (${cardBrand} ****${cardLast4}, Cód. ${voucherCode}) mi pedido web *${normalizedOrderCode}* por ${formatCurrency(totalAmount)}.`
+        );
+
+        const result: WebOrderPaymentResult = {
+          saleId: existingSale.id,
+          orderCode: normalizedOrderCode,
+          status: "COMPLETADA",
+          shippingStatus: "EN_PREPARACION",
+          paymentOption: validated.paymentOption,
+          cardBrand,
+          cardLast4,
+          installments,
+          installmentAmount: totalAmount / installments,
+          totalAmount,
+          totalFormatted: formatCurrency(totalAmount),
+          voucherCode,
+          referenceCode,
+          transferReference: null,
+          bankDetails: null,
+          whatsappActionUrl: `https://wa.me/${companyConfig.whatsappNumber}?text=${waMsg}`,
+          reservationExpiresAt: null,
+          processedAt: updatedSale.updatedAt.toISOString(),
+        };
+
+        return result;
+      });
+
+      await revalidateEcommerceCatalogCache();
+
+      return {
+        success: true,
+        data: serialize(approvedResult),
+      };
+    }
+
+    // =========================================================================
+    // CASO B: COMPROMISO DE PAGO DIFERIDO (TRANSFERENCIA BANCARIA O PAGO EN LOCAL)
+    // =========================================================================
+    if (
+      validated.paymentOption === "PAGO_LOCAL" &&
+      existingSale.shippingMethod !== "RETIRO_LOCAL"
+    ) {
+      return {
+        success: false,
+        code: "INVALID_METHOD",
+        error:
+          "El pago presencial en mostrador solo está disponible cuando seleccionás Retiro gratis en el local (Saavedra 241).",
+      };
+    }
+
+    const cleanTransferRef = validated.transferReference?.trim() || null;
+    const bankDetails =
+      validated.paymentOption === "TRANSFERENCIA"
+        ? getOfficialBankTransferDetails()
+        : null;
+
+    const preferenceTag =
+      validated.paymentOption === "TRANSFERENCIA"
+        ? `[PAGO PENDIENTE: TRANSFERENCIA BANCARIA${cleanTransferRef ? ` - Comp: ${cleanTransferRef}` : ""}]`
+        : "[PAGO PENDIENTE: ABONA AL RETIRAR EN CAJA SAAVEDRA 241]";
+
+    const baseNotes = (existingSale.notes || "")
+      .replace(/\s*\|\s*\[PAGO PENDIENTE:[^\]]+\]/g, "")
+      .replace(/^\[PAGO PENDIENTE:[^\]]+\]\s*\|\s*/g, "")
+      .replace(/^\[PAGO PENDIENTE:[^\]]+\]$/g, "")
+      .trim();
+
+    const mergedNotes = baseNotes
+      ? `${baseNotes} | ${preferenceTag}`
+      : preferenceTag;
+
+    const updatedPendingSale = await prisma.sale.update({
+      where: { id: existingSale.id },
+      data: {
+        notes: mergedNotes,
+      },
+      select: {
+        updatedAt: true,
+      },
+    });
+
+    const whatsappText =
+      validated.paymentOption === "TRANSFERENCIA"
+        ? `¡Hola Matacos Deportes! Realicé el pedido web *${normalizedOrderCode}* por *${formatCurrency(totalAmount)}* a nombre de ${existingSale.customerName ?? "Cliente"} (DNI ${existingSale.customerDni ?? "-"})${cleanTransferRef ? ` — N° de comprobante: ${cleanTransferRef}` : ""}. Envío el comprobante de transferencia al alias ${bankDetails?.alias} para confirmar mi compra.`
+        : `¡Hola Matacos Deportes! Reservé el pedido web *${normalizedOrderCode}* por *${formatCurrency(totalAmount)}* a nombre de ${existingSale.customerName ?? "Cliente"} (DNI ${existingSale.customerDni ?? "-"}) para retirar y abonar en mostrador de Saavedra 241.`;
+
+    const pendingResult: WebOrderPaymentResult = {
+      saleId: existingSale.id,
+      orderCode: normalizedOrderCode,
+      status: "PENDIENTE_PAGO",
+      shippingStatus: "PENDIENTE",
+      paymentOption: validated.paymentOption,
+      cardBrand: null,
+      cardLast4: null,
+      installments: 1,
+      installmentAmount: totalAmount,
+      totalAmount,
+      totalFormatted: formatCurrency(totalAmount),
+      voucherCode: null,
+      referenceCode: null,
+      transferReference: cleanTransferRef,
+      bankDetails,
+      whatsappActionUrl: `https://wa.me/${companyConfig.whatsappNumber}?text=${encodeURIComponent(whatsappText)}`,
+      reservationExpiresAt: expiresAtIso,
+      processedAt: updatedPendingSale.updatedAt.toISOString(),
+    };
+
+    return {
+      success: true,
+      data: serialize(pendingResult),
+    };
+  } catch (error) {
+    console.error("Error en processWebOrderPayment:", error);
+    return {
+      success: false,
+      code: "INTERNAL_ERROR",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Ocurrió un error al procesar el pago del pedido web.",
+    };
+  }
+}
+
+/**
+ * Consulta de detalle de orden web (para página de confirmación /pedido/[id])
+ */
+export async function getWebOrderById(orderIdOrCode: string) {
+  try {
+    const cleanId = orderIdOrCode.trim();
+    if (!cleanId) {
+      return { success: false, error: "Identificador de orden requerido" };
+    }
+
+    const sale = await prisma.sale.findFirst({
+      where: {
+        channel: "WEB",
+        OR: [{ id: cleanId }, { invoiceNumber: cleanId }],
+      },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: {
+                  include: {
+                    images: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      return { success: false, error: "Orden web no encontrada" };
+    }
+
+    const createdAtDate = new Date(sale.createdAt);
+    const expiresAtDate = new Date(
+      createdAtDate.getTime() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000
+    );
+    const isExpired =
+      sale.status === "PENDIENTE_PAGO" && Date.now() > expiresAtDate.getTime();
+
+    const orderCode = sale.invoiceNumber || sale.id.slice(0, 8).toUpperCase();
+    const totalNum = Number(sale.total);
+    const formattedTotal = formatCurrency(totalNum);
+
+    const waText = encodeURIComponent(
+      `¡Hola Matacos Deportes! Realicé la orden web ${orderCode} por ${formattedTotal} a nombre de ${sale.customerName || "Cliente"}. Adjunto comprobante de pago o consulta.`
+    );
+    const whatsappContingencyUrl = `https://wa.me/5493704000000?text=${waText}`;
+
+    const items = sale.items.map((item) => {
+      const img =
+        item.variant.product.images.find(
+          (i) => i.color === item.variant.color || i.isPrimary
+        )?.url ||
+        item.variant.product.images[0]?.url ||
+        item.variant.product.imageUrl ||
+        "/placeholder-product.svg";
+
+      return {
+        id: item.id,
+        variantId: item.variantId,
+        productName: item.variant.product.name,
+        size: item.variant.size,
+        color: item.variant.color,
+        sku: item.variant.sku,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        subtotal: Number(item.subtotal),
+        imageUrl: img,
+      };
+    });
+
+    return {
+      success: true,
+      data: serialize({
+        id: sale.id,
+        orderCode,
+        status: sale.status,
+        createdAt: createdAtDate.toISOString(),
+        expiresAt: expiresAtDate.toISOString(),
+        isExpired,
+        customerName: sale.customerName || "Invitado",
+        customerEmail: sale.customerEmail || "",
+        customerPhone: sale.customerPhone || "",
+        customerDni: sale.customerDni || "",
+        shippingMethod: sale.shippingMethod || "RETIRO_LOCAL",
+        shippingCost: Number(sale.shippingCost || 0),
+        shippingAddress: sale.shippingAddress,
+        shippingCity: sale.shippingCity,
+        shippingPostalCode: sale.shippingPostalCode,
+        subtotal: Number(sale.subtotalGross || 0),
+        total: totalNum,
+        items,
+        whatsappContingencyUrl,
+      }),
+    };
+  } catch (error) {
+    console.error("Error en getWebOrderById:", error);
+    return { success: false, error: "Error al recuperar la orden web" };
+  }
+}
+

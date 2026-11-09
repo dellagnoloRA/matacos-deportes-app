@@ -20,12 +20,23 @@ enum PaymentMethod {
   CREDITO
   TRANSFERENCIA
   QR_MERCADOPAGO
+  MERCADOPAGO_ONLINE
 }
 
 enum SaleStatus {
   PENDIENTE_PAGO
+  PENDIENTE_VERIFICACION
   COMPLETADA
   CANCELADA
+}
+
+enum ShippingStatus {
+  PENDIENTE
+  EN_PREPARACION
+  LISTO_RETIRO
+  EN_CAMINO
+  ENTREGADO
+  CANCELADO
 }
 
 enum DiscountType {
@@ -71,47 +82,119 @@ model User {
 }
 
 model Category {
-  id       String    @id @default(uuid())
-  name     String    @unique
-  slug     String    @unique
-  products Product[]
+  id            String        @id @default(uuid())
+  name          String        @unique
+  slug          String        @unique
+  subcategories Subcategory[]
+  products      Product[]
+}
+
+model Subcategory {
+  id         String    @id @default(uuid())
+  name       String
+  slug       String
+  categoryId String
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([categoryId, slug])
 }
 
 model Brand {
-  id       String    @id @default(uuid())
-  name     String    @unique
-  slug     String    @unique
-  products Product[]
+  id         String      @id @default(uuid())
+  name       String      @unique
+  slug       String      @unique
+  products   Product[]
+  sizeGuides SizeGuide[]
 }
 
 model Discipline {
   id       String    @id @default(uuid())
   name     String    @unique
   slug     String    @unique
+  imageUrl String?
   products Product[]
 }
 
+model SizeGuide {
+  id         String    @id @default(uuid())
+  name       String
+  brandId    String?
+  brand      Brand?    @relation(fields: [brandId], references: [id])
+  gender     String    @default("UNISEX") // HOMBRE, MUJER, UNISEX, NINOS
+  type       String    @default("CALZADO") // CALZADO, PRENDA_SUPERIOR, PRENDA_INFERIOR, ACCESORIO
+  unit       String    @default("cm") // cm o in
+  fitNote    String?
+  columns    Json
+  rows       Json
+  guideImage String?
+  products   Product[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model ProductDraft {
+  id        String   @id @default(uuid())
+  name      String?
+  step      Int      @default(1)
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Product {
-  id           String           @id @default(uuid())
-  name         String
-  description  String?
-  imageUrl     String?
-  modelCode    String?
-  disciplineId String
-  discipline   Discipline       @relation(fields: [disciplineId], references: [id])
-  costPrice    Decimal?         @db.Decimal(12, 2)
-  price        Decimal          @db.Decimal(12, 2)
-  active       Boolean          @default(true)
-  ignoreAlerts Boolean          @default(false)
-  categoryId   String
-  category     Category         @relation(fields: [categoryId], references: [id])
-  brandId      String
-  brand        Brand            @relation(fields: [brandId], references: [id])
-  gender       Gender           @default(UNISEX)
-  variants     ProductVariant[]
-  images       ProductImage[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id               String          @id @default(uuid())
+  name             String
+  slug             String?         @unique
+  description      String?
+  shortDescription String?
+  imageUrl         String?
+  modelCode        String?
+  disciplineId     String
+  discipline       Discipline      @relation(fields: [disciplineId], references: [id])
+  costPrice        Decimal?        @db.Decimal(12, 2)
+  price            Decimal         @db.Decimal(12, 2)
+  listPrice        Decimal?        @db.Decimal(12, 2)
+  vatRate          Decimal         @default(21.0) @db.Decimal(5, 2)
+  installments     Int             @default(6)
+  gender           Gender          @default(UNISEX)
+  tags             String[]        @default([])
+  highlights       Json?
+  specs            Json?
+  weightGrams      Int?
+  dimensionsCm     Json?
+  status           String          @default("PUBLISHED") // DRAFT, PUBLISHED, SCHEDULED
+  publishedAt      DateTime?
+  metaTitle        String?
+  metaDescription  String?
+
+  // Campos de Descuento Promocional Web (RF-27 / RF-28)
+  discountActive     Boolean       @default(false)
+  discountPercentage Decimal?      @db.Decimal(5, 2)
+  discountPrice      Decimal?      @db.Decimal(12, 2)
+  discountStartDate  DateTime?
+  discountEndDate    DateTime?
+
+  active           Boolean         @default(true)
+  ignoreAlerts     Boolean         @default(false)
+  categoryId       String
+  category         Category        @relation(fields: [categoryId], references: [id])
+  subcategoryId    String?
+  subcategory      Subcategory?    @relation(fields: [subcategoryId], references: [id])
+  brandId          String
+  brand            Brand           @relation(fields: [brandId], references: [id])
+  sizeGuideId      String?
+  sizeGuide        SizeGuide?      @relation(fields: [sizeGuideId], references: [id])
+  variants         ProductVariant[]
+  images           ProductImage[]
+  favorites        Favorite[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([active, createdAt])
+  @@index([active, discountActive])
 }
 
 model ProductImage {
@@ -144,6 +227,8 @@ model ProductVariant {
   saleItems      SaleItem[]
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
+
+  @@index([productId])
 }
 
 model InventoryMovement {
@@ -214,14 +299,17 @@ model Sale {
   customerDni   String?
 
   // Datos logísticos de entrega en compras web
-  shippingMethod     String? // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
-  shippingCost       Decimal? @default(0) @db.Decimal(12, 2)
-  shippingAddress    String? // Calle y número
-  shippingCity       String? // Localidad
-  shippingPostalCode String?
+  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
+  shippingStatus       ShippingStatus  @default(PENDIENTE)
+  shippingTrackingCode String?         // Código de guía (ej. Correo Argentino)
+  shippingCost         Decimal?        @default(0) @db.Decimal(12, 2)
+  shippingAddress      String?         // Calle y número
+  shippingCity         String?         // Localidad
+  shippingPostalCode   String?
 
   channel       String        @default("MOSTRADOR") // MOSTRADOR o WEB
   status        SaleStatus    @default(COMPLETADA)
+  reservedUntil DateTime?     // Límite de reserva temporal de stock (TTL 15m en canal WEB)
   subtotalGross Decimal       @default(0) @db.Decimal(12, 2)
   discount      Decimal       @default(0) @db.Decimal(12, 2)
   discountType  DiscountType?
@@ -238,9 +326,20 @@ model Sale {
   cashShift     CashShift?    @relation(fields: [cashShiftId], references: [id])
   items         SaleItem[]
   payments      SalePayment[]
+
+  // Conciliación de Transferencia Bancaria (RF-17)
+  transferProofUrl        String?
+  transferProofUploadedAt DateTime?
+  reconciliationNotes     String?
+  reconciledAt            DateTime?
+  reconciledBy            String?
+
   syncedAt      DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([channel, status, reservedUntil])
 }
 
 model SaleItem {
@@ -257,39 +356,62 @@ model SaleItem {
   unitPrice     Decimal        @default(0) @db.Decimal(12, 2)
   price         Decimal        @db.Decimal(12, 2)
   subtotal      Decimal        @db.Decimal(12, 2)
+
+  @@index([saleId])
+  @@index([variantId])
 }
 
 model SalePayment {
-  id             String        @id @default(uuid())
-  saleId         String
-  sale           Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  method         PaymentMethod
-  amount         Decimal       @db.Decimal(12, 2)
-  receivedAmount Decimal?      @db.Decimal(12, 2)
-  change         Decimal?      @db.Decimal(12, 2)
-  cardBrand      String?
-  cardVoucher    String?
-  installments   Int?
-  referenceCode  String?
+  id                  String        @id @default(uuid())
+  saleId              String
+  sale                Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method              PaymentMethod
+  amount              Decimal       @db.Decimal(12, 2)
+  receivedAmount      Decimal?      @db.Decimal(12, 2)
+  change              Decimal?      @db.Decimal(12, 2)
+  cardBrand           String?
+  cardVoucher         String?
+  installments        Int?
+  referenceCode       String?
+  transferProofUrl    String?
+  reconciliationNotes String?
 }
 
 // =========================================================================
-// CLIENTES WEB REGISTRADOS (CUENTA OPCIONAL)
+// CLIENTES WEB REGISTRADOS Y LISTA DE FAVORITOS (RF-29)
 // =========================================================================
 
 model Customer {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  password          String // Hash con bcryptjs
+  id                String     @id @default(uuid())
+  email             String     @unique
+  password          String?    // Hash con bcryptjs (nullable para Google OAuth)
+  googleId          String?    @unique
+  avatarUrl         String?
   name              String
   phone             String?
   dni               String?
-  defaultAddress    String? // Calle y número
-  defaultCity       String?  @default("Formosa")
-  defaultPostalCode String?  @default("3600")
-  sales             Sale[] // Historial de compras vinculadas
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  defaultAddress    String?    // Calle y número
+  defaultCity       String?    @default("Formosa")
+  defaultPostalCode String?    @default("3600")
+  favorites         Favorite[] // Productos guardados en lista de deseos
+  sales             Sale[]     // Historial de compras vinculadas
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([email])
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@index([productId])
 }
 
 // =========================================================================
@@ -329,4 +451,41 @@ model ProfilePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([profileId, permissionId])
+}
+
+// =========================================================================
+// GESTIÓN DE BANNERS Y CARRUSEL PROMOCIONAL EN LANDING (RF-26)
+// =========================================================================
+
+model Banner {
+  id        String    @id @default(uuid())
+  title     String
+  subtitle  String?
+  imageUrl  String
+  mobileUrl String?
+  linkUrl   String?
+  order     Int       @default(0)
+  active    Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([active, order])
+  @@index([startDate, endDate])
+}
+
+model StoreSetting {
+  id                 String   @id @default("default")
+  storeName          String   @default("Matacos Deportes")
+  whatsappNumber     String   @default("5493704000000")
+  contactPhone       String   @default("+54 370 4429999")
+  contactEmail       String   @default("ventas@matacosdeportes.com")
+  notificationsEmail String?  @default("notificaciones@matacosdeportes.com")
+  storeAddress       String   @default("Saavedra 241")
+  storeCity          String   @default("Formosa Capital")
+  storePostalCode    String   @default("3600")
+  businessHours      String   @default("Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs")
+  instagramHandle    String   @default("@matacosdeportes")
+  updatedAt          DateTime @default(now()) @updatedAt
 }

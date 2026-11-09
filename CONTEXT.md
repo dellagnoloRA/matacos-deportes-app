@@ -65,3 +65,80 @@ Registro auditable de ingresos extraordinarios o egresos no derivados de ventas 
 Comprobante estructurado impreso en bobina térmica de 80mm al finalizar la jornada. Detalla totales por medio de pago, lista de egresos/ingresos intermedios, fondo inicial, total esperado, total real contado y diferencia neta, destinado a graparse con el sobre de recaudación física.
 
 
+
+
+## 4. E-Commerce: Portal de Clientes, Favoritos y Seguimiento (RF-29)
+
+### Cliente Web (`Customer`)
+Comprador registrado de la tienda online con credenciales propias (email y contraseña cifrada con `bcryptjs`), desacoplado funcional y jerárquicamente de la entidad `User` del personal del local. Su sesión opera con una cookie independiente `matacos_customer_token` (JWT HttpOnly).
+
+### Lista de Favoritos (`Wishlist / Favorite`)
+Colección personalizada de artículos guardados por el cliente a nivel de Producto base (`Product`). Permite preservar indumentaria, calzado y accesorios de interés, resolviendo la selección específica de variantes (talle y color) al momento de transferir el ítem al carrito de compras.
+
+### Orden Web y Trazabilidad de Envío
+Toda transacción comercial generada a través del canal digital (`channel: "WEB"`). Expone un flujo de estados logísticos transparentes para el cliente (*Pendiente de Pago*, *En Preparación en Saavedra 241*, *Listo para Retiro / En Camino*, *Entregado*).
+
+### Código y Enlace de Rastreo Logístico
+Mecanismo de simplificación operativa para envíos nacionales. El sistema almacena el código de seguimiento de despacho (`shippingTrackingCode`) y proporciona al comprador un botón con enlace directo a la plataforma pública de seguimiento de Correo Argentino (`https://www.correoargentino.com.ar/formularios/ondt`). Para envíos por cadetería dentro de Formosa Capital, el estado indica "En camino con cadetería" con el canal de atención por WhatsApp para coordinar la franja de entrega.
+
+### Separación Estricta de Canales de Venta
+Las operaciones realizadas de forma presencial en el local físico de Saavedra 241 (`channel: "MOSTRADOR"`) se respaldan exclusivamente mediante el tique térmico impreso entregado en mano al comprador y quedan bajo registro de auditoría interna de la caja. El portal web del cliente está destinado estrictamente a la trazabilidad y registro de sus compras online (`channel: "WEB"`).
+
+
+## 5. E-Commerce: Control de Reservas, Expiración y Despacho en Salón
+
+### Reserva Temporal de Stock Web (TTL de 15 minutos)
+Compromiso transaccional provisorio de existencias durante el proceso de compra online. Al crearse una Orden Web en estado `PENDIENTE_PAGO`, se incrementa `stockReserved` de las variantes y se asigna una ventana de validez estricta de 15 minutos (`reservedUntil`). Protege contra la sobreventa concurrente mientras el comprador abona en la pasarela, evitando a la vez que el salón físico de Saavedra 241 quede bloqueado indefinidamente ante compras abandonadas.
+
+### Expiración Preventiva de Preferencia (Mercado Pago Checkout Pro)
+Mecanismo de pasarela por el cual la preferencia de pago se genera con una fecha de corte (`expiration_date_to = reservedUntil`). Si el comprador supera los 15 minutos sin completar el pago, la propia pasarela de Mercado Pago bloquea la transacción informando la expiración de la sesión, impidiendo que el dinero sea debitado de su cuenta o tarjeta.
+
+### Rechazo por Expiración de Reserva (Fail-safe)
+Procedimiento de salvaguarda reactiva ejecutado en el backend si un pago llega a procesarse luego de que la orden haya sido cancelada por vencimiento de reserva y no existan existencias físicas disponibles en tienda ni depósito. La orden permanece en `CANCELADA`, se invoca la API de reembolso automático (`refundPayment`) y se envía un correo explicativo al comprador sin alterar el inventario ni el arqueo físico de caja.
+
+### Despacho y Gestión Logística de Salón
+Módulo operativo del personal de salón y administración en Saavedra 241 para preparar paquetes de compras web. Permite filtrar órdenes por estado logístico, ingresar el código de guía de Correo Argentino, contactar al comprador por WhatsApp para coordinar la entrega o retiro, y confirmar la entrega final.
+
+
+## 6. Precios Promocionales y Ofertas Temporales (RF-27)
+
+### Descuento Promocional Omnicanal
+Reducción porcentual temporal sobre el precio de venta de un artículo base (`Product`) o rubro. Rige con idéntico valor tanto en la tienda online (`channel: "WEB"`) como en las terminales físicas del local de Saavedra 241 (`channel: "MOSTRADOR"`). En mostrador, el comprobante térmico refleja el precio de lista original y el importe descontado en el renglón.
+
+### Salvaguarda de Costo de Reposición
+Restricción de protección financiera que impide fijar precios bonificados cuyo valor resultante sea inferior al costo de reposición (`costPrice`). Exige autorización expresa y permisos de auditoría para liquidaciones extraordinarias por debajo del costo.
+
+### Precio Promocional Efectivo por Variante
+Monto monetario final redondeado al centavo obtenido al aplicar el porcentaje de descuento sobre el precio particular de cada variante (`variant.price ?? product.price`), asegurando la proporcionalidad en talles o modelos con sobreprecio.
+
+### Resguardo de Oferta en Reserva Web (Inmutabilidad TTL)
+Compromiso transaccional de precio pactado al iniciar una orden web. Si la orden se genera durante la vigencia de la oferta, el importe bonificado queda congelado durante la ventana de reserva de 15 minutos (`reservedUntil`), permitiendo al comprador finalizar su pago en pasarela al precio promocional aun si la oferta expira en el servidor durante la transacción.
+
+### Descuento Masivo por Rubro o Disciplina
+Acción operativa para asignar un porcentaje de oferta a la totalidad de artículos pertenecientes a una Categoría o Disciplina deportiva, aplicando la rebaja a los productos aptos y generando un reporte discriminado de aquellos omitidos por salvaguarda de costo.
+
+
+### Permiso Atómico de Venta Bajo Costo (`productos.descuento_bajo_costo`)
+Permiso de seguridad granular en la matriz RBAC que habilita a un usuario con perfil autorizado a forzar la aplicación de un precio promocional cuyo valor neto resultante se ubique por debajo del costo de reposición (`costPrice`), destinado a liquidaciones extraordinarias de fin de temporada.
+
+### Descuento Sucesivo en Mostrador (Cascada RF-27 + RF-08)
+Mecánica de liquidación aplicable en terminales físicas de Saavedra 241 cuando un artículo en promoción activa recibe una bonificación manual adicional (por ejemplo, descuento por pago en efectivo). El descuento manual se calcula de forma escalonada sobre el precio promocional ya rebajado, garantizando que ambas ventajas comerciales convivan transparentemente.
+
+### Tolerancia a Costo No Informado
+Tratamiento para artículos que posean `costPrice: null` (existencias históricas o rezagos de catálogo). El sistema permite fijar promociones individuales o masivas sin bloquear la operación por falta de costo de referencia.
+
+### Presentación Visual de Oferta (Precio Tachado y Badge)
+Convención de diseño frontend en catálogo, PDP y mostrador consistente en exponer el precio de lista original en tipografía secundaria tachada (`line-through`), acompañado por una insignia visual destacada con el porcentaje bonificado (ej. `-20% OFF`) y el precio efectivo final destacado en color de acento.
+
+
+### Módulo Administrativo de Campañas y Promociones
+Sección dedicada en el panel de control (`/admin?tab=promociones`) desacoplada del formulario individual de productos. Permite monitorear el estado de todas las ofertas vigentes, pausadas o programadas, aplicar descuentos masivos por rubro o disciplina, y auditar los productos bajo promoción.
+
+### Ventana de Vigencia con Precisión de Fecha y Hora
+Intervalo temporal delimitado por `discountStartDate` y `discountEndDate` con exactitud de minutos en el huso horario oficial `America/Argentina/Buenos_Aires`, habilitando campañas relámpago programadas y corte automático de ofertas.
+
+### Reversión Masiva de Ofertas
+Acción de despublicación atómica que restablece el precio regular a todos los productos comprendidos en una Categoría o Disciplina de forma simultánea, limpiando los estados promocionales sin alterar el inventario ni los precios base.
+
+### Métrica de Ahorro Visible al Comprador
+Cálculo en tiempo real expuesto en el carrito (`EcommerceCartDrawer`) y la pantalla de checkout que consolida la diferencia monetaria total entre los precios de lista y los precios promocionados de los renglones, reforzando la transparencia comercial antes del cobro.

@@ -8,30 +8,30 @@ import { DisciplineGrid } from "./DisciplineGrid";
 import { FeaturedProductsSection } from "./FeaturedProductsSection";
 import { EcommerceOfferBanner } from "./EcommerceOfferBanner";
 import { EcommerceFooter } from "./EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "./EcommerceCartDrawer";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
 import { EcommerceProduct } from "./types";
+import type { SerializedBanner } from "@/server/services/bannerService";
 
 interface EcommerceHomeViewProps {
   initialProducts?: EcommerceProduct[];
+  banners?: SerializedBanner[];
 }
 
-export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
-  // Use mock or real backend products
-  const products = initialProducts && initialProducts.length > 0 ? initialProducts : MOCK_FEATURED_PRODUCTS;
+export function EcommerceHomeView({
+  initialProducts,
+  banners,
+}: EcommerceHomeViewProps) {
+  const products =
+    initialProducts && initialProducts.length > 0
+      ? initialProducts
+      : MOCK_FEATURED_PRODUCTS;
 
-  // Cart state initialized safely
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    const initial: CartItem[] = [];
-    if (products[0]) initial.push({ product: products[0], quantity: 1 });
-    if (products[1]) initial.push({ product: products[1], quantity: 1 });
-    return initial;
-  });
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDiscipline, setSelectedDiscipline] = useState<string | undefined>();
+  const [selectedDiscipline, setSelectedDiscipline] = useState<
+    string | undefined
+  >();
 
-  // Filter products if a search query is typed
+  // Filter products if a search query or discipline is selected
   const displayedProducts = React.useMemo(() => {
     if (!searchQuery) {
       if (!selectedDiscipline) return products;
@@ -49,65 +49,25 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
     );
   }, [products, searchQuery, selectedDiscipline]);
 
-  // Cart actions
-  const handleAddToCart = (product: EcommerceProduct) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-  };
-
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-
   const handleDisciplineSelect = (slug: string) => {
-    setSelectedDiscipline(slug);
-    // Smooth scroll to products
+    setSelectedDiscipline((prev) => (prev === slug ? undefined : slug));
     const el = document.getElementById("productos");
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased">
-      {/* 1. Header (Top bar + Main Navigation) */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-        onSearchChange={(q) => setSearchQuery(q)}
-      />
+      {/* 1. Header (incluye EcommerceCartDrawer global) */}
+      <EcommerceHeader onSearchChange={(q) => setSearchQuery(q)} />
 
       {/* Main Page Flow */}
       <main className="flex-1 flex flex-col">
         {/* 2. Hero Section */}
-        <EcommerceHero />
+        <EcommerceHero banners={banners} />
 
         {/* 3. Explorá por Categoría */}
         <CategoryGrid
-          onSelectCategory={(slug) => {
+          onSelectCategory={() => {
             const el = document.getElementById("productos");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }}
@@ -120,10 +80,7 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
         />
 
         {/* 5. Productos Destacados */}
-        <FeaturedProductsSection
-          products={displayedProducts}
-          onAddToCart={handleAddToCart}
-        />
+        <FeaturedProductsSection products={displayedProducts} />
 
         {/* 6. Banner de Ofertas */}
         <EcommerceOfferBanner
@@ -136,15 +93,6 @@ export function EcommerceHomeView({ initialProducts }: EcommerceHomeViewProps) {
 
       {/* 7. Footer */}
       <EcommerceFooter />
-
-      {/* 8. Cart Slide-Over Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
     </div>
   );
 }

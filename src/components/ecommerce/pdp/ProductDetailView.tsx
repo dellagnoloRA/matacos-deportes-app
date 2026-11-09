@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer, CartItem } from "@/components/ecommerce/EcommerceCartDrawer";
 import { ProductImageGallery } from "./ProductImageGallery";
 import { ProductVariantSelector } from "./ProductVariantSelector";
 import { ProductActionBox } from "./ProductActionBox";
@@ -17,8 +16,8 @@ import type {
   PublicProductItem,
   PublicVariantItem,
 } from "@/types/ecommerce";
-import type { EcommerceProduct } from "@/components/ecommerce/types";
 import { mapPublicProductToEcommerce } from "@/lib/ecommerceProductMapper";
+import { useCartStore } from "@/store/cartStore";
 
 interface ProductDetailViewProps {
   product: PublicProductDetail;
@@ -30,6 +29,7 @@ export function ProductDetailView({
   relatedProducts,
 }: ProductDetailViewProps) {
   const router = useRouter();
+  const { addItem, openDrawer } = useCartStore();
 
   // Color selection
   const [selectedColor, setSelectedColor] = useState<string | null>(
@@ -38,14 +38,13 @@ export function ProductDetailView({
 
   // Size selection
   const [selectedSize, setSelectedSize] = useState<string | null>(
-    product.sizeOptions.find((s) => s.inStock)?.size || product.sizeOptions[0]?.size || null
+    product.sizeOptions.find((s) => s.inStock)?.size ||
+      product.sizeOptions[0]?.size ||
+      null
   );
 
   // Modals state
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
   // Resolve matching active variant
   const activeVariant = useMemo<PublicVariantItem | null>(() => {
@@ -74,69 +73,77 @@ export function ProductDetailView({
   }, [product.variants, selectedColor, selectedSize]);
 
   // Pricing calculations
-  const effectivePrice = activeVariant?.price ? activeVariant.price : product.price;
-  const isOffer = product.maxPrice > product.price;
-  const originalPrice = isOffer ? product.maxPrice : undefined;
+  const effectivePrice = activeVariant?.price
+    ? activeVariant.price
+    : product.price;
+
+  const originalPrice =
+    activeVariant?.originalPrice && activeVariant.originalPrice > effectivePrice
+      ? activeVariant.originalPrice
+      : product.originalPrice && product.originalPrice > effectivePrice
+      ? product.originalPrice
+      : undefined;
+
+  const isOffer = Boolean(
+    product.discountActive ||
+    (originalPrice && originalPrice > effectivePrice) ||
+    product.maxPrice > product.price
+  );
+
+  const resolveVariantImageUrl = (variant: PublicVariantItem): string => {
+    const byColor = product.images.find(
+      (img) =>
+        img.color &&
+        img.color.trim().toLowerCase() === variant.color.trim().toLowerCase()
+    )?.url;
+    const primary =
+      product.images.find((img) => img.isPrimary)?.url ||
+      product.images[0]?.url ||
+      product.imageUrl;
+    return byColor || primary || "/placeholder-product.svg";
+  };
 
   // Cart actions
-  const handleAddToCart = (quantity: number) => {
-    const itemToAdd: EcommerceProduct = {
-      ...mapPublicProductToEcommerce(product),
-      price: effectivePrice,
-      name: `${product.name}${selectedSize ? ` (Talle: ${selectedSize})` : ""}${
-        selectedColor ? ` - ${selectedColor}` : ""
-      }`,
-    };
+  const pushVariantToCart = (quantity: number): boolean => {
+    if (!activeVariant || activeVariant.availableStock <= 0) {
+      return false;
+    }
 
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === itemToAdd.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === itemToAdd.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prev, { product: itemToAdd, quantity }];
+    const res = addItem({
+      variantId: activeVariant.id,
+      productId: product.id,
+      name: product.name,
+      brand: product.brand.name,
+      size: activeVariant.size,
+      color: activeVariant.color,
+      sku: activeVariant.sku,
+      price: effectivePrice,
+      originalPrice,
+      discountActive: isOffer,
+      imageUrl: resolveVariantImageUrl(activeVariant),
+      availableStock: activeVariant.availableStock,
+      quantity,
     });
 
-    setAddedNotice(itemToAdd.name);
-    setTimeout(() => setAddedNotice(null), 3000);
-    setIsCartDrawerOpen(true);
+    return res.added;
+  };
+
+  const handleAddToCart = (quantity: number) => {
+    if (pushVariantToCart(quantity)) {
+      openDrawer();
+    }
   };
 
   const handleBuyNow = (quantity: number) => {
-    handleAddToCart(quantity);
-    router.push("/checkout");
+    if (pushVariantToCart(quantity)) {
+      router.push("/checkout");
+    }
   };
-
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
-      {/* 1. Header */}
-      <EcommerceHeader
-        cartCount={totalCartCount}
-        onOpenCart={() => setIsCartDrawerOpen(true)}
-      />
+      {/* 1. Header (incluye EcommerceCartDrawer global) */}
+      <EcommerceHeader />
 
       {/* 2. Main PDP Content */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12">
@@ -175,6 +182,7 @@ export function ProductDetailView({
               defaultImageUrl={product.imageUrl}
               images={product.images}
               isOffer={isOffer}
+              offerTag={product.discountPercentage ? `${product.discountPercentage}% OFF` : "OFERTA"}
             />
           </div>
 
@@ -200,10 +208,21 @@ export function ProductDetailView({
 
               {/* Pricing section */}
               <div className="pt-2">
-                {originalPrice && (
-                  <span className="text-sm text-slate-400 line-through font-semibold block">
-                    {formatCurrency(originalPrice)}
-                  </span>
+                {originalPrice && originalPrice > effectivePrice && (
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <span className="text-base sm:text-lg text-slate-400 line-through font-semibold">
+                      {formatCurrency(originalPrice)}
+                    </span>
+                    {product.discountPercentage ? (
+                      <span className="text-xs font-black bg-rose-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                        {product.discountPercentage}% OFF
+                      </span>
+                    ) : (
+                      <span className="text-xs font-black bg-[#00A811] text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                        OFERTA
+                      </span>
+                    )}
+                  </div>
                 )}
                 <div className="flex items-baseline gap-3">
                   <span className="text-3xl sm:text-4xl font-black text-[#00A811] tracking-tight">
@@ -291,7 +310,8 @@ export function ProductDetailView({
                           alt={relItem.name}
                           className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-500"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                            (e.target as HTMLImageElement).src =
+                              "/placeholder-product.svg";
                           }}
                         />
                       </Link>
@@ -332,16 +352,7 @@ export function ProductDetailView({
       {/* 3. Footer */}
       <EcommerceFooter />
 
-      {/* 4. Slide-Over Cart Drawer */}
-      <EcommerceCartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
-        items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
-
-      {/* 5. Size Guide Modal */}
+      {/* 4. Size Guide Modal */}
       <SizeGuideModal
         isOpen={isSizeGuideOpen}
         onClose={() => setIsSizeGuideOpen(false)}
@@ -354,4 +365,3 @@ export function ProductDetailView({
     </div>
   );
 }
-

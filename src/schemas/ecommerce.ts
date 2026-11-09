@@ -1,3 +1,10 @@
+import {
+  StrictEmailSchema,
+  StrictPhoneSchema,
+  StrictDniSchema,
+  STRICT_EMAIL_REGEX,
+} from "./settings";
+export { StrictEmailSchema, StrictPhoneSchema, StrictDniSchema, STRICT_EMAIL_REGEX };
 import { z } from "zod";
 
 /**
@@ -163,24 +170,9 @@ export const GuestCheckoutSchema = z
       .trim()
       .min(3, "El nombre y apellido debe tener al menos 3 caracteres")
       .max(120, "El nombre no puede superar los 120 caracteres"),
-    customerDni: z
-      .string()
-      .trim()
-      .min(7, "El DNI o CUIT debe tener al menos 7 caracteres")
-      .max(15, "El DNI o CUIT no puede superar los 15 caracteres")
-      .regex(
-        /^[0-9.\-]+$/,
-        "El DNI o CUIT solo puede contener números, puntos o guiones"
-      ),
-    customerEmail: z
-      .string()
-      .trim()
-      .email("Debe ingresar un correo electrónico válido"),
-    customerPhone: z
-      .string()
-      .trim()
-      .min(6, "El teléfono de contacto debe tener al menos 6 caracteres")
-      .max(30, "El teléfono ingresado es demasiado extenso"),
+    customerDni: StrictDniSchema,
+    customerEmail: StrictEmailSchema,
+    customerPhone: StrictPhoneSchema,
     shippingMethod: ShippingMethodEnum.default("RETIRO_LOCAL"),
     shippingAddress: z.string().trim().max(200).optional().nullable(),
     shippingCity: z.string().trim().max(80).default("Formosa"),
@@ -216,3 +208,194 @@ export const GuestCheckoutSchema = z
 
 export type GuestCheckoutInput = z.input<typeof GuestCheckoutSchema>;
 export type GuestCheckoutOutput = z.output<typeof GuestCheckoutSchema>;
+
+
+/**
+ * ============================================================================
+ * ESQUEMAS PARA SELECCIÓN Y EJECUCIÓN DE PAGO WEB (PASO 2 DEL CHECKOUT)
+ * ============================================================================
+ */
+
+export const WebPaymentOptionEnum = z.enum(
+  [
+    "MERCADOPAGO",
+    "TARJETA_CREDITO",
+    "TARJETA_DEBITO",
+    "TRANSFERENCIA",
+    "PAGO_LOCAL",
+  ],
+  {
+    errorMap: () => ({
+      message:
+        "Medio de pago inválido. Use MERCADOPAGO, TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA o PAGO_LOCAL",
+    }),
+  }
+);
+export type WebPaymentOption = z.infer<typeof WebPaymentOptionEnum>;
+
+export const WebCardBrandEnum = z.enum(
+  ["VISA", "MASTERCARD", "NARANJA_X", "CABAL"],
+  {
+    errorMap: () => ({
+      message: "Marca de tarjeta inválida. Use VISA, MASTERCARD, NARANJA_X o CABAL",
+    }),
+  }
+);
+export type WebCardBrand = z.infer<typeof WebCardBrandEnum>;
+
+export const ProcessWebOrderPaymentSchema = z
+  .object({
+    orderCode: z
+      .string()
+      .trim()
+      .min(5, "El código de orden es obligatorio"),
+    verification: z
+      .string()
+      .trim()
+      .min(4, "La verificación (DNI o correo del comprador) es obligatoria"),
+    paymentOption: WebPaymentOptionEnum,
+    cardBrand: WebCardBrandEnum.optional(),
+    cardHolderName: z.string().trim().max(120).optional(),
+    cardLast4: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{4}$/, "Los últimos 4 dígitos de la tarjeta son inválidos")
+      .optional(),
+    installments: z.coerce.number().int().min(1).max(12).default(1),
+    simulateDecline: z.boolean().optional().default(false),
+    transferReference: z.string().trim().max(80).optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    const isCard =
+      data.paymentOption === "TARJETA_CREDITO" ||
+      data.paymentOption === "TARJETA_DEBITO";
+
+    if (isCard) {
+      if (!data.cardBrand) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Seleccioná la marca de tu tarjeta",
+          path: ["cardBrand"],
+        });
+      }
+      if (!data.cardHolderName || data.cardHolderName.trim().length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ingresá el nombre y apellido del titular de la tarjeta",
+          path: ["cardHolderName"],
+        });
+      }
+      if (!data.cardLast4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Completá los datos de la tarjeta (16 dígitos)",
+          path: ["cardLast4"],
+        });
+      }
+      if (data.paymentOption === "TARJETA_DEBITO" && data.installments !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Los pagos con tarjeta de débito solo admiten 1 pago",
+          path: ["installments"],
+        });
+      }
+      if (
+        data.paymentOption === "TARJETA_CREDITO" &&
+        ![1, 3, 6].includes(data.installments)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Las cuotas habilitadas son 1, 3 o 6 cuotas",
+          path: ["installments"],
+        });
+      }
+    }
+  });
+
+export type ProcessWebOrderPaymentInput = z.input<
+  typeof ProcessWebOrderPaymentSchema
+>;
+export type ProcessWebOrderPaymentOutput = z.output<
+  typeof ProcessWebOrderPaymentSchema
+>;
+
+/**
+ * ============================================================================
+ * TRANSFERENCIA BANCARIA Y COMPROBANTES DE PAGO (RF-17)
+ * ============================================================================
+ */
+
+/**
+ * Esquema de validación para Carga de Comprobante de Transferencia Bancaria por el Cliente (RF-17)
+ */
+export const SubmitTransferProofSchema = z.object({
+  orderId: z
+    .string()
+    .trim()
+    .min(1, "El identificador o código de la orden es obligatorio"),
+  proofUrl: z
+    .string()
+    .trim()
+    .min(1, "La URL o ruta del comprobante es obligatoria")
+    .refine(
+      (val) =>
+        val.startsWith("http://") ||
+        val.startsWith("https://") ||
+        val.startsWith("/uploads/"),
+      {
+        message:
+          "La URL del comprobante debe ser una URL válida o una ruta relativa de carga local",
+      }
+    ),
+  reference: z
+    .string()
+    .trim()
+    .max(100, "El número de referencia o comprobante no puede superar 100 caracteres")
+    .optional()
+    .nullable(),
+  customerNotes: z
+    .string()
+    .trim()
+    .max(500, "Las notas adicionales no pueden superar 500 caracteres")
+    .optional()
+    .nullable(),
+});
+
+export type SubmitTransferProofInput = z.infer<typeof SubmitTransferProofSchema>;
+
+/**
+ * Esquema de validación para Verificación y Acreditación de Transferencia por el Administrador (RF-17)
+ */
+export const VerifyTransferPaymentSchema = z.object({
+  orderId: z
+    .string()
+    .trim()
+    .min(1, "El identificador de la orden es obligatorio"),
+  approved: z.boolean({
+    required_error: "Debés indicar si la transferencia fue aprobada o rechazada",
+  }),
+  rejectionReason: z
+    .string()
+    .trim()
+    .max(500, "El motivo de rechazo no puede superar 500 caracteres")
+    .optional()
+    .nullable(),
+  cancelOrderOnReject: z.boolean().optional().default(false),
+  adminNotes: z
+    .string()
+    .trim()
+    .max(500, "Las notas de conciliación no pueden superar 500 caracteres")
+    .optional()
+    .nullable(),
+  reconciledBy: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .nullable(),
+});
+
+export type VerifyTransferPaymentInput = z.infer<
+  typeof VerifyTransferPaymentSchema
+>;
+

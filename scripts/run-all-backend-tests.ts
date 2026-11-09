@@ -7,6 +7,12 @@
  * 4. Gestión Transaccional de Productos, Variantes y Baja Lógica (RF-01, RF-02)
  * 5. Control de Stock Dual, Movimientos Atómicos y Ventas (RF-03, CU-INV-03, CU-INV-04)
  * 6. Ingestión Masiva y Carga Progresiva de Inventario (RF-04, CU-INV-02)
+ * 7. Botón Contextual de WhatsApp y Asistencia (RF-18)
+ * 8. Transferencia Bancaria y Comprobantes de Pago (RF-17)
+ * 9. Gestión y Publicación de Banners en Landing (RF-26)
+ * 10. Descuentos Promocionales y Salvaguarda de Costos (RF-27)
+ * 11. Landing Page de Alto Rendimiento y Caché ISR (RF-28)
+ * 12. Portal de Clientes, Favoritos y Seguimiento Web (RF-29)
  */
 
 import { execSync } from "child_process";
@@ -51,18 +57,53 @@ const SUITES = [
     rf: "RF-04 / CU-INV-02",
     script: "scripts/test-rf04-bulk-import.ts",
   },
+  {
+    name: "Botón Contextual de WhatsApp y Asistencia",
+    rf: "RF-18",
+    script: "scripts/test-rf18-whatsapp-contingency.ts",
+  },
+  {
+    name: "Pasarela de Pagos Mercado Pago y Checkout",
+    rf: "RF-16",
+    script: "scripts/test-rf16-mercadopago-checkout.ts",
+  },
+  {
+    name: "Transferencia Bancaria y Comprobantes de Pago",
+    rf: "RF-17",
+    script: "scripts/test-rf17-bank-transfer.ts",
+  },
+  {
+    name: "Gestión y Publicación de Banners en Landing",
+    rf: "RF-26",
+    script: "scripts/test-rf26-banners.ts",
+  },
+  {
+    name: "Descuentos Promocionales y Salvaguarda de Costos",
+    rf: "RF-27",
+    script: "scripts/test-rf27-promotional-discounts.ts",
+  },
+  {
+    name: "Landing Page de Alto Rendimiento y Caché ISR",
+    rf: "RF-28",
+    script: "scripts/test-rf28-landing-page.ts",
+  },
+  {
+    name: "Portal de Clientes, Favoritos y Seguimiento Web",
+    rf: "RF-29",
+    script: "scripts/test-rf29-customer-portal.ts",
+  },
 ];
 
 async function main() {
   console.log("================================================================================");
-  console.log("🚀 EJECUCIÓN MAESTRA DE PRUEBAS DE BACKEND — MATACOS DEPORTES (MÓDULO 1)");
+  console.log("🚀 EJECUCIÓN MAESTRA DE PRUEBAS DE BACKEND — MATACOS DEPORTES");
   console.log("================================================================================\n");
 
   const results: SuiteResult[] = [];
   const globalStart = Date.now();
 
   for (let i = 0; i < SUITES.length; i++) {
-    const suite = SUITES[i];
+    const suite = SUITES[i]!;
     console.log(`[${i + 1}/${SUITES.length}] Ejecutando: ${suite.name} (${suite.rf})...`);
 
     const start = Date.now();
@@ -76,9 +117,14 @@ async function main() {
       });
       success = true;
       console.log(`   ✅ SUPERADO (${Date.now() - start} ms)\n`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       success = false;
-      output = error.stdout?.toString() || error.stderr?.toString() || error.message;
+      const errObj = error as { stdout?: Buffer; stderr?: Buffer; message?: string };
+      output =
+        errObj.stdout?.toString() ||
+        errObj.stderr?.toString() ||
+        errObj.message ||
+        "Error en ejecución de suite";
       console.error(`   ❌ FALLÓ (${Date.now() - start} ms)\n`);
     }
 
@@ -101,7 +147,7 @@ async function main() {
   console.log("================================================================================");
   results.forEach((r, idx) => {
     const badge = r.success ? "✅ PASS" : "❌ FAIL";
-    console.log(`${idx + 1}. [${badge}] ${r.rf.padEnd(20)} | ${r.name.padEnd(45)} (${r.durationMs} ms)`);
+    console.log(`${idx + 1}. [${badge}] ${r.rf.padEnd(20)} | ${r.name.padEnd(48)} (${r.durationMs} ms)`);
   });
 
   console.log("--------------------------------------------------------------------------------");

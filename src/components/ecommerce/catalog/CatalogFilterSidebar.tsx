@@ -32,6 +32,7 @@ export function CatalogFilterSidebar({
 }: CatalogFilterSidebarProps) {
   // Accordion state: closed by default, auto-expanded only if that filter is currently active
   const [openSections, setOpenSections] = useState({
+    gender: Boolean(activeFilters.gender),
     disciplines: Boolean(activeFilters.disciplineSlug),
     categories: Boolean(activeFilters.categorySlug),
     brands: Boolean(activeFilters.brandSlug),
@@ -44,7 +45,8 @@ export function CatalogFilterSidebar({
   };
 
   const hasActiveFilters = Boolean(
-    activeFilters.disciplineSlug ||
+    activeFilters.gender ||
+      activeFilters.disciplineSlug ||
       activeFilters.categorySlug ||
       activeFilters.brandSlug ||
       activeFilters.size ||
@@ -90,6 +92,58 @@ export function CatalogFilterSidebar({
       </div>
 
       <div className="space-y-5">
+        {/* 0. Género */}
+        {facets.genders && facets.genders.length > 0 && (
+          <div className="border-b border-slate-100 pb-4">
+            <button
+              type="button"
+              onClick={() => toggleSection("gender")}
+              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-800 hover:text-slate-950 py-1 cursor-pointer"
+            >
+              <span>Género</span>
+              {openSections.gender ? (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              )}
+            </button>
+
+            {openSections.gender && (
+              <div className="mt-3 space-y-1.5 text-xs">
+                {facets.genders.map((g) => {
+                  const isSelected = activeFilters.gender === g.gender;
+                  return (
+                    <button
+                      key={g.gender}
+                      type="button"
+                      onClick={() =>
+                        onFilterChange({
+                          gender: isSelected ? undefined : g.gender,
+                          page: 1,
+                        })
+                      }
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors text-left cursor-pointer ${
+                        isSelected
+                          ? "bg-slate-900 text-white font-bold"
+                          : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      <span className="truncate">{g.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          isSelected ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {g.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 1. Disciplinas */}
         {facets.disciplines.length > 0 && (
           <div className="border-b border-slate-100 pb-4">

@@ -322,6 +322,7 @@ async function main() {
     { code: "ecommerce.banners", module: "ECOMMERCE", description: "Modificar banners del carrusel hero y vitrinas destacadas" },
     { code: "ecommerce.cupones", module: "ECOMMERCE", description: "Crear y gestionar cupones de descuento y promociones online" },
     { code: "ecommerce.clientes", module: "ECOMMERCE", description: "Visualizar cartera de clientes registrados en la tienda online" },
+    { code: "productos.descuento_bajo_costo", module: "PRODUCTOS", description: "Permite fijar precios promocionales inferiores al costo de reposición" },
 
     // REPORTES (Métricas de Negocio)
     { code: "reportes.ver_kpis", module: "REPORTES", description: "Visualizar facturación global, ticket promedio y gráficos financieros" },
@@ -555,7 +556,26 @@ async function main() {
     },
   });
 
-  console.log("¡Esquema de seguridad, perfiles y permisos RF-23 sembrado con éxito!");
+  // Cliente de prueba E-commerce (RF-29 / Checkout)
+  const hashedCustomerPassword = await bcrypt.hash("cliente123", 10);
+  await prisma.customer.upsert({
+    where: { email: "cliente@matacos.com.ar" },
+    update: {
+      password: hashedCustomerPassword,
+    },
+    create: {
+      name: "Juan Pérez",
+      email: "cliente@matacos.com.ar",
+      password: hashedCustomerPassword,
+      dni: "38123456",
+      phone: "3704556677",
+      defaultAddress: "Av. 25 de Mayo 850",
+      defaultCity: "Formosa",
+      defaultPostalCode: "3600",
+    },
+  });
+
+  console.log("¡Esquema de seguridad, perfiles, cliente demo y permisos RF-23 sembrado con éxito!");
 }
 
 main()

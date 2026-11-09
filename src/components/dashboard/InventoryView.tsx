@@ -35,6 +35,7 @@ import {
   Layers,
 } from "lucide-react";
 import { MasterCategoriesManager, type MasterTabType } from "./MasterCategoriesManager";
+import Link from "next/link";
 import { formatCurrency, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem } from "./types";
 import { ProductDetailView } from "./ProductDetailView";
@@ -1720,16 +1721,15 @@ export function InventoryView({
             <span className="xl:hidden hidden sm:inline">Importar</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
+          <Link
+            href="/admin/productos/nuevo"
             className="bg-gradient-to-b from-[#16a34a] to-[#0f6f36] hover:from-[#15803d] hover:to-[#0c592b] active:scale-95 text-white font-bold text-xs px-3.5 sm:px-4 py-2 rounded-xl border border-emerald-400/40 shadow-[0_2px_4px_rgba(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-1.5 select-none whitespace-nowrap shrink-0 cursor-pointer"
-            title="Registrar Nuevo Producto en el Inventario"
+            title="Registrar Nuevo Producto con la Nueva Plantilla en Vivo"
           >
             <Plus className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
             <span className="hidden sm:inline">Nuevo Producto</span>
             <span className="sm:hidden">Nuevo</span>
-          </button>
+          </Link>
         </div>
       </div>
 

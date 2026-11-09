@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ChevronDown, PanelLeft, Lock } from "lucide-react";
+import { ChevronDown, PanelLeft, Lock, Settings } from "lucide-react";
 import { SidebarLeft } from "./SidebarLeft";
 import { TopHeader } from "./TopHeader";
 import { KpiCard } from "./KpiCard";
@@ -18,6 +18,10 @@ import { PosView } from "./PosView";
 import { CashShiftHistoryView } from "./CashShiftHistoryView";
 import { UsersManagementView } from "./UsersManagementView";
 import { ProfilesManagementView } from "./ProfilesManagementView";
+import { StoreSettingsView } from "./StoreSettingsView";
+import { WebOrdersView } from "./WebOrdersView";
+import { BannersManagementView } from "./BannersManagementView";
+import { PromotionManagementView } from "./PromotionManagementView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -71,7 +75,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
 
   const hasPerm = useCallback((code: string) => {
     if (!currentUser) return false;
-        return currentUser.permissions?.includes(code) ?? false;
+    if (currentUser.role === "ADMIN") return true;
+    return currentUser.permissions?.includes(code) ?? false;
   }, [currentUser]);
 
   // Pestaña actual sincronizada con la URL del navegador
@@ -84,6 +89,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "configuracion") return "configuracion";
     if (tab === "usuarios") return "usuarios";
     if (tab === "perfiles") return "perfiles";
+    if (tab === "banners" || tab === "admin-banners") return "banners";
+    if (tab === "promociones" || tab === "admin-promociones") return "promociones";
     return "inventario";
   }, [searchParams]);
 
@@ -165,6 +172,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
       } else if (id === "admin-perfiles" || id === "perfiles") {
         updateUrl({
           tab: "perfiles",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "admin-banners" || id === "banners") {
+        updateUrl({
+          tab: "banners",
           seccion: null,
           categoria: null,
           producto: null,
@@ -309,6 +323,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 ? "admin-usuarios"
                 : currentTab === "perfiles"
                 ? "admin-perfiles"
+                : currentTab === "banners"
+                ? "admin-banners"
+
                 : currentTab === "inventario"
                 ? `inventario-${currentInventorySubView}`
                 : currentTab === "pos"
@@ -348,6 +365,48 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               </p>
             </div>
           )
+        ) : currentTab === "banners" ? (
+          hasPerm("ecommerce.banners") ? (
+            <BannersManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar banners web (ecommerce.banners).
+              </p>
+            </div>
+          )
+        ) : currentTab === "promociones" ? (
+          <PromotionManagementView />
+        ) : currentTab === "configuracion" ? (
+          <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
+            <div className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+              <div className="flex items-center gap-3">
+                {handleToggleLeft && (
+                  <button
+                    onClick={handleToggleLeft}
+                    className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    <PanelLeft className="w-5 h-5" />
+                  </button>
+                )}
+                <div>
+                  <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-emerald-600" />
+                    <span>Configuración Comercial y Canales de Contacto</span>
+                  </h1>
+                  <p className="text-xs text-slate-500">
+                    Edite el WhatsApp comercial, correos y datos del local con validación en tiempo real.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 lg:p-8 max-w-5xl mx-auto w-full">
+              <StoreSettingsView />
+            </div>
+          </div>
+        ) : currentTab === "ecommerce" ? (
+          <WebOrdersView />
         ) : currentTab === "pos" ? (
           currentPosSubView === "arqueo" ? (
             <div className="flex-1 flex flex-col bg-[#f8fafc] min-h-screen">
@@ -560,7 +619,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               ? "admin-usuarios"
               : currentTab === "perfiles"
               ? "admin-perfiles"
-              : currentTab === "inventario"
+              : currentTab === "banners"
+              ? "admin-banners"
+                : currentTab === "inventario"
               ? `inventario-${currentInventorySubView}`
               : currentTab === "pos"
               ? `pos-${currentPosSubView}`
