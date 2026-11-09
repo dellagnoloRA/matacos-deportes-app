@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev --turbopack",
     "dev:lan": "next dev -H 0.0.0.0 --turbopack",
     "build": "next build",
@@ -20,6 +21,7 @@
     "test:rf16": "tsx scripts/test-rf16-mercadopago-checkout.ts",
     "test:rf17": "tsx scripts/test-rf17-bank-transfer.ts",
     "test:rf18": "tsx scripts/test-rf18-whatsapp-contingency.ts",
+    "test:rf24": "tsx scripts/test-rf24-analytics.ts",
     "test:rf26": "tsx scripts/test-rf26-banners.ts",
     "test:rf27": "tsx scripts/test-rf27-promotional-discounts.ts",
     "test:rf28": "tsx scripts/test-rf28-landing-page.ts",

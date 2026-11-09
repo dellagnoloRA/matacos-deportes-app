@@ -1,44 +1,37 @@
 "use client";
 
-import React, { useState } from "react";
-import { ChartDataPoint } from "./types";
+import React, { useState, useRef, useEffect } from "react";
+import { Package, TrendingUp, Lock } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
+import type {
+  EarningsChartPointDTO,
+  TopProductRankingDTO,
+} from "@/schemas/analytics";
 
 interface EarningsChartProps {
   className?: string;
+  series?: EarningsChartPointDTO[];
+  topProducts?: TopProductRankingDTO[];
+  periodLabel?: string;
+  comparisonLabel?: string;
+  canViewFinancials?: boolean;
 }
 
-const EARNINGS_DATA: ChartDataPoint[] = [
-  { month: "Enero", currentYear: 12000, lastYear: 7000 },
-  { month: "Febrero", currentYear: 15500, lastYear: 12800 },
-  { month: "Marzo", currentYear: 13200, lastYear: 16500 },
-  { month: "Abril", currentYear: 17800, lastYear: 11000 },
-  { month: "Mayo", currentYear: 26900, lastYear: 18500 },
-  { month: "Junio", currentYear: 21500, lastYear: 23200 },
-  { month: "Julio", currentYear: 24800, lastYear: 28400 },
+const DEFAULT_SERIES: EarningsChartPointDTO[] = [
+  { label: "Sem 1", currentRevenue: 120000, previousRevenue: 70000, currentProfit: 48000, storeRevenue: 85000, webRevenue: 35000 },
+  { label: "Sem 2", currentRevenue: 155000, previousRevenue: 128000, currentProfit: 62000, storeRevenue: 105000, webRevenue: 50000 },
+  { label: "Sem 3", currentRevenue: 132000, previousRevenue: 165000, currentProfit: 51000, storeRevenue: 92000, webRevenue: 40000 },
+  { label: "Sem 4", currentRevenue: 178000, previousRevenue: 110000, currentProfit: 74000, storeRevenue: 118000, webRevenue: 60000 },
+  { label: "Sem 5", currentRevenue: 215000, previousRevenue: 185000, currentProfit: 89000, storeRevenue: 145000, webRevenue: 70000 },
 ];
 
-const BEST_SELLERS_DATA: ChartDataPoint[] = [
-  { month: "Enero", currentYear: 18000, lastYear: 9000 },
-  { month: "Febrero", currentYear: 22000, lastYear: 14000 },
-  { month: "Marzo", currentYear: 19500, lastYear: 17000 },
-  { month: "Abril", currentYear: 24000, lastYear: 15000 },
-  { month: "Mayo", currentYear: 29000, lastYear: 20000 },
-  { month: "Junio", currentYear: 26000, lastYear: 24000 },
-  { month: "Julio", currentYear: 28500, lastYear: 27000 },
-];
-
-const STATUS_DATA: ChartDataPoint[] = [
-  { month: "Enero", currentYear: 10000, lastYear: 8000 },
-  { month: "Febrero", currentYear: 14000, lastYear: 11000 },
-  { month: "Marzo", currentYear: 16000, lastYear: 15000 },
-  { month: "Abril", currentYear: 15000, lastYear: 13000 },
-  { month: "Mayo", currentYear: 22000, lastYear: 17000 },
-  { month: "Junio", currentYear: 19000, lastYear: 21000 },
-  { month: "Julio", currentYear: 23000, lastYear: 25000 },
-];
-
-function getCubicBezierPath(points: { x: number; y: number }[]): string {
+function getCubicBezierPath(
+  points: { x: number; y: number }[],
+  baselineY: number,
+  topY: number
+): string {
   if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
   let d = `M ${points[0].x} ${points[0].y}`;
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i === 0 ? 0 : i - 1];
@@ -46,266 +39,433 @@ function getCubicBezierPath(points: { x: number; y: number }[]): string {
     const p2 = points[i + 1];
     const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
 
+    const segMinY = Math.max(topY, Math.min(p1.y, p2.y));
+    const segMaxY = Math.min(baselineY, Math.max(p1.y, p2.y));
+
     const cp1x = p1.x + (p2.x - p0.x) / 5;
-    const cp1y = p1.y + (p2.y - p0.y) / 5;
+    const rawCp1y = p1.y + (p2.y - p0.y) / 5;
+    const cp1y = Math.min(segMaxY, Math.max(segMinY, rawCp1y));
+
     const cp2x = p2.x - (p3.x - p1.x) / 5;
-    const cp2y = p2.y - (p3.y - p1.y) / 5;
+    const rawCp2y = p2.y - (p3.y - p1.y) / 5;
+    const cp2y = Math.min(segMaxY, Math.max(segMinY, rawCp2y));
 
     d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
   }
   return d;
 }
 
-export function EarningsChart({ className = "" }: EarningsChartProps) {
-  const [activeTab, setActiveTab] = useState<"earnings" | "bestsellers" | "status">("earnings");
+function formatCompactArs(val: number): string {
+  if (val >= 1_000_000) {
+    return `$${(val / 1_000_000).toFixed(1)}M`;
+  }
+  if (val >= 1_000) {
+    return `$${Math.round(val / 1_000)}K`;
+  }
+  return `$${Math.round(val)}`;
+}
+
+export function EarningsChart({
+  className = "",
+  series,
+  topProducts = [],
+  periodLabel = "Período actual",
+  comparisonLabel = "Período anterior",
+  canViewFinancials = true,
+}: EarningsChartProps) {
+  const [activeTab, setActiveTab] = useState<"earnings" | "channels" | "bestsellers">("earnings");
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 760, height: 270 });
 
-  const activeDataset =
-    activeTab === "earnings"
-      ? EARNINGS_DATA
-      : activeTab === "bestsellers"
-      ? BEST_SELLERS_DATA
-      : STATUS_DATA;
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
 
-  // Chart dimensions
-  const width = 600;
-  const height = 220;
-  const paddingLeft = 45;
-  const paddingRight = 20;
-  const paddingTop = 20;
-  const paddingBottom = 35;
+    const updateSize = () => {
+      const w = Math.round(el.clientWidth);
+      const h = Math.round(el.clientHeight);
+      if (w > 100 && h > 100) {
+        setDimensions((prev) =>
+          Math.abs(prev.width - w) > 2 || Math.abs(prev.height - h) > 2
+            ? { width: w, height: h }
+            : prev
+        );
+      }
+    };
 
-  const chartWidth = width - paddingLeft - paddingRight;
-  const chartHeight = height - paddingTop - paddingBottom;
-  const maxValue = 30000;
+    updateSize();
+    const observer = new ResizeObserver(() => updateSize());
+    observer.observe(el);
+    window.addEventListener("resize", updateSize);
 
-  const getX = (index: number) => paddingLeft + (index / (activeDataset.length - 1)) * chartWidth;
-  const getY = (val: number) => paddingTop + chartHeight - (val / maxValue) * chartHeight;
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, [activeTab]);
 
-  const currentYearPoints = activeDataset.map((d, i) => ({
+  const activeDataset = series && series.length > 0 ? series : DEFAULT_SERIES;
+
+  // Dynamic chart dimensions adapted 1:1 to the wrapper container
+  const width = dimensions.width;
+  const height = dimensions.height;
+  const paddingLeft = 54;
+  const paddingRight = 18;
+  const paddingTop = 16;
+  const paddingBottom = 32;
+
+  const chartWidth = Math.max(100, width - paddingLeft - paddingRight);
+  const chartHeight = Math.max(80, height - paddingTop - paddingBottom);
+  const baselineY = paddingTop + chartHeight;
+
+  const rawMax = Math.max(
+    10000,
+    ...activeDataset.flatMap((d) =>
+      activeTab === "channels"
+        ? [d.storeRevenue, d.webRevenue]
+        : [d.currentRevenue, d.previousRevenue, d.currentProfit]
+    )
+  );
+  const stepUnit = Math.ceil(rawMax / 3 / 5000) * 5000 || 10000;
+  const maxValue = stepUnit * 3;
+
+  const count = Math.max(2, activeDataset.length);
+  const getX = (index: number) => paddingLeft + (index / (count - 1)) * chartWidth;
+  const getY = (val: number) =>
+    paddingTop + chartHeight - (Math.min(maxValue, Math.max(0, val)) / maxValue) * chartHeight;
+
+  const primaryPoints = activeDataset.map((d, i) => ({
     x: getX(i),
-    y: getY(d.currentYear),
+    y: getY(activeTab === "channels" ? d.storeRevenue : d.currentRevenue),
   }));
 
-  const lastYearPoints = activeDataset.map((d, i) => ({
+  const secondaryPoints = activeDataset.map((d, i) => ({
     x: getX(i),
-    y: getY(d.lastYear),
+    y: getY(activeTab === "channels" ? d.webRevenue : d.previousRevenue),
   }));
 
-  const currentYearPath = getCubicBezierPath(currentYearPoints);
-  const lastYearPath = getCubicBezierPath(lastYearPoints);
+  const primaryPath = getCubicBezierPath(primaryPoints, baselineY, paddingTop);
+  const secondaryPath = getCubicBezierPath(secondaryPoints, baselineY, paddingTop);
+
+  const primaryAreaPath =
+    primaryPoints.length > 1
+      ? `${primaryPath} L ${primaryPoints[primaryPoints.length - 1].x} ${baselineY} L ${primaryPoints[0].x} ${baselineY} Z`
+      : "";
 
   const yLabels = [
-    { label: "30K", val: 30000 },
-    { label: "20K", val: 20000 },
-    { label: "10K", val: 10000 },
-    { label: "0", val: 0 },
+    { label: formatCompactArs(maxValue), val: maxValue },
+    { label: formatCompactArs(stepUnit * 2), val: stepUnit * 2 },
+    { label: formatCompactArs(stepUnit), val: stepUnit },
+    { label: "$0", val: 0 },
   ];
 
   return (
     <div
-      className={`rounded-2xl bg-white p-5 shadow-xs border border-slate-200/70 flex flex-col justify-between ${className}`}
+      className={`rounded-2xl bg-white p-6 shadow-md shadow-slate-900/5 border border-slate-300/80 flex flex-col ${className}`}
     >
-      {/* Header with Tabs on the left and Legend on the right */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100/80">
-        {/* Left Tabs */}
-        <div className="flex items-center gap-5 text-xs">
+      {/* Header with Segmented Tabs on the left and Legend on the right */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 shrink-0">
+        {/* Segmented Control Tabs */}
+        <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           <button
             onClick={() => setActiveTab("earnings")}
-            className={`font-semibold transition-colors relative py-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === "earnings"
-                ? "text-slate-900 after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
-                : "text-slate-400 hover:text-slate-700"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            Total de Ganancias
+            Ingresos y Ganancias
+          </button>
+          <button
+            onClick={() => setActiveTab("channels")}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === "channels"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
+          >
+            Mostrador vs. Web
           </button>
           <button
             onClick={() => setActiveTab("bestsellers")}
-            className={`font-medium transition-colors relative py-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === "bestsellers"
-                ? "text-slate-900 font-semibold after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
-                : "text-slate-400 hover:text-slate-700"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            Productos más vendidos
-          </button>
-          <button
-            onClick={() => setActiveTab("status")}
-            className={`font-medium transition-colors relative py-1 ${
-              activeTab === "status"
-                ? "text-slate-900 font-semibold after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-slate-900"
-                : "text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            Operating Status
+            Top Productos
           </button>
         </div>
 
         {/* Right Legend */}
-        <div className="flex items-center gap-4 text-xs font-medium text-slate-600">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full border border-sky-400 bg-sky-100" />
-            <span className="text-slate-500 text-[11px]">Año pasado</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-slate-900" />
-            <span className="text-slate-800 text-[11px] font-semibold">Año Actual</span>
-          </div>
-        </div>
-      </div>
-
-      {/* SVG Responsive Line Chart */}
-      <div className="relative w-full pt-4 h-60">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-full overflow-visible select-none"
-        >
-          {/* Horizontal Gridlines & Y-Axis Labels */}
-          {yLabels.map((item) => {
-            const y = getY(item.val);
-            return (
-              <g key={item.val}>
-                <text
-                  x={paddingLeft - 12}
-                  y={y + 3.5}
-                  textAnchor="end"
-                  className="fill-slate-400 text-[11px] font-sans"
-                >
-                  {item.label}
-                </text>
-                <line
-                  x1={paddingLeft}
-                  y1={y}
-                  x2={width - paddingRight}
-                  y2={y}
-                  stroke="#f1f5f9"
-                  strokeWidth="1"
-                  strokeDasharray={item.val === 0 ? "none" : "2 2"}
-                />
-              </g>
-            );
-          })}
-
-          {/* Last Year Dashed Spline Curve */}
-          <path
-            d={lastYearPath}
-            fill="none"
-            stroke="#93c5fd"
-            strokeWidth="2"
-            strokeDasharray="4 4"
-            className="transition-all duration-300"
-          />
-
-          {/* Current Year Solid Spline Curve */}
-          <path
-            d={currentYearPath}
-            fill="none"
-            stroke="#1e293b"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="transition-all duration-300"
-          />
-
-          {/* Interactive Hover Vertical Bars and Points */}
-          {activeDataset.map((d, i) => {
-            const x = getX(i);
-            const yCurrent = getY(d.currentYear);
-            const yLast = getY(d.lastYear);
-            const isHovered = hoveredIndex === i;
-
-            return (
-              <g key={d.month} className="cursor-pointer">
-                {/* Invisible hover hotspot */}
-                <rect
-                  x={x - 25}
-                  y={paddingTop}
-                  width={50}
-                  height={chartHeight}
-                  fill="transparent"
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
-
-                {/* X-Axis Month Label */}
-                <text
-                  x={x}
-                  y={height - 8}
-                  textAnchor="middle"
-                  className={`text-[11px] font-medium transition-colors ${
-                    isHovered ? "fill-slate-900 font-bold" : "fill-slate-400"
-                  }`}
-                >
-                  {d.month}
-                </text>
-
-                {/* Vertical guide on hover */}
-                {isHovered && (
-                  <line
-                    x1={x}
-                    y1={paddingTop}
-                    x2={x}
-                    y2={height - paddingBottom}
-                    stroke="#cbd5e1"
-                    strokeWidth="1"
-                    strokeDasharray="2 2"
-                  />
-                )}
-
-                {/* Points */}
-                {isHovered && (
-                  <>
-                    <circle
-                      cx={x}
-                      cy={yLast}
-                      r={4}
-                      fill="#93c5fd"
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                    />
-                    <circle
-                      cx={x}
-                      cy={yCurrent}
-                      r={5}
-                      fill="#0f172a"
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                      className="drop-shadow-sm"
-                    />
-                  </>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Floating Tooltip */}
-        {hoveredIndex !== null && (
-          <div
-            className="absolute -top-3 pointer-events-none bg-slate-900/90 backdrop-blur-xs text-white text-[11px] py-1.5 px-3 rounded-lg shadow-xl border border-slate-700/60 transform -translate-x-1/2 transition-all flex flex-col gap-0.5 z-20"
-            style={{
-              left: `${(getX(hoveredIndex) / width) * 100}%`,
-            }}
-          >
-            <span className="font-semibold text-slate-300 border-b border-slate-700 pb-0.5 mb-0.5">
-              {activeDataset[hoveredIndex].month}
-            </span>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-400 text-[10px]">Año Actual:</span>
-              <span className="font-bold text-white">
-                ${activeDataset[hoveredIndex].currentYear.toLocaleString("es-AR")}
+        {activeTab !== "bestsellers" && (
+          <div className="flex items-center gap-4 text-xs sm:text-sm font-semibold text-slate-700">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full border-2 border-sky-600 bg-sky-100" />
+              <span className="text-slate-600">
+                {activeTab === "channels" ? "Tienda Web" : comparisonLabel}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sky-300 text-[10px]">Año Pasado:</span>
-              <span className="font-semibold text-sky-200">
-                ${activeDataset[hoveredIndex].lastYear.toLocaleString("es-AR")}
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-emerald-600 ring-2 ring-emerald-100" />
+              <span className="text-slate-900 font-bold">
+                {activeTab === "channels" ? "Mostrador Saavedra 241" : periodLabel}
               </span>
             </div>
           </div>
         )}
       </div>
+
+      {/* Tab Content */}
+      {activeTab === "bestsellers" ? (
+        <div className="pt-4 flex-1 min-h-[260px] overflow-y-auto pr-1">
+          {topProducts.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
+              <Package className="w-8 h-8 mb-2 stroke-[1.5] text-slate-400" />
+              <p className="text-sm font-bold text-slate-700">
+                Sin ventas registradas en este período
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Las operaciones completadas aparecerán en este ranking.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {topProducts.map((prod, idx) => (
+                <div
+                  key={prod.productId}
+                  className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/90 hover:border-emerald-300 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-7 h-7 rounded-lg bg-slate-900 text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {prod.name}
+                      </p>
+                      <p className="text-xs text-slate-600 truncate mt-0.5">
+                        {prod.brand} · {prod.discipline} ·{" "}
+                        <span className="font-bold text-slate-800">
+                          {prod.unitsSold} un. vendidas
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-black text-slate-900">
+                      {prod.formattedRevenue}
+                    </p>
+                    {canViewFinancials ? (
+                      <p className="text-xs font-bold text-emerald-700 flex items-center justify-end gap-1 mt-0.5">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        <span>
+                          Ganancia: {prod.formattedProfit} ({prod.marginPercent}%)
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+                        <Lock className="w-3 h-3" />
+                        <span>Margen restringido</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Full-Size Responsive SVG Line Chart */
+        <div
+          ref={chartContainerRef}
+          className="relative flex-1 w-full h-[265px] min-h-[250px] mt-3"
+        >
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="absolute inset-0 w-full h-full block overflow-visible select-none"
+          >
+            <defs>
+              <linearGradient id="primaryAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Horizontal Gridlines & Y-Axis Labels */}
+            {yLabels.map((item) => {
+              const y = getY(item.val);
+              return (
+                <g key={item.val}>
+                  <text
+                    x={paddingLeft - 10}
+                    y={y + 4}
+                    textAnchor="end"
+                    className="fill-slate-600 text-xs font-semibold font-sans"
+                  >
+                    {item.label}
+                  </text>
+                  <line
+                    x1={paddingLeft}
+                    y1={y}
+                    x2={width - paddingRight}
+                    y2={y}
+                    stroke={item.val === 0 ? "#94a3b8" : "#cbd5e1"}
+                    strokeWidth={item.val === 0 ? "1.5" : "1"}
+                    strokeDasharray={item.val === 0 ? "none" : "4 4"}
+                  />
+                </g>
+              );
+            })}
+
+            {/* Area under Primary Curve */}
+            {primaryAreaPath && (
+              <path d={primaryAreaPath} fill="url(#primaryAreaGrad)" />
+            )}
+
+            {/* Secondary Dashed Spline Curve */}
+            <path
+              d={secondaryPath}
+              fill="none"
+              stroke="#0284c7"
+              strokeWidth="2.5"
+              strokeDasharray="5 5"
+              className="transition-all duration-300"
+            />
+
+            {/* Primary Solid Spline Curve */}
+            <path
+              d={primaryPath}
+              fill="none"
+              stroke="#059669"
+              strokeWidth="3.5"
+              className="transition-all duration-300"
+            />
+
+            {/* Interactive Hover Points & X-Axis Labels */}
+            {activeDataset.map((d, i) => {
+              const x = getX(i);
+              const yPrimary = primaryPoints[i].y;
+              const ySecondary = secondaryPoints[i].y;
+              const isHovered = hoveredIndex === i;
+
+              return (
+                <g
+                  key={d.label}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  className="cursor-pointer"
+                >
+                  {/* Invisible hover column */}
+                  <rect
+                    x={x - chartWidth / count / 2}
+                    y={paddingTop}
+                    width={chartWidth / count}
+                    height={chartHeight}
+                    fill="transparent"
+                  />
+
+                  {/* Vertical Guide Line on Hover */}
+                  {isHovered && (
+                    <line
+                      x1={x}
+                      y1={paddingTop}
+                      x2={x}
+                      y2={paddingTop + chartHeight}
+                      stroke="#64748b"
+                      strokeWidth="1.5"
+                      strokeDasharray="3 3"
+                    />
+                  )}
+
+                  {/* Visible Dots on Primary Curve + Emphasized on Hover */}
+                  <circle
+                    cx={x}
+                    cy={yPrimary}
+                    r={isHovered ? "6" : "4"}
+                    className="fill-emerald-600 stroke-white stroke-2 transition-all"
+                  />
+
+                  {isHovered && (
+                    <circle
+                      cx={x}
+                      cy={ySecondary}
+                      r="5"
+                      className="fill-sky-600 stroke-white stroke-2"
+                    />
+                  )}
+
+                  {/* X-Axis Month/Day Label */}
+                  <text
+                    x={x}
+                    y={height - 6}
+                    textAnchor="middle"
+                    className={`text-xs font-sans transition-colors ${
+                      isHovered
+                        ? "fill-slate-950 font-extrabold"
+                        : "fill-slate-600 font-semibold"
+                    }`}
+                  >
+                    {d.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Floating Tooltip on Hover */}
+          {hoveredIndex !== null && activeDataset[hoveredIndex] && (
+            <div className="absolute top-3 right-4 bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl shadow-xl pointer-events-none flex flex-col gap-1.5 border border-slate-700 z-20">
+              <span className="font-extrabold text-slate-200 border-b border-slate-700 pb-1">
+                {activeDataset[hoveredIndex].label}
+              </span>
+              {activeTab === "channels" ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-emerald-400 font-semibold">Mostrador:</span>
+                    <span className="font-bold">
+                      {formatCurrency(activeDataset[hoveredIndex].storeRevenue)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sky-300 font-semibold">Tienda Web:</span>
+                    <span className="font-bold">
+                      {formatCurrency(activeDataset[hoveredIndex].webRevenue)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-white font-semibold">{periodLabel}:</span>
+                    <span className="font-bold">
+                      {formatCurrency(activeDataset[hoveredIndex].currentRevenue)}
+                    </span>
+                  </div>
+                  {canViewFinancials && (
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-emerald-400 font-semibold">Ganancia Bruta:</span>
+                      <span className="font-bold text-emerald-300">
+                        {formatCurrency(activeDataset[hoveredIndex].currentProfit)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sky-300 font-semibold">{comparisonLabel}:</span>
+                    <span className="font-bold">
+                      {formatCurrency(activeDataset[hoveredIndex].previousRevenue)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

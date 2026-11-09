@@ -168,9 +168,11 @@ async function runRf16Tests() {
       variantAfterApproved.stockReserved === initialVariantState.stockReserved - 1,
       `stockReserved decrementado correctamente (${variantAfterApproved.stockReserved})`
     );
+    const totalPhysicalBefore = initialVariantState.stockStore + initialVariantState.stockWarehouse;
+    const totalPhysicalAfter = variantAfterApproved.stockStore + variantAfterApproved.stockWarehouse;
     assert(
-      variantAfterApproved.stockStore === initialVariantState.stockStore - 1,
-      `stockStore físico decrementado correctamente (${variantAfterApproved.stockStore})`
+      totalPhysicalAfter === totalPhysicalBefore - 1,
+      `Stock físico total (Depósito + Salón) decrementado correctamente (${totalPhysicalAfter} vs ${totalPhysicalBefore - 1})`
     );
 
     const auditMovement = await prisma.inventoryMovement.findFirst({

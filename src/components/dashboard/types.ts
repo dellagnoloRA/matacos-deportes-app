@@ -2,9 +2,11 @@ export interface KpiData {
   id: string;
   title: string;
   value: string;
+  subtitle?: string;
   change: string;
   isPositive: boolean;
   isFeatured?: boolean;
+  isRestricted?: boolean;
 }
 
 export interface ChartDataPoint {

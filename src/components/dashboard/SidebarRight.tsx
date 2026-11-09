@@ -1,223 +1,228 @@
 "use client";
 
 import React from "react";
-import { Bug, UserPlus, Radio, CheckCircle, X } from "lucide-react";
-
-import { NotificationItem, ActivityItem, ProviderContact } from "./types";
+import {
+  AlertTriangle,
+  ShoppingBag,
+  Wallet,
+  CheckCircle2,
+  X,
+} from "lucide-react";
+import type {
+  SidebarAlertItemDTO,
+  SidebarActivityItemDTO,
+  SidebarStaffItemDTO,
+} from "@/schemas/analytics";
 
 interface SidebarRightProps {
   className?: string;
   onClose?: () => void;
   isMobile?: boolean;
+  notifications?: SidebarAlertItemDTO[];
+  activities?: SidebarActivityItemDTO[];
+  staff?: SidebarStaffItemDTO[];
+  onNavigateTab?: (tabId: string) => void;
 }
 
-
-const NOTIFICATIONS: NotificationItem[] = [
+const DEFAULT_NOTIFICATIONS: SidebarAlertItemDTO[] = [
   {
-    id: "1",
-    title: "You fixed a bug.",
-    time: "Just now",
+    id: "default-1",
+    title: "Monitoreo de stock activo",
+    subtitle: "Control dual Salón y Depósito",
+    time: "Tiempo real",
     iconType: "bug",
+    severity: "info",
+    targetTab: "inventario",
   },
   {
-    id: "2",
-    title: "New user registered.",
-    time: "59 minutes ago",
-    iconType: "user",
-  },
-  {
-    id: "3",
-    title: "You fixed a bug.",
-    time: "12 hours ago",
-    iconType: "bug",
-  },
-  {
-    id: "4",
-    title: "Andi Lane subscribed to you.",
-    time: "Today, 11:59 AM",
+    id: "default-2",
+    title: "Conciliación de pagos web",
+    subtitle: "Mercado Pago y Transferencias",
+    time: "Operativo",
     iconType: "subscribe",
+    severity: "success",
+    targetTab: "ecommerce",
   },
 ];
 
-const ACTIVITIES: ActivityItem[] = [
+const DEFAULT_ACTIVITIES: SidebarActivityItemDTO[] = [
   {
-    id: "a1",
-    action: "Changed the style.",
-    time: "Just now",
-    avatarBg: "from-pink-500 to-rose-400",
-    initials: "CS",
-  },
-  {
-    id: "a2",
-    action: "Released a new version.",
-    time: "59 minutes ago",
-    avatarBg: "from-amber-500 to-orange-500",
-    initials: "NV",
-  },
-  {
-    id: "a3",
-    action: "Submitted a bug.",
-    time: "12 hours ago",
-    avatarBg: "from-blue-600 to-indigo-500",
-    initials: "SB",
-  },
-  {
-    id: "a4",
-    action: "Modified A data in Page X.",
-    time: "Today, 11:59 AM",
-    avatarBg: "from-purple-800 to-slate-900",
+    id: "act-1",
+    action: "Sistema sincronizado",
+    detail: "Base de datos PostgreSQL activa",
+    time: "Recién",
+    avatarBg: "from-emerald-600 to-teal-700",
     initials: "MD",
   },
-  {
-    id: "a5",
-    action: "Deleted a page in Project X.",
-    time: "Feb 2, 2026",
-    avatarBg: "from-teal-500 to-emerald-600",
-    initials: "DP",
-  },
 ];
 
-const PROVIDERS: ProviderContact[] = [
+const DEFAULT_STAFF: SidebarStaffItemDTO[] = [
   {
-    id: "p1",
-    name: "Natali Craig",
+    id: "staff-1",
+    name: "Administrador Matacos",
+    roleLabel: "Administrador",
     status: "online",
     avatarBg: "from-slate-700 to-slate-900",
-    initials: "NC",
-  },
-  {
-    id: "p2",
-    name: "Drew Cano",
-    status: "online",
-    avatarBg: "from-stone-600 to-stone-800",
-    initials: "DC",
-  },
-  {
-    id: "p3",
-    name: "Andi Lane",
-    status: "offline",
-    avatarBg: "from-zinc-500 to-zinc-700",
-    initials: "AL",
-  },
-  {
-    id: "p4",
-    name: "Koray Okumus",
-    status: "online",
-    avatarBg: "from-neutral-700 to-neutral-900",
-    initials: "KO",
-  },
-  {
-    id: "p5",
-    name: "Kate Morrison",
-    status: "offline",
-    avatarBg: "from-slate-600 to-slate-800",
-    initials: "KM",
-  },
-  {
-    id: "p6",
-    name: "Melody Macy",
-    status: "online",
-    avatarBg: "from-gray-700 to-gray-900",
-    initials: "MM",
+    initials: "AM",
   },
 ];
 
-export function SidebarRight({ className = "", onClose, isMobile = false }: SidebarRightProps) {
+export function SidebarRight({
+  className = "",
+  onClose,
+  notifications,
+  activities,
+  staff,
+  onNavigateTab,
+}: SidebarRightProps) {
+  const alertList =
+    notifications && notifications.length > 0
+      ? notifications
+      : DEFAULT_NOTIFICATIONS;
+  const activityList =
+    activities && activities.length > 0 ? activities : DEFAULT_ACTIVITIES;
+  const staffList = staff && staff.length > 0 ? staff : DEFAULT_STAFF;
+
   return (
     <aside
-      className={`w-64 shrink-0 flex flex-col gap-6 py-5 px-4 bg-white/95 xl:bg-white/70 backdrop-blur-md xl:backdrop-blur-sm border-l border-slate-200/70 select-none overflow-y-auto ${className}`}
+      className={`w-80 shrink-0 flex flex-col gap-6 py-5 px-5 bg-white border-l border-slate-300/90 shadow-lg select-none overflow-y-auto ${className}`}
     >
-      {/* 1. Notifications Section */}
+      {/* 1. Alertas Operativas Section */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-slate-800 tracking-tight">
-            Notificaciones
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+            Alertas Operativas
           </h3>
           {onClose && (
             <button
               onClick={onClose}
-              className="xl:hidden p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Cerrar panel"
+              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Ocultar panel lateral"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
-        <div className="space-y-3">
-          {NOTIFICATIONS.map((item) => (
+        <div className="space-y-2.5">
+          {alertList.map((item) => (
             <div
               key={item.id}
-              className="flex items-start gap-2.5 group cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors"
+              onClick={() => item.targetTab && onNavigateTab?.(item.targetTab)}
+              className="flex items-start gap-3 group cursor-pointer bg-slate-50/90 hover:bg-emerald-50/50 p-2.5 rounded-xl transition-colors border border-slate-200/80 hover:border-emerald-300"
             >
-              <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 shrink-0 mt-0.5 group-hover:bg-slate-200">
-                {item.iconType === "bug" && <Bug className="w-3 h-3" />}
-                {item.iconType === "user" && <UserPlus className="w-3 h-3" />}
-                {item.iconType === "subscribe" && <Radio className="w-3 h-3" />}
+              <div
+                className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                  item.severity === "critical"
+                    ? "bg-rose-100 text-rose-700 border border-rose-300"
+                    : item.severity === "warning"
+                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                    : item.severity === "success"
+                    ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                    : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {item.severity === "critical" || item.severity === "warning" ? (
+                  <AlertTriangle className="w-4 h-4 stroke-[2]" />
+                ) : item.severity === "success" ? (
+                  <Wallet className="w-4 h-4 stroke-[2]" />
+                ) : (
+                  <ShoppingBag className="w-4 h-4 stroke-[2]" />
+                )}
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-medium text-slate-800 leading-snug truncate">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm font-bold text-slate-900 truncate leading-snug">
                   {item.title}
+                </p>
+                {item.subtitle && (
+                  <p className="text-xs text-slate-600 truncate mt-0.5">
+                    {item.subtitle}
+                  </p>
+                )}
+                <span className="text-[11px] text-slate-500 font-semibold">
+                  {item.time}
                 </span>
-                <span className="text-[10.5px] text-slate-400">{item.time}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 2. Activities Section */}
+      {/* 2. Actividad en Vivo Section */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-800 tracking-tight mb-3">
-          Actividades
+        <h3 className="text-sm font-bold text-slate-900 tracking-tight pb-2.5 mb-3 border-b border-slate-200">
+          Actividad en Vivo
         </h3>
-        <div className="space-y-3">
-          {ACTIVITIES.map((act) => (
-            <div
-              key={act.id}
-              className="flex items-start gap-2.5 group cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors"
-            >
+        <div className="relative space-y-4 before:content-[''] before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-[1.5px] before:bg-slate-200">
+          {activityList.map((act) => (
+            <div key={act.id} className="relative flex items-start gap-3 pl-0.5">
               <div
-                className={`w-6 h-6 rounded-full bg-gradient-to-tr ${act.avatarBg} text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 shadow-xs ring-1 ring-white`}
+                className={`relative z-10 w-6 h-6 rounded-full bg-gradient-to-br ${act.avatarBg} text-white text-[10px] font-bold flex items-center justify-center shrink-0 ring-2 ring-white shadow-xs`}
               >
                 {act.initials}
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-medium text-slate-800 leading-snug truncate">
+              <div className="flex-1 min-w-0 -mt-0.5">
+                <p className="text-xs sm:text-sm font-bold text-slate-900 truncate leading-snug">
                   {act.action}
+                </p>
+                {act.detail && (
+                  <p className="text-xs font-medium text-slate-600 truncate">
+                    {act.detail}
+                  </p>
+                )}
+                <span className="text-[11px] font-medium text-slate-500">
+                  {act.time}
                 </span>
-                <span className="text-[10.5px] text-slate-400">{act.time}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 3. Providers / Contacts Section */}
+      {/* 3. Personal y Turnos Section */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-800 tracking-tight mb-3">
-          Proveedores
+        <h3 className="text-sm font-bold text-slate-900 tracking-tight pb-2.5 mb-3 border-b border-slate-200">
+          Equipo y Turnos
         </h3>
         <div className="space-y-2.5">
-          {PROVIDERS.map((prov) => (
+          {staffList.map((prov) => (
             <div
               key={prov.id}
-              className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors"
+              className="flex items-center justify-between group p-2 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200/70 transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="relative">
+                <div className="relative shrink-0">
                   <div
-                    className={`w-6 h-6 rounded-full bg-gradient-to-tr ${prov.avatarBg} text-white flex items-center justify-center text-[9.5px] font-semibold ring-1 ring-slate-200`}
+                    className={`w-7 h-7 rounded-full bg-gradient-to-br ${prov.avatarBg} text-white text-xs font-bold flex items-center justify-center shadow-xs`}
                   >
                     {prov.initials}
                   </div>
-                  {prov.status === "online" && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute bottom-0 right-0 ring-1 ring-white" />
-                  )}
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                      prov.status === "online"
+                        ? "bg-emerald-500"
+                        : prov.status === "busy"
+                        ? "bg-sky-500"
+                        : "bg-slate-300"
+                    }`}
+                  />
                 </div>
-                <span className="text-xs font-medium text-slate-700 group-hover:text-slate-900 truncate">
-                  {prov.name}
-                </span>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-slate-950 truncate block transition-colors">
+                    {prov.name}
+                  </span>
+                  <span className="text-xs font-medium text-slate-500 truncate block">
+                    {prov.roleLabel}
+                  </span>
+                </div>
               </div>
+
+              <CheckCircle2
+                className={`w-4 h-4 shrink-0 transition-colors ${
+                  prov.status === "online"
+                    ? "text-emerald-600"
+                    : "text-slate-300 group-hover:text-emerald-500"
+                }`}
+              />
             </div>
           ))}
         </div>

@@ -92,6 +92,11 @@ const SUITES = [
     rf: "RF-29",
     script: "scripts/test-rf29-customer-portal.ts",
   },
+  {
+    name: "Pantalla Gerencial de Reportes, Estadísticas y Ganancias",
+    rf: "RF-24",
+    script: "scripts/test-rf24-analytics.ts",
+  },
 ];
 
 async function main() {

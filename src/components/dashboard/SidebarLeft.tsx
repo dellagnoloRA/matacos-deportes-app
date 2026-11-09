@@ -63,6 +63,7 @@ export function SidebarLeft({
     return currentUser.permissions?.includes(code) ?? false;
   };
 
+  const isInicioActive = activeItem === "inicio" || activeItem === "analytics";
   const isInventoryActive =
     activeItem === "inventario" || activeItem.startsWith("inventario-");
 
@@ -101,7 +102,10 @@ export function SidebarLeft({
       <div className="space-y-6">
         {/* Logo Header */}
         <div className="flex items-center justify-between px-1">
-          <div className="flex flex-col cursor-pointer group">
+          <div
+            onClick={() => handleItemClick("inicio")}
+            className="flex flex-col cursor-pointer group"
+          >
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#094d3f] to-[#042820] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] shadow-xs group-hover:scale-105 transition-transform shrink-0">
                 <span className="font-black italic text-xl tracking-tighter">M</span>
@@ -146,16 +150,32 @@ export function SidebarLeft({
 
         {/* Main Navigation Menu */}
         <nav className="space-y-1.5 pt-1">
-          {/* 1. Inicio / Dashboard Overview (Bloqueado) */}
+          {/* 1. Inicio / Dashboard Overview (RF-24) */}
           <button
-            disabled
-            className="flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold opacity-50 cursor-not-allowed text-emerald-100"
+            onClick={() => handleItemClick("inicio")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold cursor-pointer ${
+              isInicioActive
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
           >
             <div className="flex items-center gap-3">
-              <LayoutDashboard className="w-4 h-4 text-emerald-300" />
+              <LayoutDashboard
+                className={`w-4 h-4 ${
+                  isInicioActive ? "text-slate-950" : "text-emerald-300"
+                }`}
+              />
               <span>Inicio / Métricas</span>
             </div>
-            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pronto</span>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                isInicioActive
+                  ? "bg-slate-950/15 text-slate-950"
+                  : "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
+              }`}
+            >
+              KPIs
+            </span>
           </button>
 
           {/* 2. Inventario con Sub-índices */}
