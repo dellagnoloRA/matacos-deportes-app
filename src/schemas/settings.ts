@@ -98,6 +98,11 @@ export const StoreSettingSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("")),
+  cadeteriaCost: z
+    .coerce
+    .number({ invalid_type_error: "La tarifa de cadetería debe ser un número" })
+    .min(0, "La tarifa no puede ser negativa")
+    .default(2500),
 });
 
 export type StoreSettingInput = z.infer<typeof StoreSettingSchema>;

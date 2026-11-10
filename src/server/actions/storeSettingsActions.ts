@@ -17,6 +17,7 @@ export interface StoreSettingsOutput {
   storePostalCode: string;
   businessHours: string;
   instagramHandle?: string | null;
+  cadeteriaCost: number;
   updatedAt: Date;
 }
 
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS = {
   storePostalCode: process.env.COMPANY_POSTAL_CODE || "3600",
   businessHours: "Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs",
   instagramHandle: process.env.COMPANY_INSTAGRAM || "@matacosdeportes",
+  cadeteriaCost: 2500,
 };
 
 /**
@@ -56,7 +58,10 @@ export async function getStoreSettings(): Promise<{
 
     return {
       success: true,
-      data: settings,
+      data: {
+        ...settings,
+        cadeteriaCost: Number(settings.cadeteriaCost ?? 2500),
+      },
     };
   } catch (error) {
     console.error("[StoreSettings] Error al obtener configuración:", error);
@@ -112,7 +117,10 @@ export async function updateStoreSettings(input: StoreSettingInput): Promise<{
 
     return {
       success: true,
-      data: updated,
+      data: {
+        ...updated,
+        cadeteriaCost: Number(updated.cadeteriaCost ?? 2500),
+      },
     };
   } catch (error) {
     console.error("[StoreSettings] Error al actualizar configuración:", error);

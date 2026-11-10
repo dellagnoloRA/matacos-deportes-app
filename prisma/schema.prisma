@@ -299,13 +299,15 @@ model Sale {
   customerDni   String?
 
   // Datos logísticos de entrega en compras web
-  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
+  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO_DOMICILIO", "CORREO_ARGENTINO_SUCURSAL"
   shippingStatus       ShippingStatus  @default(PENDIENTE)
   shippingTrackingCode String?         // Código de guía (ej. Correo Argentino)
   shippingCost         Decimal?        @default(0) @db.Decimal(12, 2)
   shippingAddress      String?         // Calle y número
   shippingCity         String?         // Localidad
   shippingPostalCode   String?
+  shippingBranchCode   String?         // Código oficial de la sucursal de Correo Argentino
+  shippingBranchName   String?         // Nombre descriptivo de la sucursal de entrega
 
   channel       String        @default("MOSTRADOR") // MOSTRADOR o WEB
   status        SaleStatus    @default(COMPLETADA)
@@ -487,5 +489,6 @@ model StoreSetting {
   storePostalCode    String   @default("3600")
   businessHours      String   @default("Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs")
   instagramHandle    String   @default("@matacosdeportes")
+  cadeteriaCost      Decimal  @default(2500) @db.Decimal(12, 2)
   updatedAt          DateTime @default(now()) @updatedAt
 }

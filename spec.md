@@ -1,220 +1,244 @@
 # Especificación Técnica (spec.md)
-## Requerimiento: Autenticación, Acceso Ágil por Usuario y Control de Accesos por Roles Dinámicos (RF-23)
+## Requerimientos: Lógica de Envíos, Integración API MiCorreo (Correo Argentino), Despachos y Ciclo de Vida de Pedidos Web (RF-19 y RF-25)
+
 **Proyecto:** Sistema Integral de Gestión, POS Offline y E-commerce — Matacos Deportes  
-**Ubicación:** Saavedra 241, Formosa Capital, Argentina  
-**Rama:** `feature/be-rf23-control-acceso-roles`  
+**Cliente:** Matacos Deportes (Saavedra 241, Formosa Capital, Argentina)  
+**Institución:** Universidad de la Cuenca del Plata — Práctica Profesional Supervisada I (PPS I)  
+**Rama Oficial:** `feature/rf19-rf25-envios-y-gestion-pedidos`  
+**Base:** `develop`  
+**Estado:** `APPROVED_FOR_DEVELOPMENT`  
 
 ---
 
-## Problem Statement
+## 1. Problem Statement
 
-Actualmente, el sistema de **Matacos Deportes** no cuenta con un mecanismo de autenticación ni control de acceso para el personal que opera en el local físico:
-1. **Rutas desprotegidas:** Cualquier persona que abra el navegador en las rutas del panel administrativo (`/admin`) o del mostrador de ventas (`/pos`) puede operar libremente sin ingresar credenciales.
-2. **Identificación no verificada en caja:** La apertura y asignación de turnos de caja en mostrador se realiza seleccionando un nombre en un menú desplegable estático (*"Cajero 1"*, *"Cajero Mostrador"*) sin exigir autenticación ni PIN/contraseña.
-3. **Roles estáticos y rígidos:** El modelo original contemplaba un enumerado fijo (`enum Role { ADMIN, CAJERO, DESPACHO }`), impidiendo que el dueño o administrador del negocio pueda crear perfiles intermedios (ej. *Encargado de Local*, *Vendedor Salón*) o configurar qué acciones específicas puede realizar cada empleado.
-4. **Fricción operativa en mostrador:** En un punto de venta físico de alto tránsito, exigir que los cajeros y vendedores recuerden y tipeen un correo electrónico largo para iniciar turno o desbloquear la terminal es lento y proclive a errores de digitación. Se requiere un acceso ágil mediante un nombre de usuario corto (ej. `cajero1`, `admin`).
-5. **Riesgo de confidencialidad comercial:** Empleados de salón o cajeros pueden visualizar datos estratégicos sensibles como precios de costo de compra a fábrica (`costPrice`) o recaudaciones totales sin la debida restricción.
+Actualmente, el e-commerce de **Matacos Deportes** presenta limitaciones críticas en la gestión logística y el ciclo de vida de los pedidos online:
 
----
-
-## Solution
-
-Implementar una solución integral de seguridad, autenticación y autorización que contemple:
-
-1. **Autenticación Flexible (Identificador Dual):**
-   * El personal del local (`User`) puede iniciar sesión indistintamente con su **Nombre de Usuario** (ej. `admin`, `cajero1`, `mostrador`) o su **Correo Electrónico**, acompañado de su contraseña segura.
-   * Almacenamiento criptográfico irreversible de contraseñas mediante **`bcryptjs`** (10 salt rounds).
-2. **Control de Acceso Basado en Perfiles Dinámicos y Permisos Atómicos (RBAC):**
-   * **Catálogo Maestro de Permisos (30 permisos):** Capacidades técnicas fijas gobernadas en código fuente por el equipo de desarrollo, divididas en 6 módulos funcionales (`POS`, `CAJA`, `INVENTARIO`, `ECOMMERCE`, `REPORTES`, `ADMIN`).
-   * **Perfiles Dinámicos Gestionados por el Administrador:** El Administrador General es el único facultado para crear, editar o dar de baja perfiles de acceso y marcar/desmarcar casillas de verificación de permisos.
-   * **Herencia Jerárquica Reflexiva:** Soporte para que perfiles supervisores (ej. *Encargado de Local*) hereden automáticamente los permisos del perfil operativo base (*Cajero Mostrador*), agregando únicamente atribuciones de supervisión.
-3. **Aislamiento Físico y Lógico del Personal respecto a Clientes Web:**
-   * La entidad `Customer` (clientes de la tienda online) está completamente separada de `User`. Un cliente registrado en el e-commerce jamás puede acceder ni autenticarse en las rutas del dashboard o del mostrador.
-   * No existe auto-registro para empleados: las cuentas de personal son creadas exclusivamente por el Administrador General desde el panel de control.
-4. **Gestión de Sesiones Seguras y Middleware de Protección:**
-   * Sesiones administradas mediante cookies `HttpOnly`, `SameSite=Lax` y seguras.
-   * Middleware de Next.js que intercepta cualquier petición a `/admin/*` y `/pos/*`, redirigiendo automáticamente a `/login` si no existe una sesión válida y activa.
-5. **Protección a Nivel de Servidor y Renderizado Condicional:**
-   * Verificación de permisos tanto en Server Actions como en Route Handlers.
-   * Enmascaramiento estricto de campos confidenciales (ej. `costPrice`) si el usuario autenticado no posee el permiso `inventario.costos`.
+1. **Tarifas Planas y Hardcodeadas en Checkout:**  
+   El costo de envío nacional con Correo Argentino está fijado estáticamente en `$ 7.500,00` dentro de `checkoutActions.ts`, sin cotización en tiempo real basada en el código postal de destino, distancia ni volumen/peso de los productos.
+2. **Falta de Opción de Retiro en Sucursal Postal:**  
+   El sistema no ofrece la modalidad de retiro en sucursal oficial de Correo Argentino (`deliveredType: 'S'`), la cual representa entre un 30% y 40% de ahorro frente al envío a domicilio para el comprador.
+3. **Tarifa de Cadetería Rígida:**  
+   El reparto por cadete/moto en Formosa Capital (CP 3600) está prefijado en `$ 2.500,00` y no puede ser actualizado por el dueño del local desde la interfaz del sistema, obligando a modificar código fuente o variables de entorno ante aumentos de combustible.
+4. **Ausencia de Generación de Guías y Rótulos de Despacho:**  
+   El personal de mostrador en Saavedra 241 no dispone de una herramienta para registrar la imposición postal en Correo Argentino (`/shipping/import`), obtener el código de seguimiento oficial ni imprimir la etiqueta/rótulo de despacho para adherir a los paquetes.
+5. **Anulación Incompleta de Pedidos Web:**  
+   El procedimiento actual de cancelación solo contempla pedidos impagos. Si un pedido pagado o en preparación sufre una cancelación, no existe un flujo transaccional que reincorpore las existencias al stock físico (`stockStore` o `stockWarehouse`) mediante movimientos inmutables de auditoría `ANULACION_VENTA`.
+6. **Dependencia de Credenciales Externas:**  
+   La tramitación de credenciales oficiales de la API MiCorreo con Correo Argentino puede demorar días hábiles. El sistema carece de un modo Mock que emule los contratos oficiales para permitir el desarrollo y prueba integral sin bloqueos.
 
 ---
 
-## User Stories
+## 2. Solution Overview
 
-### Como Administrador General
-1. Como Administrador, quiero iniciar sesión utilizando mi nombre de usuario `admin` o mi correo electrónico, para ingresar al panel de forma ágil desde cualquier dispositivo autorizado.
-2. Como Administrador, quiero que las contraseñas de todos los empleados se guarden cifradas con `bcryptjs`, para resguardar la seguridad del negocio ante eventuales filtraciones.
-3. Como Administrador, quiero acceder a una sección `/admin/usuarios` para crear nuevos empleados indicando nombre, usuario, correo, contraseña y su perfil asignado, para mantener centralizado el control del personal.
-4. Como Administrador, quiero poder editar los datos, cambiar el perfil o desactivar la cuenta de un empleado que ya no trabaja en el local, para revocar su acceso inmediatamente.
-5. Como Administrador, quiero poder reestablecer la contraseña de un empleado si este la olvida, para permitirle retomar sus tareas sin demoras.
-6. Como Administrador, quiero acceder a `/admin/perfiles` para crear nuevos perfiles (ej. *Encargado de Turno Mañana*, *Vendedor Temporario*) asignando un nombre, nivel y descripción.
-7. Como Administrador, quiero seleccionar mediante casillas de verificación (checkboxes) agrupadas por módulo qué permisos específicos tiene cada perfil, para definir con precisión las atribuciones de cada puesto.
-8. Como Administrador, quiero que los perfiles nativos del sistema con `isSystem: true` no puedan ser eliminados, para evitar el bloqueo accidental de la administración.
-9. Como Administrador, quiero ser el único con acceso a visualizar los precios de costo de proveedores (`costPrice`) y los márgenes de ganancia bruta, para mantener bajo estricta confidencialidad la información comercial.
-10. Como Administrador, quiero consultar métricas globales de facturación y gráficos de ingresos (`reportes.ver_kpis`), para evaluar la salud financiera del comercio.
+Implementar un subsistema logístico y de gestión de órdenes desacoplado, resiliente y de alta fidelidad que articule **RF-19** y **RF-25**:
 
-### Como Encargado de Local
-11. Como Encargado, quiero iniciar sesión con mi nombre de usuario corto para acceder al sistema rápidamente durante mi turno de supervisión.
-12. Como Encargado, quiero heredar automáticamente los permisos del cajero de mostrador, para poder cubrir la línea de cobro si hay mucha afluencia de clientes sin necesidad de cambiar de usuario.
-13. Como Encargado, quiero ver el saldo teórico esperado del sistema antes de cerrar el arqueo de caja (`caja.ver_teorico`), para auditar la exactitud del conteo de billetes del cajero.
-15. Como Encargado, quiero consultar el historial de arqueos y justificaciones de desvíos (`caja.auditoria_historial`), para auditar los turnos pasados.
-16. Como Encargado, quiero realizar ajustes manuales de inventario por roturas, mermas o transferencias salón-depósito (`inventario.ajuste_stock`), para mantener el stock físico sincronizado.
-17. Como Encargado, quiero que el sistema no me permita ver los precios de costo de compra (`costPrice`), para respetar la confidencialidad fijada por el dueño.
+```mermaid
+flowchart TD
+    subgraph Checkout_RF19["Checkout Web (RF-19)"]
+        Cart[Carrito con Variantes] --> VirtualPackage[Cálculo de Paquete Virtual y Peso Heurístico]
+        VirtualPackage --> MethodChoice{Modalidad de Entrega}
+        MethodChoice -->|RETIRO_LOCAL| FreeCost["Costo: $0,00"]
+        MethodChoice -->|CADETERIA_FORMOSA| LocalCost["Tarifa Plana Dinámica (StoreSetting.cadeteriaCost)"]
+        MethodChoice -->|CORREO_ARGENTINO_DOMICILIO| RateHome["POST /rates (deliveredType: 'D')"]
+        MethodChoice -->|CORREO_ARGENTINO_SUCURSAL| AgencySelect["GET /agencies + Selector de Sucursal"]
+        AgencySelect --> RateAgency["POST /rates (deliveredType: 'S')"]
+        RateHome --> FreezeCost[Congelar shippingCost en Sale]
+        RateAgency --> FreezeCost
+        FreeCost --> FreezeCost
+        LocalCost --> FreezeCost
+    end
 
-### Como Cajero de Mostrador
-18. Como Cajero, quiero iniciar sesión tipeando únicamente mi usuario (ej. `cajero1`) y mi contraseña, para abrir la terminal de ventas en menos de 5 segundos.
-19. Como Cajero, quiero que al abrir el turno de caja se asocie automáticamente mi usuario autenticado, eliminando la selección manual de nombres en desplegables.
-20. Como Cajero, quiero poder registrar ventas, cobrar con múltiples medios de pago y emitir tickets de mostrador (`pos.vender`), para atender con fluidez a los clientes.
-21. Como Cajero, quiero realizar cambios de talle o prendas devueltas calculando saldos a favor o en contra (`pos.cambios_devoluciones`), para resolver los cambios en mostrador.
-22. Como Cajero, quiero registrar egresos de dinero por gastos menores o retiros de seguridad (`caja.movimientos`), para mantener el saldo de caja chica al día.
-23. Como Cajero, quiero ejecutar el arqueo ciego al final del turno contando físicamente el dinero sin ver el monto teórico del sistema, para garantizar un control transparente.
-24. Como Cajero, quiero reimprimir comprobantes finalizados si la impresora térmica se traba (`caja.reimprimir_ticket`), para entregar el ticket correspondiente al comprador.
+    subgraph Salon_RF25["Despacho y Ciclo de Vida en Salón Saavedra 241 (RF-25)"]
+        PaidSale[Venta Web Pagada: COMPLETADA] --> Prep[ShippingStatus: EN_PREPARACION]
+        Prep --> Packaging[Empaque Físico en Mostrador]
+        Packaging --> ActionBtn[Operador presiona 'Generar Guía Correo Argentino']
+        ActionBtn --> ImportAPI["POST /shipping/import (MiCorreo API o Mock)"]
+        ImportAPI --> LabelPDF[Generación de Rótulo / Etiqueta Imprimible]
+        ImportAPI --> TrackingAssigned[Asignación de Guía TN...AR]
+        TrackingAssigned --> InTransit[ShippingStatus: EN_CAMINO]
+        InTransit --> NotifyEmail[Email al Comprador con Enlace Directo]
+        
+        Prep -.->|Si hay cancelación| CancelAction[cancelWebOrderAction]
+        CancelAction --> RevertStock[Prisma Transaction: StockStore + InventoryMovement ANULACION_VENTA]
+    end
+```
 
-### Como Vendedor de Salón
-26. Como Vendedor, quiero iniciar sesión con mi usuario personal para consultar existencias de talles y colores en Salón y Depósito (`inventario.ver`), para asesorar eficazmente al cliente.
-27. Como Vendedor, quiero armar preventas en el salón y dejarlas pendientes de pago (`pos.vender`), para que el cliente pase directamente a la caja a abonar.
-28. Como Vendedor, quiero modificar o corregir una preventa antes de que sea cobrada (`caja.modificar_preventa`), en caso de que el cliente decida cambiar un artículo a último momento.
-29. Como Vendedor, quiero que el sistema me oculte los módulos de administración, arqueos de caja, reportes financieros y costos, para ver una interfaz limpia enfocada en la venta.
-
----
-
-## Implementation Decisions
-
-### 1. Modelo de Datos y Esquema Prisma (`prisma/schema.prisma`)
-* **Ampliación de `User`:**
-  * Se incorpora el campo `username String? @unique` para permitir nombres de usuario únicos en minúsculas (ej: `admin`, `cajero1`, `mostrador`).
-  * Se mantiene `email String @unique` para soporte dual de login y notificaciones.
-  * Se mantiene `profileId String?` con relación a `Profile`.
-  * Se conserva `role Role?` como campo legacy de compatibilidad.
-* **Modelo `Profile`:**
-  * Campos: `id` (UUID), `name` (unique), `description`, `level` (Int), `isSystem` (Boolean default false), `parentProfileId` (relación reflexiva a Profile).
-* **Modelo `Permission`:**
-  * Campos: `id` (UUID), `code` (unique), `module` (String), `description` (String).
-* **Modelo `ProfilePermission`:**
-  * Clave primaria compuesta `@@id([profileId, permissionId])` con eliminación en cascada.
-* **Aislamiento de `Customer`:**
-  * Permanece como entidad separada para la tienda web, sin ningún tipo de relación con `Profile` ni `Permission`.
-
-### 2. Catálogo Maestro de los 29 Permisos Atómicos
-Los permisos quedan estandarizados e inmutables en código, clasificados en 6 módulos:
-
-* **Módulo POS (3 permisos):**
-  * `pos.vender`: Crear tickets, agregar productos, procesar cobros y emitir comprobantes.
-  * `pos.descuento_manual`: Aplicar bonificaciones o descuentos manuales en mostrador.
-  * `pos.cambios_devoluciones`: Gestionar cambios de talle/prenda y devoluciones de clientes en mostrador.
-* **Módulo CAJA (7 permisos):**
-  * `caja.abrir_turno`: Abrir turno de terminal con fondo inicial en efectivo.
-  * `caja.movimientos`: Registrar ingresos y egresos de caja chica o retiros de seguridad.
-  * `caja.cerrar_arqueo`: Ejecutar arqueo de billetes y cierre de jornada de terminal.
-  * `caja.auditoria_historial`: Consultar historial consolidado de arqueos y justificaciones.
-  * `caja.ver_teorico`: Visualizar el total esperado del sistema antes de contar billetes (supervisión de arqueo ciego).
-  * `caja.reimprimir_ticket`: Reimpresión de tickets finalizados desde el historial.
-  * `caja.modificar_preventa`: Editar o cancelar preventas pendientes antes de su cobro definitivo en caja.
-* **Módulo INVENTARIO (11 permisos):**
-  * `inventario.ver`: Consultar catálogo y existencias en Salón y Depósito.
-  * `inventario.crear_producto`: Alta, edición y desactivación de productos y variantes.
-  * `inventario.precios`: Modificar individualmente el precio de venta al público (PVP).
-  * `inventario.actualizacion_lote`: Modificación masiva de precios por lote, marca o categoría.
-  * `inventario.costos`: Visualizar precio de costo de proveedores (`costPrice`) y margen comercial.
-  * `inventario.ajuste_stock`: Ajustes manuales de existencias, roturas y transferencias salón-depósito.
-  * `inventario.importar_excel`: Carga e importación masiva de catálogo vía Excel/CSV.
-  * `inventario.maestros`: Administrar Marcas, Categorías y Disciplinas deportivas.
-  * `inventario.historial_precios`: Auditar bitácora histórica de modificaciones de precios.
-  * `inventario.alertas_stock`: Configurar umbrales de stock crítico y reposición interna.
-  * `inventario.etiquetas_codigos`: Generación e impresión de etiquetas con código de barras adhesivas.
-* **Módulo ECOMMERCE (4 permisos):**
-  * `ecommerce.pedidos`: Gestionar pedidos web entrantes, preparación y despacho.
-  * `ecommerce.banners`: Modificar banners del carrusel hero y vitrinas destacadas.
-  * `ecommerce.cupones`: Crear y gestionar cupones de descuento y promociones online.
-  * `ecommerce.clientes`: Visualizar cartera de clientes registrados en la tienda online.
-* **Módulo REPORTES (2 permisos):**
-  * `reportes.ver_kpis`: Visualizar facturación global, ticket promedio y gráficos financieros.
-  * `reportes.exportar`: Exportar reportes de ventas, arqueos y stock a Excel/PDF.
-* **Módulo ADMIN (2 permisos):**
-  * `admin.usuarios`: Gestionar altas, bajas, asignación de perfiles y contraseñas de personal.
-  * `admin.perfiles`: Crear y configurar perfiles de acceso y matriz de permisos.
-
-### 3. Matriz Inicial de Perfiles Base del Sistema
-* **Administrador (Nivel 100, `isSystem: true`):** Posee los 29 permisos atómicos.
-* **Encargado de Local (Nivel 50, `isSystem: true`):** Hereda los 9 permisos de *Cajero Mostrador* a través de `parentProfileId`, y se le asignan adicionalmente 7 permisos de supervisión (`caja.auditoria_historial`, `caja.ver_teorico`, `inventario.ajuste_stock`, `inventario.etiquetas_codigos`, `inventario.alertas_stock`, `ecommerce.pedidos`, `reportes.ver_kpis`). No tiene acceso a `inventario.costos` ni a módulos `ADMIN`.
-* **Cajero Mostrador (Nivel 10, `isSystem: true`):** 9 permisos directos (`pos.vender`, `pos.descuento_manual`, `pos.cambios_devoluciones`, `caja.abrir_turno`, `caja.movimientos`, `caja.cerrar_arqueo`, `caja.reimprimir_ticket`, `caja.modificar_preventa`, `inventario.ver`).
-* **Vendedor Salón (Nivel 5, `isSystem: true`):** 3 permisos directos (`pos.vender`, `caja.modificar_preventa`, `inventario.ver`).
-
-### 4. Arquitectura de Autenticación y Sesión
-* **Server Action `login(identifier, password)`:**
-  * Normaliza el identificador a minúsculas y elimina espacios.
-  * Busca el usuario mediante `prisma.user.findFirst({ where: { OR: [{ username: identifier }, { email: identifier }], active: true }, include: { profile: { include: { permissions: { include: { permission: true } }, parentProfile: { include: { permissions: { include: { permission: true } } } } } } } })`.
-  * Valida la contraseña comparando el texto plano con el hash almacenado mediante `bcrypt.compare`.
-  * Resuelve la lista de permisos efectivos: **Permisos Directos + Permisos Heredados del `parentProfile`**.
-  * Sella un token de sesión seguro (JWT firmado o sesión cifrada) y lo establece en una cookie `matacos_session` con flags `httpOnly: true`, `secure: process.env.NODE_ENV === "production"`, `sameSite: "lax"`, `path: "/"`.
-* **Server Action `logout()`:**
-  * Elimina la cookie de sesión y redirige a `/login`.
-* **Helper de Autorización `hasPermission(permissionCode)`:**
-  * Lee la sesión activa del servidor.
-  * Verifica si el usuario posee el código de permiso solicitado. Si es Administrador (`level === 100`), retorna `true` automáticamente.
-  * En consultas de productos, omite el campo `costPrice` si no cuenta con `inventario.costos`.
-
-### 5. Middleware de Protección de Rutas (`src/middleware.ts`)
-* Intercepta las rutas privadas que inicien con:
-  * `/admin/:path*`
-  * `/pos/:path*`
-* Valida la presencia y firma de la cookie `matacos_session`.
-* Si no existe sesión o es inválida, redirige al usuario a `/login?redirect=<ruta_solicitada>`.
-* Si el usuario ya está autenticado e intenta ingresar a `/login`, lo redirige automáticamente a su área de trabajo según su perfil (ej. `/admin` o `/pos`).
-
-### 6. Diseño de Interfaz de Usuario (Enfoque Pragmático y Minimalista)
-* **Pantalla `/login` (Ultraliviana y Directa):**
-  * Diseñada con un enfoque 100% funcional y minimalista, priorizando la agilidad de los desarrolladores backend para verificar y alternar roles y permisos en pantalla sin sobrecarga cosmética innecesaria.
-  * Formulario limpio y compacto centrado en pantalla:
-    * Campo de entrada único: **"Usuario o Correo"** (autofocus, placeholder: `admin` o `cajero1`).
-    * Campo de contraseña (placeholder: `••••••••`).
-    * Botón de envío directo *"Ingresar al Sistema"*.
-    * Alerta o texto de error visible en rojo ante credenciales inválidas o usuario inactivo.
-* **Barra de Sesión y Perfil Activo (Topbar / Header):**
-  * En la cabecera del dashboard y mostrador, un indicador visual directo del usuario autenticado:
-    * Ej: `👤 admin (Administrador) | [Cerrar Sesión]`
-  * Permite validar de un vistazo qué rol está operando en la prueba visual y cerrar sesión en un clic para ingresar con otro usuario.
-* **Pantallas Administrativas (Completadas y Funcionales):**
-  * `/admin/usuarios` (`UsersManagementView.tsx`): Tabla de empleados con búsqueda, modal de alta con validación Zod, suspensión/reactivación y restablecimiento de claves.
-  * `/admin/perfiles` (`ProfilesManagementView.tsx`): Matriz dinámica de 29 permisos por módulo, creación de nuevos perfiles con herencia opcional, eliminación de perfiles personalizados y botón único de guardado. Se eliminaron los términos informales de "Nivel" sustituyéndolos por distintivos de alcance operativo (*Acceso Total*, *Supervisión*, *Caja y Cobro*, *Salón de Ventas*).
+### Pilares de la Solución:
+1. **Servicio Nativo `correoArgentinoService.ts`:**  
+   Construido en TypeScript estricto con `fetch` nativo sin librerías de terceros (cero dependencias de `axios`). Implementa los contratos oficiales del manual `Correo Argentino - API MiCorreo.pdf`.
+2. **Modo Mock / Simulación Inteligente:**  
+   Activado automáticamente cuando no existen credenciales de API en el entorno o con `CORREO_ARGENTINO_MOCK=true`. Retorna tarifas realistas por peso/zona, sucursales reales de Correo Argentino y códigos de seguimiento simulados.
+3. **Tarifa Plana de Cadetería Dinámica:**  
+   Persistida en la tabla `StoreSetting` (`cadeteriaCost Decimal @default(2500)`), administrable desde la pantalla de configuración del local.
+4. **Cubicaje Heurístico ("Paquete Virtual"):**  
+   Consolida prendas y calzado del carrito. Para artículos sin dimensiones/peso cargados, imputa valores de contingencia por categoría (Calzado: 950g, Indumentaria: 300g, Accesorios: 150g, Otros: 500g).
+5. **Selector Interactivo de Sucursales:**  
+   Para la modalidad `CORREO_ARGENTINO_SUCURSAL`, lista las agencias habilitadas por código postal y provincia para que el comprador elija con precisión.
+6. **Imposición Postal Desacoplada:**  
+   La guía se genera a demanda mediante acción del operador de salón cuando el paquete físico está embalado, abriendo el PDF del rótulo para impresión térmica o A4.
+7. **Cancelación con Restitución Atómica:**  
+   Reversión de `stockReserved` si la orden era impaga, o reincorporación al inventario físico con movimiento `ANULACION_VENTA` si ya había sido completada.
 
 ---
 
-## Testing Decisions
+## 3. User Stories
 
-### Criterios de Calidad de las Pruebas
-* Las pruebas validarán el **comportamiento funcional externo** de las Server Actions y la seguridad de datos, sin acoplarse a detalles de implementación visuales.
-* No se admitirán datos simulados que no respeten la integridad referencial de Prisma.
+### Como Comprador Web (Tienda Online)
+1. **Selección de Modalidades:** Quiero elegir entre Retiro en Saavedra 241, Cadetería en Formosa Capital, Correo Argentino a Domicilio o Correo Argentino con Retiro en Sucursal, para optar por la alternativa más conveniente.
+2. **Cotización Automática:** Quiero ingresar mi código postal y ver de inmediato el costo real de envío antes de pagar.
+3. **Elección de Sucursal de Correo:** Si elijo retiro en sucursal, quiero seleccionar en un menú desplegable la agencia oficial de Correo Argentino más cercana a mi domicilio (viendo su nombre y dirección).
+4. **Trazabilidad y Guía:** Al despacharse mi pedido, quiero recibir un correo electrónico con el número de guía de Correo Argentino y un botón de seguimiento directo a la web del correo.
 
-### Módulos y Flujos a Testear (`scripts/test-rf23-rbac.ts`)
-1. **Autenticación con Identificador Dual:**
-   * Login exitoso usando el nombre de usuario (`admin`).
-   * Login exitoso usando el correo electrónico (`admin@matacosdeportes.com.ar`).
-   * Rechazo de login con contraseña incorrecta.
-   * Rechazo de login para usuarios con `active: false`.
-2. **Resolución Jerárquica de Permisos:**
-   * Verificar que un usuario con perfil *Administrador* posea los 29 permisos.
-   * Verificar que un usuario con perfil *Encargado de Local* resuelva correctamente tanto sus permisos directos (ej. `caja.ver_teorico`) como los heredados de su perfil padre *Cajero Mostrador* (ej. `pos.vender`).
-   * Verificar que un *Cajero Mostrador* no pueda acceder a permisos restringidos como `inventario.costos`.
-3. **Confidencialidad de Precios de Costo:**
-   * Comprobar que una petición de catálogo realizada por un Cajero o Vendedor devuelva el campo `costPrice` como `null` o censurado, mientras que para el Administrador devuelva el valor real.
-4. **Protección de Rutas en Middleware:**
-   * Verificar la redirección de solicitudes anónimas hacia `/login`.
+### Como Administrador General / Dueño
+5. **Ajuste de Tarifa de Cadetería:** Quiero poder actualizar el costo del delivery en moto de Formosa Capital desde la pantalla de configuración del sistema sin requerir a un programador.
+6. **Auditoría de Envíos:** Quiero consultar en el panel administrativo el historial de pedidos web con sus métodos de entrega, costos y guías asociadas.
+
+### Como Personal de Salón / Mostrador en Saavedra 241
+7. **Control y Empaque:** Quiero ver el listado de pedidos web pagados en estado `EN_PREPARACION` con el detalle de variantes (talle y color) para empaquetarlos en el salón.
+8. **Generación de Guía e Impresión:** Cuando el paquete está listo, quiero presionar un botón *"Generar Guía Correo Argentino"* que registre el envío en el correo, asigne el código de tracking e imprima el rótulo para pegarlo en la caja.
+9. **Despacho de Cadetería Local:** Para envíos en Formosa Capital, quiero poder marcar el pedido como `EN_CAMINO` con cadete y abrir el chat de WhatsApp con el comprador para coordinar la entrega.
+10. **Anulación Segura:** Si un cliente solicita anular un pedido antes de su despacho, quiero cancelar la orden devolviendo automáticamente las prendas al stock de salón con registro de auditoría.
 
 ---
 
-## Out of Scope
+## 4. Implementation Decisions
 
-Los siguientes elementos quedan expresamente excluidos de esta especificación para mantener el enfoque modular del desarrollo:
-1. **Emisión de Comprobantes Fiscales ante AFIP / ARCA:** Cualquier lógica o permiso vinculado a facturación electrónica oficial (`facturacion.emitir_afip`) queda fuera de esta etapa.
-2. **Anulación de Ventas Completadas:** La anulación de comprobantes ya cobrados y el reintegro de dinero quedan pospuestos para futuras etapas en caso de que la operativa del negocio lo demande expresamente.
-3. **Auto-registro o recuperación de contraseña pública para empleados:** No habrá enlace de "Crear Cuenta" ni "Olvidé mi contraseña" en `/login`; la administración del personal es 100% interna y manual por el Administrador General.
-4. **Login de Clientes Web (`Customer`):** La experiencia de autenticación para compradores de la tienda digital (e-commerce) se especifica y desarrolla en el módulo correspondiente de tienda pública.
+### 4.1. Esquema de Base de Datos (`prisma/schema.prisma`)
+
+1. **Ampliación de `StoreSetting`:**
+   ```prisma
+   model StoreSetting {
+     // ... campos existentes ...
+     cadeteriaCost Decimal @default(2500) @db.Decimal(12, 2) // Tarifa plana delivery Formosa CP 3600
+   }
+   ```
+2. **Compatibilidad y Normalización en `Sale`:**
+   * `shippingMethod`: String (`RETIRO_LOCAL`, `CADETERIA_FORMOSA`, `CORREO_ARGENTINO_DOMICILIO`, `CORREO_ARGENTINO_SUCURSAL`).
+   * `shippingCost`: Decimal (congelado al momento de crear la orden).
+   * `shippingAddress`, `shippingCity`, `shippingPostalCode`: String.
+   * `shippingTrackingCode`: String? (número de guía TN...AR).
+   * Nuevos campos opcionales para entrega en sucursal de Correo:
+     * `shippingBranchCode String?` (código oficial de la agencia, ej. `P0001`).
+     * `shippingBranchName String?` (nombre descriptivo de la sucursal).
+
+### 4.2. Contratos y Validación Zod (`src/schemas/`)
+
+1. **`ShippingMethodEnum` Actualizado:**
+   ```typescript
+   export const ShippingMethodEnum = z.enum([
+     "RETIRO_LOCAL",
+     "CADETERIA_FORMOSA",
+     "CORREO_ARGENTINO_DOMICILIO",
+     "CORREO_ARGENTINO_SUCURSAL",
+   ]);
+   ```
+2. **`ShippingCalculationSchema` (BE-RF19 Subtarea 2):**
+   ```typescript
+   export const ShippingCalculationSchema = z.object({
+     postalCode: z.string().trim().min(4, "Código postal inválido").max(8),
+     method: ShippingMethodEnum,
+     items: z.array(
+       z.object({
+         variantId: z.string().uuid(),
+         quantity: z.number().int().min(1),
+         categoryId: z.string().optional(),
+         weightGrams: z.number().optional(),
+       })
+     ).min(1, "Debe cotizar al menos un artículo"),
+     agencyCode: z.string().optional(),
+   });
+   ```
+
+### 4.3. Capa de Servicio: `src/server/services/correoArgentinoService.ts`
+
+El servicio encapsula los endpoints de **MiCorreo API**:
+* `POST /token`: Autenticación con Basic Auth (`base64(username:password)`). Caché de JWT en memoria con expiración de 50 minutos.
+* `POST /rates`: Cotización con origen Formosa (`postalCodeOrigin: "3600"`), destino, `deliveredType: "D" | "S"` y objeto `dimensions: { weight, height, width, length }`.
+* `GET /agencies`: Listado de sucursales habilitadas por provincia (`provinceCode`) y código postal.
+* `POST /shipping/import`: Alta del envío con remitente Saavedra 241 y destinatario de la orden web.
+* `GET /shipping/tracking`: Consulta de eventos de trazabilidad.
+* **Modo Mock Integrado:**
+  * Si `process.env.CORREO_ARGENTINO_MOCK === "true"` o no se configuran credenciales en el entorno, el servicio resuelve las cotizaciones con tarifas simuladas por peso y distancia, devuelve sucursales reales de Correo Argentino en Formosa y el país, y genera números de guía `TN3600...AR`.
+
+### 4.4. Server Actions a Implementar / Extender
+
+1. **`calculateShippingCostAction(input)` (BE-RF19 Subtarea 3):**
+   * Retorna el costo discriminado según la modalidad seleccionada y el código postal.
+   * Aplica costo $0 para `RETIRO_LOCAL`.
+   * Lee `StoreSetting.cadeteriaCost` para `CADETERIA_FORMOSA` si el CP es 3600.
+   * Invoca `correoArgentinoService.calculateRate()` para domicilio o sucursal.
+2. **`getAgenciesAction(provinceCode, postalCode)`:**
+   * Devuelve las sucursales oficiales de Correo Argentino disponibles para la zona del comprador.
+3. **`applyShippingToOrderAction(orderId, shippingData)` (BE-RF19 Subtarea 4):**
+   * Actualiza la orden en transacción atómica recalculando `total = subtotalGross - discount + shippingCost`.
+4. **`updateOrderStatusAction(orderId, newStatus, notes)` (BE-RF25 Subtarea 3):**
+   * Transiciona el estado con notas de auditoría y usuario operador.
+5. **`generateShippingLabelAction(orderId)` (BE-RF25 Subtarea 4):**
+   * Ejecuta la pre-imposición en `correoArgentinoService.importShipment()`.
+   * Asigna el `shippingTrackingCode`, pasa la orden a `EN_CAMINO`, genera el enlace de rastreo y prepara el rótulo imprimible.
+   * Dispara el email de confirmación de despacho al comprador.
+6. **`cancelWebOrderAction(orderId, reason)` (BE-RF25 Subtarea 5):**
+   * Transacción atómica:
+     * Si `status === "PENDIENTE_PAGO"` $\rightarrow$ decrementa `stockReserved`.
+     * Si `status === "COMPLETADA"` $\rightarrow$ incrementa `stockStore` y registra `InventoryMovement` tipo `ANULACION_VENTA`.
+     * Pasa la orden a `CANCELADA` y el envío a `CANCELADO`.
+7. **`updateCadeteriaCostAction(newCost)`:**
+   * Permite al administrador guardar el nuevo valor de cadetería en `StoreSetting`.
 
 ---
 
-## Further Notes
+## 5. UI y Experiencia de Usuario
 
-* **Regla Estricta de Gestión de Paquetes:** Cualquier dependencia se instalará exclusivamente con **`pnpm`**.
-* **Control de Versiones:** Siguiendo las directivas maestras del proyecto, no se ejecutarán `git commit` ni `git push` automáticos; todo versionado se realizará a solicitud expresa del usuario.
+1. **Checkout Web (`src/components/ecommerce/checkout/CheckoutView.tsx`):**
+   * Radio group con las 4 modalidades de entrega:
+     1. Retiro en Saavedra 241 ($ 0,00).
+     2. Cadetería en Formosa Capital (tarifa dinámica).
+     3. Correo Argentino a Domicilio.
+     4. Correo Argentino a Sucursal (despliega selector con nombre y dirección de agencias).
+   * Recálculo automático en vivo de tarifas y actualización del resumen de compra.
+2. **Panel de Gestión de Pedidos Web (`src/components/admin/web-orders/WebOrdersView.tsx`):**
+   * Pestañas por estado logístico (`Todos`, `Pendientes de Pago`, `En Preparación`, `Listos para Retiro`, `En Camino`, `Entregados`, `Cancelados`).
+   * Botón de acción contextual:
+     * Si es Correo Argentino y está en `EN_PREPARACION` $\rightarrow$ Botón destacado **"Generar Guía Correo Argentino"**.
+     * Botón para abrir el **Rótulo Postal imprimible** (formato etiqueta térmica 10x15 / A4 con código de barras).
+     * Si es Cadetería $\rightarrow$ Botón **"Enviar con Cadete"** y enlace directo a WhatsApp.
+     * Botón de **"Cancelar Pedido"** con modal de confirmación y motivo.
+3. **Configuración del Local (`/admin/configuracion`):**
+   * Campo de entrada para actualizar el costo de cadetería local.
+
+---
+
+## 6. Subtasks Checklist (Roadmap de Ejecución)
+
+### Fase 1: Persistencia y Dominio
+- [x] **T1.1:** Actualizar `prisma/schema.prisma` agregando `cadeteriaCost` en `StoreSetting` y campos de sucursal en `Sale`.
+- [x] **T1.2:** Ejecutar migración/generación de Prisma (`pnpm prisma generate` con tipos tipados).
+- [x] **T1.3:** Actualizar esquemas Zod en `src/schemas/ecommerce.ts`, `src/schemas/settings.ts` y nuevo `src/schemas/shipping.ts`.
+
+### Fase 2: Servicio de Correo Argentino y Modo Mock
+- [ ] **T2.1:** Crear `src/server/services/correoArgentinoService.ts` con tipado estricto y métodos `/token`, `/rates`, `/agencies`, `/shipping/import` y `/shipping/tracking`.
+- [ ] **T2.2:** Implementar el motor Mock dentro del servicio para simular cotizaciones, agencias y números de guía realistas sin credenciales activas.
+
+### Fase 3: Server Actions de Envíos (BE-RF19)
+- [ ] **T3.1:** Implementar Server Action `calculateShippingCostAction` con cálculo heurístico de paquete virtual y fallback.
+- [ ] **T3.2:** Implementar Server Action `getAgenciesAction` para consultar sucursales habilitadas.
+- [ ] **T3.3:** Implementar Server Action `applyShippingToOrderAction` con recálculo atómico del total.
+- [ ] **T3.4:** Implementar Server Action `updateCadeteriaCostAction` para el ajuste dinámico desde administración.
+
+### Fase 4: Server Actions de Ciclo de Vida y Despacho (BE-RF25)
+- [ ] **T4.1:** Extender `getWebOrdersAction` con filtros avanzados y paginación para el panel de administración.
+- [ ] **T4.2:** Implementar Server Action `updateOrderStatusAction` con registro de auditoría.
+- [ ] **T4.3:** Implementar Server Action `generateShippingLabelAction` con imposición en Correo Argentino, asignación de tracking y envío de email al comprador.
+- [ ] **T4.4:** Implementar Server Action transaccional `cancelWebOrderAction` con restitución atómica de existencias físicas (`ANULACION_VENTA`) o reservas (`stockReserved`).
+
+### Fase 5: Interfaz de Usuario y Rótulo Postal
+- [ ] **T5.1:** Actualizar el Checkout con selector de 4 modalidades y desplegable de sucursales de Correo.
+- [ ] **T5.2:** Crear componente de visualización e impresión de Rótulo Postal (etiqueta con código de barras y datos de origen/destino).
+- [ ] **T5.3:** Actualizar la pantalla de administración de pedidos web con botones de despacho, generación de guía y anulación.
+- [ ] **T5.4:** Incorporar campo de tarifa de cadetería en la pantalla de configuración del local.
+
+### Fase 6: Pruebas y Verificación
+- [ ] **T6.1:** Verificar cotización dinámica en checkout con distintas localidades y códigos postales.
+- [ ] **T6.2:** Probar ciclo completo de despacho en mostrador (preparación $\rightarrow$ generación de guía $\rightarrow$ rótulo).
+- [ ] **T6.3:** Probar anulación con restitución atómica en base de datos PostgreSQL.

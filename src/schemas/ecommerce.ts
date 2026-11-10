@@ -120,11 +120,17 @@ export type RelatedProductsInput = z.infer<typeof RelatedProductsSchema>;
  */
 
 export const ShippingMethodEnum = z.enum(
-  ["RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"],
+  [
+    "RETIRO_LOCAL",
+    "CADETERIA_FORMOSA",
+    "CORREO_ARGENTINO",
+    "CORREO_ARGENTINO_DOMICILIO",
+    "CORREO_ARGENTINO_SUCURSAL",
+  ],
   {
     errorMap: () => ({
       message:
-        "Modalidad de entrega inválida. Use RETIRO_LOCAL, CADETERIA_FORMOSA o CORREO_ARGENTINO",
+        "Modalidad de entrega inválida. Use RETIRO_LOCAL, CADETERIA_FORMOSA, CORREO_ARGENTINO_DOMICILIO o CORREO_ARGENTINO_SUCURSAL",
     }),
   }
 );
@@ -182,6 +188,8 @@ export const GuestCheckoutSchema = z
       .number({ invalid_type_error: "El costo de envío debe ser un número" })
       .min(0, "El costo de envío no puede ser negativo")
       .optional(),
+    shippingBranchCode: z.string().trim().max(30).optional().nullable(),
+    shippingBranchName: z.string().trim().max(120).optional().nullable(),
     customerId: z.string().uuid("ID de cliente inválido").optional().nullable(),
     notes: z.string().trim().max(500).optional().nullable(),
     items: z
@@ -192,7 +200,8 @@ export const GuestCheckoutSchema = z
     (data) => {
       if (
         (data.shippingMethod === "CADETERIA_FORMOSA" ||
-          data.shippingMethod === "CORREO_ARGENTINO") &&
+          data.shippingMethod === "CORREO_ARGENTINO" ||
+          data.shippingMethod === "CORREO_ARGENTINO_DOMICILIO") &&
         (!data.shippingAddress || data.shippingAddress.trim().length < 5)
       ) {
         return false;
@@ -203,6 +212,22 @@ export const GuestCheckoutSchema = z
       message:
         "La dirección de entrega (calle y número) es obligatoria para envíos a domicilio",
       path: ["shippingAddress"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (
+        data.shippingMethod === "CORREO_ARGENTINO_SUCURSAL" &&
+        (!data.shippingBranchCode || data.shippingBranchCode.trim().length === 0)
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        "Debe seleccionar una sucursal oficial de Correo Argentino para el retiro",
+      path: ["shippingBranchCode"],
     }
   );
 
