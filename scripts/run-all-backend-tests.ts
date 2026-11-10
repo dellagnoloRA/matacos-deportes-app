@@ -97,6 +97,11 @@ const SUITES = [
     rf: "RF-24",
     script: "scripts/test-rf24-analytics.ts",
   },
+  {
+    name: "Logística, Envíos y Despacho con Correo Argentino",
+    rf: "RF-19 / RF-25",
+    script: "scripts/test-rf19-rf25-shipping-logistics.ts",
+  },
 ];
 
 async function main() {

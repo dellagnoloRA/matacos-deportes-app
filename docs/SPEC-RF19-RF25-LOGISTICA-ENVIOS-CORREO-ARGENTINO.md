@@ -239,6 +239,6 @@ El servicio encapsula los endpoints de **MiCorreo API**:
 - [x] **T5.4:** Incorporar campo de tarifa de cadetería en la pantalla de configuración del local.
 
 ### Fase 6: Pruebas y Verificación
-- [ ] **T6.1:** Verificar cotización dinámica en checkout con distintas localidades y códigos postales.
-- [ ] **T6.2:** Probar ciclo completo de despacho en mostrador (preparación $\rightarrow$ generación de guía $\rightarrow$ rótulo).
-- [ ] **T6.3:** Probar anulación con restitución atómica en base de datos PostgreSQL.
+- [x] **T6.1:** Verificar cotización dinámica en checkout con distintas localidades y códigos postales.
+- [x] **T6.2:** Probar ciclo completo de despacho en mostrador (preparación $\rightarrow$ generación de guía $\rightarrow$ rótulo).
+- [x] **T6.3:** Probar anulación con restitución atómica en base de datos PostgreSQL.
