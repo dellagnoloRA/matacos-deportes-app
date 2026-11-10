@@ -1,67 +1,80 @@
 # Guía Integral de Infraestructura y Configuración de Terminales
-## Servidor Cloud (Hostinger VPS) & Puestos de Mostrador (Notebooks, Lectores e Impresoras)
-**Proyecto:** Sistema Integral de Gestión, POS Offline y E-commerce — Matacos Deportes (Saavedra 241, Formosa)  
+## Servidor Cloud (Hostinger VPS KVM 2) & Puestos de Mostrador (Notebooks, Lectores e Impresoras)
+**Proyecto:** Sistema Integral de Gestión, POS Offline y E-commerce — Matacos Deportes (Saavedra 241, Formosa Capital)  
 **Institución:** Universidad de la Cuenca del Plata (Sede Formosa) — Práctica Profesional Supervisada I (PPS I)  
 **Equipo de Desarrollo:** Dellagnolo, Ricardo / Fornari, Nahir / Bordón, Lourdes / González, Eugenia  
 
 ---
 
-# PARTE 1: El Servidor en la Nube (Hostinger VPS KVM)
+# PARTE 1: El Servidor en la Nube (Hostinger VPS KVM 2)
 
-## 1.1. ¿Por qué elegir Hostinger VPS (KVM) y no Hosting Compartido?
+## 1.1. Especificaciones del Servidor Hostinger VPS (KVM 2)
 
-En Hostinger existen dos productos muy diferentes:
+Para alojar la base de datos PostgreSQL 16 y la tienda web de **Matacos Deportes**, se utiliza el plan **Hostinger VPS KVM 2**:
 
-| Característica | Hosting Compartido (Web Hosting Tradicional) | Hostinger VPS KVM (Recomendado) |
-| :--- | :--- | :--- |
-| **Apto para este Proyecto** | ❌ **NO APTO** | ✅ **100% RECOMENDADO** |
-| **Destinado a** | Sitios básicos en WordPress / PHP estático | Aplicaciones modernas (Next.js 15, React 19) |
-| **Soporte de Docker** | No disponible | **Nativo y preinstalado de fábrica** |
-| **Base de Datos** | MySQL compartido limitado | **PostgreSQL 16 dedicado y de alto rendimiento** |
-| **Procesos en Background** | Se suspenden o bloquean por inactividad | **Ejecución 24/7/365 ininterrumpida** |
-| **Costo Aproximado** | ~$3 a $5 USD / mes | **~$5 a $6 USD / mes (Plan KVM 1 o KVM 2)** |
-
-> **Conclusión:** Para que la base de datos PostgreSQL, el motor de sincronización de stock y la tienda Next.js funcionen sin fallas, se debe contratar el plan **Hostinger VPS KVM**.
+* **Procesador:** 2 núcleos vCPU **AMD EPYC** (procesamiento paralelo para PostgreSQL y compilación standalone de Next.js 15).
+* **Memoria RAM:** **8 GB de RAM** (más que suficiente para PostgreSQL 16, Next.js y Caddy Server).
+* **Almacenamiento:** **100 GB SSD NVMe** (altísima velocidad I/O para operaciones transaccionales y resguardo de backups locales).
+* **Conectividad:** **8 TB de transferencia mensual**, interfaz de red simétrica a **1 Gbps** y dirección IP pública fija.
+* **Seguridad y Extras:** Gestión de Firewall perimetral en hPanel, Datacenter en **São Paulo (Brasil)** para latencia óptima (<45 ms desde Formosa), y **Dominio gratis por 1 año**.
 
 ---
 
 ## 1.2. ¿Qué rol cumple Caddy Server dentro de Hostinger?
 
-* **Hostinger:** Es la empresa proveedora de la infraestructura (la computadora virtual en la nube y el enlace de fibra óptica).
-* **Caddy Server:** Es el servidor web ultra-liviano que corre **dentro del VPS de Hostinger** para atender a los clientes:
-  1. **Certificado SSL / HTTPS 100% Automático:** Se conecta con *Let's Encrypt* de forma transparente, obtiene el candado verde de seguridad para `matacosdeportes.com.ar` y **lo renueva automáticamente de por vida sin costo**.
-  2. **Proxy Inverso:** Recibe el tráfico seguro en el puerto `443 (HTTPS)` y lo deriva internamente a Next.js (puerto `3000`) sin exponer puertos inseguros.
-  3. **Seguridad y Blindaje:** Protege la base de datos PostgreSQL de accesos no autorizados desde internet.
-  4. **Ultra Eficiente:** Consume apenas **15 MB de memoria RAM** (mucho más ligero y fácil de administrar que Apache o Nginx).
+* **Hostinger:** Es el proveedor de infraestructura en la nube (hardware dedicado virtualizado, disco NVMe y enlace de fibra óptica).
+* **Caddy Server:** Es el servidor web y proxy inverso ultra-liviano (<20 MB de RAM) que corre en un contenedor Docker dentro del VPS:
+  1. **Certificado SSL / HTTPS 100% Automático:** Negocia directamente con *Let's Encrypt*, obtiene el candado verde para el dominio y **lo renueva automáticamente sin costo**.
+  2. **Proxy Inverso Seguro:** Recibe las peticiones en el puerto estándar `443 (HTTPS)` y las redirige internamente al puerto `3000` de Next.js.
+  3. **Aislamiento de la Base de Datos:** Permite que PostgreSQL (`5432`) quede completamente aislado en la red interna de Docker (`matacos_network`) sin exponer puertos vulnerables a internet.
 
 ---
 
-## 1.3. Paso a Paso: Cómo Desplegar la Web en Hostinger VPS (Menos de 10 Minutos)
+## 1.3. Configuración en Hostinger (Firewall y Data Center)
+
+1. **Ubicación del Data Center:** En el asistente de configuración de Hostinger, elegir **São Paulo, Brasil** para lograr la menor latencia de red desde Formosa.
+2. **Plantilla de Sistema Operativo:** Seleccionar **Ubuntu 24.04 64bit with Docker**.
+3. **Firewall en hPanel (Reglas de Entrada):**
+   * Permitir puerto `22` (TCP) para administración remota por SSH.
+   * Permitir puerto `80` (TCP) para HTTP y renovación SSL de Let's Encrypt.
+   * Permitir puerto `443` (TCP) para tráfico seguro HTTPS.
+   * **Bloquear / No abrir:** Puertos `5432` (PostgreSQL) y `3000` (Next.js) deben permanecer inaccesibles desde internet.
+
+---
+
+## 1.4. Paso a Paso: Cómo Desplegar el Sistema en el VPS
 
 ```mermaid
 flowchart LR
-    A["1. Hostinger:<br>Plantilla Docker"] --> B["2. Conexión SSH:<br>git clone"]
+    A["1. hPanel:<br>Ubuntu + Docker"] --> B["2. SSH:<br>git clone repo"]
     B --> C["3. Variables:<br>Configurar .env"]
     C --> D["4. Despliegue:<br>docker compose up -d"]
     D --> E["✅ SISTEMA ONLINE<br>con HTTPS"]
 ```
 
-1. **Configurar el VPS en Hostinger:** Seleccionar la plantilla oficial **"Ubuntu 24.04 64bit with Docker"** y definir contraseña `root`.
-2. **Conectarte al Servidor por SSH:**
+1. **Conexión SSH al servidor:**
    ```bash
    ssh root@IP_DE_TU_VPS
    ```
-3. **Clonar el Repositorio de GitHub:**
+
+2. **Clonar el Repositorio de GitHub:**
    ```bash
+   cd /opt
    git clone https://github.com/dellagnoloRA/matacos-deportes-app.git
    cd matacos-deportes-app
    ```
-4. **Configurar Variables de Entorno:**
+
+3. **Configurar Variables de Entorno (`.env`):**
    ```bash
    cp .env.example .env
    nano .env
    ```
-5. **Levantar Todo el Sistema con 1 Solo Comando:**
+   *(Asegurar `DATABASE_URL`, credenciales de PostgreSQL, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` y tokens de Mercado Pago).*
+
+4. **Configurar el Dominio en `Caddyfile`:**
+   Editar `Caddyfile` y reemplazar `localhost` por el dominio real registrado en Hostinger.
+
+5. **Levantar Todo el Sistema con Docker Compose:**
    ```bash
    docker compose up -d --build
    docker compose exec app pnpm prisma migrate deploy
@@ -72,9 +85,8 @@ flowchart LR
 ```bash
 git pull origin main
 docker compose up -d --build app
+docker compose exec app pnpm prisma migrate deploy
 ```
-
----
 
 # PARTE 2: Configuración de las Computadoras del Mostrador (Saavedra 241)
 
