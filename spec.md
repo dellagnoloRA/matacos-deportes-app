@@ -227,10 +227,10 @@ El servicio encapsula los endpoints de **MiCorreo API**:
 - [x] **T3.4:** Implementar Server Action `updateCadeteriaCostAction` para el ajuste dinámico desde administración.
 
 ### Fase 4: Server Actions de Ciclo de Vida y Despacho (BE-RF25)
-- [ ] **T4.1:** Extender `getWebOrdersAction` con filtros avanzados y paginación para el panel de administración.
-- [ ] **T4.2:** Implementar Server Action `updateOrderStatusAction` con registro de auditoría.
-- [ ] **T4.3:** Implementar Server Action `generateShippingLabelAction` con imposición en Correo Argentino, asignación de tracking y envío de email al comprador.
-- [ ] **T4.4:** Implementar Server Action transaccional `cancelWebOrderAction` con restitución atómica de existencias físicas (`ANULACION_VENTA`) o reservas (`stockReserved`).
+- [x] **T4.1:** Extender `getWebOrdersAction` con filtros avanzados y paginación para el panel de administración.
+- [x] **T4.2:** Implementar Server Action `updateOrderStatusAction` con registro de auditoría.
+- [x] **T4.3:** Implementar Server Action `generateShippingLabelAction` con imposición en Correo Argentino, asignación de tracking y envío de email al comprador.
+- [x] **T4.4:** Implementar Server Action transaccional `cancelWebOrderAction` con restitución atómica de existencias físicas (`ANULACION_VENTA`) o reservas (`stockReserved`).
 
 ### Fase 5: Interfaz de Usuario y Rótulo Postal
 - [ ] **T5.1:** Actualizar el Checkout con selector de 4 modalidades y desplegable de sucursales de Correo.
