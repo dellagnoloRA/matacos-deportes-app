@@ -217,8 +217,8 @@ El servicio encapsula los endpoints de **MiCorreo API**:
 - [x] **T1.3:** Actualizar esquemas Zod en `src/schemas/ecommerce.ts`, `src/schemas/settings.ts` y nuevo `src/schemas/shipping.ts`.
 
 ### Fase 2: Servicio de Correo Argentino y Modo Mock
-- [ ] **T2.1:** Crear `src/server/services/correoArgentinoService.ts` con tipado estricto y métodos `/token`, `/rates`, `/agencies`, `/shipping/import` y `/shipping/tracking`.
-- [ ] **T2.2:** Implementar el motor Mock dentro del servicio para simular cotizaciones, agencias y números de guía realistas sin credenciales activas.
+- [x] **T2.1:** Crear `src/server/services/correoArgentinoService.ts` con tipado estricto y métodos `/token`, `/rates`, `/agencies`, `/shipping/import` y `/shipping/tracking`.
+- [x] **T2.2:** Implementar el motor Mock dentro del servicio para simular cotizaciones, agencias y números de guía realistas sin credenciales activas.
 
 ### Fase 3: Server Actions de Envíos (BE-RF19)
 - [ ] **T3.1:** Implementar Server Action `calculateShippingCostAction` con cálculo heurístico de paquete virtual y fallback.
