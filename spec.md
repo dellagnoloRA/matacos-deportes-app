@@ -233,10 +233,10 @@ El servicio encapsula los endpoints de **MiCorreo API**:
 - [x] **T4.4:** Implementar Server Action transaccional `cancelWebOrderAction` con restitución atómica de existencias físicas (`ANULACION_VENTA`) o reservas (`stockReserved`).
 
 ### Fase 5: Interfaz de Usuario y Rótulo Postal
-- [ ] **T5.1:** Actualizar el Checkout con selector de 4 modalidades y desplegable de sucursales de Correo.
-- [ ] **T5.2:** Crear componente de visualización e impresión de Rótulo Postal (etiqueta con código de barras y datos de origen/destino).
-- [ ] **T5.3:** Actualizar la pantalla de administración de pedidos web con botones de despacho, generación de guía y anulación.
-- [ ] **T5.4:** Incorporar campo de tarifa de cadetería en la pantalla de configuración del local.
+- [x] **T5.1:** Actualizar el Checkout con selector de 4 modalidades y desplegable de sucursales de Correo.
+- [x] **T5.2:** Crear componente de visualización e impresión de Rótulo Postal (etiqueta con código de barras y datos de origen/destino).
+- [x] **T5.3:** Actualizar la pantalla de administración de pedidos web con botones de despacho, generación de guía y anulación.
+- [x] **T5.4:** Incorporar campo de tarifa de cadetería en la pantalla de configuración del local.
 
 ### Fase 6: Pruebas y Verificación
 - [ ] **T6.1:** Verificar cotización dinámica en checkout con distintas localidades y códigos postales.

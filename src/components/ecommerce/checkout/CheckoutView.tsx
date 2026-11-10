@@ -42,6 +42,11 @@ import {
   type WebOrderPaymentResult,
 } from "@/server/actions/ecommerce/checkoutActions";
 import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadopagoActions";
+import {
+  calculateShippingCostAction,
+  getAgenciesAction,
+} from "@/server/actions/ecommerce/shippingActions";
+import type { CorreoArgentinoAgency } from "@/schemas/shipping";
 import type { CustomerProfileDTO } from "@/server/actions/ecommerce/customerActions";
 import type {
   ShippingMethod,
@@ -81,15 +86,21 @@ const SHIPPING_OPTIONS: Array<{
   },
   {
     method: "CADETERIA_FORMOSA",
-    title: "Cadetería / Moto-Mensajería",
+    title: "Cadetería en Moto (Formosa Capital)",
     subtitle: "Entrega rápida a domicilio dentro de Formosa Capital (CP 3600)",
     cost: 2500,
   },
   {
-    method: "CORREO_ARGENTINO",
-    title: "Envío por Correo Argentino",
-    subtitle: "Interior de Formosa y todo el país (tarifa plana de referencia)",
-    cost: 7500,
+    method: "CORREO_ARGENTINO_SUCURSAL",
+    title: "Retiro en Sucursal Correo Argentino",
+    subtitle: "Retirá en la sucursal oficial más cercana a tu domicilio (30% a 40% de ahorro)",
+    cost: 5800,
+  },
+  {
+    method: "CORREO_ARGENTINO_DOMICILIO",
+    title: "Envío a Domicilio por Correo Argentino",
+    subtitle: "Entrega puerta a puerta en cualquier punto del territorio nacional",
+    cost: 7900,
   },
 ];
 
@@ -170,7 +181,78 @@ export function CheckoutView({
   const [shippingPostalCode, setShippingPostalCode] = useState(
     activeCustomer?.defaultPostalCode ?? "3600"
   );
+  const [shippingBranchCode, setShippingBranchCode] = useState("");
+  const [shippingBranchName, setShippingBranchName] = useState("");
+  const [agencies, setAgencies] = useState<CorreoArgentinoAgency[]>([]);
+  const [isLoadingAgencies, setIsLoadingAgencies] = useState(false);
+  const [shippingOptions, setShippingOptions] = useState(SHIPPING_OPTIONS);
+  const [isQuotingShipping, setIsQuotingShipping] = useState(false);
   const [notes, setNotes] = useState("");
+
+  // Cotización dinámica de envío al modificar código postal o artículos del carrito (RF-19)
+  useEffect(() => {
+    const cleanCP = shippingPostalCode.replace(/\D/g, "");
+    if (cleanCP.length >= 4 && items.length > 0) {
+      let isCancelled = false;
+      setIsQuotingShipping(true);
+
+      calculateShippingCostAction({
+        postalCode: cleanCP,
+        method: shippingMethod,
+        items: items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+        })),
+        agencyCode: shippingBranchCode || undefined,
+      }).then((res) => {
+        if (isCancelled) return;
+        setIsQuotingShipping(false);
+        if (res.success && res.options.length > 0) {
+          setShippingOptions((prev) =>
+            prev.map((opt) => {
+              const matched = res.options.find(
+                (o) =>
+                  o.method === opt.method ||
+                  (opt.method === "CORREO_ARGENTINO" && o.method === "CORREO_ARGENTINO_DOMICILIO")
+              );
+              if (matched) {
+                return {
+                  ...opt,
+                  cost: matched.price,
+                  subtitle: matched.deliveryEstimateText || opt.subtitle,
+                };
+              }
+              return opt;
+            })
+          );
+        }
+      });
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [shippingPostalCode, items, shippingMethod, shippingBranchCode]);
+
+  // Consulta de sucursales cuando se selecciona Retiro en Sucursal Correo Argentino
+  useEffect(() => {
+    if (shippingMethod === "CORREO_ARGENTINO_SUCURSAL") {
+      const cleanCP = shippingPostalCode.replace(/\D/g, "") || "3600";
+      setIsLoadingAgencies(true);
+      getAgenciesAction(undefined, cleanCP).then((res) => {
+        setIsLoadingAgencies(false);
+        if (res.success && res.agencies.length > 0) {
+          setAgencies(res.agencies);
+          if (!shippingBranchCode) {
+            setShippingBranchCode(res.agencies[0]!.code);
+            setShippingBranchName(
+              `${res.agencies[0]!.name} (${res.agencies[0]!.address.streetName} ${res.agencies[0]!.address.streetNumber})`
+            );
+          }
+        }
+      });
+    }
+  }, [shippingMethod, shippingPostalCode, shippingBranchCode]);
 
   useEffect(() => {
     if (!activeCustomer) return;
@@ -385,8 +467,8 @@ export function CheckoutView({
   }, [runLiveValidation]);
 
   const selectedShippingOption =
-    SHIPPING_OPTIONS.find((opt) => opt.method === shippingMethod) ??
-    SHIPPING_OPTIONS[0]!;
+    shippingOptions.find((opt) => opt.method === shippingMethod) ??
+    shippingOptions[0]!;
 
   const subtotalProducts = items.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -403,7 +485,8 @@ export function CheckoutView({
 
   const requiresAddress =
     shippingMethod === "CADETERIA_FORMOSA" ||
-    shippingMethod === "CORREO_ARGENTINO";
+    shippingMethod === "CORREO_ARGENTINO" ||
+    shippingMethod === "CORREO_ARGENTINO_DOMICILIO";
 
   // =========================================================================
   // ACCIÓN PASO 1 -> PASO 2: CREAR ORDEN EN PENDIENTE_PAGO Y RESERVAR STOCK
@@ -431,6 +514,13 @@ export function CheckoutView({
       return;
     }
 
+    if (shippingMethod === "CORREO_ARGENTINO_SUCURSAL" && !shippingBranchCode) {
+      setFormError(
+        "Por favor seleccioná una sucursal oficial de Correo Argentino para retirar tu pedido."
+      );
+      return;
+    }
+
     startReservationTransition(async () => {
       const res = await createGuestOrder({
         customerName: customerName.trim(),
@@ -438,7 +528,11 @@ export function CheckoutView({
         customerEmail: customerEmail.trim(),
         customerPhone: customerPhone.trim(),
         shippingMethod,
-        shippingAddress: requiresAddress ? shippingAddress.trim() : null,
+        shippingAddress: requiresAddress
+          ? shippingAddress.trim()
+          : shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+          ? shippingBranchName.trim() || "Sucursal Correo Argentino"
+          : null,
         shippingCity:
           shippingMethod === "CADETERIA_FORMOSA"
             ? "Formosa"
@@ -447,6 +541,14 @@ export function CheckoutView({
           shippingMethod === "CADETERIA_FORMOSA"
             ? "3600"
             : shippingPostalCode.trim() || "3600",
+        shippingBranchCode:
+          shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+            ? shippingBranchCode.trim() || null
+            : null,
+        shippingBranchName:
+          shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+            ? shippingBranchName.trim() || null
+            : null,
         shippingCost,
         customerId: activeCustomer?.id ?? null,
         notes: notes.trim() || null,
@@ -1101,7 +1203,9 @@ export function CheckoutView({
                       ? "Retiro en Sucursal Saavedra 241"
                       : createdOrder.shipping.method === "CADETERIA_FORMOSA"
                         ? "Cadetería en Formosa Capital"
-                        : "Envío por Correo Argentino"}
+                        : createdOrder.shipping.method === "CORREO_ARGENTINO_SUCURSAL"
+                          ? "Retiro en Sucursal Correo Argentino"
+                          : "Envío a Domicilio por Correo Argentino"}
                   </p>
                   <p className="text-slate-600">
                     {createdOrder.shipping.address}
@@ -2247,17 +2351,25 @@ export function CheckoutView({
 
             {/* Modalidad de Entrega */}
             <section className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-                <span className="w-6 h-6 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
-                  B
-                </span>
-                <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
-                  Modalidad de Entrega
-                </h2>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 h-6 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
+                    B
+                  </span>
+                  <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
+                    Modalidad de Entrega
+                  </h2>
+                </div>
+                {isQuotingShipping && (
+                  <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cotizando...</span>
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3">
-                {SHIPPING_OPTIONS.map((option) => {
+                {shippingOptions.map((option) => {
                   const isSelected = shippingMethod === option.method;
                   return (
                     <label
@@ -2305,8 +2417,116 @@ export function CheckoutView({
                 })}
               </div>
 
-              {/* Campos condicionales de domicilio */}
-              {requiresAddress ? (
+              {/* Campos condicionales según modalidad de entrega */}
+              {shippingMethod === "RETIRO_LOCAL" && (
+                <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 flex items-start gap-3 text-xs text-slate-800">
+                  <MapPin className="w-5 h-5 text-[#00A811] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-950 font-bold text-xs mb-0.5">
+                      Punto de Retiro Oficial en Formosa Capital
+                    </strong>
+                    <span>
+                      Retirás sin costo presentando tu DNI y código de orden en{" "}
+                      <strong>Saavedra 241</strong> (Lun a Sáb 8:00–12:30 y 17:00–21:00).
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {shippingMethod === "CADETERIA_FORMOSA" && (
+                <div className="pt-3 border-t border-slate-100 space-y-4">
+                  <div className="bg-amber-50/70 rounded-2xl p-3 border border-amber-200/70 flex items-start gap-2.5 text-xs text-amber-900">
+                    <Truck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      Servicio exclusivo de cadetería en moto para entregas dentro del ejido urbano de <strong>Formosa Capital (CP 3600)</strong>.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Calle, número y piso / departamento en Formosa *
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      placeholder="Ej: Av. 25 de Mayo 850, Piso 2 Depto B"
+                      required
+                      minLength={5}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {shippingMethod === "CORREO_ARGENTINO_SUCURSAL" && (
+                <div className="pt-3 border-t border-slate-100 space-y-4">
+                  <div className="bg-blue-50/70 rounded-2xl p-3 border border-blue-200/70 flex items-start gap-2.5 text-xs text-blue-900">
+                    <Store className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span>
+                        Elegí la <strong>sucursal oficial de Correo Argentino</strong> donde preferís retirar tu encomienda. Tendrás 5 días hábiles desde que arribe para retirar con tu DNI.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Código Postal *
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingPostalCode}
+                        onChange={(e) => setShippingPostalCode(e.target.value)}
+                        placeholder="Ej: 3600"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Sucursal Oficial de Retiro *
+                      </label>
+                      {isLoadingAgencies ? (
+                        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-500 bg-slate-50">
+                          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                          <span>Buscando sucursales oficiales...</span>
+                        </div>
+                      ) : agencies.length > 0 ? (
+                        <select
+                          value={shippingBranchCode}
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            setShippingBranchCode(code);
+                            const found = agencies.find((a) => a.code === code);
+                            if (found) {
+                              setShippingBranchName(
+                                `${found.name} (${found.address.streetName} ${found.address.streetNumber})`
+                              );
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 bg-white"
+                        >
+                          {agencies.map((agency) => (
+                            <option key={agency.code} value={agency.code}>
+                              {agency.name} — {agency.address.streetName} {agency.address.streetNumber}, {agency.address.city} (CP {agency.address.postalCode})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="px-3.5 py-2.5 rounded-xl border border-amber-200 text-xs text-amber-800 bg-amber-50">
+                          No se encontraron sucursales para el CP {shippingPostalCode}. Modificá el código postal.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(shippingMethod === "CORREO_ARGENTINO" ||
+                shippingMethod === "CORREO_ARGENTINO_DOMICILIO") && (
                 <div className="pt-3 border-t border-slate-100 space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -2323,47 +2543,37 @@ export function CheckoutView({
                     />
                   </div>
 
-                  {shippingMethod === "CORREO_ARGENTINO" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Localidad / Provincia *
-                        </label>
-                        <input
-                          type="text"
-                          value={shippingCity}
-                          onChange={(e) => setShippingCity(e.target.value)}
-                          placeholder="Ej: Clorinda, Formosa"
-                          required
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Código Postal *
-                        </label>
-                        <input
-                          type="text"
-                          value={shippingPostalCode}
-                          onChange={(e) =>
-                            setShippingPostalCode(e.target.value)
-                          }
-                          placeholder="Ej: 3610"
-                          required
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                        />
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Localidad / Provincia *
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingCity}
+                        onChange={(e) => setShippingCity(e.target.value)}
+                        placeholder="Ej: Clorinda, Formosa"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/70 flex items-center gap-2.5 text-xs text-slate-700">
-                  <MapPin className="w-4 h-4 text-[#00A811] shrink-0" />
-                  <span>
-                    Retirás sin costo presentando tu DNI y código de orden en{" "}
-                    <strong>Saavedra 241, Formosa Capital</strong> (Lun a Sáb 8:00–12:30 y 17:00–21:00).
-                  </span>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Código Postal *
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingPostalCode}
+                        onChange={(e) =>
+                          setShippingPostalCode(e.target.value)
+                        }
+                        placeholder="Ej: 3610"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 

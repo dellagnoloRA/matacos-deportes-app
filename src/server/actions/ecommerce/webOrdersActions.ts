@@ -260,7 +260,13 @@ export async function getWebOrdersAction(
     }
 
     if (filters.shippingMethod !== "TODOS") {
-      where.shippingMethod = filters.shippingMethod;
+      if (filters.shippingMethod === "CORREO_ARGENTINO") {
+        where.shippingMethod = {
+          in: ["CORREO_ARGENTINO", "CORREO_ARGENTINO_DOMICILIO", "CORREO_ARGENTINO_SUCURSAL"],
+        };
+      } else {
+        where.shippingMethod = filters.shippingMethod;
+      }
     }
 
     if (filters.search && filters.search.trim().length > 0) {
