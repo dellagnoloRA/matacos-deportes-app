@@ -106,8 +106,8 @@ const MOCK_AGENCIES_DATABASE: CorreoArgentinoAgency[] = [
     name: "Sucursal Formosa Centro (Casa Central)",
     phone: "(0370) 442-9900",
     address: {
-      streetName: "Brandsen",
-      streetNumber: "202",
+      streetName: "Av. 9 de Julio",
+      streetNumber: "920",
       locality: "Formosa Capital",
       city: "Formosa",
       province: "Formosa",
@@ -708,7 +708,7 @@ export class CorreoArgentinoService {
           {
             date: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
             status: "PREIMPOSICION",
-            branch: "Sucursal Formosa Centro (Brandsen 202)",
+            branch: "Sucursal Formosa Centro (Av. 9 de Julio 920)",
             description: "Envío recibido e ingresado al sistema postal",
           },
           {

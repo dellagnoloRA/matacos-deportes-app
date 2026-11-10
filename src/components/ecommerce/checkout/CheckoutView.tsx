@@ -28,6 +28,13 @@ import {
   Lock,
   Sparkles,
   XCircle,
+  Mail,
+  Phone,
+  Home,
+  Building2,
+  ChevronRight,
+  ChevronLeft,
+  Pencil,
 } from "lucide-react";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
@@ -104,6 +111,33 @@ const SHIPPING_OPTIONS: Array<{
   },
 ];
 
+const ARGENTINE_PROVINCES = [
+  "Formosa",
+  "Chaco",
+  "Corrientes",
+  "Misiones",
+  "Buenos Aires",
+  "Ciudad Autónoma de Buenos Aires (CABA)",
+  "Santa Fe",
+  "Córdoba",
+  "Entre Ríos",
+  "Mendoza",
+  "Tucumán",
+  "Salta",
+  "Jujuy",
+  "Santiago del Estero",
+  "San Juan",
+  "San Luis",
+  "La Rioja",
+  "Catamarca",
+  "La Pampa",
+  "Neuquén",
+  "Río Negro",
+  "Chubut",
+  "Santa Cruz",
+  "Tierra del Fuego",
+];
+
 const CARD_BRANDS: Array<{ id: WebCardBrand; label: string }> = [
   { id: "VISA", label: "Visa" },
   { id: "MASTERCARD", label: "Mastercard" },
@@ -160,27 +194,44 @@ export function CheckoutView({
   }, [initialCustomer, storeCustomer, setCustomer]);
 
   // =========================================================================
-  // PASO 1: DATOS DE CONTACTO Y MODALIDAD DE ENTREGA
+  // CONTROL DEL WIZARD SECUENCIAL (PASOS 1, 2, 3, 4)
+  // 1: Contacto | 2: Dirección | 3: Entrega | 4: Pago
   // =========================================================================
-  const [customerName, setCustomerName] = useState(activeCustomer?.name ?? "");
-  const [customerDni, setCustomerDni] = useState(activeCustomer?.dni ?? "");
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Paso 1: Datos de Contacto
+  const initialNameParts = (activeCustomer?.name ?? "").trim().split(" ");
+  const [customerFirstName, setCustomerFirstName] = useState(
+    initialNameParts[0] ?? ""
+  );
+  const [customerLastName, setCustomerLastName] = useState(
+    initialNameParts.slice(1).join(" ") ?? ""
+  );
   const [customerEmail, setCustomerEmail] = useState(
     activeCustomer?.email ?? ""
   );
   const [customerPhone, setCustomerPhone] = useState(
     activeCustomer?.phone ?? ""
   );
-  const [shippingMethod, setShippingMethod] =
-    useState<ShippingMethod>("RETIRO_LOCAL");
-  const [shippingAddress, setShippingAddress] = useState(
+  const [customerDni, setCustomerDni] = useState(activeCustomer?.dni ?? "");
+
+  // Paso 2: Dirección y Ubicación
+  const [shippingStreet, setShippingStreet] = useState(
     activeCustomer?.defaultAddress ?? ""
   );
-  const [shippingCity, setShippingCity] = useState(
-    activeCustomer?.defaultCity ?? "Formosa"
-  );
+  const [shippingNumber, setShippingNumber] = useState("");
+  const [shippingFloorDept, setShippingFloorDept] = useState("");
   const [shippingPostalCode, setShippingPostalCode] = useState(
     activeCustomer?.defaultPostalCode ?? "3600"
   );
+  const [shippingProvince, setShippingProvince] = useState("Formosa");
+  const [shippingCity, setShippingCity] = useState(
+    activeCustomer?.defaultCity ?? "Formosa"
+  );
+
+  // Paso 3: Método de Entrega
+  const [shippingMethod, setShippingMethod] =
+    useState<ShippingMethod>("RETIRO_LOCAL");
   const [shippingBranchCode, setShippingBranchCode] = useState("");
   const [shippingBranchName, setShippingBranchName] = useState("");
   const [agencies, setAgencies] = useState<CorreoArgentinoAgency[]>([]);
@@ -188,6 +239,11 @@ export function CheckoutView({
   const [shippingOptions, setShippingOptions] = useState(SHIPPING_OPTIONS);
   const [isQuotingShipping, setIsQuotingShipping] = useState(false);
   const [notes, setNotes] = useState("");
+
+  const customerName = `${customerFirstName.trim()} ${customerLastName.trim()}`.trim();
+  const shippingAddress = `${shippingStreet.trim()} ${shippingNumber.trim()}${
+    shippingFloorDept.trim() ? `, ${shippingFloorDept.trim()}` : ""
+  }`.trim();
 
   // Cotización dinámica de envío al modificar código postal o artículos del carrito (RF-19)
   useEffect(() => {
@@ -243,34 +299,47 @@ export function CheckoutView({
         setIsLoadingAgencies(false);
         if (res.success && res.agencies.length > 0) {
           setAgencies(res.agencies);
-          if (!shippingBranchCode) {
+          const currentValid = res.agencies.some((a) => a.code === shippingBranchCode);
+          if (!currentValid || !shippingBranchCode) {
             setShippingBranchCode(res.agencies[0]!.code);
             setShippingBranchName(
               `${res.agencies[0]!.name} (${res.agencies[0]!.address.streetName} ${res.agencies[0]!.address.streetNumber})`
             );
           }
+        } else {
+          setAgencies([]);
+          setShippingBranchCode("");
+          setShippingBranchName("");
         }
       });
     }
-  }, [shippingMethod, shippingPostalCode, shippingBranchCode]);
+  }, [shippingMethod, shippingPostalCode]);
 
   useEffect(() => {
     if (!activeCustomer) return;
-    setCustomerName((prev) => prev || activeCustomer.name || "");
+    const parts = (activeCustomer.name || "").trim().split(" ");
+    setCustomerFirstName((prev) => prev || parts[0] || "");
+    setCustomerLastName((prev) => prev || parts.slice(1).join(" ") || "");
     setCustomerDni((prev) => prev || activeCustomer.dni || "");
     setCustomerEmail((prev) => prev || activeCustomer.email || "");
     setCustomerPhone((prev) => prev || activeCustomer.phone || "");
-    setShippingAddress((prev) => prev || activeCustomer.defaultAddress || "");
-    setShippingCity((prev) =>
-      prev === "Formosa" && activeCustomer.defaultCity
-        ? activeCustomer.defaultCity
-        : prev
-    );
-    setShippingPostalCode((prev) =>
-      prev === "3600" && activeCustomer.defaultPostalCode
-        ? activeCustomer.defaultPostalCode
-        : prev
-    );
+    if (activeCustomer.defaultAddress) {
+      setShippingStreet((prev) => prev || activeCustomer.defaultAddress || "");
+    }
+    if (activeCustomer.defaultCity) {
+      setShippingCity((prev) =>
+        prev === "Formosa" && activeCustomer.defaultCity
+          ? activeCustomer.defaultCity
+          : prev
+      );
+    }
+    if (activeCustomer.defaultPostalCode) {
+      setShippingPostalCode((prev) =>
+        prev === "3600" && activeCustomer.defaultPostalCode
+          ? activeCustomer.defaultPostalCode
+          : prev
+      );
+    }
   }, [activeCustomer]);
 
   // Validación de stock y precios en vivo (Paso 1)
@@ -489,10 +558,75 @@ export function CheckoutView({
     shippingMethod === "CORREO_ARGENTINO_DOMICILIO";
 
   // =========================================================================
-  // ACCIÓN PASO 1 -> PASO 2: CREAR ORDEN EN PENDIENTE_PAGO Y RESERVAR STOCK
+  // NAVEGACIÓN Y VALIDACIÓN SECUENCIAL ENTRE PASOS DEL WIZARD
   // =========================================================================
-  const handleReserveAndGoToPayment = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleProceedToStep2 = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setFormError(null);
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!customerEmail.trim() || !emailRegex.test(customerEmail.trim())) {
+      setFormError("Por favor ingresá un correo electrónico válido para recibir el comprobante.");
+      return;
+    }
+    if (customerFirstName.trim().length < 2) {
+      setFormError("Por favor ingresá tu nombre (mínimo 2 letras).");
+      return;
+    }
+    if (customerLastName.trim().length < 2) {
+      setFormError("Por favor ingresá tu apellido (mínimo 2 letras).");
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (cleanPhone.length < 6) {
+      setFormError("Por favor ingresá un número de teléfono o WhatsApp de contacto válido.");
+      return;
+    }
+    const cleanDni = customerDni.replace(/\D/g, "");
+    if (cleanDni.length < 7 || cleanDni.length > 11) {
+      setFormError("Por favor ingresá un DNI o CUIT válido (entre 7 y 11 números).");
+      return;
+    }
+
+    setWizardStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleProceedToStep3 = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setFormError(null);
+
+    if (shippingStreet.trim().length < 2) {
+      setFormError("Por favor ingresá el nombre de la calle.");
+      return;
+    }
+    if (shippingNumber.trim().length < 1) {
+      setFormError("Por favor ingresá la altura o número de calle.");
+      return;
+    }
+    const cleanCP = shippingPostalCode.replace(/\D/g, "");
+    if (cleanCP.length < 4) {
+      setFormError("Por favor ingresá un código postal válido de al menos 4 dígitos.");
+      return;
+    }
+    if (!shippingProvince.trim()) {
+      setFormError("Por favor seleccioná tu provincia.");
+      return;
+    }
+    if (shippingCity.trim().length < 2) {
+      setFormError("Por favor ingresá tu localidad o ciudad.");
+      return;
+    }
+
+    setWizardStep(3);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // =========================================================================
+  // ACCIÓN PASO 3 -> PASO 4: CREAR ORDEN EN PENDIENTE_PAGO Y RESERVAR STOCK
+  // =========================================================================
+  const handleReserveAndGoToPayment = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setFormError(null);
 
     if (items.length === 0) {
@@ -503,13 +637,6 @@ export function CheckoutView({
     if (validation?.hasStockIssues) {
       setFormError(
         "Algunos artículos de tu carrito superan el stock disponible. Ajustá las cantidades antes de continuar al pago."
-      );
-      return;
-    }
-
-    if (requiresAddress && shippingAddress.trim().length < 5) {
-      setFormError(
-        "Por favor ingresá la calle y altura de entrega para el envío a domicilio."
       );
       return;
     }
@@ -528,11 +655,12 @@ export function CheckoutView({
         customerEmail: customerEmail.trim(),
         customerPhone: customerPhone.trim(),
         shippingMethod,
-        shippingAddress: requiresAddress
-          ? shippingAddress.trim()
-          : shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
-          ? shippingBranchName.trim() || "Sucursal Correo Argentino"
-          : null,
+        shippingAddress:
+          shippingMethod === "RETIRO_LOCAL"
+            ? null
+            : shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+            ? shippingBranchName.trim() || "Sucursal Correo Argentino"
+            : shippingAddress.trim(),
         shippingCity:
           shippingMethod === "CADETERIA_FORMOSA"
             ? "Formosa"
@@ -570,6 +698,7 @@ export function CheckoutView({
 
       const order = res.data;
       setCreatedOrder(order);
+      setWizardStep(4);
       setPaymentResult(null);
       setPaymentError(null);
       setCardHolderName(order.customer.name.toUpperCase());
@@ -771,55 +900,81 @@ export function CheckoutView({
 
       setCreatedOrder(null);
       setPaymentResult(null);
+      setWizardStep(3);
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   };
 
-  // Determinar paso actual para el Stepper visual (1, 2 o 3)
-  const currentStep: 1 | 2 | 3 = paymentResult ? 3 : createdOrder ? 2 : 1;
+  // Determinar paso actual para el Stepper visual (1, 2, 3 o 4)
+  const isOrderFullyCompleted = Boolean(paymentResult);
+  const activeStepNum: 1 | 2 | 3 | 4 = isOrderFullyCompleted
+    ? 4
+    : createdOrder
+      ? 4
+      : wizardStep;
 
   const renderCheckoutStepper = () => {
-    const steps: Array<{ num: 1 | 2 | 3; title: string; subtitle: string }> = [
+    const steps: Array<{ num: 1 | 2 | 3 | 4; title: string; subtitle: string }> = [
       {
         num: 1,
-        title: "Contacto y Entrega",
-        subtitle: "Validación de stock",
+        title: "Contacto",
+        subtitle: "Datos y email",
       },
       {
         num: 2,
-        title: "Medio de Pago",
-        subtitle: "Reserva por 15 min",
+        title: "Dirección",
+        subtitle: "Ubicación de entrega",
       },
       {
         num: 3,
-        title: "Estado del Pedido",
-        subtitle: "Comprobante final",
+        title: "Entrega",
+        subtitle: "Método y cotización",
+      },
+      {
+        num: 4,
+        title: "Pago",
+        subtitle: "Reserva por 15 min",
       },
     ];
 
     return (
       <nav
         aria-label="Progreso de compra"
-        className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm"
+        className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm"
       >
-        <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <ol className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {steps.map((step) => {
-            const isCompleted = currentStep > step.num;
-            const isActive = currentStep === step.num;
+            const isCompleted =
+              isOrderFullyCompleted || activeStepNum > step.num;
+            const isActive =
+              !isOrderFullyCompleted && activeStepNum === step.num;
+            const canNavigateBack = !createdOrder && step.num < wizardStep;
 
             return (
               <li
                 key={step.num}
-                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                onClick={() => {
+                  if (canNavigateBack) {
+                    setFormError(null);
+                    setWizardStep(step.num);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
+                className={`flex items-center gap-2.5 p-2 sm:p-2.5 rounded-xl border transition-all ${
                   isActive
-                    ? "border-[#00A811] bg-emerald-50/60"
+                    ? "border-[#00A811] bg-emerald-50/60 ring-1 ring-[#00A811]"
                     : isCompleted
                       ? "border-emerald-200 bg-emerald-50/25"
-                      : "border-slate-100 bg-slate-50/60 opacity-70"
-                }`}
+                      : "border-slate-100 bg-slate-50/60 opacity-60"
+                } ${canNavigateBack ? "cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50" : ""}`}
+                title={
+                  canNavigateBack
+                    ? `Volver al paso ${step.num}: ${step.title}`
+                    : undefined
+                }
               >
                 <span
-                  className={`w-8 h-8 rounded-full text-xs font-black flex items-center justify-center shrink-0 ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full text-xs font-black flex items-center justify-center shrink-0 ${
                     isCompleted
                       ? "bg-[#00D615] text-slate-950"
                       : isActive
@@ -830,10 +985,13 @@ export function CheckoutView({
                   {isCompleted ? <Check className="w-4 h-4" /> : step.num}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs font-black uppercase tracking-wide text-slate-900 truncate">
-                    {step.title}
+                  <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-slate-900 truncate flex items-center gap-1">
+                    <span>{step.title}</span>
+                    {canNavigateBack && (
+                      <Pencil className="w-2.5 h-2.5 text-slate-400 hidden sm:inline" />
+                    )}
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 truncate hidden xs:block">
                     {step.subtitle}
                   </p>
                 </div>
@@ -2267,211 +2425,212 @@ export function CheckoutView({
           </div>
         )}
 
-        {/* Main 2-Column Checkout Layout (Step 1) */}
-        <form
-          onSubmit={handleReserveAndGoToPayment}
-          className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start"
-        >
-          {/* Left Column: Customer Data & Delivery Options (7 cols) */}
+        {/* Main 2-Column Checkout Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Left Column: Form according to wizardStep (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Datos del Comprador */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-                <span className="w-6 h-6 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
-                  A
-                </span>
-                <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
-                  Datos del Comprador
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nombre y Apellido *
-                  </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Ej: Martín Gómez"
-                    required
-                    minLength={3}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    DNI o CUIT *
-                  </label>
-                  <input
-                    type="text"
-                    value={customerDni}
-                    onChange={(e) => setCustomerDni(e.target.value)}
-                    placeholder="Ej: 38999111"
-                    required
-                    minLength={7}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Correo electrónico *
-                  </label>
-                  <input
-                    type="email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="ejemplo@correo.com"
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Teléfono / WhatsApp *
-                  </label>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Ej: 3704556677"
-                    required
-                    minLength={6}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Modalidad de Entrega */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
-                    B
-                  </span>
-                  <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
-                    Modalidad de Entrega
-                  </h2>
-                </div>
-                {isQuotingShipping && (
-                  <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 animate-pulse">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Cotizando...</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                {shippingOptions.map((option) => {
-                  const isSelected = shippingMethod === option.method;
-                  return (
-                    <label
-                      key={option.method}
-                      onClick={() => setShippingMethod(option.method)}
-                      className={`flex items-start justify-between gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? "border-[#00A811] bg-emerald-50/40 ring-1 ring-[#00A811]"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          name="shippingMethod"
-                          value={option.method}
-                          checked={isSelected}
-                          onChange={() => setShippingMethod(option.method)}
-                          className="mt-1 text-[#00A811] focus:ring-[#00A811] cursor-pointer"
-                        />
-                        <div className="space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs sm:text-sm font-extrabold text-slate-900">
-                              {option.title}
-                            </span>
-                            {option.badge && (
-                              <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                {option.badge}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500">
-                            {option.subtitle}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className="text-xs sm:text-sm font-black text-slate-900 shrink-0">
-                        {option.cost === 0
-                          ? "Gratis"
-                          : formatCurrency(option.cost)}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              {/* Campos condicionales según modalidad de entrega */}
-              {shippingMethod === "RETIRO_LOCAL" && (
-                <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 flex items-start gap-3 text-xs text-slate-800">
-                  <MapPin className="w-5 h-5 text-[#00A811] shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-slate-950 font-bold text-xs mb-0.5">
-                      Punto de Retiro Oficial en Formosa Capital
-                    </strong>
-                    <span>
-                      Retirás sin costo presentando tu DNI y código de orden en{" "}
-                      <strong>Saavedra 241</strong> (Lun a Sáb 8:00–12:30 y 17:00–21:00).
+            {/* ============================================================= */}
+            {/* PASO 1: DATOS DE CONTACTO */}
+            {/* ============================================================= */}
+            {wizardStep === 1 && (
+              <form
+                onSubmit={handleProceedToStep2}
+                className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
+                      1
                     </span>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
+                        Datos de Contacto
+                      </h2>
+                      <p className="text-[11px] text-slate-500">
+                        Paso 1 de 4 • ¿A quién contactamos y enviamos el comprobante?
+                      </p>
+                    </div>
                   </div>
+                  <Mail className="w-5 h-5 text-slate-400" />
                 </div>
-              )}
 
-              {shippingMethod === "CADETERIA_FORMOSA" && (
-                <div className="pt-3 border-t border-slate-100 space-y-4">
-                  <div className="bg-amber-50/70 rounded-2xl p-3 border border-amber-200/70 flex items-start gap-2.5 text-xs text-amber-900">
-                    <Truck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span>
-                      Servicio exclusivo de cadetería en moto para entregas dentro del ejido urbano de <strong>Formosa Capital (CP 3600)</strong>.
-                    </span>
-                  </div>
-
+                <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Calle, número y piso / departamento en Formosa *
+                      Correo electrónico *
                     </label>
                     <input
-                      type="text"
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                      placeholder="Ej: Av. 25 de Mayo 850, Piso 2 Depto B"
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="ejemplo@correo.com"
                       required
-                      minLength={5}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Te enviaremos el comprobante de compra y el código de seguimiento a este email.
+                    </p>
                   </div>
-                </div>
-              )}
 
-              {shippingMethod === "CORREO_ARGENTINO_SUCURSAL" && (
-                <div className="pt-3 border-t border-slate-100 space-y-4">
-                  <div className="bg-blue-50/70 rounded-2xl p-3 border border-blue-200/70 flex items-start gap-2.5 text-xs text-blue-900">
-                    <Store className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <span>
-                        Elegí la <strong>sucursal oficial de Correo Argentino</strong> donde preferís retirar tu encomienda. Tendrás 5 días hábiles desde que arribe para retirar con tu DNI.
-                      </span>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nombre *
+                      </label>
+                      <input
+                        type="text"
+                        value={customerFirstName}
+                        onChange={(e) => setCustomerFirstName(e.target.value)}
+                        placeholder="Ej: Martín"
+                        required
+                        minLength={2}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Apellido *
+                      </label>
+                      <input
+                        type="text"
+                        value={customerLastName}
+                        onChange={(e) => setCustomerLastName(e.target.value)}
+                        placeholder="Ej: Gómez"
+                        required
+                        minLength={2}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Teléfono / WhatsApp *
+                      </label>
+                      <input
+                        type="tel"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="Ej: 3704556677"
+                        required
+                        minLength={6}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Para avisarte ante novedades o coordinar la entrega.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        DNI o CUIT *
+                      </label>
+                      <input
+                        type="text"
+                        value={customerDni}
+                        onChange={(e) => setCustomerDni(e.target.value)}
+                        placeholder="Ej: 38999111"
+                        required
+                        minLength={7}
+                        maxLength={11}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Requerido para retirar en sucursal o emitir la factura.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+                  <p className="text-[11px] text-slate-500 hidden sm:block">
+                    Completá tus datos para avanzar al paso de dirección.
+                  </p>
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto ml-auto py-3 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <span>Continuar a Dirección</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ============================================================= */}
+            {/* PASO 2: DIRECCIÓN Y UBICACIÓN */}
+            {/* ============================================================= */}
+            {wizardStep === 2 && (
+              <form
+                onSubmit={handleProceedToStep3}
+                className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
+                      2
+                    </span>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
+                        Dirección y Ubicación
+                      </h2>
+                      <p className="text-[11px] text-slate-500">
+                        Paso 2 de 4 • ¿Dónde te entregamos o cuál es tu domicilio de facturación?
+                      </p>
+                    </div>
+                  </div>
+                  <Home className="w-5 h-5 text-slate-400" />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Calle *
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingStreet}
+                        onChange={(e) => setShippingStreet(e.target.value)}
+                        placeholder="Ej: Av. 25 de Mayo o Saavedra"
+                        required
+                        minLength={2}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Número / Altura *
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingNumber}
+                        onChange={(e) => setShippingNumber(e.target.value)}
+                        placeholder="Ej: 850"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Piso y Departamento (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingFloorDept}
+                        onChange={(e) => setShippingFloorDept(e.target.value)}
+                        placeholder="Ej: Piso 2 Depto B"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+
+                    <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Código Postal *
                       </label>
@@ -2481,130 +2640,390 @@ export function CheckoutView({
                         onChange={(e) => setShippingPostalCode(e.target.value)}
                         placeholder="Ej: 3600"
                         required
+                        minLength={4}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
                       />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Utilizado para cotizar envíos y buscar sucursales de Correo Argentino.
+                      </p>
                     </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Sucursal Oficial de Retiro *
-                      </label>
-                      {isLoadingAgencies ? (
-                        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-500 bg-slate-50">
-                          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                          <span>Buscando sucursales oficiales...</span>
-                        </div>
-                      ) : agencies.length > 0 ? (
-                        <select
-                          value={shippingBranchCode}
-                          onChange={(e) => {
-                            const code = e.target.value;
-                            setShippingBranchCode(code);
-                            const found = agencies.find((a) => a.code === code);
-                            if (found) {
-                              setShippingBranchName(
-                                `${found.name} (${found.address.streetName} ${found.address.streetNumber})`
-                              );
-                            }
-                          }}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 bg-white"
-                        >
-                          {agencies.map((agency) => (
-                            <option key={agency.code} value={agency.code}>
-                              {agency.name} — {agency.address.streetName} {agency.address.streetNumber}, {agency.address.city} (CP {agency.address.postalCode})
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="px-3.5 py-2.5 rounded-xl border border-amber-200 text-xs text-amber-800 bg-amber-50">
-                          No se encontraron sucursales para el CP {shippingPostalCode}. Modificá el código postal.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {(shippingMethod === "CORREO_ARGENTINO" ||
-                shippingMethod === "CORREO_ARGENTINO_DOMICILIO") && (
-                <div className="pt-3 border-t border-slate-100 space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Calle, número y piso / departamento *
-                    </label>
-                    <input
-                      type="text"
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                      placeholder="Ej: Av. 25 de Mayo 850, Piso 2 Depto B"
-                      required
-                      minLength={5}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Localidad / Provincia *
+                        Provincia *
+                      </label>
+                      <select
+                        value={shippingProvince}
+                        onChange={(e) => setShippingProvince(e.target.value)}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 bg-white"
+                      >
+                        {ARGENTINE_PROVINCES.map((prov) => (
+                          <option key={prov} value={prov}>
+                            {prov}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Localidad o Ciudad *
                       </label>
                       <input
                         type="text"
                         value={shippingCity}
                         onChange={(e) => setShippingCity(e.target.value)}
-                        placeholder="Ej: Clorinda, Formosa"
+                        placeholder="Ej: Formosa"
                         required
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Código Postal *
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingPostalCode}
-                        onChange={(e) =>
-                          setShippingPostalCode(e.target.value)
-                        }
-                        placeholder="Ej: 3610"
-                        required
+                        minLength={2}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
                       />
                     </div>
                   </div>
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Notas adicionales sobre el pedido o entrega (opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ej: Retira un familiar / Timbre roto, llamar al llegar..."
-                  maxLength={500}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 resize-none"
-                />
-              </div>
-            </section>
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormError(null);
+                      setWizardStep(1);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Volver a Contacto</span>
+                  </button>
 
-            {/* Información de cómo funciona la Reserva antes del Pago */}
-            <section className="bg-emerald-50/70 rounded-3xl border border-emerald-200/90 p-5 space-y-2 text-xs text-slate-700">
-              <div className="flex items-center gap-2 font-extrabold text-emerald-950">
-                <ShieldCheck className="w-4 h-4 text-[#00A811] shrink-0" />
-                <span>
-                  ¿Cómo protegemos tu stock mientras pagás?
-                </span>
-              </div>
-              <p className="leading-relaxed text-slate-600">
-                Al hacer clic en <strong>Continuar al Pago y Reservar Stock</strong>, bloquearemos tus unidades durante{" "}
-                <strong>15 minutos</strong> en nuestro inventario para que nadie más pueda comprarlas mientras completás el pago con Tarjeta (Crédito/Débito), Transferencia Bancaria o Pago en Mostrador.
-              </p>
-            </section>
+                  <button
+                    type="submit"
+                    className="py-3 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <span>Continuar a Método de Entrega</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ============================================================= */}
+            {/* PASO 3: MÉTODO DE ENTREGA */}
+            {/* ============================================================= */}
+            {wizardStep === 3 && (
+              <form
+                onSubmit={handleReserveAndGoToPayment}
+                className="space-y-6"
+              >
+                {/* Resumen previo de Contacto y Dirección con botón para editar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-start justify-between gap-3 text-xs">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 text-slate-400 font-bold uppercase text-[10px]">
+                        <User className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Datos de Contacto</span>
+                      </div>
+                      <p className="font-extrabold text-slate-900 truncate">
+                        {customerName}
+                      </p>
+                      <p className="text-slate-500 truncate">
+                        DNI {customerDni} • {customerEmail}
+                      </p>
+                      <p className="text-slate-500 truncate">
+                        Tel: {customerPhone}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormError(null);
+                        setWizardStep(1);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-bold text-slate-600 inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                      title="Editar datos de contacto"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Editar</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-start justify-between gap-3 text-xs">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 text-slate-400 font-bold uppercase text-[10px]">
+                        <MapPin className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Dirección de Entrega</span>
+                      </div>
+                      <p className="font-extrabold text-slate-900 truncate">
+                        {shippingAddress || `${shippingStreet} ${shippingNumber}`}
+                      </p>
+                      <p className="text-slate-500 truncate">
+                        {shippingCity}, {shippingProvince}
+                      </p>
+                      <p className="text-slate-500 truncate">
+                        Código Postal: {shippingPostalCode}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormError(null);
+                        setWizardStep(2);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-bold text-slate-600 inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                      title="Editar dirección"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Editar</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selección del Método de Entrega */}
+                <section className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-7 h-7 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
+                        3
+                      </span>
+                      <div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-wide text-slate-950">
+                          Método de Entrega
+                        </h2>
+                        <p className="text-[11px] text-slate-500">
+                          Paso 3 de 4 • Elegí cómo querés recibir o retirar tu compra
+                        </p>
+                      </div>
+                    </div>
+                    {isQuotingShipping && (
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 animate-pulse">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Cotizando...</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {shippingOptions.map((option) => {
+                      const isSelected = shippingMethod === option.method;
+                      return (
+                        <label
+                          key={option.method}
+                          onClick={() => setShippingMethod(option.method)}
+                          className={`flex items-start justify-between gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-[#00A811] bg-emerald-50/40 ring-1 ring-[#00A811]"
+                              : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="shippingMethod"
+                              value={option.method}
+                              checked={isSelected}
+                              onChange={() => setShippingMethod(option.method)}
+                              className="mt-1 text-[#00A811] focus:ring-[#00A811] cursor-pointer"
+                            />
+                            <div className="space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs sm:text-sm font-extrabold text-slate-900">
+                                  {option.title}
+                                </span>
+                                {option.badge && (
+                                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                    {option.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                {option.subtitle}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="text-xs sm:text-sm font-black text-slate-900 shrink-0">
+                            {option.cost === 0
+                              ? "Gratis"
+                              : formatCurrency(option.cost)}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Campos condicionales según modalidad de entrega */}
+                  {shippingMethod === "RETIRO_LOCAL" && (
+                    <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 flex items-start gap-3 text-xs text-slate-800">
+                      <MapPin className="w-5 h-5 text-[#00A811] shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block text-slate-950 font-bold text-xs mb-0.5">
+                          Punto de Retiro Oficial en Formosa Capital
+                        </strong>
+                        <span>
+                          Retirás sin costo presentando tu DNI ({customerDni}) y código de orden en{" "}
+                          <strong>Saavedra 241</strong> (Lun a Sáb 8:00–12:30 y 17:00–21:00).
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {shippingMethod === "CADETERIA_FORMOSA" && (
+                    <div className="bg-amber-50/70 rounded-2xl p-4 border border-amber-200/70 flex items-start gap-3 text-xs text-amber-900">
+                      <Truck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <strong className="block text-amber-950 font-bold text-xs">
+                          Cadetería en Moto — Formosa Capital
+                        </strong>
+                        <span>
+                          Despachamos tu pedido directo a <strong>{shippingAddress}</strong> ({shippingCity}).
+                        </span>
+                        {shippingPostalCode.trim() !== "3600" && (
+                          <p className="text-amber-800 font-semibold text-[11px] pt-1">
+                            Nota: este servicio opera exclusivamente dentro del ejido urbano de Formosa Capital (CP 3600). Tu código postal actual es {shippingPostalCode}.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {shippingMethod === "CORREO_ARGENTINO_SUCURSAL" && (
+                    <div className="pt-3 border-t border-slate-100 space-y-4">
+                      <div className="bg-blue-50/70 rounded-2xl p-4 border border-blue-200/70 flex items-start gap-2.5 text-xs text-blue-900">
+                        <Store className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block text-blue-950 font-bold text-xs mb-0.5">
+                            Retiro en Sucursal Oficial Correo Argentino (CP {shippingPostalCode})
+                          </strong>
+                          <span>
+                            Elegí la sucursal más cercana. Tendrás 5 días hábiles desde que arribe para retirar con tu DNI ({customerDni}).
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Sucursal Oficial de Retiro *
+                        </label>
+                        {isLoadingAgencies ? (
+                          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-500 bg-slate-50">
+                            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                            <span>Buscando sucursales oficiales para el CP {shippingPostalCode}...</span>
+                          </div>
+                        ) : agencies.length > 0 ? (
+                          <select
+                            value={shippingBranchCode}
+                            onChange={(e) => {
+                              const code = e.target.value;
+                              setShippingBranchCode(code);
+                              const found = agencies.find((a) => a.code === code);
+                              if (found) {
+                                setShippingBranchName(
+                                  `${found.name} (${found.address.streetName} ${found.address.streetNumber})`
+                                );
+                              }
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 bg-white"
+                          >
+                            {agencies.map((agency) => (
+                              <option key={agency.code} value={agency.code}>
+                                {agency.name} — {agency.address.streetName} {agency.address.streetNumber}, {agency.address.city} (CP {agency.address.postalCode})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="px-3.5 py-2.5 rounded-xl border border-amber-200 text-xs text-amber-800 bg-amber-50">
+                            No se encontraron sucursales oficiales para el CP {shippingPostalCode}. Podés modificar el código postal en el paso anterior o elegir Envío a Domicilio.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {(shippingMethod === "CORREO_ARGENTINO" ||
+                    shippingMethod === "CORREO_ARGENTINO_DOMICILIO") && (
+                    <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 flex items-start gap-3 text-xs text-slate-800">
+                      <Truck className="w-5 h-5 text-[#00A811] shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block text-slate-950 font-bold text-xs mb-0.5">
+                          Envío Puerta a Puerta por Correo Argentino
+                        </strong>
+                        <span>
+                          Tu pedido será entregado en <strong>{shippingAddress}</strong>, {shippingCity}, {shippingProvince} (CP {shippingPostalCode}).
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Notas adicionales sobre el pedido o entrega (opcional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ej: Retira un familiar / Timbre roto, llamar al llegar..."
+                      maxLength={500}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900 resize-none"
+                    />
+                  </div>
+                </section>
+
+                {/* Información de Reserva */}
+                <section className="bg-emerald-50/70 rounded-3xl border border-emerald-200/90 p-5 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2 font-extrabold text-emerald-950">
+                    <ShieldCheck className="w-4 h-4 text-[#00A811] shrink-0" />
+                    <span>¿Cómo protegemos tu stock mientras pagás?</span>
+                  </div>
+                  <p className="leading-relaxed text-slate-600">
+                    Al hacer clic en <strong>Continuar al Pago y Reservar Stock</strong>, bloquearemos tus unidades durante{" "}
+                    <strong>15 minutos</strong> en nuestro inventario para que nadie más pueda comprarlas mientras completás el pago con Tarjeta, Mercado Pago, Transferencia o en Caja.
+                  </p>
+                </section>
+
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormError(null);
+                      setWizardStep(2);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Volver a Dirección</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      isSubmittingReservation ||
+                      isValidating ||
+                      Boolean(validation?.hasStockIssues)
+                    }
+                    className="py-3.5 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingReservation ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Reservando stock por 15 min...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Continuar al Pago y Reservar Stock</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* Right Column: Order Summary (5 cols) */}
@@ -2612,8 +3031,7 @@ export function CheckoutView({
             <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h2 className="text-sm font-black uppercase tracking-wider text-slate-950">
-                  Resumen de tu Carrito (
-                  {items.reduce((s, i) => s + i.quantity, 0)})
+                  Resumen de tu Carrito ({items.reduce((s, i) => s + i.quantity, 0)})
                 </h2>
                 <Truck className="w-4 h-4 text-[#00A811]" />
               </div>
@@ -2738,51 +3156,94 @@ export function CheckoutView({
                 )}
 
                 <div className="flex justify-between text-slate-600">
-                  <span>{selectedShippingOption.title}</span>
-                  <span className="font-bold text-emerald-700">
-                    {shippingCost === 0
-                      ? "Gratis"
-                      : formatCurrency(shippingCost)}
+                  <span>
+                    {wizardStep === 3
+                      ? selectedShippingOption.title
+                      : "Costo de entrega"}
+                  </span>
+                  <span
+                    className={`font-bold ${
+                      wizardStep === 3
+                        ? "text-emerald-700"
+                        : "text-slate-400 italic text-[11px]"
+                    }`}
+                  >
+                    {wizardStep === 3
+                      ? shippingCost === 0
+                        ? "Gratis"
+                        : formatCurrency(shippingCost)
+                      : "Se calcula según entrega"}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-baseline text-base font-black text-slate-950 pt-3 border-t border-slate-200">
                   <span>TOTAL</span>
                   <span className="text-2xl text-[#00A811]">
-                    {formatCurrency(totalOrder)}
+                    {formatCurrency(wizardStep === 3 ? totalOrder : subtotalProducts)}
                   </span>
                 </div>
               </div>
 
-              {/* Submit Button -> Avanza a Paso 2 reservando stock */}
-              <button
-                type="submit"
-                disabled={
-                  isSubmittingReservation ||
-                  isValidating ||
-                  Boolean(validation?.hasStockIssues)
-                }
-                className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
-              >
-                {isSubmittingReservation ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Reservando stock por 15 min...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>CONTINUAR AL PAGO Y RESERVAR STOCK</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+              {/* Contextual Action Button */}
+              {wizardStep === 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleProceedToStep2()}
+                  disabled={isValidating || Boolean(validation?.hasStockIssues)}
+                  className="w-full py-4 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <span>Continuar a Dirección</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+
+              {wizardStep === 2 && (
+                <button
+                  type="button"
+                  onClick={() => handleProceedToStep3()}
+                  disabled={isValidating || Boolean(validation?.hasStockIssues)}
+                  className="w-full py-4 px-6 rounded-xl bg-slate-950 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <span>Continuar a Método de Entrega</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+
+              {wizardStep === 3 && (
+                <button
+                  type="button"
+                  onClick={() => handleReserveAndGoToPayment()}
+                  disabled={
+                    isSubmittingReservation ||
+                    isValidating ||
+                    Boolean(validation?.hasStockIssues)
+                  }
+                  className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isSubmittingReservation ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Reservando stock por 15 min...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>CONTINUAR AL PAGO Y RESERVAR STOCK</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              )}
 
               <p className="text-[11px] text-center text-slate-400 leading-relaxed">
-                En el siguiente paso elegirás tu medio de pago • Matacos Deportes (Saavedra 241, Formosa).
+                {wizardStep === 1
+                  ? "Paso 1 de 4 • Datos de contacto del comprador."
+                  : wizardStep === 2
+                  ? "Paso 2 de 4 • Ubicación de entrega y facturación."
+                  : "Paso 3 de 4 • Al continuar, tu stock queda reservado por 15 min."}
               </p>
             </div>
           </aside>
-        </form>
+        </div>
       </main>
 
       <EcommerceFooter />

@@ -140,8 +140,8 @@ async function runTests() {
   const agenciesFormosa = await correoArgentinoService.getAgencies({ postalCode: "3600" });
   assert(agenciesFormosa.length > 0, "Obtiene sucursales oficiales para CP 3600 Formosa");
   assert(
-    agenciesFormosa.some((a) => a.address.streetName.toLowerCase().includes("brandsen")),
-    "Identifica la Sucursal Central Formosa en Brandsen 202"
+    agenciesFormosa.some((a) => a.address.streetName.toLowerCase().includes("9 de julio")),
+    "Identifica la Sucursal Central Formosa en Av. 9 de Julio 920"
   );
 
   const agenciesClorinda = await correoArgentinoService.getAgencies({ postalCode: "3610" });
@@ -258,7 +258,7 @@ async function runTests() {
       shippingCity: "Formosa",
       shippingPostalCode: "3600",
       shippingBranchCode: "01001",
-      shippingBranchName: "Correo Argentino - Brandsen 202, Formosa",
+      shippingBranchName: "Correo Argentino - Av. 9 de Julio 920, Formosa",
       shippingCost: 5800,
       notes: "Prueba automatizada de despacho y cancelación",
       items: [
