@@ -286,6 +286,9 @@ export const ProcessWebOrderPaymentSchema = z
       .trim()
       .regex(/^[0-9]{4}$/, "Los últimos 4 dígitos de la tarjeta son inválidos")
       .optional(),
+    cardToken: z.string().trim().optional(),
+    paymentMethodId: z.string().trim().optional(),
+    issuerId: z.string().trim().optional(),
     installments: z.coerce.number().int().min(1).max(12).default(1),
     simulateDecline: z.boolean().optional().default(false),
     transferReference: z.string().trim().max(80).optional().nullable(),
@@ -296,7 +299,7 @@ export const ProcessWebOrderPaymentSchema = z
       data.paymentOption === "TARJETA_DEBITO";
 
     if (isCard) {
-      if (!data.cardBrand) {
+      if (!data.cardBrand && !data.cardToken) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Seleccioná la marca de tu tarjeta",
@@ -310,7 +313,7 @@ export const ProcessWebOrderPaymentSchema = z
           path: ["cardHolderName"],
         });
       }
-      if (!data.cardLast4) {
+      if (!data.cardLast4 && !data.cardToken) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Completá los datos de la tarjeta (16 dígitos)",

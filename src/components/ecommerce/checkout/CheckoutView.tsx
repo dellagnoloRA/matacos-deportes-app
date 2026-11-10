@@ -64,6 +64,12 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
 import { useCustomerStore } from "@/store/customerStore";
 
+declare global {
+  interface Window {
+    MercadoPago?: any;
+  }
+}
+
 const ACTIVE_CHECKOUT_SESSION_KEY = "matacos-active-checkout-order";
 
 interface StoredCheckoutSession {
@@ -341,6 +347,24 @@ export function CheckoutView({
       );
     }
   }, [activeCustomer]);
+
+  // Carga asíncrona no bloqueante del SDK oficial de Mercado Pago v2 para tokenización de tarjetas
+  useEffect(() => {
+    if (typeof window === "undefined" || window.MercadoPago) return;
+    const mpKey = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY;
+    if (!mpKey) return;
+
+    const script = document.createElement("script");
+    script.src = "https://sdk.mercadopago.com/js/v2";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   // Validación de stock y precios en vivo (Paso 1)
   const [validation, setValidation] = useState<CartValidationResult | null>(
@@ -829,7 +853,56 @@ export function CheckoutView({
     const effectiveInstallments =
       paymentOption === "TARJETA_CREDITO" ? installments : 1;
 
+    // Detectar si es una tarjeta demo para testing rápido en desarrollo
+    const isDemoCard =
+      simulateDecline ||
+      cleanCardDigits === "4509953566233704" ||
+      cleanCardDigits === "4509950000000000" ||
+      cardHolderName.toUpperCase().includes("DEMO") ||
+      cardHolderName.toUpperCase().includes("RECHAZ");
+
     startPaymentTransition(async () => {
+      let cardToken: string | undefined = undefined;
+
+      // Si es tarjeta real y la SDK de Mercado Pago está disponible, tokenizar en el navegador
+      if (
+        isCard &&
+        !isDemoCard &&
+        typeof window !== "undefined" &&
+        window.MercadoPago &&
+        process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
+      ) {
+        try {
+          const mp = new window.MercadoPago(
+            process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY,
+            { locale: "es-AR" }
+          );
+          const expMonthStr = cleanExpiryDigits.slice(0, 2);
+          const expYearStr = "20" + cleanExpiryDigits.slice(2, 4);
+
+          const tokenResult = await mp.createCardToken({
+            cardNumber: cleanCardDigits,
+            cardholderName: cardHolderName.trim(),
+            cardExpirationMonth: expMonthStr,
+            cardExpirationYear: expYearStr,
+            securityCode: cleanCvvDigits,
+            identificationType: "DNI",
+            identificationNumber:
+              createdOrder.customer.dni.replace(/\D/g, "") || "11111111",
+          });
+
+          if (tokenResult?.id) {
+            cardToken = tokenResult.id;
+          }
+        } catch (tokenErr: any) {
+          console.warn("Mercado Pago createCardToken error:", tokenErr);
+          if (tokenErr?.message) {
+            setPaymentError(`Validación de tarjeta: ${tokenErr.message}`);
+            return;
+          }
+        }
+      }
+
       const res = await processWebOrderPayment({
         orderCode: createdOrder.orderCode,
         verification: createdOrder.customer.dni || createdOrder.customer.email,
@@ -837,6 +910,8 @@ export function CheckoutView({
         cardBrand: isCard ? cardBrand : undefined,
         cardHolderName: isCard ? cardHolderName.trim() : undefined,
         cardLast4: isCard ? cleanCardDigits.slice(-4) : undefined,
+        cardToken,
+        paymentMethodId: isCard ? cardBrand.toLowerCase() : undefined,
         installments: effectiveInstallments,
         simulateDecline: isCard ? simulateDecline : false,
         transferReference:
@@ -1605,12 +1680,17 @@ export function CheckoutView({
               <section className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-6 h-6 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
-                      2
+                    <span className="w-7 h-7 rounded-full bg-slate-950 text-white text-xs font-black flex items-center justify-center">
+                      4
                     </span>
-                    <h1 className="text-base sm:text-lg font-black uppercase tracking-wide text-slate-950">
-                      ¿Cómo querés pagar tu compra?
-                    </h1>
+                    <div>
+                      <h1 className="text-base sm:text-lg font-black uppercase tracking-wide text-slate-950">
+                        ¿Cómo querés pagar tu compra?
+                      </h1>
+                      <p className="text-[11px] text-slate-500">
+                        Paso 4 de 4 • Stock reservado por 15 minutos para la orden {createdOrder.orderCode}
+                      </p>
+                    </div>
                   </div>
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
                     <Lock className="w-3.5 h-3.5" />
@@ -1837,29 +1917,39 @@ export function CheckoutView({
 
                 {isCardSelected && (
                   <div className="pt-4 border-t border-slate-100 space-y-4">
-                    {/* Botonera de prueba rápida para entorno local sin Mercado Pago */}
-                    <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-3.5 space-y-2">
-                      <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                        <Sparkles className="w-3.5 h-3.5 text-[#00A811]" />
-                        <span>Simulador de Pasarela Local (Modo Prueba)</span>
+                    {/* Botonera de prueba rápida para entorno local y testing */}
+                    {process.env.NODE_ENV !== "production" && (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-700">
+                            <Sparkles className="w-3.5 h-3.5 text-[#00A811]" />
+                            <span>Entorno de Pruebas (Dev / Sandbox)</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            Dual Mode Activo
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Podés autocompletar una tarjeta simulada para probar el flujo sin costo, o ingresar una tarjeta real para validar la tokenización transparente directa con Mercado Pago.
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={handleFillApprovedDemoCard}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            Autocompletar Tarjeta Aprobada
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleFillDeclinedDemoCard}
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            Simular Tarjeta Rechazada
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={handleFillApprovedDemoCard}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors cursor-pointer"
-                        >
-                          Autocompletar Tarjeta Aprobada
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleFillDeclinedDemoCard}
-                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold transition-colors cursor-pointer"
-                        >
-                          Simular Tarjeta Rechazada
-                        </button>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Marca de Tarjeta */}
                     <div>
@@ -1943,9 +2033,26 @@ export function CheckoutView({
                               e.target.value
                             );
                             setCardNumber(formatted);
-                            setSimulateDecline(
-                              formatted.replace(/\D/g, "").endsWith("0000")
-                            );
+                            const cleanDigits = formatted.replace(/\D/g, "");
+                            setSimulateDecline(cleanDigits.endsWith("0000"));
+
+                            // Detección automática de la franquicia/marca
+                            if (cleanDigits.startsWith("4")) {
+                              setCardBrand("VISA");
+                            } else if (
+                              /^(5[1-5]|222[1-9]|22[3-9]|2[3-6]|27[0-1]|2720)/.test(
+                                cleanDigits
+                              )
+                            ) {
+                              setCardBrand("MASTERCARD");
+                            } else if (
+                              cleanDigits.startsWith("589562") ||
+                              cleanDigits.startsWith("58")
+                            ) {
+                              setCardBrand("NARANJA_X");
+                            } else if (/^(6042|6043|5896)/.test(cleanDigits)) {
+                              setCardBrand("CABAL");
+                            }
                           }}
                           placeholder="4509 9535 6623 3704"
                           required
