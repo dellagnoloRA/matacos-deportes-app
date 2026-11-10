@@ -221,10 +221,10 @@ El servicio encapsula los endpoints de **MiCorreo API**:
 - [x] **T2.2:** Implementar el motor Mock dentro del servicio para simular cotizaciones, agencias y números de guía realistas sin credenciales activas.
 
 ### Fase 3: Server Actions de Envíos (BE-RF19)
-- [ ] **T3.1:** Implementar Server Action `calculateShippingCostAction` con cálculo heurístico de paquete virtual y fallback.
-- [ ] **T3.2:** Implementar Server Action `getAgenciesAction` para consultar sucursales habilitadas.
-- [ ] **T3.3:** Implementar Server Action `applyShippingToOrderAction` con recálculo atómico del total.
-- [ ] **T3.4:** Implementar Server Action `updateCadeteriaCostAction` para el ajuste dinámico desde administración.
+- [x] **T3.1:** Implementar Server Action `calculateShippingCostAction` con cálculo heurístico de paquete virtual y fallback.
+- [x] **T3.2:** Implementar Server Action `getAgenciesAction` para consultar sucursales habilitadas.
+- [x] **T3.3:** Implementar Server Action `applyShippingToOrderAction` con recálculo atómico del total.
+- [x] **T3.4:** Implementar Server Action `updateCadeteriaCostAction` para el ajuste dinámico desde administración.
 
 ### Fase 4: Server Actions de Ciclo de Vida y Despacho (BE-RF25)
 - [ ] **T4.1:** Extender `getWebOrdersAction` con filtros avanzados y paginación para el panel de administración.

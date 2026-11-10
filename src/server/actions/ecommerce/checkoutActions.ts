@@ -686,10 +686,14 @@ export async function createGuestOrder(
           ? validated.shippingCost
           : DEFAULT_SHIPPING_COSTS[shippingMethod];
 
-      const effectiveAddress =
-        shippingMethod === "RETIRO_LOCAL"
-          ? "Retiro en Sucursal — Saavedra 241, Formosa Capital"
-          : validated.shippingAddress!.trim();
+      let effectiveAddress = "Retiro en Salón — Saavedra 241, Formosa Capital";
+      if (shippingMethod === "CORREO_ARGENTINO_SUCURSAL") {
+        effectiveAddress = validated.shippingBranchName
+          ? `Sucursal Correo Argentino: ${validated.shippingBranchName} (${validated.shippingBranchCode || ""})`
+          : "Sucursal Correo Argentino";
+      } else if (shippingMethod !== "RETIRO_LOCAL") {
+        effectiveAddress = (validated.shippingAddress || "").trim();
+      }
 
       const totalOrder = subtotalProducts + shippingCost;
 
@@ -713,6 +717,8 @@ export async function createGuestOrder(
           shippingAddress: effectiveAddress,
           shippingCity: validated.shippingCity,
           shippingPostalCode: validated.shippingPostalCode,
+          shippingBranchCode: validated.shippingBranchCode ?? null,
+          shippingBranchName: validated.shippingBranchName ?? null,
           subtotalGross: new Prisma.Decimal(subtotalGrossTotal),
           discount: new Prisma.Decimal(totalOrderDiscount),
           total: new Prisma.Decimal(totalOrder),
