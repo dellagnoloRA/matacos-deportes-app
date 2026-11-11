@@ -42,10 +42,12 @@ Cadena de datos codificada en Base64 bajo el esquema oficial de AFIP (`https://w
 3. **Exclusiones Sanitarias:** Por estrictas razones de higiene, prendas de contacto íntimo (ropa interior deportiva, calzas íntimas), mallas y medias no admiten cambio.
 4. **Temporalidad:** Política comercial amplia y flexible (sin límite estricto de días preestablecido), supeditada al estricto cumplimiento del estado inmaculado de la prenda y su ticket.
 
-### Mecánica de Precios en Cambios
+### Mecánica de Precios en Cambios y Devoluciones
 - **Cambio 1 a 1 (Mismo producto por talle/color o artículo de igual valor):** Se realiza directo sin costo adicional para el cliente. Si el precio del producto subió en el catálogo general desde el día de la compra, se respeta el valor y no se cobra diferencia alguna.
 - **Cambio por artículo de Mayor Valor:** El cliente abona únicamente la diferencia neta entre el valor acreditado y el nuevo producto.
-- **Devolución / Saldo a Favor ("Vale de Compra"):** El comercio no realiza devoluciones de dinero en efectivo. En su lugar, se emite un **Vale de Compra** (saldo a favor del cliente) imputable a una compra futura en el local.
+- **Devolución de Dinero y Saldo a Favor:**
+  - *Compras en Local Físico (Saavedra 241):* Se admite la devolución de dinero sin límite de tiempo estricto, sujeta exclusivamente a la presentación del comprobante de compra y a que la prenda se encuentre en perfecto estado y con sus etiquetas originales intactas. El reintegro se realiza por el mismo medio de pago abonado o, si el cliente lo prefiere, mediante la emisión de un **Vale de Compra** (saldo a favor).
+  - *Compras Web (E-commerce):* Rige el derecho legal irrenunciable de revocación y reembolso del 100% del dinero abonado (art. 34 Ley 24.240 y art. 1110 CCCN) dentro de los 10 días corridos de recibido el pedido, previa constatación del buen estado de la prenda.
 
 ## 3. Control de Caja, Turnos y Arqueo (RF-11)
 
@@ -142,3 +144,18 @@ Acción de despublicación atómica que restablece el precio regular a todos los
 
 ### Métrica de Ahorro Visible al Comprador
 Cálculo en tiempo real expuesto en el carrito (`EcommerceCartDrawer`) y la pantalla de checkout que consolida la diferencia monetaria total entre los precios de lista y los precios promocionados de los renglones, reforzando la transparencia comercial antes del cobro.
+
+
+## 7. Marco Legal, Consentimiento Informado y Protección al Consumidor
+
+### Registro de Consentimiento Legal (`LegalConsentLog`)
+Registro probatorio inmutable generado en backend ante el envío de formularios de usuarios invitados o registrados. Almacena la manifestación libre, expresa e informada de aceptación de los Términos y Condiciones y de la Política de Privacidad (exigida por la Ley 25.326 de Protección de Datos Personales), conservando la versión del texto vigente, fecha/hora exacta, correo, documento de identidad, dirección IP de origen y agente de usuario (`userAgent`).
+
+### Derecho de Revocación y Botón de Arrepentimiento (Res. 271/2020 SCI)
+Mecanismo directo, accesible e irrenunciable expuesto en el storefront mediante el cual el consumidor que adquiere productos a través del canal digital puede revocar la operación durante un plazo de 10 días corridos a partir de la entrega. El sistema genera un código identificador único de gestión (`REV-XXXX`) y habilita la reversa total del pago.
+
+### Política de Privacidad y Minimización de Datos (Art. 4 Ley 25.326)
+Principio de calidad de datos que restringe la solicitud de información personal en el checkout como invitado únicamente a los campos estrictamente necesarios para la facturación ante AFIP/ARCA (DNI), la coordinación logística de entrega (teléfono, domicilio si aplica) y la notificación comercial vinculada a la orden (email), sin exigir creación forzada de cuentas ni contraseñas.
+
+### Política de Cookies y Consentimiento Informado
+Régimen de transparencia que categoriza el uso de cookies y almacenamiento web, garantizando que los identificadores técnicos esenciales operen por defecto para la funcionalidad básica (sesión y carrito) y que las cookies analíticas o de terceros requieran aceptación previa y expresa del visitante.
