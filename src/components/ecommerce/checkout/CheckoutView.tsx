@@ -49,6 +49,7 @@ import type {
   WebCardBrand,
 } from "@/schemas/ecommerce";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCartStore } from "@/store/cartStore";
 import { useCustomerStore } from "@/store/customerStore";
 
@@ -171,6 +172,8 @@ export function CheckoutView({
     activeCustomer?.defaultPostalCode ?? "3600"
   );
   const [notes, setNotes] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   useEffect(() => {
     if (!activeCustomer) return;
@@ -431,6 +434,13 @@ export function CheckoutView({
       return;
     }
 
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setFormError(
+        "Debés aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar con la compra."
+      );
+      return;
+    }
+
     startReservationTransition(async () => {
       const res = await createGuestOrder({
         customerName: customerName.trim(),
@@ -450,6 +460,8 @@ export function CheckoutView({
         shippingCost,
         customerId: activeCustomer?.id ?? null,
         notes: notes.trim() || null,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
         items: items.map((i) => ({
           variantId: i.variantId,
           quantity: i.quantity,
@@ -2542,6 +2554,19 @@ export function CheckoutView({
                     {formatCurrency(totalOrder)}
                   </span>
                 </div>
+              </div>
+
+              {/* Consentimiento Legal Obligatorio (Ley 25.326 y CCCN) */}
+              <div className="pt-2 pb-1 border-t border-slate-100">
+                <LegalConsentCheckboxGroup
+                  acceptedTerms={acceptedTerms}
+                  acceptedPrivacy={acceptedPrivacy}
+                  onTermsChange={setAcceptedTerms}
+                  onPrivacyChange={setAcceptedPrivacy}
+                  disabled={isSubmittingReservation}
+                  termsId="checkout-terms"
+                  privacyId="checkout-privacy"
+                />
               </div>
 
               {/* Submit Button -> Avanza a Paso 2 reservando stock */}

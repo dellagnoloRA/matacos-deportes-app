@@ -8,6 +8,7 @@ import {
   loginCustomerAction,
   registerCustomerAction,
 } from "@/server/actions/ecommerce/customerActions";
+import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCustomerStore } from "@/store/customerStore";
 
 interface AuthViewProps {
@@ -41,7 +42,8 @@ export function AuthView({
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
-  const [acceptTermsRegister, setAcceptTermsRegister] = useState(true);
+  const [acceptTermsRegister, setAcceptTermsRegister] = useState(false);
+  const [acceptPrivacyRegister, setAcceptPrivacyRegister] = useState(false);
 
   // Notification state
   const [notification, setNotification] = useState<{
@@ -118,10 +120,10 @@ export function AuthView({
       return;
     }
 
-    if (!acceptTermsRegister) {
+    if (!acceptTermsRegister || !acceptPrivacyRegister) {
       setNotification({
         type: "error",
-        message: "Debés aceptar los términos y condiciones para registrarte.",
+        message: "Debés aceptar los Términos y Condiciones y las Políticas de Privacidad para registrar tu cuenta.",
       });
       return;
     }
@@ -134,6 +136,8 @@ export function AuthView({
         password: regPassword,
         dni: cleanDni || null,
         phone: regPhone.trim() || null,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
       });
 
       if (!res.success || !res.data) {
@@ -472,18 +476,16 @@ export function AuthView({
                 </div>
               </div>
 
-              <div className="pt-0.5">
-                <label className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={acceptTermsRegister}
-                    onChange={(e) => setAcceptTermsRegister(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-slate-900 focus:ring-slate-500 mt-0.5 cursor-pointer shrink-0"
-                  />
-                  <span className="leading-tight">
-                    Sí, acepto los términos y condiciones del servicio
-                  </span>
-                </label>
+              <div className="pt-1 border-t border-slate-100">
+                <LegalConsentCheckboxGroup
+                  acceptedTerms={acceptTermsRegister}
+                  acceptedPrivacy={acceptPrivacyRegister}
+                  onTermsChange={setAcceptTermsRegister}
+                  onPrivacyChange={setAcceptPrivacyRegister}
+                  disabled={isPending}
+                  termsId="register-terms"
+                  privacyId="register-privacy"
+                />
               </div>
 
               <button
