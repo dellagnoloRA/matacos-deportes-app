@@ -152,6 +152,7 @@ async function queryRawLandingProductsByIds(ids: string[]) {
     where: {
       id: { in: ids },
       active: true,
+      status: "PUBLISHED",
     },
     select: PUBLIC_LANDING_PRODUCT_SELECT,
   });
@@ -373,6 +374,7 @@ async function fetchFeaturedDisciplinesSection(): Promise<
       INNER JOIN "Category" c ON c.id = p."categoryId"
       INNER JOIN "Brand" b ON b.id = p."brandId"
       WHERE p.active = true
+        AND p.status = 'PUBLISHED'
         AND EXISTS (
           SELECT 1
           FROM "ProductVariant" pv
@@ -464,6 +466,7 @@ async function fetchNewArrivalIds(): Promise<string[]> {
     SELECT p.id AS "productId"
     FROM "Product" p
     WHERE p.active = true
+      AND p.status = 'PUBLISHED'
       AND EXISTS (
         SELECT 1
         FROM "ProductVariant" pv
@@ -500,6 +503,7 @@ async function fetchBestSellerIds(): Promise<{
       GROUP BY pv."productId"
     ) sales_agg ON sales_agg."productId" = p.id
     WHERE p.active = true
+      AND p.status = 'PUBLISHED'
       AND EXISTS (
         SELECT 1
         FROM "ProductVariant" pv2
@@ -531,6 +535,7 @@ async function fetchPromoProductIds(now: Date): Promise<string[]> {
     SELECT p.id AS "productId"
     FROM "Product" p
     WHERE p.active = true
+      AND p.status = 'PUBLISHED'
       AND p."discountActive" = true
       AND (p."discountStartDate" IS NULL OR p."discountStartDate" <= ${now})
       AND (p."discountEndDate" IS NULL OR p."discountEndDate" >= ${now})

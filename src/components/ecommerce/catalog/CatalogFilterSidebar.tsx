@@ -163,7 +163,9 @@ export function CatalogFilterSidebar({
             {openSections.disciplines && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.disciplines.map((d) => {
-                  const isSelected = activeFilters.disciplineSlug === d.slug;
+                  const isSelected =
+                    activeFilters.disciplineSlug?.toLowerCase() === d.slug.toLowerCase() ||
+                    activeFilters.disciplineSlug?.toLowerCase() === d.name.toLowerCase();
                   return (
                     <button
                       key={d.slug}
@@ -215,7 +217,9 @@ export function CatalogFilterSidebar({
             {openSections.categories && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.categories.map((c) => {
-                  const isSelected = activeFilters.categorySlug === c.slug;
+                  const isSelected =
+                    activeFilters.categorySlug?.toLowerCase() === c.slug.toLowerCase() ||
+                    activeFilters.categorySlug?.toLowerCase() === c.name.toLowerCase();
                   return (
                     <button
                       key={c.slug}
@@ -267,7 +271,9 @@ export function CatalogFilterSidebar({
             {openSections.brands && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.brands.map((b) => {
-                  const isSelected = activeFilters.brandSlug === b.slug;
+                  const isSelected =
+                    activeFilters.brandSlug?.toLowerCase() === b.slug.toLowerCase() ||
+                    activeFilters.brandSlug?.toLowerCase() === b.name.toLowerCase();
                   return (
                     <button
                       key={b.slug}

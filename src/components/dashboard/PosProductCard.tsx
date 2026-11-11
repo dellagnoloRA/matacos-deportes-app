@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import { PosCartItem } from "./PosView";
-import { Check, Search, ChevronDown, X, SlidersHorizontal } from "lucide-react";
+import { Check, Search, ChevronDown, X, SlidersHorizontal, Barcode, Plus } from "lucide-react";
 
 /**
  * Retorna las clases de Tailwind correspondientes a la muestra visual (swatch) del color
@@ -393,9 +393,38 @@ export function PosProductGridCard({
   // Modo expandido para ver todos los colores con sus talles al mismo tiempo
   const [isGroupedExpanded, setIsGroupedExpanded] = useState<boolean>(false);
 
-  // Sincronizar automáticamente el color cuando el usuario busca un color en el input del POS
+  // Variante que coincide directamente por código de barras o SKU con lo escaneado/escrito en el buscador
+  const matchedScannedVariant = useMemo(() => {
+    const q = (searchQuery || "").trim().toLowerCase();
+    if (!q || q.length < 3) return null;
+    return (
+      product.variants.find(
+        (v) =>
+          (v.barcode && v.barcode.toLowerCase() === q) ||
+          (v.sku && v.sku.toLowerCase() === q)
+      ) ||
+      product.variants.find(
+        (v) =>
+          q.length >= 4 &&
+          ((v.barcode && v.barcode.toLowerCase().includes(q)) ||
+            (v.sku && v.sku.toLowerCase().includes(q)))
+      ) ||
+      null
+    );
+  }, [product.variants, searchQuery]);
+
+  // Sincronizar automáticamente el color cuando el usuario busca un color o escanea un código de barras/SKU en el input del POS
   useEffect(() => {
     if (!searchQuery) return;
+    if (matchedScannedVariant?.color) {
+      const exactColor = colors.find(
+        (c) => c.toLowerCase() === matchedScannedVariant.color.trim().toLowerCase()
+      );
+      if (exactColor) {
+        setSelectedColor(exactColor);
+        return;
+      }
+    }
     const terms = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
     for (const term of terms) {
       const match = colors.find((c) => c.toLowerCase().includes(term));
@@ -404,7 +433,7 @@ export function PosProductGridCard({
         break;
       }
     }
-  }, [searchQuery, colors]);
+  }, [searchQuery, colors, matchedScannedVariant]);
 
   // Asegurar que selectedColor sea válido si cambia el producto
   useEffect(() => {
@@ -507,6 +536,45 @@ export function PosProductGridCard({
             {formatCurrency(product.price)}
           </span>
         </div>
+
+        {/* Botón directo para elegir la variante del código de barras escaneado */}
+        {matchedScannedVariant && (() => {
+          const scannedAvail = Math.max(
+            0,
+            matchedScannedVariant.stockStore - (matchedScannedVariant.stockReserved || 0)
+          );
+          const isOut = scannedAvail <= 0;
+          return (
+            <div className="mt-2 pt-2 border-t border-emerald-100">
+              <button
+                type="button"
+                disabled={isOut}
+                onClick={() => onAddVariant(product, matchedScannedVariant)}
+                className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer shadow-xs ${
+                  isOut
+                    ? "bg-rose-50 text-rose-700 border border-rose-200 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white ring-2 ring-emerald-500/30"
+                }`}
+                title="Elegir y agregar al carrito la variante correspondiente al código escaneado"
+              >
+                <span className="flex items-center gap-1.5 min-w-0 truncate">
+                  <Barcode className="w-4 h-4 shrink-0" />
+                  <span className="truncate">
+                    Elegir escaneado: {matchedScannedVariant.color} • Talle {matchedScannedVariant.size}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] bg-white/20 px-2 py-0.5 rounded-lg shrink-0">
+                  {isOut ? "Sin stock" : (
+                    <>
+                      <Plus className="w-3 h-3 stroke-[3]" />
+                      <span>Agregar ({scannedAvail})</span>
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ============================================================== */}
@@ -828,8 +896,36 @@ export function PosProductListRow({
     return withStock || colors[0] || "";
   });
 
+  const matchedScannedVariant = useMemo(() => {
+    const q = (searchQuery || "").trim().toLowerCase();
+    if (!q || q.length < 3) return null;
+    return (
+      product.variants.find(
+        (v) =>
+          (v.barcode && v.barcode.toLowerCase() === q) ||
+          (v.sku && v.sku.toLowerCase() === q)
+      ) ||
+      product.variants.find(
+        (v) =>
+          q.length >= 4 &&
+          ((v.barcode && v.barcode.toLowerCase().includes(q)) ||
+            (v.sku && v.sku.toLowerCase().includes(q)))
+      ) ||
+      null
+    );
+  }, [product.variants, searchQuery]);
+
   useEffect(() => {
     if (!searchQuery) return;
+    if (matchedScannedVariant?.color) {
+      const exactColor = colors.find(
+        (c) => c.toLowerCase() === matchedScannedVariant.color.trim().toLowerCase()
+      );
+      if (exactColor) {
+        setSelectedColor(exactColor);
+        return;
+      }
+    }
     const terms = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
     for (const term of terms) {
       const match = colors.find((c) => c.toLowerCase().includes(term));
@@ -838,7 +934,7 @@ export function PosProductListRow({
         break;
       }
     }
-  }, [searchQuery, colors]);
+  }, [searchQuery, colors, matchedScannedVariant]);
 
   const selectedColorVariants = useMemo(() => {
     if (!selectedColor) return product.variants;
@@ -866,6 +962,32 @@ export function PosProductListRow({
         <span className="text-base font-black text-slate-900 font-mono">
           {formatCurrency(product.price)}
         </span>
+
+        {matchedScannedVariant && (() => {
+          const scannedAvail = Math.max(
+            0,
+            matchedScannedVariant.stockStore - (matchedScannedVariant.stockReserved || 0)
+          );
+          const isOut = scannedAvail <= 0;
+          return (
+            <button
+              type="button"
+              disabled={isOut}
+              onClick={() => onAddVariant(product, matchedScannedVariant)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                isOut
+                  ? "bg-rose-50 text-rose-700 border border-rose-200 cursor-not-allowed"
+                  : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white"
+              }`}
+              title="Elegir y agregar al carrito la variante correspondiente al código escaneado"
+            >
+              <Barcode className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                Elegir escaneado: {matchedScannedVariant.color} • {matchedScannedVariant.size} ({scannedAvail})
+              </span>
+            </button>
+          );
+        })()}
 
         {/* Variantes según tipo de producto */}
         {isAllUniqueSize ? (

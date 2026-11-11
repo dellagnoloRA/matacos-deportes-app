@@ -96,9 +96,21 @@ export function CatalogView({
 
     Object.entries(newFilters).forEach(([key, val]) => {
       let paramKey = key;
-      if (key === "disciplineSlug") paramKey = "disciplina";
-      if (key === "categorySlug") paramKey = "categoria";
-      if (key === "brandSlug") paramKey = "marca";
+      if (key === "disciplineSlug") {
+        paramKey = "disciplina";
+        params.delete("discipline");
+        params.delete("disciplineSlug");
+      }
+      if (key === "categorySlug") {
+        paramKey = "categoria";
+        params.delete("category");
+        params.delete("categorySlug");
+      }
+      if (key === "brandSlug") {
+        paramKey = "marca";
+        params.delete("brand");
+        params.delete("brandSlug");
+      }
       if (key === "size") paramKey = "talle";
       if (key === "gender") paramKey = "genero";
 

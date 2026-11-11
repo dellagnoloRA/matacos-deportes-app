@@ -423,6 +423,7 @@ export async function validateCartItems(
             name: true,
             price: true,
             active: true,
+            status: true,
             imageUrl: true,
             discountActive: true,
             discountPercentage: true,
@@ -448,7 +449,7 @@ export async function validateCartItems(
     for (const [variantId, reqInfo] of consolidatedMap.entries()) {
       const dbVariant = variantMap.get(variantId);
 
-      if (!dbVariant || !dbVariant.product.active) {
+      if (!dbVariant || !dbVariant.product.active || dbVariant.product.status !== "PUBLISHED") {
         hasStockIssues = true;
         detailedItems.push({
           variantId,

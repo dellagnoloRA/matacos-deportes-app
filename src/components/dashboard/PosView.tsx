@@ -904,8 +904,8 @@ export function PosView({
         return;
       }
 
-      // Si los caracteres llegan a más de 70ms de distancia, es tipeo humano, resetear buffer
-      if (diff > 70) {
+      // Si los caracteres llegan a más de 150ms de distancia, es tipeo humano, resetear buffer
+      if (diff > 150) {
         barcodeBufferRef.current = "";
       }
 
@@ -916,24 +916,108 @@ export function PosView({
 
     window.addEventListener("keydown", handleWindowKeyPress);
     return () => window.removeEventListener("keydown", handleWindowKeyPress);
-  }, [isUsbScannerActive, products, isPriceCheckerOpen]);
+  }, [isUsbScannerActive, products, isPriceCheckerOpen, preventaSuccessData]);
 
-  const handleBarcodeScanned = (code: string) => {
+  // Coincidencias de variantes por código de barras o SKU según lo escaneado/escrito en searchQuery
+  const scannedCodeMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || q.length < 3) return [];
+
+    const exactMatches: Array<{
+      product: DetailedProductItem;
+      variant: ProductVariantItem;
+      isExact: boolean;
+    }> = [];
+    const partialMatches: Array<{
+      product: DetailedProductItem;
+      variant: ProductVariantItem;
+      isExact: boolean;
+    }> = [];
+
+    for (const prod of products) {
+      for (const variant of prod.variants) {
+        const b = (variant.barcode || "").trim().toLowerCase();
+        const s = (variant.sku || "").trim().toLowerCase();
+        if ((b && b === q) || (s && s === q)) {
+          exactMatches.push({ product: prod, variant, isExact: true });
+        } else if (
+          q.length >= 4 &&
+          ((b && b.includes(q)) || (s && s.includes(q)))
+        ) {
+          partialMatches.push({ product: prod, variant, isExact: false });
+        }
+      }
+    }
+
+    return exactMatches.length > 0 ? exactMatches : partialMatches.slice(0, 4);
+  }, [products, searchQuery]);
+
+  const handleBarcodeScanned = (code: string): boolean => {
+    const cleanCode = code.trim();
+    if (!cleanCode) return false;
+
     for (const prod of products) {
       for (const variant of prod.variants) {
         if (
-          variant.barcode === code ||
-          variant.sku?.toLowerCase() === code.toLowerCase()
+          variant.barcode?.trim().toLowerCase() === cleanCode.toLowerCase() ||
+          variant.sku?.trim().toLowerCase() === cleanCode.toLowerCase()
         ) {
           // Agregar al carrito
           handleAddVariantToCart(prod, variant);
           const colorDetail = variant.color ? ` - ${variant.color}` : "";
           showToast(`"${prod.name}${colorDetail} (${variant.size})" agregado al carrito`);
-          return;
+          setSearchQuery((prev) =>
+            prev.trim().toLowerCase() === cleanCode.toLowerCase() ? "" : prev
+          );
+          return true;
         }
       }
     }
-    showToast(`No se encontró ningún producto con el código: ${code}`, "warning");
+    showToast(`No se encontró ningún producto con el código: ${cleanCode}`, "warning");
+    return false;
+  };
+
+  // Acción manual para el botón "Elegir Código" cuando la pistola no dispara automáticamente
+  const handleManualSelectScannedCode = () => {
+    const cleanCode = searchQuery.trim();
+    if (!cleanCode) {
+      searchInputRef.current?.focus();
+      showToast(
+        "Escanea el código con la pistola en el buscador y pulsa 'Elegir Código'",
+        "warning"
+      );
+      return;
+    }
+
+    // 1. Coincidencia exacta por código de barras o SKU
+    if (handleBarcodeScanned(cleanCode)) {
+      setSearchQuery("");
+      searchInputRef.current?.focus();
+      return;
+    }
+
+    // 2. Si hay una única variante coincidente por código parcial
+    if (scannedCodeMatches.length === 1) {
+      const { product: prod, variant } = scannedCodeMatches[0];
+      handleAddVariantToCart(prod, variant);
+      const colorDetail = variant.color ? ` - ${variant.color}` : "";
+      showToast(`"${prod.name}${colorDetail} (${variant.size})" agregado al carrito`);
+      setSearchQuery("");
+      searchInputRef.current?.focus();
+      return;
+    }
+
+    // 3. Si el filtro dejó un único producto con una única variante disponible
+    if (filteredProducts.length === 1 && filteredProducts[0].variants.length === 1) {
+      const prod = filteredProducts[0];
+      const variant = prod.variants[0];
+      handleAddVariantToCart(prod, variant);
+      const colorDetail = variant.color ? ` - ${variant.color}` : "";
+      showToast(`"${prod.name}${colorDetail} (${variant.size})" agregado al carrito`);
+      setSearchQuery("");
+      searchInputRef.current?.focus();
+      return;
+    }
   };
 
   // ----------------------------------------------------------------------
@@ -3335,7 +3419,7 @@ export function PosView({
           </div>
 
           {/* Search Bar */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
@@ -3343,7 +3427,13 @@ export function PosView({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nombre, código de barras, SKU..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    e.preventDefault();
+                    handleManualSelectScannedCode();
+                  }
+                }}
+                placeholder="Buscar por nombre, escanear código de barras o SKU..."
                 className="w-full pl-10 pr-10 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-xs sm:text-sm text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-slate-400 outline-none"
               />
 
@@ -3358,6 +3448,21 @@ export function PosView({
                 </div>
               )}
             </div>
+
+            {/* Botón para elegir manualmente el código escaneado con la pistola */}
+            <button
+              type="button"
+              onClick={handleManualSelectScannedCode}
+              className={`px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs ${
+                searchQuery.trim()
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 ring-2 ring-emerald-500/20"
+                  : "bg-slate-900 hover:bg-slate-800 text-white border-slate-900"
+              }`}
+              title="Elegir y agregar al carrito el código escaneado con la pistola en caso de que no se seleccione automáticamente (Enter)"
+            >
+              <Barcode className="w-4 h-4 shrink-0" />
+              <span>Elegir Código</span>
+            </button>
 
             {/* Layout Toggle (Grid / List) */}
             <div className="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
@@ -3385,6 +3490,63 @@ export function PosView({
               </button>
             </div>
           </div>
+
+          {/* Banner de Selección Rápida cuando se detecta un código de barras o SKU en el buscador */}
+          {scannedCodeMatches.length > 0 && (
+            <div className="bg-emerald-50/90 border border-emerald-300 rounded-2xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <Barcode className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
+                    Código detectado ({searchQuery.trim()})
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    {scannedCodeMatches.length === 1
+                      ? `${scannedCodeMatches[0].product.name} — ${scannedCodeMatches[0].variant.color} (Talle ${scannedCodeMatches[0].variant.size})`
+                      : `${scannedCodeMatches.length} variantes coinciden con el código escaneado`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                {scannedCodeMatches.map(({ product: prod, variant }) => {
+                  const avail = Math.max(
+                    0,
+                    variant.stockStore - (variant.stockReserved || 0)
+                  );
+                  const isOut = avail <= 0;
+                  return (
+                    <button
+                      key={variant.id || `${prod.id}-${variant.size}-${variant.color}`}
+                      type="button"
+                      disabled={isOut}
+                      onClick={() => {
+                        handleAddVariantToCart(prod, variant);
+                        const colorDetail = variant.color ? ` - ${variant.color}` : "";
+                        showToast(
+                          `"${prod.name}${colorDetail} (${variant.size})" agregado al carrito`
+                        );
+                        setSearchQuery("");
+                        searchInputRef.current?.focus();
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                        isOut
+                          ? "bg-rose-100 text-rose-700 border border-rose-200 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white"
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>
+                        Elegir {variant.color} • Talle {variant.size} ({avail} disp.)
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Barra de Sugerencias Predictivas de Color */}
           {predictiveColorSuggestions.length > 0 && (

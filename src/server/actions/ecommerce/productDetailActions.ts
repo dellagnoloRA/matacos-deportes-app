@@ -69,6 +69,7 @@ export async function getProductDetail(
     const product = await prisma.product.findFirst({
       where: {
         active: true,
+        status: "PUBLISHED",
         ...(productId
           ? { id: productId }
           : modelCodeCandidate
@@ -310,6 +311,7 @@ export async function checkVariantStock(
         product: {
           select: {
             active: true,
+            status: true,
             name: true,
             price: true,
             discountActive: true,
@@ -322,7 +324,7 @@ export async function checkVariantStock(
       },
     });
 
-    if (!variant || !variant.product.active) {
+    if (!variant || !variant.product.active || variant.product.status !== "PUBLISHED") {
       return {
         success: false,
         error: "La variante seleccionada no está disponible o el producto fue desactivado",
@@ -398,6 +400,7 @@ export async function getRelatedProducts(
     const relatedRaw = await prisma.product.findMany({
       where: {
         active: true,
+        status: "PUBLISHED",
         id: { not: validated.productId },
         OR: [
           { disciplineId: currentProduct.disciplineId },

@@ -16,6 +16,8 @@ import {
   Dumbbell,
   ShieldCheck,
   Eye,
+  EyeOff,
+  Globe,
   RefreshCw,
   Edit3,
   Trash2,
@@ -51,10 +53,13 @@ import { SalesHistoryModal } from "./SalesHistoryModal";
 import {
   getDetailedInventoryProducts,
   toggleProductActive,
+  toggleProductWebVisibility,
+  batchSetProductWebVisibility,
   deleteProduct,
   getProductById,
 } from "@/server/actions/productActions";
 import { getDisciplines } from "@/server/actions/categoryActions";
+import { getCurrentUserAction } from "@/server/actions/authActions";
 
 const INITIAL_PRODUCTS: DetailedProductItem[] = [
   {
@@ -403,6 +408,7 @@ const DISCIPLINES = [
 
 export type StockAlertFilterMode = "ALL" | "IN_ALERT" | "OUT_OF_STOCK" | "STORE_REPLENISHMENT";
 export type ActiveFilterMode = "ACTIVE" | "INACTIVE" | "ALL";
+export type WebVisibilityFilterMode = "ALL" | "VISIBLE" | "HIDDEN";
 
 export function evaluateProductStockStatus(product: DetailedProductItem) {
   const minStock = product.minStock || 2;
@@ -826,7 +832,31 @@ export function InventoryView({
 
   // Estados para Filtro de Estado de Actividad / Baja Lógica (RF-01)
   const [activeFilterMode, setActiveFilterMode] = useState<ActiveFilterMode>("ACTIVE");
+  const [webVisibilityFilter, setWebVisibilityFilter] = useState<WebVisibilityFilterMode>("ALL");
   const [isReactivatingId, setIsReactivatingId] = useState<string | null>(null);
+  const [isTogglingWebId, setIsTogglingWebId] = useState<string | null>(null);
+  const [isBatchTogglingWeb, setIsBatchTogglingWeb] = useState(false);
+  const [canManageWebStore, setCanManageWebStore] = useState(true);
+
+  useEffect(() => {
+    getCurrentUserAction()
+      .then((session) => {
+        if (!session) return;
+        const isAdmin =
+          session.role === "ADMIN" ||
+          session.level >= 100 ||
+          Boolean(session.profileName?.toLowerCase().includes("admin"));
+        const hasManagePerm = [
+          "inventario.crear_producto",
+          "ecommerce.banners",
+          "ecommerce.cupones",
+          "ecommerce.pedidos",
+          "admin.usuarios",
+        ].some((code) => session.permissions?.includes(code));
+        setCanManageWebStore(isAdmin || hasManagePerm);
+      })
+      .catch(() => {});
+  }, []);
 
   // Estados para el Filtro Unificado con Icono de Embudo (RF-01 / RF-01.2 / RF-06)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
@@ -844,8 +874,9 @@ export function InventoryView({
     if (selectedCategory !== "Todas") count++;
     if (stockAlertFilter !== "ALL") count++;
     if (activeFilterMode !== "ACTIVE") count++;
+    if (webVisibilityFilter !== "ALL") count++;
     return count;
-  }, [selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode]);
+  }, [selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode, webVisibilityFilter]);
 
   const handleResetAllFilters = () => {
     handleSelectDiscipline("Todas");
@@ -853,6 +884,7 @@ export function InventoryView({
     setSelectedCategory("Todas");
     setStockAlertFilter("ALL");
     setActiveFilterMode("ACTIVE");
+    setWebVisibilityFilter("ALL");
   };
 
   // Cierre automático al hacer clic fuera del menú de filtros o al pulsar Escape
@@ -881,14 +913,25 @@ export function InventoryView({
   const activeStatusSummary = useMemo(() => {
     let active = 0;
     let inactive = 0;
+    let webVisible = 0;
+    let webHidden = 0;
     for (const p of productsList) {
       if (p.active === false) {
         inactive++;
       } else {
         active++;
+        const isWebVis = p.webVisible !== false && p.status !== "HIDDEN" && p.status !== "DRAFT";
+        if (isWebVis) webVisible++;
+        else webHidden++;
       }
     }
-    return { activeCount: active, inactiveCount: inactive, totalCount: productsList.length };
+    return {
+      activeCount: active,
+      inactiveCount: inactive,
+      totalCount: productsList.length,
+      webVisibleCount: webVisible,
+      webHiddenCount: webHidden,
+    };
   }, [productsList]);
 
   // Estados para Carga Dinámica de Disciplinas desde BD (RF-01 / RF-01.2)
@@ -1154,6 +1197,102 @@ export function InventoryView({
     }
   };
 
+  const handleToggleWebVisibility = async (
+    product: DetailedProductItem,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    const currentlyVisible =
+      product.webVisible !== false &&
+      product.status !== "HIDDEN" &&
+      product.status !== "DRAFT";
+    const nextVisible = !currentlyVisible;
+
+    try {
+      setIsTogglingWebId(product.id);
+      // Actualización optimista inmediata
+      setProductsList((prev) =>
+        prev.map((p) =>
+          p.id === product.id
+            ? {
+                ...p,
+                webVisible: nextVisible,
+                status: nextVisible ? "PUBLISHED" : "HIDDEN",
+              }
+            : p
+        )
+      );
+
+      const res = await toggleProductWebVisibility(product.id, nextVisible);
+      if (res.success) {
+        showToast(
+          nextVisible ? "Visible en Tienda Web" : "Oculto de Tienda Web",
+          res.message ||
+            (nextVisible
+              ? `"${product.name}" ahora aparece en la tienda online.`
+              : `"${product.name}" fue ocultado de la tienda online (sigue activo en POS).`)
+        );
+      } else {
+        // Revertir cambio optimista si hubo error
+        setProductsList((prev) =>
+          prev.map((p) =>
+            p.id === product.id
+              ? {
+                  ...p,
+                  webVisible: currentlyVisible,
+                  status: currentlyVisible ? "PUBLISHED" : "HIDDEN",
+                }
+              : p
+          )
+        );
+        showToast("Error", res.error || "No se pudo cambiar la visibilidad web");
+      }
+    } catch (err) {
+      console.error("Error al alternar visibilidad web:", err);
+      showToast("Error", "Ocurrió un error al actualizar la visibilidad en tienda web");
+    } finally {
+      setIsTogglingWebId(null);
+    }
+  };
+
+  const handleBatchSetWebVisibility = async (visible: boolean) => {
+    const ids = Array.from(selectedProductIds);
+    if (ids.length === 0) return;
+
+    try {
+      setIsBatchTogglingWeb(true);
+      setProductsList((prev) =>
+        prev.map((p) =>
+          selectedProductIds.has(p.id)
+            ? {
+                ...p,
+                webVisible: visible,
+                status: visible ? "PUBLISHED" : "HIDDEN",
+              }
+            : p
+        )
+      );
+
+      const res = await batchSetProductWebVisibility(ids, visible);
+      if (res.success) {
+        clearSelection();
+        showToast(
+          visible ? "Productos publicados en Web" : "Productos ocultados de Web",
+          res.message
+        );
+      } else {
+        loadProducts();
+        showToast("Error", res.error || "No se pudo actualizar el lote");
+      }
+    } catch (err) {
+      console.error("Error en actualización masiva de visibilidad web:", err);
+      loadProducts();
+      showToast("Error", "Error al actualizar la visibilidad web del lote");
+    } finally {
+      setIsBatchTogglingWeb(false);
+    }
+  };
+
   const loadDisciplines = useCallback(async () => {
     try {
       const res = await getDisciplines();
@@ -1404,13 +1543,25 @@ export function InventoryView({
         selectedCategory === "Todas" ||
         (item.category ?? "").trim().toLowerCase() === selectedCategory.trim().toLowerCase();
 
+      const isItemWebVisible =
+        item.webVisible !== false &&
+        item.status !== "HIDDEN" &&
+        item.status !== "DRAFT";
+      let matchesWebVisibility = true;
+      if (webVisibilityFilter === "VISIBLE") {
+        matchesWebVisibility = isItemWebVisible;
+      } else if (webVisibilityFilter === "HIDDEN") {
+        matchesWebVisibility = !isItemWebVisible;
+      }
+
       return (
         matchesSearch &&
         matchesDiscipline &&
         matchesBrand &&
         matchesCategory &&
         matchesAlertFilter &&
-        matchesActive
+        matchesActive &&
+        matchesWebVisibility
       );
     });
 
@@ -1435,12 +1586,12 @@ export function InventoryView({
     }
 
     return filtered;
-  }, [productsList, searchQuery, searchMode, selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode]);
+  }, [productsList, searchQuery, searchMode, selectedDiscipline, selectedBrand, selectedCategory, stockAlertFilter, activeFilterMode, webVisibilityFilter]);
 
   // Resetear página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [stockAlertFilter, activeFilterMode, searchQuery, selectedDiscipline, selectedBrand, selectedCategory]);
+  }, [stockAlertFilter, activeFilterMode, webVisibilityFilter, searchQuery, selectedDiscipline, selectedBrand, selectedCategory]);
 
   // Cálculos de Paginación Adaptable
   const totalItems = filteredProducts.length;
@@ -1851,6 +2002,24 @@ export function InventoryView({
               </span>
             )}
 
+            {/* Chip: Visibilidad Tienda Web */}
+            {webVisibilityFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs font-semibold shadow-2xs">
+                <span>
+                  Tienda Web:{" "}
+                  {webVisibilityFilter === "VISIBLE" ? "Visibles en Web" : "Ocultos en Web"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setWebVisibilityFilter("ALL")}
+                  className="hover:bg-emerald-200/60 p-0.5 rounded text-emerald-700 hover:text-emerald-950 transition-colors cursor-pointer"
+                  title="Quitar filtro de visibilidad web"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
             {/* Botón para restablecer todos los filtros */}
             <button
               type="button"
@@ -2016,6 +2185,60 @@ export function InventoryView({
                         <span>Todos</span>
                         <span className={`text-[10px] ${activeFilterMode === "ALL" ? "text-slate-300 font-bold" : "text-slate-400"}`}>
                           ({activeStatusSummary.totalCount})
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 1.5 FILTRO DE VISIBILIDAD EN TIENDA WEB */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                      <span>Visibilidad en Tienda Web</span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {activeStatusSummary.webVisibleCount} publicados
+                      </span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200/80">
+                      <button
+                        type="button"
+                        onClick={() => setWebVisibilityFilter("ALL")}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                          webVisibilityFilter === "ALL"
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <span>Todos</span>
+                        <span className={`text-[10px] ${webVisibilityFilter === "ALL" ? "text-slate-300 font-bold" : "text-slate-400"}`}>
+                          ({activeStatusSummary.activeCount})
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWebVisibilityFilter("VISIBLE")}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                          webVisibilityFilter === "VISIBLE"
+                            ? "bg-emerald-700 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <span>En Web</span>
+                        <span className={`text-[10px] ${webVisibilityFilter === "VISIBLE" ? "text-emerald-200 font-bold" : "text-slate-400"}`}>
+                          ({activeStatusSummary.webVisibleCount})
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWebVisibilityFilter("HIDDEN")}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                          webVisibilityFilter === "HIDDEN"
+                            ? "bg-slate-700 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        }`}
+                      >
+                        <span>Ocultos Web</span>
+                        <span className={`text-[10px] ${webVisibilityFilter === "HIDDEN" ? "text-amber-200 font-bold" : "text-slate-400"}`}>
+                          ({activeStatusSummary.webHiddenCount})
                         </span>
                       </button>
                     </div>
@@ -2277,7 +2500,31 @@ export function InventoryView({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {canManageWebStore && (
+              <>
+                <button
+                  type="button"
+                  disabled={isBatchTogglingWeb}
+                  onClick={() => handleBatchSetWebVisibility(true)}
+                  className="bg-emerald-900/90 hover:bg-emerald-800 active:scale-95 text-emerald-200 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-500/40 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Hacer visibles en la tienda online todos los productos seleccionados"
+                >
+                  <Globe className="w-3.5 h-3.5 text-[#00D615]" />
+                  <span>Mostrar en Web</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isBatchTogglingWeb}
+                  onClick={() => handleBatchSetWebVisibility(false)}
+                  className="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-600 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Ocultar de la tienda online los productos seleccionados (seguirán disponibles en el POS)"
+                >
+                  <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Ocultar de Web</span>
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setIsBatchPriceModalOpen(true)}
@@ -2410,6 +2657,15 @@ export function InventoryView({
                         Inactivo
                       </span>
                     )}
+                    {item.active !== false &&
+                      (item.webVisible === false ||
+                        item.status === "HIDDEN" ||
+                        item.status === "DRAFT") && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-amber-300 border border-slate-700">
+                          <EyeOff className="w-2.5 h-2.5" />
+                          <span>Oculto en Web</span>
+                        </span>
+                      )}
                     {(() => {
                       const status = evaluateProductStockStatus(item);
                       if (status.highestAlert === "OUT_OF_STOCK") {
@@ -2552,6 +2808,34 @@ export function InventoryView({
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
+                  {canManageWebStore && item.active !== false && (
+                    <button
+                      onClick={(e) => handleToggleWebVisibility(item, e)}
+                      disabled={isTogglingWebId === item.id}
+                      title={
+                        item.webVisible === false ||
+                        item.status === "HIDDEN" ||
+                        item.status === "DRAFT"
+                          ? "Oculto en la tienda online — Clic para mostrar en la tienda web"
+                          : "Visible en la tienda online — Clic para ocultar de la tienda web"
+                      }
+                      className={`p-2 rounded-xl transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                        item.webVisible === false ||
+                        item.status === "HIDDEN" ||
+                        item.status === "DRAFT"
+                          ? "bg-slate-800 text-amber-300 hover:bg-slate-700 border border-slate-700"
+                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                      }`}
+                    >
+                      {item.webVisible === false ||
+                      item.status === "HIDDEN" ||
+                      item.status === "DRAFT" ? (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      ) : (
+                        <Globe className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  )}
                   {item.active === false ? (
                     <button
                       onClick={(e) => handleReactivateProduct(item, e)}
@@ -2755,6 +3039,18 @@ export function InventoryView({
                                   Inactivo
                                 </span>
                               )}
+                              {item.active !== false &&
+                                (item.webVisible === false ||
+                                  item.status === "HIDDEN" ||
+                                  item.status === "DRAFT") && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-amber-300 border border-slate-700"
+                                    title="Este producto está oculto en la tienda online pero activo en el POS de mostrador"
+                                  >
+                                    <EyeOff className="w-2.5 h-2.5" />
+                                    <span>Oculto en Web</span>
+                                  </span>
+                                )}
                             </div>
                             <span className="text-[11px] text-slate-400 font-medium">
                               {item.brand} • {item.category}
@@ -2911,6 +3207,34 @@ export function InventoryView({
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
+                          {canManageWebStore && item.active !== false && (
+                            <button
+                              onClick={(e) => handleToggleWebVisibility(item, e)}
+                              disabled={isTogglingWebId === item.id}
+                              title={
+                                item.webVisible === false ||
+                                item.status === "HIDDEN" ||
+                                item.status === "DRAFT"
+                                  ? "Oculto en la tienda web — Clic para publicar en la tienda online"
+                                  : "Visible en la tienda web — Clic para ocultar de la tienda online"
+                              }
+                              className={`p-1.5 rounded-lg transition-all border cursor-pointer ${
+                                item.webVisible === false ||
+                                item.status === "HIDDEN" ||
+                                item.status === "DRAFT"
+                                  ? "bg-slate-800 text-amber-300 hover:bg-slate-700 border-slate-700"
+                                  : "text-emerald-700 hover:text-emerald-900 bg-emerald-50/70 hover:bg-emerald-100 border-emerald-200/80"
+                              }`}
+                            >
+                              {item.webVisible === false ||
+                              item.status === "HIDDEN" ||
+                              item.status === "DRAFT" ? (
+                                <EyeOff className="w-3.5 h-3.5" />
+                              ) : (
+                                <Globe className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
                           {item.active === false ? (
                             <button
                               onClick={(e) => handleReactivateProduct(item, e)}

@@ -63,11 +63,58 @@ async function fetchPublicCatalogRaw(
     } = validated;
 
     // 1. Construcción dinámica de la cláusula where
+    const andFilters: Prisma.ProductWhereInput[] = [];
+
+    if (disciplineSlug) {
+      andFilters.push({
+        OR: [
+          { discipline: { slug: { equals: disciplineSlug, mode: "insensitive" } } },
+          { discipline: { name: { equals: disciplineSlug, mode: "insensitive" } } },
+          { disciplineId: disciplineSlug },
+        ],
+      });
+    }
+
+    if (categorySlug) {
+      andFilters.push({
+        OR: [
+          { category: { slug: { equals: categorySlug, mode: "insensitive" } } },
+          { category: { name: { equals: categorySlug, mode: "insensitive" } } },
+          { categoryId: categorySlug },
+          { discipline: { slug: { equals: categorySlug, mode: "insensitive" } } },
+          { discipline: { name: { equals: categorySlug, mode: "insensitive" } } },
+          { disciplineId: categorySlug },
+        ],
+      });
+    }
+
+    if (brandSlug) {
+      andFilters.push({
+        OR: [
+          { brand: { slug: { equals: brandSlug, mode: "insensitive" } } },
+          { brand: { name: { equals: brandSlug, mode: "insensitive" } } },
+          { brandId: brandSlug },
+        ],
+      });
+    }
+
+    if (search) {
+      andFilters.push({
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          { modelCode: { contains: search, mode: "insensitive" } },
+          { brand: { name: { contains: search, mode: "insensitive" } } },
+          { category: { name: { contains: search, mode: "insensitive" } } },
+          { discipline: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      });
+    }
+
     const whereConditions: Prisma.ProductWhereInput = {
       active: true,
-      ...(disciplineSlug ? { discipline: { slug: disciplineSlug } } : {}),
-      ...(categorySlug ? { category: { slug: categorySlug } } : {}),
-      ...(brandSlug ? { brand: { slug: brandSlug } } : {}),
+      status: "PUBLISHED",
+      ...(andFilters.length > 0 ? { AND: andFilters } : {}),
       ...(gender ? { gender } : {}),
       ...(minPrice !== undefined || maxPrice !== undefined
         ? {
@@ -75,18 +122,6 @@ async function fetchPublicCatalogRaw(
               ...(minPrice !== undefined ? { gte: minPrice } : {}),
               ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
             },
-          }
-        : {}),
-      // Búsqueda textual predictiva (nombre, código de modelo o descripción)
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { description: { contains: search, mode: "insensitive" } },
-              { modelCode: { contains: search, mode: "insensitive" } },
-              { brand: { name: { contains: search, mode: "insensitive" } } },
-              { category: { name: { contains: search, mode: "insensitive" } } },
-            ],
           }
         : {}),
       // Filtro de variantes activas con stock físico positivo
@@ -315,6 +350,7 @@ export async function getPredictiveSearch(
     const products = await prisma.product.findMany({
       where: {
         active: true,
+        status: "PUBLISHED",
         OR: [
           { name: { contains: validated.query, mode: "insensitive" } },
           { modelCode: { contains: validated.query, mode: "insensitive" } },
@@ -397,6 +433,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
         products: {
           some: {
             active: true,
+            status: "PUBLISHED",
             variants: {
               some: {
                 OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -414,6 +451,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
             products: {
               where: {
                 active: true,
+                status: "PUBLISHED",
                 variants: {
                   some: {
                     OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -433,6 +471,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
         products: {
           some: {
             active: true,
+            status: "PUBLISHED",
             variants: {
               some: {
                 OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -450,6 +489,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
             products: {
               where: {
                 active: true,
+                status: "PUBLISHED",
                 variants: {
                   some: {
                     OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -469,6 +509,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
         products: {
           some: {
             active: true,
+            status: "PUBLISHED",
             variants: {
               some: {
                 OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -486,6 +527,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
             products: {
               where: {
                 active: true,
+                status: "PUBLISHED",
                 variants: {
                   some: {
                     OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -502,7 +544,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
     // 4. Obtener talles disponibles en stock
     const activeVariants = await prisma.productVariant.findMany({
       where: {
-        product: { active: true },
+        product: { active: true, status: "PUBLISHED" },
         OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
       },
       select: {
@@ -538,6 +580,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
     const priceAggregate = await prisma.product.aggregate({
       where: {
         active: true,
+        status: "PUBLISHED",
         variants: {
           some: {
             OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
@@ -553,6 +596,7 @@ async function fetchCatalogFacetsRaw(): Promise<{
       by: ["gender"],
       where: {
         active: true,
+        status: "PUBLISHED",
         variants: {
           some: {
             OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],

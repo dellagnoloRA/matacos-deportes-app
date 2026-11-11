@@ -48,6 +48,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Palette,
+  EyeOff,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
@@ -56,6 +57,7 @@ import { StockAdjustmentModal, type OperationType } from "./StockAdjustmentModal
 import { ThermalLabelPrintModal } from "./ThermalLabelPrintModal";
 import {
   toggleProductActive,
+  toggleProductWebVisibility,
   deleteProduct,
   getProductById,
 } from "@/server/actions/productActions";
@@ -778,6 +780,35 @@ export function ProductDetailView({
   };
 
   const [isReactivating, setIsReactivating] = useState(false);
+  const [isTogglingWeb, setIsTogglingWeb] = useState(false);
+
+  const isWebVisible =
+    product.webVisible !== false &&
+    product.status !== "HIDDEN" &&
+    product.status !== "DRAFT";
+
+  const handleToggleWebVisibility = async () => {
+    try {
+      setIsTogglingWeb(true);
+      const nextVisible = !isWebVisible;
+      const res = await toggleProductWebVisibility(product.id, nextVisible);
+      if (res.success) {
+        const updated = {
+          ...product,
+          webVisible: nextVisible,
+          status: nextVisible ? "PUBLISHED" : "HIDDEN",
+        };
+        setProduct(updated);
+        if (onProductUpdate) {
+          onProductUpdate(updated);
+        }
+      }
+    } catch (err) {
+      console.error("Error al alternar visibilidad web:", err);
+    } finally {
+      setIsTogglingWeb(false);
+    }
+  };
 
   const handleReactivate = async () => {
     try {
@@ -905,11 +936,43 @@ export function ProductDetailView({
                   <span>Inactivo</span>
                 </span>
               )}
+              {product.active !== false && !isWebVisible && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-300 bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700 whitespace-nowrap shrink-0">
+                  <EyeOff className="w-3 h-3" />
+                  <span>Oculto en Web</span>
+                </span>
+              )}
             </div>
           </div>
 
           {/* Right: Quick Actions - Solo iconos en resoluciones pequeñas/medianas, con texto en pantallas grandes */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Mostrar / Ocultar en Tienda Web */}
+            {product.active !== false && (
+              <button
+                onClick={handleToggleWebVisibility}
+                disabled={isTogglingWeb}
+                className={`inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold rounded-xl transition-all border shadow-2xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+                  isWebVisible
+                    ? "text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-300"
+                    : "text-amber-300 bg-slate-800 hover:bg-slate-700 border-slate-700"
+                }`}
+                title={
+                  isWebVisible
+                    ? "Visible en la tienda online — Clic para ocultar de la tienda web"
+                    : "Oculto en la tienda online — Clic para mostrar en la tienda web"
+                }
+              >
+                {isWebVisible ? (
+                  <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
+                )}
+                <span className="hidden xl:inline">
+                  {isWebVisible ? "Visible en Web" : "Oculto en Web"}
+                </span>
+              </button>
+            )}
             {/* Registrar Venta Mostrador (Baja Rápida) */}
             <button
               onClick={() => handleOpenStockModal("VENTA_MOSTRADOR")}

@@ -27,6 +27,8 @@ import {
   Palette,
   Ruler,
   Store,
+  Globe,
+  EyeOff,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -91,6 +93,7 @@ export function ProductFormModal({
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
   const [gender, setGender] = useState<"HOMBRE" | "MUJER" | "NINO" | "UNISEX">("UNISEX");
+  const [webVisible, setWebVisible] = useState<boolean>(true);
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
@@ -436,6 +439,11 @@ export function ProductFormModal({
       );
       setPrice(productToEdit.price);
       setGender(productToEdit.gender || "UNISEX");
+      setWebVisible(
+        productToEdit.webVisible !== undefined
+          ? productToEdit.webVisible
+          : productToEdit.status !== "HIDDEN" && productToEdit.status !== "DRAFT"
+      );
       setImageUrl(productToEdit.imageUrl || null);
 
       if (productToEdit.images && productToEdit.images.length > 0) {
@@ -539,6 +547,7 @@ export function ProductFormModal({
       setCategoryId("");
       setBrandId("");
       setGender("UNISEX");
+      setWebVisible(true);
       setCostPrice("");
       setPrice("");
       setImageUrl(null);
@@ -1290,6 +1299,7 @@ export function ProductFormModal({
           categoryId,
           brandId,
           gender,
+          webVisible,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1313,6 +1323,7 @@ export function ProductFormModal({
           categoryId,
           brandId,
           gender,
+          webVisible,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -2022,6 +2033,61 @@ export function ProductFormModal({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Visibilidad en Tienda Online (E-commerce) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
+              <div className="flex items-start gap-2.5">
+                <div
+                  className={`p-2 rounded-lg shrink-0 ${
+                    webVisible
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  {webVisible ? (
+                    <Globe className="w-4 h-4" />
+                  ) : (
+                    <EyeOff className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">
+                    Visibilidad en Tienda Online (E-commerce)
+                  </span>
+                  <span className="block text-[11px] text-slate-500">
+                    {webVisible
+                      ? "El producto aparecerá publicado en el catálogo web y buscador público."
+                      : "Oculto en la tienda web. Seguirá activo para ventas en mostrador (POS)."}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shrink-0 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setWebVisible(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    webVisible
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Visible en Web
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWebVisible(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    !webVisible
+                      ? "bg-slate-800 text-white shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  Ocultar de Web
+                </button>
               </div>
             </div>
           </div>

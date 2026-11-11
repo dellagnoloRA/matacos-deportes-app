@@ -109,6 +109,8 @@ export const CreateProductSchema = z.object({
   brandId: z.string().uuid("Debe seleccionar una marca válida"),
   gender: GenderEnum.optional().default("UNISEX"),
   active: z.boolean().default(true),
+  webVisible: z.boolean().optional(),
+  status: z.enum(["PUBLISHED", "HIDDEN", "DRAFT", "SCHEDULED"]).optional(),
   variants: z
     .array(ProductVariantSchema)
     .min(1, "El producto debe tener al menos una variante de talle/color"),

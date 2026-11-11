@@ -41,9 +41,21 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
   const parsedSort = CatalogSortEnum.safeParse(rawSort);
 
   const filters: CatalogFilterInput = {
-    disciplineSlug: getString(resolvedParams.disciplina) || undefined,
-    categorySlug: getString(resolvedParams.categoria) || undefined,
-    brandSlug: getString(resolvedParams.marca) || undefined,
+    disciplineSlug:
+      getString(resolvedParams.disciplina) ||
+      getString(resolvedParams.discipline) ||
+      getString(resolvedParams.disciplineSlug) ||
+      undefined,
+    categorySlug:
+      getString(resolvedParams.categoria) ||
+      getString(resolvedParams.category) ||
+      getString(resolvedParams.categorySlug) ||
+      undefined,
+    brandSlug:
+      getString(resolvedParams.marca) ||
+      getString(resolvedParams.brand) ||
+      getString(resolvedParams.brandSlug) ||
+      undefined,
     gender: parsedGender.success ? parsedGender.data : undefined,
     size: getString(resolvedParams.talle) || undefined,
     color: getString(resolvedParams.color) || undefined,

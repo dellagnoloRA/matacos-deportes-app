@@ -15,18 +15,21 @@ import {
   MessageCircle,
   Loader2,
   Truck,
+  Layers,
 } from "lucide-react";
 import {
   getStoreSettings,
   updateStoreSettings,
   type StoreSettingsOutput,
 } from "@/server/actions/storeSettingsActions";
+import { MasterCategoriesManager } from "./MasterCategoriesManager";
 
 interface StoreSettingsViewProps {
   initialSettings?: StoreSettingsOutput | null;
 }
 
 export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
+  const [activeTab, setActiveTab] = useState<"general" | "categories">("general");
   const [isLoadingInitial, setIsLoadingInitial] = useState(!initialSettings);
   const [settings, setSettings] = useState({
     storeName: initialSettings?.storeName || "Matacos Deportes",
@@ -105,6 +108,9 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           instagramHandle: res.data.instagramHandle || "",
           cadeteriaCost: res.data.cadeteriaCost,
         });
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("store-settings-updated"));
+        }
       } else {
         setErrorMessage(
           res.error || "Ocurrió un error al guardar los cambios."
@@ -128,40 +134,75 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 pb-12 animate-in fade-in-50 duration-200">
-      {/* Encabezado */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Store className="w-6 h-6" />
+      {/* Encabezado y Pestañas */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Store className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Configuración de Tienda, Ubicación, Horarios y Categorías
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Modificá el número de contacto/WhatsApp, ubicación, horarios de atención y las categorías que aparecen en la tienda web.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Configuración de Tienda y Canales de Contacto
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Modificá el WhatsApp comercial, correos y datos del local. Los cambios impactan de inmediato en la tienda online y comprobantes sin reiniciar el sistema.
-            </p>
+
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("general")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "general"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>Número, Ubicación & Horarios</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("categories")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "categories"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Categorías & Marcas</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Alertas */}
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span className="font-semibold">{successMessage}</span>
+      {activeTab === "categories" ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+          <MasterCategoriesManager />
         </div>
-      )}
+      ) : (
+        <>
+          {/* Alertas */}
+          {successMessage && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+          )}
 
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-          <span className="font-semibold">{errorMessage}</span>
-        </div>
-      )}
+          {errorMessage && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span className="font-semibold">{errorMessage}</span>
+            </div>
+          )}
 
-      {/* Formulario */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Formulario */}
+          <form onSubmit={handleSubmit} className="space-y-6">
         {/* Sección 1: Canales Digitales de Contacto */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
           <div className="border-b border-slate-100 pb-3">
@@ -416,6 +457,8 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 }

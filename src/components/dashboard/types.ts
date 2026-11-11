@@ -117,6 +117,8 @@ export interface DetailedProductItem {
   variants: ProductVariantItem[];
   sizeConversions?: SizeConversion[];
   active?: boolean;
+  status?: string;
+  webVisible?: boolean;
 }
 
 export interface ProductImageItem {
