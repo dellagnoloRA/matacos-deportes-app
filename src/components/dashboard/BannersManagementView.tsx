@@ -23,6 +23,9 @@ import {
   AlertCircle,
   X,
   Loader2,
+  Type,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import {
   getAllBannersAdmin,
@@ -139,6 +142,7 @@ export function BannersManagementView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
   const [editingBanner, setEditingBanner] = useState<SerializedBanner | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -190,6 +194,7 @@ export function BannersManagementView() {
 
   const resetForm = () => {
     setEditingBanner(null);
+    setModalStep(1);
     setTitle("");
     setSubtitle("");
     setImageUrl("");
@@ -228,6 +233,7 @@ export function BannersManagementView() {
     setStartDate(banner.startDate ? banner.startDate.slice(0, 10) : "");
     setEndDate(banner.endDate ? banner.endDate.slice(0, 10) : "");
     setActive(banner.active);
+    setModalStep(1);
     setIsModalOpen(true);
   };
 
@@ -630,324 +636,600 @@ export function BannersManagementView() {
       {/* Modal: Crear / Modificar Banner */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
               <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  {editingBanner ? "Modificar Banner Promocional" : "Crear Nuevo Banner"}
+                <h2 className="text-lg font-bold text-slate-900">
+                  {editingBanner ? "Modificar Banner Promocional" : "Crear Nuevo Banner Promocional"}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-500 mt-0.5">
                   {editingBanner
-                    ? "Actualizá la imagen, video o enlace del banner existente"
-                    : "Publicá una imagen o video promocional en la portada web"}
+                    ? "Actualizá los textos, archivo multimedia o enlace del banner existente"
+                    : "Configurá y publicá un nuevo banner destacado en la portada de la tienda"}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg text-sm"
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-2 rounded-xl text-base transition-colors cursor-pointer"
+                title="Cerrar modal"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-              {/* Tarjeta de Guía de Resoluciones y Formatos */}
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-950 font-bold text-xs">
-                  <Info className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Resoluciones Recomendadas para una Visualización Óptima</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <div className="bg-white/90 p-2.5 rounded-xl border border-emerald-200/60 space-y-1">
-                    <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                      <span>🖥️ Para Computadora (Desktop):</span>
-                    </p>
-                    <p className="text-emerald-900 font-semibold">
-                      1920 × 800 px <span className="font-normal text-slate-500">(o 1920 × 1080 px)</span>
-                    </p>
-                    <p className="text-slate-500 text-[10px]">
-                      Imágenes (WebP, PNG, JPG hasta 5MB) o Videos (MP4, WebM hasta 30MB).
-                    </p>
-                  </div>
-                  <div className="bg-white/90 p-2.5 rounded-xl border border-emerald-200/60 space-y-1">
-                    <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                      <span>📱 Para Celular (Mobile - Opcional):</span>
-                    </p>
-                    <p className="text-emerald-900 font-semibold">
-                      1080 × 1350 px <span className="font-normal text-slate-500">(4:5) o 1080 × 1920 px</span>
-                    </p>
-                    <p className="text-slate-500 text-[10px]">
-                      Si no se sube versión móvil, se adapta automáticamente la de computadora.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Título */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Título de la Campaña / Promoción *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ej: Temporada Natación 2026"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 font-medium focus:outline-none focus:border-[#00D615]"
-                />
-              </div>
-
-              {/* Subtítulo */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Subtítulo o Frase Destacada (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={subtitle}
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  placeholder="Ej: Hasta 6 cuotas sin interés y 15% OFF abonando por transferencia"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 font-medium focus:outline-none focus:border-[#00D615]"
-                />
-              </div>
-
-              {/* Media Principal Desktop (Imagen o Video) */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 block">
-                    Archivo Multimedia Desktop (Imagen o Video) *
-                  </label>
-                  <span className="text-[10px] text-slate-400">
-                    MP4 / WebM (máx 30MB) • WebP / PNG / JPG (máx 5MB)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label className="border border-dashed border-slate-300 hover:border-[#00D615] rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/30 transition-all text-xs font-semibold text-slate-700">
-                    <Upload className="w-4 h-4 text-emerald-600" />
-                    <span>{uploadingImage ? "Subiendo archivo..." : "Subir archivo desde PC"}</span>
-                    <input
-                      type="file"
-                      accept="image/webp,image/png,image/jpeg,image/jpg,video/mp4,video/webm,video/quicktime"
-                      onChange={(e) => handleFileUpload(e, "desktop")}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {/* Selector rápido de videos de stock preexistentes */}
-                  <select
-                    value={STOCK_VIDEOS.some((v) => v.url === imageUrl) ? imageUrl : ""}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setImageUrl(e.target.value);
-                      }
-                    }}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 bg-white font-medium focus:outline-none focus:border-[#00D615]"
-                  >
-                    <option value="">🎬 Elegir video institucional...</option>
-                    {STOCK_VIDEOS.map((v) => (
-                      <option key={v.id} value={v.url}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Vista Previa Multimedia */}
-                {imageUrl && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono">
-                      <span className="font-bold text-emerald-700 flex items-center gap-1">
-                        {isVideoMedia(imageUrl) ? (
-                          <>
-                            <Video className="w-3.5 h-3.5 text-emerald-600" /> Video seleccionado
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon className="w-3.5 h-3.5 text-emerald-600" /> Imagen seleccionada
-                          </>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="truncate max-w-[180px] text-slate-400 font-mono text-[10px]">{imageUrl}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImageUrl("");
-                            showToast("info", "Archivo multimedia principal removido.");
-                          }}
-                          className="text-[11px] text-rose-500 hover:text-rose-700 hover:underline flex items-center gap-1 font-sans cursor-pointer shrink-0"
-                          title="Quitar archivo seleccionado"
-                        >
-                          <X className="w-3.5 h-3.5" /> Quitar
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="w-full h-32 rounded-lg overflow-hidden bg-slate-950 border border-slate-200">
-                      {isVideoMedia(imageUrl) ? (
-                        <video
-                          src={imageUrl}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={imageUrl}
-                          alt="Vista previa"
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Media Mobile Opcional */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Archivo Adaptado para Celular (Opcional - Proporción 4:5 o 9:16)
-                  </label>
-                  {mobileUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setMobileUrl("")}
-                      className="text-[10px] text-rose-500 hover:underline"
-                    >
-                      Quitar móvil
-                    </button>
-                  )}
-                </div>
-
-                <label className="border border-dashed border-slate-300 hover:border-[#00D615] rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/30 transition-all text-xs font-semibold text-slate-600">
-                  <Upload className="w-4 h-4 text-slate-500" />
-                  <span>Subir versión vertical para celular</span>
-                  <input
-                    type="file"
-                    accept="image/webp,image/png,image/jpeg,image/jpg,video/mp4,video/webm"
-                    onChange={(e) => handleFileUpload(e, "mobile")}
-                    className="hidden"
-                  />
-                </label>
-
-                {mobileUrl && (
-                  <p className="text-[11px] text-emerald-700 font-mono truncate bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                    ✓ {mobileUrl}
-                  </p>
-                )}
-              </div>
-
-              {/* Enlace al hacer clic con selector intuitivo */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <label className="text-xs font-bold text-slate-800 block">
-                  ¿A dónde debe ir el cliente al hacer clic en el banner? *
-                </label>
-
-                <select
-                  value={selectedLinkPreset}
-                  onChange={(e) => setSelectedLinkPreset(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 font-semibold bg-white focus:outline-none focus:border-[#00D615]"
+            {/* Barra de Pasos / Secciones Guiadas */}
+            <div className="px-6 py-3 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalStep(1)}
+                className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  modalStep === 1
+                    ? "bg-white text-emerald-900 shadow-xs border border-slate-200/90 ring-2 ring-emerald-500/20"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                    modalStep === 1
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
                 >
-                  {LINK_PRESETS.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </select>
+                  1
+                </div>
+                <span className="hidden sm:inline">1. Título y Frase</span>
+                <span className="sm:hidden">Textos</span>
+              </button>
 
-                {/* Explicación amigable del destino seleccionado */}
-                {currentPresetInfo && selectedLinkPreset !== "custom" && (
-                  <p className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    ℹ️ {currentPresetInfo.description} (Ruta: <code className="font-mono text-emerald-700">{currentPresetInfo.url}</code>)
-                  </p>
-                )}
+              <div className="w-6 h-px bg-slate-200 hidden sm:block" />
 
-                {/* Campo libre si eligió "Personalizado" */}
-                {selectedLinkPreset === "custom" && (
-                  <div className="space-y-1 animate-in fade-in duration-150">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!title.trim()) {
+                    setErrorMessage("Por favor completá el título en la Sección 1.");
+                    return;
+                  }
+                  setErrorMessage(null);
+                  setModalStep(2);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  modalStep === 2
+                    ? "bg-white text-emerald-900 shadow-xs border border-slate-200/90 ring-2 ring-emerald-500/20"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                    modalStep === 2
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  2
+                </div>
+                <span className="hidden sm:inline">2. Archivos e Imágenes</span>
+                <span className="sm:hidden">Multimedia</span>
+              </button>
+
+              <div className="w-6 h-px bg-slate-200 hidden sm:block" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!title.trim()) {
+                    setErrorMessage("Por favor completá el título en la Sección 1.");
+                    setModalStep(1);
+                    return;
+                  }
+                  if (!imageUrl) {
+                    setErrorMessage("Por favor subí o seleccioná el archivo multimedia en la Sección 2.");
+                    setModalStep(2);
+                    return;
+                  }
+                  setErrorMessage(null);
+                  setModalStep(3);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  modalStep === 3
+                    ? "bg-white text-emerald-900 shadow-xs border border-slate-200/90 ring-2 ring-emerald-500/20"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                    modalStep === 3
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  3
+                </div>
+                <span className="hidden sm:inline">3. Redirección y Fechas</span>
+                <span className="sm:hidden">Destino</span>
+              </button>
+            </div>
+
+            {/* Aviso de Error */}
+            {errorMessage && (
+              <div className="mx-6 mt-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center justify-between text-sm font-semibold shrink-0 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMessage(null)}
+                  className="text-rose-500 hover:text-rose-800 p-1 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} className="p-7 space-y-6 overflow-y-auto flex-1">
+              {/* ========================================================= */}
+              {/* SECCIÓN 1: TÍTULO + SUBTÍTULO / FRASE                      */}
+              {/* ========================================================= */}
+              {modalStep === 1 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="border-b border-slate-100 pb-3.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                      <Type className="w-4 h-4" /> Sección 1 de 3
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 mt-1">
+                      Textos y Campaña Promocional
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      Definí el título principal de impacto y la frase secundaria que acompañarán este banner.
+                    </p>
+                  </div>
+
+                  {/* Título */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-slate-800 block">
+                        Título de la Campaña / Promoción <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-xs text-slate-400 font-mono">
+                        {title.length}/60 caracteres
+                      </span>
+                    </div>
                     <input
                       type="text"
                       required
-                      value={customLinkUrl}
-                      onChange={(e) => setCustomLinkUrl(e.target.value)}
-                      placeholder="Ej: /catalogo?marca=nike o https://instagram.com/matacosdeportes"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 font-medium focus:outline-none focus:border-[#00D615]"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Ej: Temporada Natación 2026"
+                      maxLength={60}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-[#00D615] focus:ring-2 focus:ring-emerald-500/20"
                     />
-                    <p className="text-[10px] text-slate-400">
-                      Podés colocar una ruta interna (ej. /catalogo) o una URL web completa (ej. https://...).
+                  </div>
+
+                  {/* Subtítulo */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-slate-800 block">
+                        Subtítulo o Frase Destacada <span className="text-slate-400 font-normal">(Opcional)</span>
+                      </label>
+                      <span className="text-xs text-slate-400 font-mono">
+                        {subtitle.length}/100 caracteres
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={subtitle}
+                      onChange={(e) => setSubtitle(e.target.value)}
+                      placeholder="Ej: Hasta 6 cuotas sin interés y 15% OFF abonando por transferencia"
+                      maxLength={100}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-[#00D615] focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  {/* Checkbox Activo */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                    <label className="flex items-center gap-3 text-sm font-bold text-slate-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={(e) => setActive(e.target.checked)}
+                        className="w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span>Mostrar activamente en el carrusel de la portada web</span>
+                    </label>
+                    <p className="text-xs text-slate-500 mt-1 pl-8">
+                      Si está desmarcado, el banner se guardará en borrador sin mostrarse al público en la tienda.
                     </p>
                   </div>
-                )}
-              </div>
 
-              {/* Fechas de Vigencia */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700 block">
-                    Desde (Fecha de Inicio)
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none"
-                  />
-                  <p className="text-[10px] text-slate-400">Dejar vacío para iniciar ya.</p>
+                  {/* Vista Previa de Textos */}
+                  {title.trim() && (
+                    <div className="p-4 bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl space-y-1.5 border border-emerald-900/60 shadow-inner">
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-[#00D615]">
+                        Previsualización de Textos
+                      </span>
+                      <h4 className="text-base sm:text-lg font-black italic uppercase tracking-tight text-white drop-shadow-xs">
+                        {title}
+                      </h4>
+                      {subtitle && (
+                        <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Botones de Paso 1 */}
+                  <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-5 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!title.trim()) {
+                          setErrorMessage("Por favor ingresá el título del banner para continuar.");
+                          return;
+                        }
+                        setErrorMessage(null);
+                        setModalStep(2);
+                      }}
+                      className="px-6 py-3 rounded-xl text-sm font-bold bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 cursor-pointer shadow-md transition-all flex items-center gap-2"
+                    >
+                      <span>Siguiente: Archivos e Imágenes</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700 block">
-                    Hasta (Fecha de Fin)
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none"
-                  />
-                  <p className="text-[10px] text-slate-400">Dejar vacío para vigencia indefinida.</p>
+              )}
+
+              {/* ========================================================= */}
+              {/* SECCIÓN 2: ARCHIVOS DE IMÁGENES / VIDEOS                   */}
+              {/* ========================================================= */}
+              {modalStep === 2 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="border-b border-slate-100 pb-3.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4" /> Sección 2 de 3
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 mt-1">
+                      Archivos Multimedia e Imágenes
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      Cargá el contenido visual para computadoras y celulares según las resoluciones recomendadas.
+                    </p>
+                  </div>
+
+                  {/* Tarjeta de Guía de Resoluciones y Formatos */}
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
+                    <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                      <Info className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Resoluciones Recomendadas para una Visualización Óptima</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                      <div className="bg-white/95 p-3.5 rounded-xl border border-emerald-200/80 space-y-1">
+                        <p className="font-bold text-slate-900">🖥️ Desktop (Computadora):</p>
+                        <p className="text-emerald-900 font-bold text-sm sm:text-base">1920 × 800 px <span className="font-normal text-xs text-slate-500">(o 1920 × 1080 px)</span></p>
+                        <p className="text-slate-500 text-xs">Imágenes WebP, PNG, JPG (hasta 5MB) o Videos MP4 (hasta 30MB).</p>
+                      </div>
+                      <div className="bg-white/95 p-3.5 rounded-xl border border-emerald-200/80 space-y-1">
+                        <p className="font-bold text-slate-900">📱 Mobile (Celular - Opcional):</p>
+                        <p className="text-emerald-900 font-bold text-sm sm:text-base">1080 × 1350 px <span className="font-normal text-xs text-slate-500">(4:5) o 1080 × 1920 px</span></p>
+                        <p className="text-slate-500 text-xs">Si no se sube versión móvil, el sistema adapta automáticamente la de computadora.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Media Principal Desktop (Imagen o Video) */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-slate-800 block">
+                        Archivo Desktop Principal (Imagen o Video) <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        Requerido
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="border-2 border-dashed border-slate-300 hover:border-[#00D615] rounded-xl p-3.5 flex items-center justify-center gap-2.5 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition-all text-sm font-semibold text-slate-700">
+                        <Upload className="w-5 h-5 text-emerald-600" />
+                        <span>{uploadingImage ? "Subiendo archivo..." : "Subir archivo desde PC"}</span>
+                        <input
+                          type="file"
+                          accept="image/webp,image/png,image/jpeg,image/jpg,video/mp4,video/webm,video/quicktime"
+                          onChange={(e) => handleFileUpload(e, "desktop")}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {/* Selector rápido de videos de stock preexistentes */}
+                      <select
+                        value={STOCK_VIDEOS.some((v) => v.url === imageUrl) ? imageUrl : ""}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setImageUrl(e.target.value);
+                          }
+                        }}
+                        className="border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 bg-white font-medium focus:outline-none focus:border-[#00D615]"
+                      >
+                        <option value="">🎬 Elegir video institucional de stock...</option>
+                        {STOCK_VIDEOS.map((v) => (
+                          <option key={v.id} value={v.url}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Vista Previa Multimedia */}
+                    {imageUrl && (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between text-xs sm:text-sm text-slate-700 font-medium">
+                          <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+                            {isVideoMedia(imageUrl) ? (
+                              <>
+                                <Video className="w-4 h-4 text-emerald-600" /> Video seleccionado
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-4 h-4 text-emerald-600" /> Imagen seleccionada
+                              </>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="truncate max-w-[240px] text-slate-500 font-mono text-xs">
+                              {imageUrl}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setImageUrl("");
+                                showToast("info", "Archivo multimedia principal removido.");
+                              }}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                              title="Quitar archivo seleccionado"
+                            >
+                              <X className="w-4 h-4" /> Quitar
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="w-full h-48 sm:h-56 rounded-xl overflow-hidden bg-slate-950 border border-slate-200 shadow-inner">
+                          {isVideoMedia(imageUrl) ? (
+                            <video
+                              src={imageUrl}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={imageUrl}
+                              alt="Vista previa"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Media Mobile Opcional */}
+                  <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-slate-800 block">
+                        Versión Adaptada para Celular <span className="text-slate-400 font-normal">(Opcional)</span>
+                      </label>
+                      {mobileUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setMobileUrl("")}
+                          className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Quitar versión móvil
+                        </button>
+                      )}
+                    </div>
+
+                    <label className="border-2 border-dashed border-slate-300 hover:border-[#00D615] rounded-xl p-3 flex items-center justify-center gap-2.5 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition-all text-sm font-semibold text-slate-600">
+                      <Upload className="w-4 h-4 text-slate-500" />
+                      <span>Subir archivo vertical para celular (4:5 o 9:16)</span>
+                      <input
+                        type="file"
+                        accept="image/webp,image/png,image/jpeg,image/jpg,video/mp4,video/webm"
+                        onChange={(e) => handleFileUpload(e, "mobile")}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {mobileUrl && (
+                      <p className="text-xs text-emerald-800 font-mono truncate bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                        ✓ {mobileUrl}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Botones de Paso 2 */}
+                  <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalStep(1)}
+                      className="px-5 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 cursor-pointer flex items-center gap-2 transition-colors"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Volver a Textos</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!imageUrl) {
+                          setErrorMessage("Por favor subí o seleccioná el archivo multimedia principal para continuar.");
+                          return;
+                        }
+                        setErrorMessage(null);
+                        setModalStep(3);
+                      }}
+                      className="px-6 py-3 rounded-xl text-sm font-bold bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 cursor-pointer shadow-md transition-all flex items-center gap-2"
+                    >
+                      <span>Siguiente: Redirección y Fechas</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Checkbox Activo */}
-              <div className="pt-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={(e) => setActive(e.target.checked)}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <span>Mostrar activamente en el carrusel de la tienda</span>
-                </label>
-              </div>
+              {/* ========================================================= */}
+              {/* SECCIÓN 3: REDIRECCIÓN + FECHAS DE VIGENCIA                */}
+              {/* ========================================================= */}
+              {modalStep === 3 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="border-b border-slate-100 pb-3.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4" /> Sección 3 de 3
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 mt-1">
+                      Destino de Redirección y Fechas de Vigencia
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      Configurá a qué página dirigirá el clic del cliente y las fechas de vigencia de la campaña.
+                    </p>
+                  </div>
 
-              {/* Botones de Acción */}
-              <div className="pt-4 flex items-center justify-end gap-2.5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting || uploadingImage}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 disabled:opacity-50 cursor-pointer shadow-sm transition-all"
-                >
-                  {submitting
-                    ? "Guardando..."
-                    : editingBanner
-                    ? "Guardar Cambios"
-                    : "Guardar y Publicar"}
-                </button>
-              </div>
+                  {/* Enlace al hacer clic con selector intuitivo */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-800 block">
+                      ¿A dónde debe ir el cliente al hacer clic en el banner? <span className="text-rose-500">*</span>
+                    </label>
+
+                    <select
+                      value={selectedLinkPreset}
+                      onChange={(e) => setSelectedLinkPreset(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-900 font-semibold bg-white focus:outline-none focus:border-[#00D615] focus:ring-2 focus:ring-emerald-500/20"
+                    >
+                      {LINK_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Explicación amigable del destino seleccionado */}
+                    {currentPresetInfo && selectedLinkPreset !== "custom" && (
+                      <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        ℹ️ {currentPresetInfo.description} (Ruta interna: <code className="font-mono text-emerald-700 font-bold">{currentPresetInfo.url}</code>)
+                      </p>
+                    )}
+
+                    {/* Campo libre si eligió "Personalizado" */}
+                    {selectedLinkPreset === "custom" && (
+                      <div className="space-y-1.5 animate-in fade-in duration-150">
+                        <input
+                          type="text"
+                          required
+                          value={customLinkUrl}
+                          onChange={(e) => setCustomLinkUrl(e.target.value)}
+                          placeholder="Ej: /catalogo?marca=nike o https://instagram.com/matacosdeportes"
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-[#00D615]"
+                        />
+                        <p className="text-xs text-slate-400">
+                          Podés colocar una ruta interna (ej. /catalogo) o una URL web externa completa.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fechas de Vigencia */}
+                  <div className="space-y-2.5 pt-3 border-t border-slate-100">
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                      <Calendar className="w-4 h-4 text-emerald-600" />
+                      <span>Programación de Vigencia (Opcional)</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          Desde (Fecha de Inicio)
+                        </label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-[#00D615]"
+                        />
+                        <p className="text-xs text-slate-400">Vacío = inicio inmediato.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          Hasta (Fecha de Fin)
+                        </label>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-[#00D615]"
+                        />
+                        <p className="text-xs text-slate-400">Vacío = vigencia indefinida.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Resumen Final de Configuración */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs sm:text-sm space-y-1.5 text-slate-600">
+                    <div className="flex justify-between font-semibold text-slate-800">
+                      <span>Campaña:</span>
+                      <span className="truncate max-w-[280px] text-emerald-700 font-bold">{title}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Destino:</span>
+                      <span className="font-mono text-slate-700">
+                        {selectedLinkPreset === "custom" ? customLinkUrl || "(sin definir)" : currentPresetInfo?.url}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Estado:</span>
+                      <span className={active ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                        {active ? "Activo en tienda" : "Guardado en borrador"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botones de Paso 3 (Submit Final) */}
+                  <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalStep(2)}
+                      className="px-5 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 cursor-pointer flex items-center gap-2 transition-colors"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Volver a Imágenes</span>
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || uploadingImage}
+                      className="px-7 py-3 rounded-xl text-sm font-bold bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all flex items-center gap-2.5"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Guardando banner...</span>
+                        </>
+                      ) : editingBanner ? (
+                        <span>Guardar Cambios</span>
+                      ) : (
+                        <span>Guardar y Publicar Banner</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>

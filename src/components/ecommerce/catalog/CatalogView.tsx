@@ -113,8 +113,13 @@ export function CatalogView({
       }
       if (key === "size") paramKey = "talle";
       if (key === "gender") paramKey = "genero";
+      if (key === "ofertas") {
+        paramKey = "ofertas";
+        params.delete("enOferta");
+        params.delete("discount");
+      }
 
-      if (val === undefined || val === null || val === "") {
+      if (val === undefined || val === null || val === "" || val === false) {
         params.delete(paramKey);
       } else {
         params.set(paramKey, String(val));

@@ -238,16 +238,25 @@ export const CompletePendingSaleSchema = z
   });
 
 /**
- * Esquema para Generar Preventa de Cambio de Producto hacia Caja Mostrador
+ * Esquema para Generar Preventa de Cambio o Devolución de Producto hacia Caja Mostrador
  */
-export const CreatePendingExchangeSaleSchema = z.object({
-  returnVariantId: z.string().uuid("ID de variante devuelta inválido"),
-  exchangeVariantId: z.string().uuid("ID de variante a entregar inválido"),
-  quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
-  reason: z.string().min(1, "El motivo del cambio es obligatorio"),
-  customerName: z.string().max(100).optional().nullable(),
-  sellerId: z.string().uuid().optional().nullable(),
-});
+export const CreatePendingExchangeSaleSchema = z
+  .object({
+    operationType: z.enum(["EXCHANGE", "RETURN"]).default("EXCHANGE"),
+    returnVariantId: z.string().uuid("ID de variante devuelta inválido"),
+    exchangeVariantId: z.string().uuid("ID de variante a entregar inválido").optional().nullable(),
+    quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
+    reason: z.string().min(1, "El motivo de la operación es obligatorio"),
+    customerName: z.string().max(100).optional().nullable(),
+    sellerId: z.string().uuid().optional().nullable(),
+  })
+  .refine(
+    (data) => data.operationType === "RETURN" || Boolean(data.exchangeVariantId),
+    {
+      message: "Para un cambio de producto debes seleccionar la prenda a entregar",
+      path: ["exchangeVariantId"],
+    }
+  );
 
 /**
  * Esquema para Sincronización por Lote Offline (RF-12)

@@ -40,6 +40,12 @@ export const CatalogFilterSchema = z
       .optional(),
     size: z.string().trim().optional(),
     color: z.string().trim().optional(),
+    ofertas: z
+      .preprocess(
+        (val) => val === true || val === "true" || val === "1" || val === 1,
+        z.boolean()
+      )
+      .optional(),
     minPrice: z
       .coerce
       .number({ invalid_type_error: "El precio mínimo debe ser un número" })

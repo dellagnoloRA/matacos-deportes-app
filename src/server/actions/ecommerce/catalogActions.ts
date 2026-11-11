@@ -14,7 +14,7 @@ import type {
   CatalogFacetsResponse,
   CatalogFacetOption,
 } from "@/types/ecommerce";
-import { Prisma } from "@prisma/client";
+import { Prisma, Gender } from "@prisma/client";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { invalidateLandingCache } from "@/lib/landingCache";
 import { resolveEffectiveProductPromo } from "@/server/services/landingService";
@@ -54,6 +54,7 @@ async function fetchPublicCatalogRaw(
       gender,
       size,
       color,
+      ofertas,
       minPrice,
       maxPrice,
       search,
@@ -115,7 +116,30 @@ async function fetchPublicCatalogRaw(
       active: true,
       status: "PUBLISHED",
       ...(andFilters.length > 0 ? { AND: andFilters } : {}),
-      ...(gender ? { gender } : {}),
+      ...(gender
+        ? gender === "UNISEX"
+          ? { gender: "UNISEX" }
+          : { gender: { in: [gender, "UNISEX"] } }
+        : {}),
+      ...(ofertas
+        ? {
+            discountActive: true,
+            AND: [
+              {
+                OR: [
+                  { discountStartDate: null },
+                  { discountStartDate: { lte: new Date() } },
+                ],
+              },
+              {
+                OR: [
+                  { discountEndDate: null },
+                  { discountEndDate: { gte: new Date() } },
+                ],
+              },
+            ],
+          }
+        : {}),
       ...(minPrice !== undefined || maxPrice !== undefined
         ? {
             price: {
@@ -421,7 +445,9 @@ export async function getPredictiveSearch(
  * Consulta de Facetas y Filtros Dinámicos con Disponibilidad Real (RF-13)
  * Devuelve opciones de disciplinas, categorías, marcas y talles con stock para la barra lateral.
  */
-async function fetchCatalogFacetsRaw(): Promise<{
+async function fetchCatalogFacetsRaw(
+  filters?: Partial<CatalogFilterInput>
+): Promise<{
   success: boolean;
   data?: CatalogFacetsResponse;
   error?: string;
@@ -541,10 +567,93 @@ async function fetchCatalogFacetsRaw(): Promise<{
       orderBy: { name: "asc" },
     });
 
-    // 4. Obtener talles disponibles en stock
+    // 4. Obtener talles disponibles en stock (contextual a la disciplina, categoría o búsqueda activa)
+    const sizeProductAndFilters: Prisma.ProductWhereInput[] = [];
+
+    if (filters?.disciplineSlug) {
+      sizeProductAndFilters.push({
+        OR: [
+          { discipline: { slug: { equals: filters.disciplineSlug, mode: "insensitive" } } },
+          { discipline: { name: { equals: filters.disciplineSlug, mode: "insensitive" } } },
+          { disciplineId: filters.disciplineSlug },
+        ],
+      });
+    }
+
+    if (filters?.categorySlug) {
+      sizeProductAndFilters.push({
+        OR: [
+          { category: { slug: { equals: filters.categorySlug, mode: "insensitive" } } },
+          { category: { name: { equals: filters.categorySlug, mode: "insensitive" } } },
+          { categoryId: filters.categorySlug },
+          { discipline: { slug: { equals: filters.categorySlug, mode: "insensitive" } } },
+          { discipline: { name: { equals: filters.categorySlug, mode: "insensitive" } } },
+          { disciplineId: filters.categorySlug },
+        ],
+      });
+    }
+
+    if (filters?.brandSlug) {
+      sizeProductAndFilters.push({
+        OR: [
+          { brand: { slug: { equals: filters.brandSlug, mode: "insensitive" } } },
+          { brand: { name: { equals: filters.brandSlug, mode: "insensitive" } } },
+          { brandId: filters.brandSlug },
+        ],
+      });
+    }
+
+    if (filters?.search) {
+      sizeProductAndFilters.push({
+        OR: [
+          { name: { contains: filters.search, mode: "insensitive" } },
+          { description: { contains: filters.search, mode: "insensitive" } },
+          { modelCode: { contains: filters.search, mode: "insensitive" } },
+          { brand: { name: { contains: filters.search, mode: "insensitive" } } },
+          { category: { name: { contains: filters.search, mode: "insensitive" } } },
+          { discipline: { name: { contains: filters.search, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    if (filters?.gender) {
+      const g = filters.gender as Gender;
+      if (g === "UNISEX") {
+        sizeProductAndFilters.push({ gender: "UNISEX" });
+      } else if (g === "HOMBRE" || g === "MUJER" || g === "NINO") {
+        sizeProductAndFilters.push({ gender: { in: [g, "UNISEX"] } });
+      }
+    }
+
+    if (filters?.ofertas) {
+      sizeProductAndFilters.push({
+        discountActive: true,
+        AND: [
+          {
+            OR: [
+              { discountStartDate: null },
+              { discountStartDate: { lte: new Date() } },
+            ],
+          },
+          {
+            OR: [
+              { discountEndDate: null },
+              { discountEndDate: { gte: new Date() } },
+            ],
+          },
+        ],
+      });
+    }
+
+    const sizeProductWhere: Prisma.ProductWhereInput = {
+      active: true,
+      status: "PUBLISHED",
+      ...(sizeProductAndFilters.length > 0 ? { AND: sizeProductAndFilters } : {}),
+    };
+
     const activeVariants = await prisma.productVariant.findMany({
       where: {
-        product: { active: true, status: "PUBLISHED" },
+        product: sizeProductWhere,
         OR: [{ stockStore: { gt: 0 } }, { stockWarehouse: { gt: 0 } }],
       },
       select: {
@@ -613,12 +722,16 @@ async function fetchCatalogFacetsRaw(): Promise<{
       UNISEX: "Unisex",
     };
 
+    const unisexCount =
+      genderCounts.find((gc) => gc.gender === "UNISEX")?._count._all || 0;
+
     const gendersFacet = (["HOMBRE", "MUJER", "NINO", "UNISEX"] as const).map((g) => {
       const found = genderCounts.find((gc) => gc.gender === g);
+      const exactCount = found ? found._count._all : 0;
       return {
         gender: g,
         label: genderLabels[g] || g,
-        count: found ? found._count._all : 0,
+        count: g === "UNISEX" ? exactCount : exactCount + unisexCount,
       };
     });
 
@@ -669,7 +782,22 @@ const getCachedCatalogFacets = unstable_cache(
   }
 );
 
-export async function getCatalogFacets() {
+export async function getCatalogFacets(
+  filters?: Partial<CatalogFilterInput>
+) {
+  const hasContext = Boolean(
+    filters?.disciplineSlug ||
+      filters?.categorySlug ||
+      filters?.brandSlug ||
+      filters?.search ||
+      filters?.gender ||
+      filters?.ofertas
+  );
+
+  if (hasContext) {
+    return await fetchCatalogFacetsRaw(filters);
+  }
+
   try {
     return await getCachedCatalogFacets();
   } catch {

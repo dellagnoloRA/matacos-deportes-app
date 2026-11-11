@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { ArrowRight, Tag, Truck } from "lucide-react";
 
 interface EcommerceOfferBannerProps {
@@ -47,14 +48,14 @@ export function EcommerceOfferBanner({ onViewOffersClick }: EcommerceOfferBanner
 
           {/* Right Action Button */}
           <div className="shrink-0 flex items-center">
-            <a
-              href="#productos"
+            <Link
+              href="/catalogo?ofertas=true"
               onClick={onViewOffersClick}
               className="inline-flex items-center justify-center gap-3 bg-[#00D615] hover:bg-[#00b812] active:scale-95 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider px-8 py-4 rounded-xl shadow-lg shadow-[#00D615]/20 hover:shadow-[#00D615]/40 transition-all duration-200"
             >
               <span>VER OFERTAS</span>
               <ArrowRight className="w-4 h-4" />
-            </a>
+            </Link>
           </div>
         </div>
       </div>

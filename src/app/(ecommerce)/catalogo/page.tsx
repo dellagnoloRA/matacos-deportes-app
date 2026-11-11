@@ -59,6 +59,14 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
     gender: parsedGender.success ? parsedGender.data : undefined,
     size: getString(resolvedParams.talle) || undefined,
     color: getString(resolvedParams.color) || undefined,
+    ofertas:
+      getString(resolvedParams.ofertas) === "true" ||
+      getString(resolvedParams.ofertas) === "1" ||
+      getString(resolvedParams.enOferta) === "true" ||
+      getString(resolvedParams.enOferta) === "1" ||
+      getString(resolvedParams.discount) === "true"
+        ? true
+        : undefined,
     minPrice: resolvedParams.minPrice
       ? Number(getString(resolvedParams.minPrice))
       : undefined,
@@ -93,7 +101,7 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
   try {
     const [catalogRes, facetsRes] = await Promise.all([
       getPublicCatalog(filters),
-      getCatalogFacets(),
+      getCatalogFacets(filters),
     ]);
 
     const products =

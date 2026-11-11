@@ -47,9 +47,8 @@ import {
   Edit3,
   Barcode,
   Zap,
-  LogOut,
 } from "lucide-react";
-import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
+import { getCurrentUserAction } from "@/server/actions/authActions";
 import { formatCurrency, formatDate, normalizeSearch } from "@/lib/utils";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -316,6 +315,7 @@ export function PosView({
     payments: Array<{ method: string; amount: number }>;
     items: any[];
     isExchange?: boolean;
+    isReturn?: boolean;
     notes?: string | null;
   } | null>(null);
 
@@ -1585,16 +1585,20 @@ export function PosView({
         const changeGiven =
           cashierPaymentMethod === "EFECTIVO" ? Math.max(0, receivedNum - totalToPay) : 0;
 
+        const isExchange = Boolean(activeCheckoutSale.notes?.includes("[CAMBIO"));
+        const isReturn = Boolean(activeCheckoutSale.notes?.includes("[DEVOLUCION"));
+
         setCompletedSaleResult({
           saleId: activeCheckoutSale.id,
           invoiceNumber: completed.invoiceNumber,
           ticketCode: completed.ticketCode || activeCheckoutSale.ticketCode || "Salón",
           customerName: completed.customerName || "Consumidor Final",
-          totalNet: totalToPay,
+          totalNet: isReturn ? Number(activeCheckoutSale.subtotalGross || 0) : totalToPay,
           change: changeGiven,
-          payments: [{ method: cashierPaymentMethod, amount: totalToPay }],
+          payments: [{ method: cashierPaymentMethod, amount: isReturn ? Number(activeCheckoutSale.subtotalGross || 0) : totalToPay }],
           items: activeCheckoutSale.items,
-          isExchange: activeCheckoutSale.notes?.includes("[CAMBIO"),
+          isExchange,
+          isReturn,
           notes: activeCheckoutSale.notes,
         });
 
@@ -2197,6 +2201,11 @@ export function PosView({
                             <RotateCcw className="w-3 h-3 text-purple-600" /> Cambio
                           </span>
                         )}
+                        {sale.notes?.includes("[DEVOLUCION") && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
+                            <RotateCcw className="w-3 h-3 text-rose-600" /> Devolución
+                          </span>
+                        )}
                       </div>
                       <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
                         <Clock className="w-3 h-3" />
@@ -2222,6 +2231,18 @@ export function PosView({
                       </div>
                     )}
 
+                    {/* Resumen de la devolución si el ticket proviene de una devolución */}
+                    {sale.notes?.includes("[DEVOLUCION") && (
+                      <div className="p-2.5 bg-rose-50/80 border border-rose-200/80 rounded-xl space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3 text-rose-600" /> Operación de Devolución
+                        </span>
+                        <p className="text-xs text-rose-900 font-medium leading-relaxed">
+                          {sale.notes.replace(/\[DEVOLUCION:[^\]]+\]\s*/, "")}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Breakdown of items */}
                     <div className="space-y-1 pt-1">
                       {sale.items.map((it) => (
@@ -2243,16 +2264,24 @@ export function PosView({
                   <div className="p-4 bg-slate-50/50 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-slate-500">
-                        {sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
+                        {sale.notes?.includes("[DEVOLUCION")
+                          ? "Reintegro al cliente:"
+                          : sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
                           ? "Saldo a cobrar:"
                           : "Importe a cobrar:"}
                       </span>
                       <span className={`text-xl font-black font-mono ${
-                        sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
+                        sale.notes?.includes("[DEVOLUCION")
+                          ? "text-rose-600"
+                          : sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
                           ? "text-emerald-600"
                           : "text-slate-950"
                       }`}>
-                        {formatCurrency(Number(sale.total))}
+                        {formatCurrency(
+                          sale.notes?.includes("[DEVOLUCION")
+                            ? Number(sale.subtotalGross || 0)
+                            : Number(sale.total)
+                        )}
                       </span>
                     </div>
 
@@ -2260,12 +2289,19 @@ export function PosView({
                       <button
                         onClick={() => handleOpenCheckoutModal(sale)}
                         className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition-transform cursor-pointer ${
-                          sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
+                          sale.notes?.includes("[DEVOLUCION")
+                            ? "bg-rose-600 hover:bg-rose-700 text-white"
+                            : sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0
                             ? "bg-purple-600 hover:bg-purple-700 text-white"
                             : "bg-emerald-600 hover:bg-emerald-700 text-white"
                         }`}
                       >
-                        {sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0 ? (
+                        {sale.notes?.includes("[DEVOLUCION") ? (
+                          <>
+                            <RotateCcw className="w-4 h-4" />
+                            <span>Confirmar Devolución</span>
+                          </>
+                        ) : sale.notes?.includes("[CAMBIO") && Number(sale.total) === 0 ? (
                           <>
                             <CheckCircle2 className="w-4 h-4" />
                             <span>Confirmar Cambio</span>
@@ -2277,7 +2313,7 @@ export function PosView({
                           </>
                         )}
                       </button>
-                      {!sale.notes?.includes("[CAMBIO") && (
+                      {!sale.notes?.includes("[CAMBIO") && !sale.notes?.includes("[DEVOLUCION") && (
                         <button
                           onClick={() => setEditingTicket(sale)}
                           className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs active:scale-98 cursor-pointer"
@@ -2290,7 +2326,13 @@ export function PosView({
                       <button
                         onClick={() => handleCancelPending(sale.id, sale.ticketCode)}
                         className="p-2.5 text-slate-500 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center transition-colors cursor-pointer"
-                        title={sale.notes?.includes("[CAMBIO") ? "Cancelar cambio y liberar reserva" : "Cancelar preventa y liberar stock"}
+                        title={
+                          sale.notes?.includes("[DEVOLUCION")
+                            ? "Cancelar devolución y anular preventa"
+                            : sale.notes?.includes("[CAMBIO")
+                            ? "Cancelar cambio y liberar reserva"
+                            : "Cancelar preventa y liberar stock"
+                        }
                       >
                         <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                       </button>
@@ -2305,7 +2347,9 @@ export function PosView({
         {/* Modal de Cobro Caja Mostrador */}
         {activeCheckoutSale && (() => {
           const isExchangeTicket = !!activeCheckoutSale.notes?.includes("[CAMBIO");
+          const isReturnTicket = !!activeCheckoutSale.notes?.includes("[DEVOLUCION");
           const isZeroTotal = activeCheckoutSale.total === 0;
+          const refundAmount = Number(activeCheckoutSale.subtotalGross || 0);
 
           const splitP1 = parseFloat(splitPayment1Amount) || 0;
           const splitP2 = parseFloat(splitPayment2Amount) || 0;
@@ -2390,15 +2434,28 @@ export function PosView({
               <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
                 {/* Header */}
                 <div className={`px-6 py-4 text-white flex items-center justify-between shrink-0 ${
-                  isExchangeTicket ? "bg-slate-900 border-b border-purple-500/30" : "bg-slate-900"
+                  isReturnTicket
+                    ? "bg-slate-900 border-b border-rose-500/30"
+                    : isExchangeTicket
+                    ? "bg-slate-900 border-b border-purple-500/30"
+                    : "bg-slate-900"
                 }`}>
                   <div className="flex items-center gap-2.5">
                     <span className="text-sm font-mono font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
                       {activeCheckoutSale.ticketCode || "#000"}
                     </span>
                     <h3 className="text-base font-bold">
-                      {isExchangeTicket ? "Confirmar Cambio de Prenda en Caja" : "Cobrar Preventa en Caja"}
+                      {isReturnTicket
+                        ? "Confirmar Devolución de Prenda en Caja"
+                        : isExchangeTicket
+                        ? "Confirmar Cambio de Prenda en Caja"
+                        : "Cobrar Preventa en Caja"}
                     </h3>
+                    {isReturnTicket && (
+                      <span className="text-xs bg-rose-500/20 text-rose-300 border border-rose-400/30 px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex items-center gap-1">
+                        <RotateCcw className="w-3 h-3 text-rose-400" /> Devolución
+                      </span>
+                    )}
                     {isExchangeTicket && (
                       <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex items-center gap-1">
                         <RotateCcw className="w-3 h-3" /> Cambio
@@ -2414,6 +2471,24 @@ export function PosView({
                 </div>
 
                 <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                  {/* Banner de Información de Devolución de Prenda */}
+                  {isReturnTicket && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <RotateCcw className="w-3.5 h-3.5 text-rose-700" />
+                          Detalles de la Devolución Registrada
+                        </span>
+                        <span className="text-[11px] font-semibold text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-md">
+                          Reingreso a stock en confirmación
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-900 leading-relaxed font-medium">
+                        {activeCheckoutSale.notes?.replace(/\[DEVOLUCION:[^\]]+\]\s*/, "")}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Banner de Información de Cambio de Prenda */}
                   {isExchangeTicket && (
                     <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-1.5">
@@ -2433,132 +2508,178 @@ export function PosView({
                   )}
 
                   {/* Total Display */}
-                  <div className={`border rounded-2xl p-3.5 text-center ${
-                    isZeroTotal
-                      ? "bg-slate-50 border-slate-200"
-                      : "bg-emerald-50 border-emerald-200/80"
-                  }`}>
-                    <span className={`text-xs font-bold uppercase tracking-wider ${
-                      isZeroTotal ? "text-slate-600" : "text-emerald-800"
-                    }`}>
-                      {isExchangeTicket ? "Diferencia a Cobrar" : "Total a Cobrar"}
-                    </span>
-                    <p className={`text-3xl font-black mt-0.5 font-mono ${
-                      isZeroTotal ? "text-slate-700" : "text-emerald-700"
-                    }`}>
-                      {formatCurrency(activeCheckoutSale.total)}
-                    </p>
-                    {isZeroTotal && (
-                      <p className="text-xs font-semibold text-emerald-600 mt-1">
-                        Mano a mano (mismo valor) — Sin diferencia a pagar
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Desglose Interactivo de Prendas del Ticket */}
-                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
-                        {isExchangeTicket ? "Prenda a Entregar" : `Prendas del Ticket (${activeCheckoutSale.items.length})`}
+                  {isReturnTicket ? (
+                    <div className="border rounded-2xl p-3.5 text-center bg-rose-50 border-rose-200/80">
+                      <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
+                        Monto a Reintegrar al Cliente
                       </span>
-                      {!isExchangeTicket && (
-                        <button
-                          type="button"
-                          onClick={() => setEditingTicket(activeCheckoutSale)}
-                          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-xl flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-                          title="Añadir nuevas prendas, cambiar talles o editar artículos"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Añadir / Modificar Artículos</span>
-                        </button>
+                      <p className="text-3xl font-black mt-0.5 font-mono text-rose-700">
+                        {formatCurrency(refundAmount)}
+                      </p>
+                      <p className="text-xs font-semibold text-rose-600 mt-1">
+                        Reintegro monetario o crédito según corresponda — La prenda devuelta reingresará al stock
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={`border rounded-2xl p-3.5 text-center ${
+                      isZeroTotal
+                        ? "bg-slate-50 border-slate-200"
+                        : "bg-emerald-50 border-emerald-200/80"
+                    }`}>
+                      <span className={`text-xs font-bold uppercase tracking-wider ${
+                        isZeroTotal ? "text-slate-600" : "text-emerald-800"
+                      }`}>
+                        {isExchangeTicket ? "Diferencia a Cobrar" : "Total a Cobrar"}
+                      </span>
+                      <p className={`text-3xl font-black mt-0.5 font-mono ${
+                        isZeroTotal ? "text-slate-700" : "text-emerald-700"
+                      }`}>
+                        {formatCurrency(activeCheckoutSale.total)}
+                      </p>
+                      {isZeroTotal && (
+                        <p className="text-xs font-semibold text-emerald-600 mt-1">
+                          Mano a mano (mismo valor) — Sin diferencia a pagar
+                        </p>
                       )}
                     </div>
+                  )}
 
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto divide-y divide-slate-200/60 pr-1">
-                      {activeCheckoutSale.items.map((it) => (
-                        <div key={it.id} className="pt-1.5 first:pt-0 flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-slate-900 truncate">
-                              {it.variant.product.name}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              Talle {it.variant.size}
-                              {it.variant.color ? ` • ${it.variant.color}` : ""}
-                              {" • "}
-                              <span className="font-mono text-slate-700">{formatCurrency(it.unitPrice)} c/u</span>
-                            </p>
-                          </div>
+                  {/* Desglose Interactivo de Prendas del Ticket (solo si no es devolución pura) */}
+                  {!isReturnTicket && (
+                    <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
+                          {isExchangeTicket ? "Prenda a Entregar" : `Prendas del Ticket (${activeCheckoutSale.items.length})`}
+                        </span>
+                        {!isExchangeTicket && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingTicket(activeCheckoutSale)}
+                            className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-xl flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                            title="Añadir nuevas prendas, cambiar talles o editar artículos"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Añadir / Modificar Artículos</span>
+                          </button>
+                        )}
+                      </div>
 
-                          {!isExchangeTicket ? (
-                            <div className="flex items-center gap-2 shrink-0">
-                              {/* Control de cantidad */}
-                              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto divide-y divide-slate-200/60 pr-1">
+                        {activeCheckoutSale.items.map((it) => (
+                          <div key={it.id} className="pt-1.5 first:pt-0 flex items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-slate-900 truncate">
+                                {it.variant.product.name}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Talle {it.variant.size}
+                                {it.variant.color ? ` • ${it.variant.color}` : ""}
+                                {" • "}
+                                <span className="font-mono text-slate-700">{formatCurrency(it.unitPrice)} c/u</span>
+                              </p>
+                            </div>
+
+                            {!isExchangeTicket ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Control de cantidad */}
+                                <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={isUpdatingPendingSaleItems}
+                                    onClick={() => handleUpdateItemQuantityInPendingSale(it.id, -1)}
+                                    className="p-1 text-slate-500 hover:text-rose-600 disabled:opacity-40 rounded transition-colors"
+                                    title="Disminuir cantidad (libera stock en salón)"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    disabled={isUpdatingPendingSaleItems}
+                                    value={it.quantity}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      if (!isNaN(val) && val > 0 && val !== it.quantity) {
+                                        handleUpdateItemQuantityInPendingSale(it.id, val - it.quantity);
+                                      }
+                                    }}
+                                    className="w-9 text-center font-mono font-bold text-xs text-slate-900 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isUpdatingPendingSaleItems}
+                                    onClick={() => handleUpdateItemQuantityInPendingSale(it.id, 1)}
+                                    className="p-1 text-slate-500 hover:text-emerald-600 disabled:opacity-40 rounded transition-colors"
+                                    title="Aumentar cantidad (reserva stock)"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+
+                                <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
+                                  {formatCurrency(it.unitPrice * it.quantity)}
+                                </span>
+
+                                {/* Botón de quitar renglón completo */}
                                 <button
                                   type="button"
                                   disabled={isUpdatingPendingSaleItems}
-                                  onClick={() => handleUpdateItemQuantityInPendingSale(it.id, -1)}
-                                  className="p-1 text-slate-500 hover:text-rose-600 disabled:opacity-40 rounded transition-colors"
-                                  title="Disminuir cantidad (libera stock en salón)"
+                                  onClick={() => handleRemoveItemFromPendingSale(it.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Retirar prenda del ticket y devolver stock al salón"
                                 >
-                                  <Minus className="w-3 h-3" />
-                                </button>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  disabled={isUpdatingPendingSaleItems}
-                                  value={it.quantity}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value, 10);
-                                    if (!isNaN(val) && val > 0 && val !== it.quantity) {
-                                      handleUpdateItemQuantityInPendingSale(it.id, val - it.quantity);
-                                    }
-                                  }}
-                                  className="w-9 text-center font-mono font-bold text-xs text-slate-900 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={isUpdatingPendingSaleItems}
-                                  onClick={() => handleUpdateItemQuantityInPendingSale(it.id, 1)}
-                                  className="p-1 text-slate-500 hover:text-emerald-600 disabled:opacity-40 rounded transition-colors"
-                                  title="Aumentar cantidad (reserva stock)"
-                                >
-                                  <Plus className="w-3 h-3" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-
-                              <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
-                                {formatCurrency(it.unitPrice * it.quantity)}
-                              </span>
-
-                              {/* Botón de quitar renglón completo */}
-                              <button
-                                type="button"
-                                disabled={isUpdatingPendingSaleItems}
-                                onClick={() => handleRemoveItemFromPendingSale(it.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Retirar prenda del ticket y devolver stock al salón"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-slate-600 font-semibold">
-                                Cantidad: {it.quantity}
-                              </span>
-                              <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
-                                {formatCurrency(it.unitPrice * it.quantity)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            ) : (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-slate-600 font-semibold">
+                                  Cantidad: {it.quantity}
+                                </span>
+                                <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
+                                  {formatCurrency(it.unitPrice * it.quantity)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Banner si el total es $ 0,00 (Cambio sin diferencia monetaria) o Selector de Medios de Pago */}
-                  {isZeroTotal ? (
+                  {/* Banner de Devolución, Cambio $0 o Selector de Medios de Pago */}
+                  {isReturnTicket ? (
+                    <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        Medio de Reintegro de Fondos al Cliente:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {cashierPaymentOptions.map((m) => {
+                          const Icon = m.icon;
+                          const isSelected = cashierPaymentMethod === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setCashierPaymentMethod(m.id as any)}
+                              className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                              }`}
+                            >
+                              <Icon className="w-4 h-4" />
+                              <span className="truncate">{m.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-tight">
+                        Al confirmar, la prenda devuelta se reincorporará automáticamente al stock físico del salón Saavedra 241 y se registrará la operación de reintegro en el turno de caja.
+                      </p>
+                    </div>
+                  ) : isZeroTotal ? (
                     <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-center space-y-1.5 animate-in fade-in duration-150">
                       <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-1">
                         <CheckCircle2 className="w-5 h-5" />
@@ -3172,11 +3293,18 @@ export function PosView({
                   <button
                     type="button"
                     onClick={handleProcessCashierCheckout}
-                    disabled={isProcessingCheckout || (!isZeroTotal && isSplitPayment && !isSplitBalanced)}
-                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                    disabled={isProcessingCheckout || (!isZeroTotal && !isReturnTicket && isSplitPayment && !isSplitBalanced)}
+                    className={`w-full py-3.5 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2 shrink-0 cursor-pointer ${
+                      isReturnTicket ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+                    }`}
                   >
                     {isProcessingCheckout ? (
                       <span>Procesando...</span>
+                    ) : isReturnTicket ? (
+                      <>
+                        <RotateCcw className="w-5 h-5" />
+                        <span>CONFIRMAR DEVOLUCIÓN Y REINGRESAR PRENDA</span>
+                      </>
                     ) : isZeroTotal ? (
                       <>
                         <CheckCircle2 className="w-5 h-5" />
@@ -3230,7 +3358,11 @@ export function PosView({
 
               <div>
                 <h3 className="text-xl font-black text-slate-900">
-                  {completedSaleResult.isExchange ? "¡Cambio Confirmado con Éxito!" : "¡Cobro Completado con Éxito!"}
+                  {completedSaleResult.isReturn
+                    ? "¡Devolución Confirmada con Éxito!"
+                    : completedSaleResult.isExchange
+                    ? "¡Cambio Confirmado con Éxito!"
+                    : "¡Cobro Completado con Éxito!"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Comprobante: <span className="font-mono font-bold text-slate-800">{completedSaleResult.invoiceNumber}</span>
@@ -3244,13 +3376,22 @@ export function PosView({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">
-                    {completedSaleResult.totalNet === 0 ? "Saldo Abonado:" : "Total Abonado:"}
+                    {completedSaleResult.isReturn
+                      ? "Monto Reintegrado:"
+                      : completedSaleResult.totalNet === 0
+                      ? "Saldo Abonado:"
+                      : "Total Abonado:"}
                   </span>
                   <span className="font-mono font-bold text-slate-900">
                     {formatCurrency(completedSaleResult.totalNet)}
                   </span>
                 </div>
 
+                {completedSaleResult.isReturn && (
+                  <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-[11px] leading-relaxed font-medium">
+                    Prenda devuelta reingresada a stock en Saavedra 241 y reintegro monetario/vale registrado en caja.
+                  </div>
+                )}
                 {completedSaleResult.isExchange && (
                   <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-[11px] leading-relaxed font-medium">
                     Prenda devuelta reingresada a stock en Saavedra 241 y nueva prenda entregada al cliente.
@@ -3391,30 +3532,6 @@ export function PosView({
                 <span className="hidden sm:inline">Devolución / Cambio</span>
                 <span className="sm:hidden">Cambio</span>
               </button>
-
-              {/* User Session Badge & Logout */}
-              {currentUser && (
-                <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                  <div className="hidden lg:flex flex-col text-right">
-                    <span className="text-xs font-bold text-slate-800 leading-tight">
-                      {currentUser.username || currentUser.name}
-                    </span>
-                    <span className="text-[10px] text-emerald-600 font-semibold leading-tight">
-                      {currentUser.profileName || "Personal"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      await logoutAction();
-                      window.location.href = "/login";
-                    }}
-                    title="Cerrar Sesión"
-                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 

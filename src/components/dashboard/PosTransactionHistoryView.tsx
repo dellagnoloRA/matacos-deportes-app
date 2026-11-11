@@ -33,6 +33,7 @@ import { getSaleHistory } from "@/server/actions/saleActions";
 
 export interface ParsedExchangeData {
   isExchange: boolean;
+  isReturn?: boolean;
   reason?: string;
   returnedItem?: string;
   deliveredItem?: string;
@@ -42,12 +43,17 @@ export interface ParsedExchangeData {
 
 export function parseExchangeDetails(notes?: string | null): ParsedExchangeData | null {
   if (!notes) return null;
+  const isReturn =
+    notes.includes("[DEVOLUCION:") ||
+    notes.toLowerCase().includes("devolución de producto") ||
+    notes.toLowerCase().includes("devolución de prenda");
   const isExchange =
     notes.includes("[CAMBIO:") ||
     notes.toLowerCase().includes("cambio de producto") ||
     notes.toLowerCase().includes("cambio directo") ||
     notes.includes("VALE DE COMPRA");
-  if (!isExchange) return null;
+
+  if (!isExchange && !isReturn) return null;
 
   let reason = "";
   const reasonMatch = notes.match(/reason=([^\]]*)/);
@@ -59,26 +65,39 @@ export function parseExchangeDetails(notes?: string | null): ParsedExchangeData 
     }
   }
 
-  // Remover etiqueta interna [CAMBIO:...]
-  const clean = notes.replace(/\[CAMBIO:[^\]]*\]\s*/, "").trim();
+  // Remover etiqueta interna [CAMBIO:...] o [DEVOLUCION:...]
+  const clean = notes
+    .replace(/\[CAMBIO:[^\]]*\]\s*/, "")
+    .replace(/\[DEVOLUCION:[^\]]*\]\s*/, "")
+    .trim();
 
   let returnedItem = "";
   let deliveredItem = "";
   let financialSummary = "";
 
-  const devuelveMatch = clean.match(/Devuelve:\s*([^.]+)\./i);
-  if (devuelveMatch) returnedItem = devuelveMatch[1].trim();
+  if (isReturn) {
+    const devPrendaMatch = clean.match(/Devolución de prenda:\s*([^.]+)\./i);
+    if (devPrendaMatch) returnedItem = devPrendaMatch[1].trim();
 
-  const entregaMatch = clean.match(/Entrega:\s*([^.]+)\./i);
-  if (entregaMatch) deliveredItem = entregaMatch[1].trim();
+    const montoMatch = clean.match(/Monto a reintegrar[^:]*:\s*([^.]+)\./i);
+    if (montoMatch) financialSummary = `Monto a reintegrar: ${montoMatch[1].trim()}`;
+    else financialSummary = "Devolución con reintegro al cliente";
+  } else {
+    const devuelveMatch = clean.match(/Devuelve:\s*([^.]+)\./i);
+    if (devuelveMatch) returnedItem = devuelveMatch[1].trim();
 
-  const diffMatch = clean.match(
-    /(Diferencia a cobrar:[^.]+|Saldo a favor del cliente:[^.]+|Cambio directo sin diferencia[^.]+)/i
-  );
-  if (diffMatch) financialSummary = diffMatch[1].trim();
+    const entregaMatch = clean.match(/Entrega:\s*([^.]+)\./i);
+    if (entregaMatch) deliveredItem = entregaMatch[1].trim();
+
+    const diffMatch = clean.match(
+      /(Diferencia a cobrar:[^.]+|Saldo a favor del cliente:[^.]+|Cambio directo sin diferencia[^.]+)/i
+    );
+    if (diffMatch) financialSummary = diffMatch[1].trim();
+  }
 
   return {
-    isExchange: true,
+    isExchange: !isReturn,
+    isReturn,
     reason: reason || undefined,
     returnedItem: returnedItem || undefined,
     deliveredItem: deliveredItem || undefined,
@@ -679,10 +698,17 @@ export function PosTransactionHistoryView({
                           </span>
                         )}
                         {exchangeInfo && (
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1 shadow-2xs">
-                            <ArrowLeftRight className="w-3 h-3 text-purple-600" />
-                            <span>CAMBIO</span>
-                          </span>
+                          exchangeInfo.isReturn ? (
+                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1 shadow-2xs">
+                              <RotateCcw className="w-3 h-3 text-rose-600" />
+                              <span>DEVOLUCIÓN</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1 shadow-2xs">
+                              <ArrowLeftRight className="w-3 h-3 text-purple-600" />
+                              <span>CAMBIO</span>
+                            </span>
+                          )
                         )}
                         <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
                           <Clock className="w-3 h-3 text-slate-400" />
@@ -758,10 +784,16 @@ export function PosTransactionHistoryView({
                     <div className="flex items-center justify-between lg:justify-end gap-4 min-w-[200px]">
                       <div className="text-right">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          Total Cobrado
+                          {exchangeInfo?.isReturn ? "Total Reintegrado" : "Total Cobrado"}
                         </span>
-                        <span className="text-xl font-black text-slate-950 font-mono">
-                          {formatCurrency(Number(sale.total))}
+                        <span className={`text-xl font-black font-mono ${
+                          exchangeInfo?.isReturn ? "text-rose-600" : "text-slate-950"
+                        }`}>
+                          {formatCurrency(
+                            exchangeInfo?.isReturn
+                              ? Number(sale.subtotalGross || 0)
+                              : Number(sale.total)
+                          )}
                         </span>
                         {Number(sale.discount) > 0 && (
                           <span className="text-[10.5px] text-rose-600 block font-semibold">
@@ -1034,15 +1066,25 @@ export function PosTransactionHistoryView({
                     )}
                 </div>
 
-                {/* Comprobante de cambio si corresponde */}
+                {/* Comprobante de cambio o devolución si corresponde */}
                 {(() => {
                   const receiptEx = parseExchangeDetails(sale.notes);
                   if (!receiptEx) return null;
                   return (
-                    <div className="py-2.5 px-3 bg-purple-50/80 rounded-xl border border-dashed border-purple-300 text-[10.5px] text-purple-950 space-y-1">
-                      <div className="font-black uppercase tracking-wider text-[10px] text-purple-900 flex items-center gap-1.5">
-                        <ArrowLeftRight className="w-3 h-3 text-purple-700" />
-                        <span>COMPROBANTE DE CAMBIO DE PRODUCTO</span>
+                    <div className={`py-2.5 px-3 rounded-xl border border-dashed text-[10.5px] space-y-1 ${
+                      receiptEx.isReturn
+                        ? "bg-rose-50/80 border-rose-300 text-rose-950"
+                        : "bg-purple-50/80 border-purple-300 text-purple-950"
+                    }`}>
+                      <div className={`font-black uppercase tracking-wider text-[10px] flex items-center gap-1.5 ${
+                        receiptEx.isReturn ? "text-rose-900" : "text-purple-900"
+                      }`}>
+                        {receiptEx.isReturn ? (
+                          <RotateCcw className="w-3 h-3 text-rose-700" />
+                        ) : (
+                          <ArrowLeftRight className="w-3 h-3 text-purple-700" />
+                        )}
+                        <span>{receiptEx.isReturn ? "COMPROBANTE DE DEVOLUCIÓN DE PRODUCTO" : "COMPROBANTE DE CAMBIO DE PRODUCTO"}</span>
                       </div>
                       {receiptEx.reason && (
                         <div>
@@ -1054,8 +1096,17 @@ export function PosTransactionHistoryView({
                           <strong>Prenda devuelta:</strong> {receiptEx.returnedItem}
                         </div>
                       )}
+                      {receiptEx.deliveredItem && (
+                        <div>
+                          <strong>Prenda entregada:</strong> {receiptEx.deliveredItem}
+                        </div>
+                      )}
                       {receiptEx.financialSummary && (
-                        <div className="font-bold text-purple-900 pt-0.5 border-t border-purple-200/60 font-mono">
+                        <div className={`font-bold pt-0.5 border-t font-mono ${
+                          receiptEx.isReturn
+                            ? "text-rose-900 border-rose-200/60"
+                            : "text-purple-900 border-purple-200/60"
+                        }`}>
                           {receiptEx.financialSummary}
                         </div>
                       )}
