@@ -187,6 +187,16 @@ export const GuestCheckoutSchema = z
     items: z
       .array(CartItemSchema)
       .min(1, "La orden debe contener al menos un artículo en el carrito"),
+    acceptedTerms: z.literal(true, {
+      errorMap: () => ({
+        message: "Debés aceptar los Términos y Condiciones para realizar el pedido",
+      }),
+    }),
+    acceptedPrivacy: z.literal(true, {
+      errorMap: () => ({
+        message: "Debés aceptar las Políticas de Privacidad para realizar el pedido",
+      }),
+    }),
   })
   .refine(
     (data) => {

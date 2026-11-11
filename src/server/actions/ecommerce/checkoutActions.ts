@@ -15,6 +15,7 @@ import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
 import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
 import { companyConfig } from "@/config/company";
+import { logLegalConsentHelper } from "./legalActions";
 import {
   ProcessWebOrderPaymentSchema,
   type ProcessWebOrderPaymentInput,
@@ -792,6 +793,18 @@ export async function createGuestOrder(
       };
 
       return response;
+    });
+
+    // Registrar consentimiento legal inmutable (Ley 25.326 y CCCN)
+    await logLegalConsentHelper({
+      formType: "GUEST_CHECKOUT",
+      email: validated.customerEmail,
+      name: validated.customerName,
+      dni: validated.customerDni,
+      customerId: validated.customerId ?? null,
+      saleId: orderResult.saleId,
+      acceptedTerms: validated.acceptedTerms,
+      acceptedPrivacy: validated.acceptedPrivacy,
     });
 
     // Revalidar caché de catálogo y PDP para reflejar inmediatamente el descuento de disponibilidad (Mitigación R-01)

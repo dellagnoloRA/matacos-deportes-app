@@ -44,6 +44,16 @@ export const CustomerRegisterSchema = z.object({
   defaultCity: z.string().trim().default("Formosa"),
   defaultPostalCode: z.string().trim().default("3600"),
   guestFavorites: z.array(z.string().min(1)).optional().default([]),
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({
+      message: "Debés aceptar los Términos y Condiciones para registrar tu cuenta",
+    }),
+  }),
+  acceptedPrivacy: z.literal(true, {
+    errorMap: () => ({
+      message: "Debés aceptar las Políticas de Privacidad para registrar tu cuenta",
+    }),
+  }),
 });
 
 export type CustomerRegisterInput = z.input<typeof CustomerRegisterSchema>;
