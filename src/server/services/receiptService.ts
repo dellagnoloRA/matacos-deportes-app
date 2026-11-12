@@ -285,6 +285,37 @@ export function buildReceiptPayloadFromSaleRecord(sale: any): ReceiptData {
     };
   });
 
+  // Si es una devolución pura sin ítems entregados, sintetizar el ítem devuelto para el ticket térmico
+  if (items.length === 0 && sale.notes && sale.notes.includes("[DEVOLUCION:")) {
+    const cleanNote = sale.notes.replace(/\[DEVOLUCION:[^\]]*\]\s*/, "").trim();
+    const returnDescMatch = cleanNote.match(/Devolución de prenda:\s*([^.]+)\./i);
+    const returnDesc = returnDescMatch ? returnDescMatch[1].trim() : "Prenda devuelta";
+    const refundAmount = Number(sale.subtotalGross || 0);
+
+    items.push({
+      variantId: "dev-variant",
+      sku: "DEVOLUCION",
+      barcode: null,
+      productName: `DEVOLUCIÓN: ${returnDesc}`,
+      brandName: null,
+      size: "U",
+      color: "Estándar",
+      fullDescription: `Devolución de prenda: ${returnDesc}`,
+      variantDescription: "Reingreso a stock",
+      quantity: 1,
+      originalPrice: refundAmount,
+      formattedOriginalPrice: formatCurrency(refundAmount),
+      discount: 0,
+      discountType: null,
+      formattedDiscount: null,
+      unitPrice: refundAmount,
+      formattedUnitPrice: formatCurrency(refundAmount),
+      subtotal: refundAmount,
+      formattedSubtotal: formatCurrency(refundAmount),
+    });
+    totalItemsCount = 1;
+  }
+
   // Pagos realizados
   const payments = (sale.payments || []).map((pay: any) => {
     const amount = Number(pay.amount);

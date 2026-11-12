@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
   X,
   Check,
+  Flame,
 } from "lucide-react";
 import type { CatalogFacetsResponse } from "@/types/ecommerce";
 import type { CatalogFilterInput } from "@/schemas/ecommerce";
@@ -52,7 +53,17 @@ export function CatalogFilterSidebar({
       activeFilters.size ||
       activeFilters.minPrice ||
       activeFilters.maxPrice ||
-      activeFilters.search
+      activeFilters.search ||
+      activeFilters.ofertas
+  );
+
+  // El filtro de talles solo es relevante si se busca una disciplina, categoría, marca, término de búsqueda o ya hay un talle activo
+  const hasContextForSizes = Boolean(
+    activeFilters.disciplineSlug ||
+      activeFilters.categorySlug ||
+      activeFilters.brandSlug ||
+      activeFilters.search ||
+      activeFilters.size
   );
 
   return (
@@ -92,6 +103,44 @@ export function CatalogFilterSidebar({
       </div>
 
       <div className="space-y-5">
+        {/* Toggle Solo Ofertas */}
+        <div className="pb-3 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() =>
+              onFilterChange({
+                ofertas: activeFilters.ofertas ? undefined : true,
+                page: 1,
+              })
+            }
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all text-xs font-bold cursor-pointer ${
+              activeFilters.ofertas
+                ? "bg-emerald-500/10 border-emerald-500 text-emerald-800 shadow-xs ring-1 ring-emerald-500/30"
+                : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Flame
+                className={`w-4 h-4 ${
+                  activeFilters.ofertas
+                    ? "text-orange-500 fill-orange-500 animate-bounce"
+                    : "text-slate-400"
+                }`}
+              />
+              <span>Solo en Oferta</span>
+            </div>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeFilters.ofertas
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {activeFilters.ofertas ? "ACTIVO" : "VER"}
+            </span>
+          </button>
+        </div>
+
         {/* 0. Género */}
         {facets.genders && facets.genders.length > 0 && (
           <div className="border-b border-slate-100 pb-4">
@@ -163,7 +212,9 @@ export function CatalogFilterSidebar({
             {openSections.disciplines && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.disciplines.map((d) => {
-                  const isSelected = activeFilters.disciplineSlug === d.slug;
+                  const isSelected =
+                    activeFilters.disciplineSlug?.toLowerCase() === d.slug.toLowerCase() ||
+                    activeFilters.disciplineSlug?.toLowerCase() === d.name.toLowerCase();
                   return (
                     <button
                       key={d.slug}
@@ -215,7 +266,9 @@ export function CatalogFilterSidebar({
             {openSections.categories && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.categories.map((c) => {
-                  const isSelected = activeFilters.categorySlug === c.slug;
+                  const isSelected =
+                    activeFilters.categorySlug?.toLowerCase() === c.slug.toLowerCase() ||
+                    activeFilters.categorySlug?.toLowerCase() === c.name.toLowerCase();
                   return (
                     <button
                       key={c.slug}
@@ -267,7 +320,9 @@ export function CatalogFilterSidebar({
             {openSections.brands && (
               <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
                 {facets.brands.map((b) => {
-                  const isSelected = activeFilters.brandSlug === b.slug;
+                  const isSelected =
+                    activeFilters.brandSlug?.toLowerCase() === b.slug.toLowerCase() ||
+                    activeFilters.brandSlug?.toLowerCase() === b.name.toLowerCase();
                   return (
                     <button
                       key={b.slug}
@@ -300,8 +355,8 @@ export function CatalogFilterSidebar({
           </div>
         )}
 
-        {/* 4. Talles */}
-        {facets.sizes.length > 0 && (
+        {/* 4. Talles (Solo visible cuando se busca una disciplina, categoría, marca o texto específico) */}
+        {hasContextForSizes && facets.sizes.length > 0 && (
           <div className="border-b border-slate-100 pb-4">
             <button
               type="button"

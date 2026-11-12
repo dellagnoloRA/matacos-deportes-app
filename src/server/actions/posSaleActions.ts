@@ -753,20 +753,27 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
         });
       }
 
-      // 5.1 Reingreso de prenda devuelta si la preventa provino de un Cambio / Devolución
+      // 5.1 Reingreso de prenda devuelta si la preventa provino de un Cambio o Devolución
       const exchangeMatch = sale.notes?.match(/\[CAMBIO:returnVariantId=([^:]+):qty=(\d+)(?::reason=([^\]]*))?\]/);
-      if (exchangeMatch) {
-        const returnVariantId = exchangeMatch[1];
-        const returnQty = parseInt(exchangeMatch[2], 10);
-        const rawReason = exchangeMatch[3] ? decodeURIComponent(exchangeMatch[3]) : "Cambio de producto";
+      const returnMatch = sale.notes?.match(/\[DEVOLUCION:returnVariantId=([^:]+):qty=(\d+)(?::refundAmount=([^:]+))?(?::reason=([^\]]*))?\]/);
 
+      const matchedVariantId = exchangeMatch?.[1] || returnMatch?.[1];
+      const matchedQty = exchangeMatch ? parseInt(exchangeMatch[2], 10) : returnMatch ? parseInt(returnMatch[2], 10) : 0;
+      const matchedReason = exchangeMatch?.[3]
+        ? decodeURIComponent(exchangeMatch[3])
+        : returnMatch?.[4]
+        ? decodeURIComponent(returnMatch[4])
+        : "Cambio o devolución de producto";
+      const isPureReturn = Boolean(returnMatch);
+
+      if (matchedVariantId && matchedQty > 0) {
         const returnVariant = await tx.productVariant.findUnique({
-          where: { id: returnVariantId },
+          where: { id: matchedVariantId },
           include: { product: true },
         });
 
         if (returnVariant) {
-          const newReturnStore = returnVariant.stockStore + returnQty;
+          const newReturnStore = returnVariant.stockStore + matchedQty;
           const totalReturnAfter = newReturnStore + returnVariant.stockWarehouse;
 
           await tx.productVariant.update({
@@ -778,10 +785,12 @@ export async function completePendingSale(input: CompletePendingSaleInput) {
             data: {
               variantId: returnVariant.id,
               type: "DEVOLUCION_CLIENTE",
-              quantity: returnQty,
+              quantity: matchedQty,
               stockAfter: totalReturnAfter,
               location: "STORE",
-              reason: `Reingreso por cambio de prenda (Ticket ${sale.ticketCode || "Salón"} - Comprobante ${invoiceNumber}): Devuelto por ${sale.customerName || "Cliente"}. Motivo: ${rawReason}`,
+              reason: isPureReturn
+                ? `Reingreso por devolución de cliente (Ticket ${sale.ticketCode || "Salón"} - Comprobante ${invoiceNumber}): Devuelto por ${sale.customerName || "Cliente"}. Motivo: ${matchedReason}`
+                : `Reingreso por cambio de prenda (Ticket ${sale.ticketCode || "Salón"} - Comprobante ${invoiceNumber}): Devuelto por ${sale.customerName || "Cliente"}. Motivo: ${matchedReason}`,
             },
           });
         }
@@ -1317,8 +1326,82 @@ export async function createPendingExchangeSale(
 ): Promise<CreatePendingExchangeSaleResult> {
   try {
     const validated = CreatePendingExchangeSaleSchema.parse(input);
+    const isReturn = validated.operationType === "RETURN" || !validated.exchangeVariantId;
 
     const result = await prisma.$transaction(async (tx) => {
+      // -------------------------------------------------------------
+      // CASO A: SOLICITUD DE DEVOLUCIÓN DIRECTA (SIN PRENDA A CAMBIO)
+      // -------------------------------------------------------------
+      if (isReturn) {
+        const returnVariant = await tx.productVariant.findUnique({
+          where: { id: validated.returnVariantId },
+          include: {
+            product: { select: { id: true, name: true, price: true, active: true } },
+          },
+        });
+
+        if (!returnVariant) {
+          throw new Error("La variante a devolver no existe en la base de datos.");
+        }
+
+        const qty = validated.quantity;
+        const returnPrice =
+          returnVariant.price !== null && returnVariant.price !== undefined && Number(returnVariant.price) > 0
+            ? Number(returnVariant.price)
+            : Number(returnVariant.product.price);
+
+        const totalReturn = Math.round(returnPrice * qty * 100) / 100;
+
+        // Generar código de ticket correlativo del día (#001, #002...)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const countToday = await tx.sale.count({
+          where: { createdAt: { gte: todayStart } },
+        });
+        const ticketCode = `#${String(countToday + 1).padStart(3, "0")}`;
+        const invoiceNumber = `PRV-DEV-${Date.now().toString().slice(-6)}`;
+
+        const customerLabel = validated.customerName?.trim() || "Consumidor Final";
+        const returnDesc = `${returnVariant.product.name} (Talle ${returnVariant.size}${returnVariant.color ? ` • ${returnVariant.color}` : ""})`;
+
+        const notes =
+          `[DEVOLUCION:returnVariantId=${returnVariant.id}:qty=${qty}:refundAmount=${totalReturn}:reason=${encodeURIComponent(validated.reason)}] ` +
+          `Devolución de prenda: ${returnDesc} x${qty}. ` +
+          `Monto a reintegrar al cliente en Caja: $ ${totalReturn.toFixed(2)}. Motivo: ${validated.reason}`;
+
+        const sale = await tx.sale.create({
+          data: {
+            ticketCode,
+            invoiceNumber,
+            sellerId: validated.sellerId ?? null,
+            customerName: customerLabel,
+            channel: "MOSTRADOR",
+            status: "PENDIENTE_PAGO",
+            subtotalGross: new Prisma.Decimal(totalReturn),
+            discount: new Prisma.Decimal(0),
+            discountType: "FIXED",
+            discountValue: new Prisma.Decimal(0),
+            total: new Prisma.Decimal(0),
+            notes,
+          },
+        });
+
+        return {
+          saleId: sale.id,
+          ticketCode,
+          customerName: sale.customerName || customerLabel,
+          subtotalGross: totalReturn,
+          totalDiscount: 0,
+          totalNet: 0,
+          balance: -totalReturn,
+          notes: sale.notes,
+          stockDeltas: [],
+        };
+      }
+
+      // -------------------------------------------------------------
+      // CASO B: SOLICITUD DE CAMBIO CON PRENDA A ENTREGAR
+      // -------------------------------------------------------------
       const [returnVariant, exchangeVariant] = await Promise.all([
         tx.productVariant.findUnique({
           where: { id: validated.returnVariantId },
@@ -1327,7 +1410,7 @@ export async function createPendingExchangeSale(
           },
         }),
         tx.productVariant.findUnique({
-          where: { id: validated.exchangeVariantId },
+          where: { id: validated.exchangeVariantId! },
           include: {
             product: { select: { id: true, name: true, price: true, active: true } },
           },
@@ -1440,6 +1523,7 @@ export async function createPendingExchangeSale(
         totalDiscount,
         totalNet,
         balance,
+        notes: sale.notes,
         stockDeltas: [
           {
             variantId: exchangeVariant.id,

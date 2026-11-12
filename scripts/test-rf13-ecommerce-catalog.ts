@@ -117,6 +117,34 @@ async function runRf13Tests() {
   }
 
   // --------------------------------------------------------------------------
+  // TEST 2.1: Filtrado por Género con Inclusión de Unisex
+  // --------------------------------------------------------------------------
+  console.log("\n🔹 2.1. Filtrado de Catálogo por Género (Inclusión de Unisex)");
+  const hombreCatalog = await getPublicCatalog({ gender: "HOMBRE", limit: 12 });
+  assert(hombreCatalog.success, "Consulta por género 'HOMBRE' exitosa");
+  if (hombreCatalog.success && hombreCatalog.data) {
+    const { products, pagination } = hombreCatalog.data;
+    assert(
+      products.length > 0,
+      `Retorna productos para 'HOMBRE' incluyendo artículos Unisex (${pagination.totalItems} disponibles)`
+    );
+    const allHombreOrUnisex = products.every(
+      (p) => p.gender === "HOMBRE" || p.gender === "UNISEX"
+    );
+    assert(
+      allHombreOrUnisex,
+      "Todos los productos devueltos corresponden a HOMBRE o UNISEX"
+    );
+  }
+
+  const unisexCatalog = await getPublicCatalog({ gender: "UNISEX", limit: 12 });
+  assert(unisexCatalog.success, "Consulta por género 'UNISEX' exitosa");
+  if (unisexCatalog.success && unisexCatalog.data) {
+    const allUnisex = unisexCatalog.data.products.every((p) => p.gender === "UNISEX");
+    assert(allUnisex, "Filtro directo 'UNISEX' devuelve únicamente artículos neutros");
+  }
+
+  // --------------------------------------------------------------------------
   // TEST 3: Ordenamiento de Catálogo por Precio
   // --------------------------------------------------------------------------
   console.log("\n🔹 3. Ordenamiento por Precio (price_asc / price_desc)");

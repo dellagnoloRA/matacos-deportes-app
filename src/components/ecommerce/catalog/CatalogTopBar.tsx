@@ -44,13 +44,24 @@ export function CatalogTopBar({
     : activeFilters.gender
     ? String(activeFilters.gender)
     : null;
-  const disciplineName = facets.disciplines.find(
-    (d) => d.slug === activeFilters.disciplineSlug
-  )?.name;
-  const categoryName = facets.categories.find(
-    (c) => c.slug === activeFilters.categorySlug
-  )?.name;
-  const brandName = facets.brands.find((b) => b.slug === activeFilters.brandSlug)?.name;
+  const disciplineName =
+    facets.disciplines.find(
+      (d) =>
+        d.slug.toLowerCase() === activeFilters.disciplineSlug?.toLowerCase() ||
+        d.name.toLowerCase() === activeFilters.disciplineSlug?.toLowerCase()
+    )?.name || activeFilters.disciplineSlug;
+  const categoryName =
+    facets.categories.find(
+      (c) =>
+        c.slug.toLowerCase() === activeFilters.categorySlug?.toLowerCase() ||
+        c.name.toLowerCase() === activeFilters.categorySlug?.toLowerCase()
+    )?.name || activeFilters.categorySlug;
+  const brandName =
+    facets.brands.find(
+      (b) =>
+        b.slug.toLowerCase() === activeFilters.brandSlug?.toLowerCase() ||
+        b.name.toLowerCase() === activeFilters.brandSlug?.toLowerCase()
+    )?.name || activeFilters.brandSlug;
 
   return (
     <div className="space-y-4 mb-6">

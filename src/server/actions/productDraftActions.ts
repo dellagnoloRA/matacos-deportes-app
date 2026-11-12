@@ -226,7 +226,7 @@ export async function publishProductFromWizard(data: WizardProductData) {
           publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
           metaTitle: data.metaTitle || null,
           metaDescription: data.metaDescription || null,
-          active: data.status === "PUBLISHED",
+          active: true,
           variants: {
             create: data.variants.map((v) => ({
               size: v.size,

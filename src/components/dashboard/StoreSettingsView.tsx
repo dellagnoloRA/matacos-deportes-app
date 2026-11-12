@@ -14,18 +14,22 @@ import {
   ExternalLink,
   MessageCircle,
   Loader2,
+  Truck,
+  Layers,
 } from "lucide-react";
 import {
   getStoreSettings,
   updateStoreSettings,
   type StoreSettingsOutput,
 } from "@/server/actions/storeSettingsActions";
+import { MasterCategoriesManager } from "./MasterCategoriesManager";
 
 interface StoreSettingsViewProps {
   initialSettings?: StoreSettingsOutput | null;
 }
 
 export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
+  const [activeTab, setActiveTab] = useState<"general" | "categories">("general");
   const [isLoadingInitial, setIsLoadingInitial] = useState(!initialSettings);
   const [settings, setSettings] = useState({
     storeName: initialSettings?.storeName || "Matacos Deportes",
@@ -40,6 +44,7 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
       initialSettings?.businessHours ||
       "Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs",
     instagramHandle: initialSettings?.instagramHandle || "@matacosdeportes",
+    cadeteriaCost: initialSettings?.cadeteriaCost ?? 2500,
   });
 
   useEffect(() => {
@@ -57,6 +62,7 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
             storePostalCode: res.data.storePostalCode,
             businessHours: res.data.businessHours,
             instagramHandle: res.data.instagramHandle || "",
+            cadeteriaCost: res.data.cadeteriaCost ?? 2500,
           });
         }
         setIsLoadingInitial(false);
@@ -100,7 +106,11 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           storePostalCode: res.data.storePostalCode,
           businessHours: res.data.businessHours,
           instagramHandle: res.data.instagramHandle || "",
+          cadeteriaCost: res.data.cadeteriaCost,
         });
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("store-settings-updated"));
+        }
       } else {
         setErrorMessage(
           res.error || "Ocurrió un error al guardar los cambios."
@@ -124,40 +134,75 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 pb-12 animate-in fade-in-50 duration-200">
-      {/* Encabezado */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Store className="w-6 h-6" />
+      {/* Encabezado y Pestañas */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Store className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Configuración de Tienda, Ubicación, Horarios y Categorías
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Modificá el número de contacto/WhatsApp, ubicación, horarios de atención y las categorías que aparecen en la tienda web.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Configuración de Tienda y Canales de Contacto
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Modificá el WhatsApp comercial, correos y datos del local. Los cambios impactan de inmediato en la tienda online y comprobantes sin reiniciar el sistema.
-            </p>
+
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("general")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "general"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>Número, Ubicación & Horarios</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("categories")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "categories"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Categorías & Marcas</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Alertas */}
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span className="font-semibold">{successMessage}</span>
+      {activeTab === "categories" ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+          <MasterCategoriesManager />
         </div>
-      )}
+      ) : (
+        <>
+          {/* Alertas */}
+          {successMessage && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+          )}
 
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-          <span className="font-semibold">{errorMessage}</span>
-        </div>
-      )}
+          {errorMessage && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2.5 animate-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span className="font-semibold">{errorMessage}</span>
+            </div>
+          )}
 
-      {/* Formulario */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Formulario */}
+          <form onSubmit={handleSubmit} className="space-y-6">
         {/* Sección 1: Canales Digitales de Contacto */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
           <div className="border-b border-slate-100 pb-3">
@@ -368,6 +413,38 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           </div>
         </div>
 
+        {/* Sección 3: Logística Urbana y Cadetería (RF-19) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+          <div className="border-b border-slate-100 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-emerald-600" />
+              <span>Logística Urbana y Cadetería (Formosa Capital)</span>
+            </h2>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Tarifa plana aplicable a entregas en moto/cadete dentro del radio de Formosa Capital (CP 3600).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1.5 md:col-span-1">
+              <label className="text-xs font-semibold text-slate-700">Costo Fijo de Cadetería ($ ARS)</label>
+              <input
+                type="number"
+                name="cadeteriaCost"
+                value={settings.cadeteriaCost}
+                onChange={handleChange}
+                min={0}
+                step={100}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00D615] focus:border-transparent font-bold"
+                required
+              />
+              <span className="text-[11px] text-slate-400">
+                Monto cobrado al cliente al seleccionar Cadetería local en el checkout.
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Botón de Guardar */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
@@ -380,6 +457,8 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 }

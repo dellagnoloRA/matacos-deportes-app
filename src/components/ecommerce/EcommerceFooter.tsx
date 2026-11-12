@@ -1,13 +1,105 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { MapPin, Phone, Mail, Clock, ShieldCheck, Heart } from "lucide-react";
+import {
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  Instagram,
+  Facebook,
+  MessageCircle,
+  RotateCcw,
+  ExternalLink,
+} from "lucide-react";
+import { getStoreSettings } from "@/server/actions/storeSettingsActions";
+import { getDisciplines } from "@/server/actions/categoryActions";
+
+interface FooterLinkItem {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+const DEFAULT_DISCIPLINES: FooterLinkItem[] = [
+  { id: "disc-1", name: "Natación", slug: "natacion" },
+  { id: "disc-2", name: "Vóley", slug: "voley" },
+  { id: "disc-3", name: "Crocs", slug: "crocs" },
+  { id: "disc-4", name: "Fitness & Entrenamiento", slug: "fitness" },
+  { id: "disc-5", name: "Indumentaria", slug: "indumentaria" },
+];
 
 export function EcommerceFooter() {
+  const [contactInfo, setContactInfo] = useState({
+    storeName: "Matacos Deportes",
+    storeAddress: "Saavedra 241",
+    storeCity: "Formosa Capital",
+    businessHours: "Lunes a Sábado: 8:00 - 12:30 / 17:00 - 21:00",
+    contactPhone: "+54 (370) 400-0000",
+    contactEmail: "ventas@matacosdeportes.com",
+    whatsappNumber: "5493704000000",
+  });
+
+  const [disciplines, setDisciplines] = useState<FooterLinkItem[]>(DEFAULT_DISCIPLINES);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFooterData = () => {
+      getStoreSettings()
+        .then((res) => {
+          if (isMounted && res.success && res.data) {
+            setContactInfo({
+              storeName: res.data.storeName || "Matacos Deportes",
+              storeAddress: res.data.storeAddress || "Saavedra 241",
+              storeCity: res.data.storeCity || "Formosa Capital",
+              businessHours:
+                res.data.businessHours ||
+                "Lunes a Sábado: 8:00 - 12:30 / 17:00 - 21:00",
+              contactPhone: res.data.contactPhone || "+54 (370) 400-0000",
+              contactEmail: res.data.contactEmail || "ventas@matacosdeportes.com",
+              whatsappNumber: res.data.whatsappNumber || "5493704000000",
+            });
+          }
+        })
+        .catch(() => {});
+
+      getDisciplines()
+        .then((res) => {
+          if (isMounted && res.success && res.data && res.data.length > 0) {
+            setDisciplines(
+              res.data.map((d: { id: string; name: string; slug: string }) => ({
+                id: d.id,
+                name: d.name,
+                slug: d.slug,
+              }))
+            );
+          }
+        })
+        .catch(() => {});
+    };
+
+    loadFooterData();
+
+    const handleSettingsUpdated = () => loadFooterData();
+    window.addEventListener("store-settings-updated", handleSettingsUpdated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("store-settings-updated", handleSettingsUpdated);
+    };
+  }, []);
+
+  const locationDisplay = contactInfo.storeCity
+    ? `${contactInfo.storeAddress}, ${contactInfo.storeCity}, Argentina`
+    : `${contactInfo.storeAddress}, Argentina`;
+
   return (
     <footer className="w-full bg-[#041c16] text-slate-300 border-t border-emerald-950/80 pt-16 pb-8 text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {/* Top Footer Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
+        {/* Top Footer Grid: 4 Columnas Equilibradas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {/* Column 1: Brand & Contact Info */}
           <div className="space-y-4">
             <div className="flex flex-col">
@@ -21,122 +113,257 @@ export function EcommerceFooter() {
 
             <p className="text-slate-400 text-xs leading-relaxed">
               Equipamiento técnico, calzado e indumentaria para todas tus disciplinas.
-              Atención directa en nuestro local físico y tienda online.
+              Atención directa en nuestro local físico y tienda online oficial.
             </p>
 
             <div className="space-y-2 pt-2 text-slate-300">
-              <div className="flex items-center gap-2.5">
-                <MapPin className="w-4 h-4 text-[#00D615] shrink-0" />
-                <span>Saavedra 241, Formosa Capital, Argentina</span>
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-[#00D615] shrink-0 mt-0.5" />
+                <span>{locationDisplay}</span>
               </div>
-              <div className="flex items-center gap-2.5">
-                <Clock className="w-4 h-4 text-[#00D615] shrink-0" />
-                <span>Lunes a Sábado: 8:00 - 12:30 / 17:00 - 21:00</span>
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-[#00D615] shrink-0 mt-0.5" />
+                <span>{contactInfo.businessHours}</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-[#00D615] shrink-0" />
-                <span>+54 (370) 400-0000</span>
+                <span>{contactInfo.contactPhone}</span>
+              </div>
+              {contactInfo.contactEmail && (
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-[#00D615] shrink-0" />
+                  <span>{contactInfo.contactEmail}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Redes Sociales: Síguenos */}
+            <div className="pt-3 border-t border-emerald-950/70 space-y-2">
+              <span className="font-extrabold text-white text-[11px] uppercase tracking-wider block">
+                Síguenos en Redes
+              </span>
+              <div className="flex items-center gap-2.5">
+                {/* Instagram */}
+                <a
+                  href="https://www.instagram.com/matacosdeportes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-800/60 hover:border-[#00D615] hover:bg-[#00D615] hover:text-slate-950 text-slate-300 flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xs"
+                  title="Instagram: @matacosdeportes"
+                  aria-label="Instagram de Matacos Deportes"
+                >
+                  <Instagram className="w-4 h-4" />
+                </a>
+
+                {/* Facebook */}
+                <a
+                  href="https://www.facebook.com/matacosdeportes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-800/60 hover:border-[#00D615] hover:bg-[#00D615] hover:text-slate-950 text-slate-300 flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xs"
+                  title="Facebook: Matacos Deportes"
+                  aria-label="Facebook de Matacos Deportes"
+                >
+                  <Facebook className="w-4 h-4" />
+                </a>
+
+                {/* WhatsApp */}
+                <a
+                  href={`https://wa.me/${contactInfo.whatsappNumber}?text=Hola%20Matacos%20Deportes!%20Quiero%20hacer%20una%20consulta`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-800/60 hover:border-[#00D615] hover:bg-[#00D615] hover:text-slate-950 text-slate-300 flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xs"
+                  title="WhatsApp de Atención al Cliente"
+                  aria-label="WhatsApp de Matacos Deportes"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+
+                {/* TikTok */}
+                <a
+                  href="https://www.tiktok.com/@matacosdeportes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-800/60 hover:border-[#00D615] hover:bg-[#00D615] hover:text-slate-950 text-slate-300 flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xs"
+                  title="TikTok: @matacosdeportes"
+                  aria-label="TikTok de Matacos Deportes"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298-.002.595.042.88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 3 15.66a6.34 6.34 0 0 0 10.86 4.43c.04-.04.08-.07.11-.11V11.2a8.16 8.16 0 0 0 5.62 2.24V9.99a4.84 4.84 0 0 1-3-.97v-.03c1.01-.76 1.76-1.84 2-3.3z" />
+                  </svg>
+                </a>
               </div>
             </div>
           </div>
 
-          {/* Column 2: Categorías Rápidas */}
+          {/* Column 2: Disciplinas & Tienda */}
           <div className="space-y-3">
             <h4 className="font-black text-white text-xs uppercase tracking-wider">
-              Categorías
+              Disciplinas & Tienda
             </h4>
             <ul className="space-y-2 text-slate-400 font-medium">
-              <li>
-                <a href="#productos" className="hover:text-[#00D615] transition-colors">
-                  Calzado Deportivo
-                </a>
-              </li>
-              <li>
-                <a href="#productos" className="hover:text-[#00D615] transition-colors">
-                  Indumentaria & Camperas
-                </a>
-              </li>
-              <li>
-                <a href="#productos" className="hover:text-[#00D615] transition-colors">
-                  Mochilas & Bolsos
-                </a>
-              </li>
-              <li>
-                <a href="#productos" className="hover:text-[#00D615] transition-colors">
-                  Carpas & Trekking
-                </a>
-              </li>
-              <li>
-                <a href="#productos" className="hover:text-[#00D615] transition-colors">
-                  Accesorios & Relojes
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 3: Disciplinas */}
-          <div className="space-y-3">
-            <h4 className="font-black text-white text-xs uppercase tracking-wider">
-              Disciplinas
-            </h4>
-            <ul className="space-y-2 text-slate-400 font-medium">
-              <li>
-                <a href="#disciplinas" className="hover:text-[#00D615] transition-colors">
-                  Fútbol & Futsal
-                </a>
-              </li>
-              <li>
-                <a href="#disciplinas" className="hover:text-[#00D615] transition-colors">
-                  Running & Maratón
-                </a>
-              </li>
-              <li>
-                <a href="#disciplinas" className="hover:text-[#00D615] transition-colors">
-                  Outdoor & Camping
-                </a>
-              </li>
-              <li>
-                <a href="#disciplinas" className="hover:text-[#00D615] transition-colors">
-                  Fitness & Musculación
-                </a>
-              </li>
-              <li>
-                <a href="#disciplinas" className="hover:text-[#00D615] transition-colors">
-                  Básquet & Vóley
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 4: Seguridad y Medios de Pago */}
-          <div className="space-y-3">
-            <h4 className="font-black text-white text-xs uppercase tracking-wider">
-              Compra Segura
-            </h4>
-            <div className="space-y-3 text-slate-400">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#00D615]" />
-                <span className="text-white font-semibold">Garantía oficial y cambio en el local</span>
-              </div>
-              <p className="text-[11px] leading-relaxed">
-                Aceptamos Mercado Pago, tarjetas de crédito (Visa, Mastercard, Cabal) en 3 y 6 cuotas, y transferencias directas con descuento.
-              </p>
-              <div className="pt-2">
+              {disciplines.slice(0, 5).map((disc) => (
+                <li key={disc.id}>
+                  <Link
+                    href={`/catalogo?disciplina=${encodeURIComponent(disc.slug)}`}
+                    className="hover:text-[#00D615] transition-colors"
+                  >
+                    {disc.name}
+                  </Link>
+                </li>
+              ))}
+              <li className="pt-1 border-t border-emerald-950/70">
                 <Link
-                  href="/admin"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 hover:text-white transition-colors text-[11px]"
+                  href="/seguimiento"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
                 >
-                  <span>Acceso Panel de Gestión / POS</span>
+                  <span>Seguimiento de Pedidos</span>
                 </Link>
-              </div>
+              </li>
+              <li>
+                <Link
+                  href="/cuenta"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Mi Cuenta & Favoritos</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: Marco Legal & Empresa */}
+          <div className="space-y-3">
+            <h4 className="font-black text-white text-xs uppercase tracking-wider">
+              Marco Legal & Empresa
+            </h4>
+            <ul className="space-y-2 text-slate-400 font-medium">
+              <li>
+                <Link
+                  href="/terminos-y-condiciones"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Términos y Condiciones</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/politicas-de-privacidad"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Políticas de Privacidad (Ley 25.326)</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/politica-de-cookies"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Política de Cookies</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/politica-de-reembolso"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Política de Reembolso y Cambios</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/acerca-de"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Acerca de Matacos Deportes</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/preguntas-frecuentes"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Preguntas Frecuentes</span>
+                </Link>
+              </li>
+              <li>
+                <a
+                  href="https://www.argentina.gob.ar/produccion/defensadelconsumidor"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5 text-slate-400"
+                >
+                  <span>Defensa de las y los Consumidores</span>
+                  <ExternalLink className="w-3 h-3 text-slate-500" />
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 4: Protección al Consumidor & Fiscal */}
+          <div className="space-y-4">
+            <h4 className="font-black text-white text-xs uppercase tracking-wider">
+              Protección al Consumidor
+            </h4>
+
+            {/* Botón de Arrepentimiento Oficial (Res. 271/2020 SCI) */}
+            <div>
+              <Link
+                href="/arrepentimiento"
+                className="group w-full flex items-center justify-between p-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-700/80 text-white transition-all shadow-xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-[#00D615] text-[#041c16] flex items-center justify-center shrink-0">
+                    <RotateCcw className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="font-black text-xs uppercase tracking-wider text-[#00D615]">
+                      Botón de Arrepentimiento
+                    </span>
+                    <span className="text-[10px] text-slate-300">
+                      Revocá tu compra online (10 días)
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </div>
+
+            {/* Data Fiscal AFIP/ARCA (Formulario 960/D) */}
+            <div className="pt-1 flex items-center gap-4">
+              <a
+                href="https://auth.afip.gob.ar/contribuyente_/login.xhtml?action=SYSTEM&system=denuncias"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Data Fiscal"
+                className="inline-block transition-opacity hover:opacity-80 shrink-0"
+              >
+                <img
+                  src="/images/dataweb.jpg"
+                  alt="Data Fiscal"
+                  className="w-11 h-auto rounded shadow-xs"
+                />
+              </a>
+
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 hover:text-white transition-colors text-[11px]"
+              >
+                <span>Acceso Panel de Gestión / POS</span>
+              </Link>
             </div>
           </div>
         </div>
 
+        {/* Legal Regulatory Notice (AAIP & Ley 25.326) */}
+        <div className="pt-6 border-t border-emerald-950/80 text-[10px] text-slate-400 leading-relaxed space-y-2">
+          <p>
+            <strong className="text-slate-300">Ley N° 25.326 de Protección de Datos Personales:</strong> «El titular de los datos personales tiene la facultad de ejercer el derecho de acceso a los mismos en forma gratuita a intervalos no inferiores a seis meses, salvo que se acredite un interés legítimo al efecto conforme lo establecido en el artículo 14, inciso 3 de la Ley Nº 25.326. La Dirección Nacional de Protección de Datos Personales (AAIP), Órgano de Control de la Ley Nº 25.326, tiene la atribución de atender las denuncias y reclamos que se interpongan con relación al incumplimiento de las normas sobre protección de datos personales.»
+          </p>
+        </div>
+
         {/* Bottom Bar: Copyright & Institutional */}
-        <div className="pt-8 border-t border-emerald-950/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-          <p>© {new Date().getFullYear()} Matacos Deportes. Todos los derechos reservados.</p>
-          <div className="flex items-center gap-1">
+        <div className="pt-4 border-t border-emerald-950/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+          <p>© {new Date().getFullYear()} {contactInfo.storeName}. Todos los derechos reservados. {contactInfo.storeAddress}, {contactInfo.storeCity} — Argentina.</p>
+          <div className="flex items-center gap-1 font-medium">
             <span>Desarrollado para PPS I — Universidad de la Cuenca del Plata</span>
           </div>
         </div>

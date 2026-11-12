@@ -58,7 +58,7 @@ export function EcommerceHeader({
   const effectiveCartCount = cartCount > 0 ? cartCount : cart.itemCount;
   const handleOpenCart = onOpenCart || cart.openDrawer;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [predictiveResults, setPredictiveResults] = useState<PredictiveSearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -115,29 +115,22 @@ export function EcommerceHeader({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close search and dropdown when clicking outside
+  // Close search predictive dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
         searchContainerRef.current &&
         !searchContainerRef.current.contains(event.target as Node)
       ) {
-        setIsSearchOpen(false);
         setPredictiveResults([]);
       }
     }
 
-    if (isSearchOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
-
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isSearchOpen]);
+  }, []);
 
   // Debounced predictive search effect
   useEffect(() => {
@@ -175,7 +168,6 @@ export function EcommerceHeader({
       onSearchChange(trimmed);
     }
     if (trimmed.length > 0) {
-      setIsSearchOpen(false);
       setPredictiveResults([]);
       startTransition(() => {
         router.push(`/catalogo?search=${encodeURIComponent(trimmed)}`);
@@ -184,7 +176,6 @@ export function EcommerceHeader({
   };
 
   const handleSelectPredictiveItem = (productId: string) => {
-    setIsSearchOpen(false);
     setPredictiveResults([]);
     startTransition(() => {
       router.push(`/productos/${productId}`);
@@ -285,19 +276,19 @@ export function EcommerceHeader({
           >
             DISCIPLINAS
           </a>
-          <a
-            href="#productos"
+          <Link
+            href="/catalogo?sort=newest"
             className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
           >
             DESTACADOS
-          </a>
-          <a
-            href="#ofertas"
+          </Link>
+          <Link
+            href="/catalogo?ofertas=true"
             className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
           >
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
             <span>OFERTAS</span>
-          </a>
+          </Link>
         </nav>
 
         {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
@@ -313,83 +304,52 @@ export function EcommerceHeader({
             <MessageCircle className="w-5 h-5" />
           </a>
 
-          {/* Horizontal Expanding Search Bar + Predictive Dropdown */}
+          {/* Search Bar extendida por default con autocompletado predictivo */}
           <div
             ref={searchContainerRef}
-            className={`relative flex items-center transition-all duration-300 ease-in-out ${
-              isSearchOpen
-                ? "w-56 sm:w-80 md:w-96 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
-                : "w-9 h-9 justify-center"
-            }`}
+            className="relative flex items-center w-36 sm:w-60 md:w-72 lg:w-88 bg-slate-100 hover:bg-slate-200/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500 border border-slate-200/90 rounded-full px-3 py-1.5 shadow-xs transition-all duration-200"
           >
-            {isSearchOpen ? (
-              <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
-                {isSearching ? (
-                  <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
-                ) : (
-                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                )}
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (onSearchChange) onSearchChange(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setIsSearchOpen(false);
-                      setPredictiveResults([]);
-                    }
-                  }}
-                  placeholder="Buscar por nombre, código o marca..."
-                  className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setPredictiveResults([]);
-                      if (onSearchChange) onSearchChange("");
-                      searchInputRef.current?.focus();
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
-                    title="Borrar texto"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setPredictiveResults([]);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
-                    title="Cerrar buscador"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </form>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsSearchOpen(true);
-                  if (onOpenSearch) onOpenSearch();
+            <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
+              {isSearching ? (
+                <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
+              ) : (
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              )}
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (onSearchChange) onSearchChange(e.target.value);
                 }}
-                className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-                title="Buscar productos"
-                aria-label="Buscar productos"
-              >
-                <Search className="w-5 h-5" />
-              </button>
-            )}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setPredictiveResults([]);
+                  }
+                }}
+                placeholder="Buscar por nombre, código o marca..."
+                className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setPredictiveResults([]);
+                    if (onSearchChange) onSearchChange("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
+                  title="Borrar texto"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </form>
 
             {/* Predictive Results Dropdown Popover */}
-            {isSearchOpen && searchQuery.trim().length >= 2 && (
+            {searchQuery.trim().length >= 2 && (
               <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
                   <span>Sugerencias en tiempo real</span>
@@ -580,21 +540,21 @@ export function EcommerceHeader({
               >
                 DISCIPLINAS
               </a>
-              <a
-                href="#productos"
+              <Link
+                href="/catalogo?sort=newest"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
               >
-                PRODUCTOS
-              </a>
-              <a
-                href="#ofertas"
+                DESTACADOS
+              </Link>
+              <Link
+                href="/catalogo?ofertas=true"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
+                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors font-bold"
               >
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span>OFERTAS</span>
-              </a>
+              </Link>
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">

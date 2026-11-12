@@ -21,11 +21,13 @@
     "test:rf16": "tsx scripts/test-rf16-mercadopago-checkout.ts",
     "test:rf17": "tsx scripts/test-rf17-bank-transfer.ts",
     "test:rf18": "tsx scripts/test-rf18-whatsapp-contingency.ts",
+    "test:rf19-rf25": "tsx scripts/test-rf19-rf25-shipping-logistics.ts",
     "test:rf24": "tsx scripts/test-rf24-analytics.ts",
     "test:rf26": "tsx scripts/test-rf26-banners.ts",
     "test:rf27": "tsx scripts/test-rf27-promotional-discounts.ts",
     "test:rf28": "tsx scripts/test-rf28-landing-page.ts",
-    "test:rf29": "tsx scripts/test-rf29-customer-portal.ts"
+    "test:rf29": "tsx scripts/test-rf29-customer-portal.ts",
+    "test:legal": "tsx scripts/test-legal-compliance.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

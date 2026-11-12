@@ -42,10 +42,12 @@ Cadena de datos codificada en Base64 bajo el esquema oficial de AFIP (`https://w
 3. **Exclusiones Sanitarias:** Por estrictas razones de higiene, prendas de contacto íntimo (ropa interior deportiva, calzas íntimas), mallas y medias no admiten cambio.
 4. **Temporalidad:** Política comercial amplia y flexible (sin límite estricto de días preestablecido), supeditada al estricto cumplimiento del estado inmaculado de la prenda y su ticket.
 
-### Mecánica de Precios en Cambios
+### Mecánica de Precios en Cambios y Devoluciones
 - **Cambio 1 a 1 (Mismo producto por talle/color o artículo de igual valor):** Se realiza directo sin costo adicional para el cliente. Si el precio del producto subió en el catálogo general desde el día de la compra, se respeta el valor y no se cobra diferencia alguna.
 - **Cambio por artículo de Mayor Valor:** El cliente abona únicamente la diferencia neta entre el valor acreditado y el nuevo producto.
-- **Devolución / Saldo a Favor ("Vale de Compra"):** El comercio no realiza devoluciones de dinero en efectivo. En su lugar, se emite un **Vale de Compra** (saldo a favor del cliente) imputable a una compra futura en el local.
+- **Devolución de Dinero y Saldo a Favor:**
+  - *Compras en Local Físico (Saavedra 241):* Se admite la devolución de dinero sin límite de tiempo estricto, sujeta exclusivamente a la presentación del comprobante de compra y a que la prenda se encuentre en perfecto estado y con sus etiquetas originales intactas. El reintegro se realiza por el mismo medio de pago abonado o, si el cliente lo prefiere, mediante la emisión de un **Vale de Compra** (saldo a favor).
+  - *Compras Web (E-commerce):* Rige el derecho legal irrenunciable de revocación y reembolso del 100% del dinero abonado (art. 34 Ley 24.240 y art. 1110 CCCN) dentro de los 10 días corridos de recibido el pedido, previa constatación del buen estado de la prenda.
 
 ## 3. Control de Caja, Turnos y Arqueo (RF-11)
 
@@ -142,3 +144,49 @@ Acción de despublicación atómica que restablece el precio regular a todos los
 
 ### Métrica de Ahorro Visible al Comprador
 Cálculo en tiempo real expuesto en el carrito (`EcommerceCartDrawer`) y la pantalla de checkout que consolida la diferencia monetaria total entre los precios de lista y los precios promocionados de los renglones, reforzando la transparencia comercial antes del cobro.
+
+
+## 7. Logística, Envíos y Ciclo de Vida de Pedidos Web (RF-19 y RF-25)
+
+### Modalidad de Entrega (Shipping Method)
+Mecanismo seleccionado por el comprador online para recibir sus artículos. Comprende cuatro opciones canónicas:
+1. **Retiro en Local (`RETIRO_LOCAL` / `PICKUP_STORE`):** Retiro presencial en el local físico de Saavedra 241, Formosa Capital. Costo logístico nulo ($0,00). No genera imposición postal.
+2. **Cadetería Local Formosa (`CADETERIA_FORMOSA` / `LOCAL_COURIER`):** Servicio de entrega urbana en moto/cadete dentro del radio de Formosa Capital (código postal 3600). Tarifa plana configurable directamente por la administración del comercio en los ajustes del sistema.
+3. **Correo Argentino a Domicilio (`CORREO_ARGENTINO_DOMICILIO`):** Despacho postal puerta a puerta (`deliveredType: 'D'`) a cualquier punto del territorio nacional a través de la red de Correo Argentino. Requiere dirección completa con calle, altura, piso/depto, código postal y provincia de destino.
+4. **Correo Argentino Retiro en Sucursal (`CORREO_ARGENTINO_SUCURSAL`):** Despacho postal con entrega en sucursal o agencia oficial de Correo Argentino (`deliveredType: 'S'`). Requiere la selección explícita del código y nombre de la agencia de destino.
+
+### Paquete Virtual y Cubicaje Heurístico
+Cálculo algorítmico que consolida la totalidad de prendas, calzado o accesorios presentes en el carrito web en un único bulto lógico volumétrico para cotizar ante la API de Correo Argentino. Si un artículo del catálogo carece de ficha técnica de dimensiones o peso, el sistema imputa valores de contingencia por categoría (ej. Calzado deportivo: 950g; Indumentaria textil: 300g; Accesorios menores: 150g; Otros: 500g), evitando que el proceso de compra quede bloqueado.
+
+### Tarifa de Contingencia por Zona (Fallback Logístico)
+Esquema de salvaguarda ante caídas de red, indisponibilidad temporal del web service de Correo Argentino o ausencia de credenciales de API. El sistema aplica una tabla de tarifas planas de contingencia regionalizada por código postal, garantizando que el comprador siempre pueda completar el checkout.
+
+### Guía de Despacho y Rótulo Postal
+Documento físico y digital emitido por la empresa de correo que respalda la encomienda.
+- **Rótulo de Envío (Etiqueta):** Formato impreso con códigos de barras y datos de origen (Matacos Deportes, Saavedra 241, Formosa) y destino que se adhiere a la caja o sobre del paquete.
+- **Código de Seguimiento (`shippingTrackingCode` / TN):** Identificador alfanumérico único generado por el transportista para que el comercio y el comprador rastreen las etapas del traslado en tiempo real.
+- **Imposición Desacoplada:** Principio operativo por el cual la generación de la guía ante Correo Argentino no se dispara de forma automática con el cobro, sino mediante una acción manual del personal de salón una vez que los artículos fueron físicamente controlados, embalados y rotulados en Saavedra 241.
+
+### Ciclo de Vida Dual de Pedido Web (Comercial vs Logístico)
+Arquitectura de estados desacoplados que distingue la fase transaccional del pedido respecto de su proceso de preparación física:
+- **Estado Comercial (`SaleStatus`):** `PENDIENTE_PAGO` (esperando pasarela o transferencia), `PENDIENTE_VERIFICACION` (comprobante de transferencia subido), `COMPLETADA` (pago verificado y acreditado) y `CANCELADA` (orden abortada o expirada).
+- **Estado Logístico (`ShippingStatus`):** `PENDIENTE` (esperando pago), `EN_PREPARACION` (pedido en armado y empaque en salón), `LISTO_RETIRO` (esperando retiro en Saavedra 241), `EN_CAMINO` (entregado a cadete o impuesto con guía en Correo Argentino), `ENTREGADO` (recepción final confirmada) y `CANCELADO`.
+
+### Restitución Atómica de Existencias por Anulación
+Procedimiento de compensación de inventario ante la cancelación de un pedido web:
+- Si la orden se cancela antes de pagarse (`PENDIENTE_PAGO`), se liberan las unidades retenidas en `stockReserved` sin registrar egresos.
+- Si la orden se anula habiendo estado pagada (`COMPLETADA`) o preparada, el sistema genera de forma atómica un movimiento de inventario inmutable (`InventoryMovement`) de tipo `ANULACION_VENTA`, reincorporando las cantidades al inventario físico real (`stockStore` o `stockWarehouse`).
+
+## 8. Marco Legal, Consentimiento Informado y Protección al Consumidor
+
+### Registro de Consentimiento Legal (`LegalConsentLog`)
+Registro probatorio inmutable generado en backend ante el envío de formularios de usuarios invitados o registrados. Almacena la manifestación libre, expresa e informada de aceptación de los Términos y Condiciones y de la Política de Privacidad (exigida por la Ley 25.326 de Protección de Datos Personales), conservando la versión del texto vigente, fecha/hora exacta, correo, documento de identidad, dirección IP de origen y agente de usuario (`userAgent`).
+
+### Derecho de Revocación y Botón de Arrepentimiento (Res. 271/2020 SCI)
+Mecanismo directo, accesible e irrenunciable expuesto en el storefront mediante el cual el consumidor que adquiere productos a través del canal digital puede revocar la operación durante un plazo de 10 días corridos a partir de la entrega. El sistema genera un código identificador único de gestión (`REV-XXXX`) y habilita la reversa total del pago.
+
+### Política de Privacidad y Minimización de Datos (Art. 4 Ley 25.326)
+Principio de calidad de datos que restringe la solicitud de información personal en el checkout como invitado únicamente a los campos estrictamente necesarios para la facturación ante AFIP/ARCA (DNI), la coordinación logística de entrega (teléfono, domicilio si aplica) y la notificación comercial vinculada a la orden (email), sin exigir creación forzada de cuentas ni contraseñas.
+
+### Política de Cookies y Consentimiento Informado
+Régimen de transparencia que categoriza el uso de cookies y almacenamiento web, garantizando que los identificadores técnicos esenciales operen por defecto para la funcionalidad básica (sesión y carrito) y que las cookies analíticas o de terceros requieran aceptación previa y expresa del visitante.

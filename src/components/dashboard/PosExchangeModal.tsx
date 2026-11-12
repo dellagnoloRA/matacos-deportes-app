@@ -38,6 +38,8 @@ const COMMON_REASONS = [
   "Preferencia de color",
   "Cambio por regalo",
   "Falla de fábrica / defecto",
+  "Disconformidad con el producto",
+  "Arrepentimiento de compra",
 ];
 
 export function PosExchangeModal({
@@ -48,6 +50,11 @@ export function PosExchangeModal({
   cashierId,
   onExchangeSuccess,
 }: PosExchangeModalProps) {
+  // -------------------------------------------------------------
+  // ESTADO - TIPO DE OPERACIÓN (CAMBIO vs DEVOLUCIÓN)
+  // -------------------------------------------------------------
+  const [operationType, setOperationType] = useState<"EXCHANGE" | "RETURN">("EXCHANGE");
+
   // -------------------------------------------------------------
   // ESTADOS - PASO 1: PRENDA DEVUELTA
   // -------------------------------------------------------------
@@ -319,6 +326,7 @@ export function PosExchangeModal({
   };
 
   const resetForm = () => {
+    setOperationType("EXCHANGE");
     setSelectedReturnProduct(null);
     setSelectedReturnVariant(null);
     setIsDifferentProduct(false);
@@ -346,7 +354,7 @@ export function PosExchangeModal({
   };
 
   // -------------------------------------------------------------
-  // ENVÍO DE TICKET DE CAMBIO A CAJA (SIN EJECUTAR DEVOLUCIÓN DIRECTA)
+  // ENVÍO DE TICKET DE CAMBIO O DEVOLUCIÓN A CAJA
   // -------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,34 +364,42 @@ export function PosExchangeModal({
       setErrorMessage("Por favor selecciona la prenda a devolver.");
       return;
     }
-    if (!selectedExchangeVariant?.id) {
-      setErrorMessage("Por favor selecciona el nuevo talle o prenda a entregar.");
-      return;
-    }
-    if (selectedReturnVariant.id === selectedExchangeVariant.id) {
-      setErrorMessage("La prenda devuelta y la prenda a entregar no pueden ser el mismo talle y color.");
-      return;
-    }
 
-    const availableStock = selectedExchangeVariant.stockStore - (selectedExchangeVariant.stockReserved || 0);
-    if (availableStock < quantity) {
-      setErrorMessage(
-        `No hay suficiente stock en Salón Saavedra para entregar el Talle ${selectedExchangeVariant.size}. Disponible: ${availableStock} un., Solicitado: ${quantity} un.`
-      );
-      return;
+    if (operationType === "EXCHANGE") {
+      if (!selectedExchangeVariant?.id) {
+        setErrorMessage("Por favor selecciona el nuevo talle o prenda a entregar.");
+        return;
+      }
+      if (selectedReturnVariant.id === selectedExchangeVariant.id) {
+        setErrorMessage("La prenda devuelta y la prenda a entregar no pueden ser el mismo talle y color.");
+        return;
+      }
+
+      const availableStock = selectedExchangeVariant.stockStore - (selectedExchangeVariant.stockReserved || 0);
+      if (availableStock < quantity) {
+        setErrorMessage(
+          `No hay suficiente stock en Salón Saavedra para entregar el Talle ${selectedExchangeVariant.size}. Disponible: ${availableStock} un., Solicitado: ${quantity} un.`
+        );
+        return;
+      }
     }
 
     const finalReason = reason === "Otro" ? customReason.trim() : reason;
     if (!finalReason) {
-      setErrorMessage("Debes especificar un motivo para el cambio.");
+      setErrorMessage(
+        operationType === "EXCHANGE"
+          ? "Debes especificar un motivo para el cambio."
+          : "Debes especificar un motivo para la devolución."
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
       const res = await createPendingExchangeSale({
+        operationType,
         returnVariantId: selectedReturnVariant.id,
-        exchangeVariantId: selectedExchangeVariant.id,
+        exchangeVariantId: operationType === "EXCHANGE" ? selectedExchangeVariant?.id : undefined,
         quantity,
         reason: finalReason,
         customerName: customerName.trim() || undefined,
@@ -391,12 +407,15 @@ export function PosExchangeModal({
       });
 
       if (!res.success || !res.data) {
-        setErrorMessage(res.error || "Ocurrió un error al generar el ticket de cambio para Caja.");
+        setErrorMessage(res.error || "Ocurrió un error al generar el ticket para Caja.");
         return;
       }
 
       onExchangeSuccess?.(
-        res.message || `Ticket de cambio ${res.data.ticketCode} pasado a Caja exitosamente.`,
+        res.message ||
+          (operationType === "RETURN"
+            ? `Solicitud de devolución ${res.data.ticketCode} pasada a Caja exitosamente.`
+            : `Ticket de cambio ${res.data.ticketCode} pasado a Caja exitosamente.`),
         res.data
       );
       handleClose();
@@ -414,20 +433,30 @@ export function PosExchangeModal({
         {/* Encabezado */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold shadow-inner">
-              <ArrowLeftRight className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold shadow-inner ${
+              operationType === "RETURN"
+                ? "bg-rose-500/10 border border-rose-500/20 text-rose-400"
+                : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+            }`}>
+              {operationType === "RETURN" ? <RotateCcw className="w-5 h-5" /> : <ArrowLeftRight className="w-5 h-5" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-white tracking-tight">
-                  Devolución / Cambio de Productos
+                  {operationType === "RETURN" ? "Devolución de Producto" : "Devolución / Cambio de Productos"}
                 </h3>
-                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-500/30 uppercase tracking-wider">
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                  operationType === "RETURN"
+                    ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                    : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                }`}>
                   Pase a Caja
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Selección de prendas y cálculo de saldo para cobro y resolución en Caja
+                {operationType === "RETURN"
+                  ? "Reingreso de producto a stock y solicitud de reintegro económico para Caja"
+                  : "Selección de prendas y cálculo de saldo para cobro y resolución en Caja"}
               </p>
             </div>
           </div>
@@ -440,26 +469,79 @@ export function PosExchangeModal({
           </button>
         </div>
 
-        {/* Stepper Visual de Progreso */}
-        <div className="bg-slate-100/90 px-6 py-2.5 border-b border-slate-200/80 grid grid-cols-3 gap-2 shrink-0 select-none">
+        {/* Selector de Tipo de Trámite: Cambio vs Devolución */}
+        <div className="bg-slate-900/95 px-6 py-2.5 flex items-center gap-2 border-b border-slate-800 shrink-0">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
+            Operación:
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setOperationType("EXCHANGE");
+              setErrorMessage(null);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              operationType === "EXCHANGE"
+                ? "bg-emerald-500 text-slate-950 font-black shadow-sm"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <span>Cambio de Producto</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOperationType("RETURN");
+              setSelectedExchangeProduct(null);
+              setSelectedExchangeVariant(null);
+              setErrorMessage(null);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              operationType === "RETURN"
+                ? "bg-rose-500 text-white font-black shadow-sm"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Solo Devolución (Sin prenda a cambio)</span>
+          </button>
+        </div>
+
+        {/* Stepper Visual de Progreso Adaptativo */}
+        <div className={`bg-slate-100/90 px-6 py-2.5 border-b border-slate-200/80 grid gap-2 shrink-0 select-none ${
+          operationType === "RETURN" ? "grid-cols-2" : "grid-cols-3"
+        }`}>
           <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant ? "text-emerald-700" : "text-slate-900"}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"}`}>
               {selectedReturnVariant ? <Check className="w-3 h-3 stroke-[3]" /> : "1"}
             </span>
             <span className="truncate">Prenda Devuelta</span>
           </div>
-          <div className={`flex items-center gap-2 text-xs font-bold ${selectedExchangeVariant ? "text-emerald-700" : selectedReturnVariant ? "text-slate-900" : "text-slate-400"}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedExchangeVariant ? "bg-emerald-600 text-white" : selectedReturnVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
-              {selectedExchangeVariant ? <Check className="w-3 h-3 stroke-[3]" /> : "2"}
-            </span>
-            <span className="truncate">Prenda a Entregar</span>
-          </div>
-          <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant && selectedExchangeVariant ? "text-emerald-700" : "text-slate-400"}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant && selectedExchangeVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
-              3
-            </span>
-            <span className="truncate">Saldo y Destino Caja</span>
-          </div>
+
+          {operationType === "EXCHANGE" ? (
+            <>
+              <div className={`flex items-center gap-2 text-xs font-bold ${selectedExchangeVariant ? "text-emerald-700" : selectedReturnVariant ? "text-slate-900" : "text-slate-400"}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedExchangeVariant ? "bg-emerald-600 text-white" : selectedReturnVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
+                  {selectedExchangeVariant ? <Check className="w-3 h-3 stroke-[3]" /> : "2"}
+                </span>
+                <span className="truncate">Prenda a Entregar</span>
+              </div>
+              <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant && selectedExchangeVariant ? "text-emerald-700" : "text-slate-400"}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant && selectedExchangeVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
+                  3
+                </span>
+                <span className="truncate">Saldo y Destino Caja</span>
+              </div>
+            </>
+          ) : (
+            <div className={`flex items-center gap-2 text-xs font-bold ${selectedReturnVariant ? "text-emerald-700" : "text-slate-400"}`}>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${selectedReturnVariant ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500"}`}>
+                2
+              </span>
+              <span className="truncate">Reintegro y Destino Caja</span>
+            </div>
+          )}
         </div>
 
         {/* Formulario */}
@@ -654,7 +736,9 @@ export function PosExchangeModal({
                   2
                 </div>
                 <div>
-                  <h5 className="text-xs font-bold text-slate-700">Prenda a entregar al cliente</h5>
+                  <h5 className="text-xs font-bold text-slate-700">
+                    {operationType === "EXCHANGE" ? "Prenda a entregar al cliente" : "Motivo y datos del cliente"}
+                  </h5>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     Se habilitará automáticamente tras escanear o seleccionar el producto y variante devuelta arriba.
                   </p>
@@ -663,12 +747,18 @@ export function PosExchangeModal({
 
               <div className="border border-dashed border-slate-200 rounded-2xl p-4 bg-slate-50/40 flex items-center gap-3.5">
                 <div className="w-9 h-9 rounded-xl bg-slate-200/60 text-slate-400 flex items-center justify-center shrink-0 font-bold text-xs font-mono">
-                  3
+                  {operationType === "EXCHANGE" ? "3" : "2"}
                 </div>
                 <div>
-                  <h5 className="text-xs font-bold text-slate-500">Liquidación económica y comprobante</h5>
+                  <h5 className="text-xs font-bold text-slate-500">
+                    {operationType === "EXCHANGE"
+                      ? "Liquidación económica y comprobante"
+                      : "Reintegro económico en Caja"}
+                  </h5>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Cálculo de diferencia (mismo valor, cobro en caja o emisión de vale de compra).
+                    {operationType === "EXCHANGE"
+                      ? "Cálculo de diferencia (mismo valor, cobro en caja o emisión de vale de compra)."
+                      : "Cálculo del monto a devolver al cliente y pase a la lista de espera de Caja."}
                   </p>
                 </div>
               </div>
@@ -676,9 +766,9 @@ export function PosExchangeModal({
           )}
 
           {/* ========================================================= */}
-          {/* PASO 2: PRENDA A ENTREGAR */}
+          {/* PASO 2: PRENDA A ENTREGAR (SOLO EN CAMBIO) */}
           {/* ========================================================= */}
-          {selectedReturnVariant && (
+          {selectedReturnVariant && operationType === "EXCHANGE" && (
             <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -903,16 +993,16 @@ export function PosExchangeModal({
           )}
 
           {/* ========================================================= */}
-          {/* PASO 3: MOTIVO DEL CAMBIO */}
+          {/* PASO 3 (o 2): MOTIVO DEL TRÁMITE                          */}
           {/* ========================================================= */}
-          {selectedReturnVariant && selectedExchangeVariant && (
+          {selectedReturnVariant && (operationType === "RETURN" || selectedExchangeVariant) && (
             <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 animate-in fade-in">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-800 font-black text-xs flex items-center justify-center font-mono">
-                  3
+                  {operationType === "RETURN" ? "2" : "3"}
                 </div>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Motivo del cambio
+                  {operationType === "RETURN" ? "Motivo de la devolución" : "Motivo del cambio"}
                 </h4>
               </div>
 
@@ -952,7 +1042,7 @@ export function PosExchangeModal({
                   type="text"
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
-                  placeholder="Escribí el motivo del cambio..."
+                  placeholder={operationType === "RETURN" ? "Escribí el motivo de la devolución..." : "Escribí el motivo del cambio..."}
                   className="w-full px-3.5 py-2 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   autoFocus
                 />
@@ -961,18 +1051,29 @@ export function PosExchangeModal({
           )}
 
           {/* ========================================================= */}
-          {/* PASO 4: LIQUIDACIÓN ECONÓMICA (ESCENARIOS A, B Y C) */}
+          {/* PASO 4 (o 3): LIQUIDACIÓN ECONÓMICA Y DESTINO A CAJA      */}
           {/* ========================================================= */}
-          {selectedReturnVariant && selectedExchangeVariant && (
+          {selectedReturnVariant && (operationType === "RETURN" || selectedExchangeVariant) && (
             <div className="space-y-3 bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs animate-in fade-in">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
-                    4
+                  <div className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center ${
+                    operationType === "RETURN" ? "bg-rose-100 text-rose-700" : "bg-indigo-100 text-indigo-700"
+                  }`}>
+                    {operationType === "RETURN" ? "3" : "4"}
                   </div>
                   <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Receipt className="w-4 h-4 text-indigo-600" />
-                    Liquidación Económica del Cambio
+                    {operationType === "RETURN" ? (
+                      <>
+                        <RotateCcw className="w-4 h-4 text-rose-600" />
+                        Liquidación Económica y Reintegro en Caja
+                      </>
+                    ) : (
+                      <>
+                        <Receipt className="w-4 h-4 text-indigo-600" />
+                        Liquidación Económica del Cambio
+                      </>
+                    )}
                   </h4>
                 </div>
                 <span className="text-[11px] font-semibold text-slate-500">
@@ -997,85 +1098,120 @@ export function PosExchangeModal({
                 </div>
               </div>
 
-              {/* Comparador de Precios */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs items-center p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Prenda Devuelta</span>
-                  <p className="font-bold text-slate-800 truncate">{selectedReturnProduct?.name}</p>
-                  <p className="text-rose-700 font-mono font-black text-sm">
-                    -{formatCurrency(totalReturn)}
-                  </p>
-                </div>
+              {operationType === "EXCHANGE" ? (
+                <>
+                  {/* Comparador de Precios para Cambio */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs items-center p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Prenda Devuelta</span>
+                      <p className="font-bold text-slate-800 truncate">{selectedReturnProduct?.name}</p>
+                      <p className="text-rose-700 font-mono font-black text-sm">
+                        -{formatCurrency(totalReturn)}
+                      </p>
+                    </div>
 
-                <div className="text-center py-1 sm:border-x border-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Prenda Entregada</span>
-                  <p className="font-bold text-slate-800 truncate">{targetExchangeProduct?.name}</p>
-                  <p className="text-emerald-700 font-mono font-black text-sm">
-                    +{formatCurrency(totalExchange)}
-                  </p>
-                </div>
+                    <div className="text-center py-1 sm:border-x border-slate-200">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Prenda Entregada</span>
+                      <p className="font-bold text-slate-800 truncate">{targetExchangeProduct?.name}</p>
+                      <p className="text-emerald-700 font-mono font-black text-sm">
+                        +{formatCurrency(totalExchange)}
+                      </p>
+                    </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Saldo Neto</span>
-                  <p
-                    className={`font-mono font-black text-base ${
-                      isSamePrice
-                        ? "text-slate-700"
-                        : isMoreExpensive
-                        ? "text-blue-700"
-                        : "text-purple-700"
-                    }`}
-                  >
-                    {isSamePrice ? "$ 0,00" : formatCurrency(balance)}
-                  </p>
-                  <span className="text-[10px] font-bold text-slate-500">
-                    {isSamePrice
-                      ? "Mismo valor (Mano a mano)"
-                      : isMoreExpensive
-                      ? "A cobrar en Caja"
-                      : "A favor del cliente"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Tarjetas Informativas de Liquidación hacia Caja */}
-              {isSamePrice && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-900 text-xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3] mt-0.5" />
-                  <div className="leading-relaxed">
-                    <strong>Cambio mano a mano ($ 0,00):</strong> Las dos prendas tienen el mismo valor de lista.
-                    Se enviará el ticket a la Caja Mostrador sin saldo a abonar. En Caja se confirmará la entrega del nuevo talle y se emitirá el comprobante oficial.
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Saldo Neto</span>
+                      <p
+                        className={`font-mono font-black text-base ${
+                          isSamePrice
+                            ? "text-slate-700"
+                            : isMoreExpensive
+                            ? "text-blue-700"
+                            : "text-purple-700"
+                        }`}
+                      >
+                        {isSamePrice ? "$ 0,00" : formatCurrency(balance)}
+                      </p>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {isSamePrice
+                          ? "Mismo valor (Mano a mano)"
+                          : isMoreExpensive
+                          ? "A cobrar en Caja"
+                          : "A favor del cliente"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {isMoreExpensive && (
-                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-2.5 text-blue-900 text-xs">
-                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <strong>Diferencia a cobrar en Caja ({formatCurrency(balance)}):</strong> El ticket se enviará a la lista de espera de Caja Mostrador.
-                    El cliente abonará la diferencia allí mediante el medio de pago que elija (Efectivo, Tarjeta Débito/Crédito, QR o Transferencia).
+                  {/* Tarjetas Informativas de Liquidación hacia Caja */}
+                  {isSamePrice && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-900 text-xs">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3] mt-0.5" />
+                      <div className="leading-relaxed">
+                        <strong>Cambio mano a mano ($ 0,00):</strong> Las dos prendas tienen el mismo valor de lista.
+                        Se enviará el ticket a la Caja Mostrador sin saldo a abonar. En Caja se confirmará la entrega del nuevo talle y se emitirá el comprobante oficial.
+                      </div>
+                    </div>
+                  )}
+
+                  {isMoreExpensive && (
+                    <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-2.5 text-blue-900 text-xs">
+                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <strong>Diferencia a cobrar en Caja ({formatCurrency(balance)}):</strong> El ticket se enviará a la lista de espera de Caja Mostrador.
+                        El cliente abonará la diferencia allí mediante el medio de pago que elija (Efectivo, Tarjeta Débito/Crédito, QR o Transferencia).
+                      </div>
+                    </div>
+                  )}
+
+                  {isCheaper && (
+                    <div className="p-3 bg-purple-50/80 border border-purple-200 rounded-xl flex items-start gap-2.5 text-purple-900 text-xs">
+                      <RotateCcw className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <strong>Saldo a favor del cliente ({formatCurrency(absDifference)}):</strong> La prenda nueva tiene un valor menor.
+                        El ticket pasará a la Caja Mostrador indicando el crédito a favor para que el cajero resuelva el saldo según la política del local.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Aviso operativo */}
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-500 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span>
+                      Al presionar <strong>Pasar Ticket a Caja</strong>, la prenda a entregar quedará reservada y la operación se procesará en Caja sin emitir tickets definitivos en salón.
+                    </span>
                   </div>
-                </div>
-              )}
+                </>
+              ) : (
+                <>
+                  {/* Resumen de Reintegro de Devolución Directa */}
+                  <div className="p-4 bg-rose-50/80 rounded-xl border border-rose-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-rose-500 block">Prenda a Reingresar al Stock</span>
+                        <p className="font-bold text-slate-900 text-sm">{selectedReturnProduct?.name}</p>
+                        <p className="text-xs text-slate-600">
+                          Talle {selectedReturnVariant.size} {selectedReturnVariant.color ? `• ${selectedReturnVariant.color}` : ""} x{quantity} un.
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-rose-500 block">Monto a Reintegrar</span>
+                        <p className="font-mono font-black text-rose-700 text-lg">
+                          {formatCurrency(totalReturn)}
+                        </p>
+                        <span className="text-[10px] font-bold text-slate-500">
+                          En Caja Mostrador
+                        </span>
+                      </div>
+                    </div>
 
-              {isCheaper && (
-                <div className="p-3 bg-purple-50/80 border border-purple-200 rounded-xl flex items-start gap-2.5 text-purple-900 text-xs">
-                  <RotateCcw className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <strong>Saldo a favor del cliente ({formatCurrency(absDifference)}):</strong> La prenda nueva tiene un valor menor.
-                    El ticket pasará a la Caja Mostrador indicando el crédito a favor para que el cajero resuelva el saldo según la política del local.
+                    <div className="p-2.5 bg-white/80 rounded-lg border border-rose-200 text-[11px] text-slate-700 leading-relaxed flex items-start gap-2">
+                      <Info className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>
+                        El cliente no se lleva ningún artículo a cambio. Se enviará el ticket de devolución a Caja para procesar el reintegro de <strong>{formatCurrency(totalReturn)}</strong> (Efectivo / Transferencia o emisión de Vale de Compra). La prenda devuelta se reincorporará automáticamente al stock físico de Saavedra 241 cuando Caja complete la operación.
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
-
-              {/* Aviso operativo */}
-              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-500 flex items-center gap-2">
-                <Info className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>
-                  Al presionar <strong>Pasar Ticket a Caja</strong>, la prenda a entregar quedará reservada y la operación se procesará en Caja sin emitir tickets definitivos en salón.
-                </span>
-              </div>
             </div>
           )}
 
@@ -1098,11 +1234,13 @@ export function PosExchangeModal({
               disabled={
                 isSubmitting ||
                 !selectedReturnVariant ||
-                !selectedExchangeVariant
+                (operationType === "EXCHANGE" && !selectedExchangeVariant)
               }
               className={`flex-1 py-3 font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-2 ${
-                !selectedReturnVariant || !selectedExchangeVariant
+                !selectedReturnVariant || (operationType === "EXCHANGE" && !selectedExchangeVariant)
                   ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  : operationType === "RETURN"
+                  ? "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer active:scale-[0.99]"
                   : isMoreExpensive
                   ? "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer active:scale-[0.99]"
                   : isCheaper
@@ -1113,17 +1251,26 @@ export function PosExchangeModal({
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Pasando ticket a Caja...</span>
+                  <span>
+                    {operationType === "RETURN" ? "Pasando devolución a Caja..." : "Pasando ticket a Caja..."}
+                  </span>
                 </>
               ) : !selectedReturnVariant ? (
                 <>
                   <Search className="w-4 h-4" />
                   <span>Paso 1: Selecciona la prenda a devolver</span>
                 </>
-              ) : !selectedExchangeVariant ? (
+              ) : operationType === "EXCHANGE" && !selectedExchangeVariant ? (
                 <>
                   <ArrowUpRight className="w-4 h-4" />
                   <span>Paso 2: Selecciona la prenda a entregar</span>
+                </>
+              ) : operationType === "RETURN" ? (
+                <>
+                  <RotateCcw className="w-4 h-4 stroke-[2.5]" />
+                  <span>
+                    Pasar Devolución a Caja (Reintegrar {formatCurrency(totalReturn)})
+                  </span>
                 </>
               ) : (
                 <>

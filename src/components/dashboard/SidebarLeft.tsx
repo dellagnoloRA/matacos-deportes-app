@@ -167,15 +167,6 @@ export function SidebarLeft({
               />
               <span>Inicio / Métricas</span>
             </div>
-            <span
-              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                isInicioActive
-                  ? "bg-slate-950/15 text-slate-950"
-                  : "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
-              }`}
-            >
-              KPIs
-            </span>
           </button>
 
           {/* 2. Inventario con Sub-índices */}

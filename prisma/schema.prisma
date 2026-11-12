@@ -299,13 +299,15 @@ model Sale {
   customerDni   String?
 
   // Datos logísticos de entrega en compras web
-  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO"
+  shippingMethod       String?         // "RETIRO_LOCAL", "CADETERIA_FORMOSA", "CORREO_ARGENTINO_DOMICILIO", "CORREO_ARGENTINO_SUCURSAL"
   shippingStatus       ShippingStatus  @default(PENDIENTE)
   shippingTrackingCode String?         // Código de guía (ej. Correo Argentino)
   shippingCost         Decimal?        @default(0) @db.Decimal(12, 2)
   shippingAddress      String?         // Calle y número
   shippingCity         String?         // Localidad
   shippingPostalCode   String?
+  shippingBranchCode   String?         // Código oficial de la sucursal de Correo Argentino
+  shippingBranchName   String?         // Nombre descriptivo de la sucursal de entrega
 
   channel       String        @default("MOSTRADOR") // MOSTRADOR o WEB
   status        SaleStatus    @default(COMPLETADA)
@@ -333,6 +335,8 @@ model Sale {
   reconciliationNotes     String?
   reconciledAt            DateTime?
   reconciledBy            String?
+
+  revocationRequests      RevocationRequest[]
 
   syncedAt      DateTime?
   createdAt     DateTime      @default(now())
@@ -487,5 +491,51 @@ model StoreSetting {
   storePostalCode    String   @default("3600")
   businessHours      String   @default("Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs")
   instagramHandle    String   @default("@matacosdeportes")
+  cadeteriaCost      Decimal  @default(2500) @db.Decimal(12, 2)
   updatedAt          DateTime @default(now()) @updatedAt
+}
+
+// =========================================================================
+// REGISTRO INMUTABLE DE CONSENTIMIENTO LEGAL Y ARREPENTIMIENTO (LEYES 25.326 / 24.240)
+// =========================================================================
+
+model LegalConsentLog {
+  id              String   @id @default(uuid())
+  formType        String   // "GUEST_CHECKOUT", "CUSTOMER_REGISTER", "REVOCATION_REQUEST", "TRANSFER_PROOF"
+  acceptedTerms   Boolean  @default(true)
+  termsVersion    String   // "v1.0"
+  acceptedPrivacy Boolean  @default(true)
+  privacyVersion  String   // "v1.0"
+  email           String
+  dni             String?
+  name            String?
+  customerId      String?
+  saleId          String?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+  @@index([formType])
+}
+
+model RevocationRequest {
+  id              String    @id @default(uuid())
+  code            String    @unique // Formato "REV-XXXXXX"
+  saleId          String?
+  sale            Sale?     @relation(fields: [saleId], references: [id])
+  orderCode       String
+  customerEmail   String
+  customerPhone   String?
+  reason          String?
+  status          String    @default("PENDIENTE_REVISION") // PENDIENTE_REVISION, RECEPCIONADA, APROBADA_REEMBOLSADA, RECHAZADA_DETERIORO, ABANDONADA
+  rejectionReason String?
+  rejectionProof  String?   // URL o notas con fotos de constatación técnica
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([orderCode])
+  @@index([customerEmail])
 }

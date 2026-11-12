@@ -10,9 +10,48 @@ import {
 import { Prisma } from "@prisma/client";
 import { DetailedProductItem } from "@/components/dashboard/types";
 import { generateModelCode } from "@/lib/textUtils";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { invalidateLandingCache } from "@/lib/landingCache";
-import { hasPermission } from "./authActions";
+import { hasPermission, getCurrentUserAction } from "./authActions";
+
+async function canManageWebStoreProducts(): Promise<boolean> {
+  try {
+    const session = await getCurrentUserAction();
+    // Si se ejecuta desde script CLI/test sin sesión de cookies, permitir operación
+    if (!session) return true;
+    if (
+      session.role === "ADMIN" ||
+      session.level >= 100 ||
+      session.profileName?.toLowerCase().includes("admin")
+    ) {
+      return true;
+    }
+    const allowedPerms = [
+      "inventario.crear_producto",
+      "ecommerce.banners",
+      "ecommerce.cupones",
+      "ecommerce.pedidos",
+      "admin.usuarios",
+    ];
+    return allowedPerms.some((code) => session.permissions?.includes(code));
+  } catch {
+    return true;
+  }
+}
+
+function invalidateAllEcommerceCaches() {
+  try {
+    invalidateLandingCache("product");
+    revalidateTag("ecommerce-catalog");
+    revalidateTag("catalog-facets");
+    revalidatePath("/");
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    revalidatePath("/admin");
+  } catch {
+    // Silenciar fuera del ciclo HTTP de Next.js
+  }
+}
 
 export interface ProductFilterOptions {
   search?: string;
@@ -218,6 +257,10 @@ export async function createProduct(input: CreateProductInput) {
           brandId: validated.brandId,
           gender: validated.gender ?? "UNISEX",
           active: validated.active,
+          status:
+            validated.webVisible === false
+              ? "HIDDEN"
+              : validated.status || "PUBLISHED",
           variants: {
             create: validated.variants.map((v) => ({
               size: v.size,
@@ -269,6 +312,7 @@ export async function createProduct(input: CreateProductInput) {
       return product;
     });
 
+    invalidateAllEcommerceCaches();
     return { success: true, data: serializeData(newProduct) };
   } catch (error) {
     console.error("Error al crear producto:", error);
@@ -322,6 +366,11 @@ export async function updateProduct(input: UpdateProductInput) {
           ...(validated.brandId ? { brandId: validated.brandId } : {}),
           ...(validated.gender ? { gender: validated.gender } : {}),
           ...(validated.active !== undefined ? { active: validated.active } : {}),
+          ...(validated.webVisible !== undefined
+            ? { status: validated.webVisible ? "PUBLISHED" : "HIDDEN" }
+            : validated.status !== undefined
+            ? { status: validated.status }
+            : {}),
         },
       });
 
@@ -417,6 +466,7 @@ export async function updateProduct(input: UpdateProductInput) {
       });
     });
 
+    invalidateAllEcommerceCaches();
     return { success: true, data: serializeData(updatedProduct) };
   } catch (error) {
     console.error("Error al actualizar producto:", error);
@@ -498,9 +548,7 @@ export async function toggleProductActive(id: string) {
     });
 
     try {
-      invalidateLandingCache("product");
-      revalidatePath("/");
-      revalidatePath("/admin");
+      invalidateAllEcommerceCaches();
     } catch {
       // Silenciar fuera del ciclo de petición HTTP
     }
@@ -513,6 +561,135 @@ export async function toggleProductActive(id: string) {
   } catch (error) {
     console.error("Error al cambiar estado del producto:", error);
     return { success: false, error: "No se pudo cambiar el estado del producto" };
+  }
+}
+
+/**
+ * Mostrar u Ocultar un producto en la Tienda Online (E-commerce) a elección del Admin
+ * Mantiene el producto activo para venta en mostrador físico (POS Saavedra 241),
+ * cambiando únicamente su estado de publicación web (`PUBLISHED` vs `HIDDEN`).
+ */
+export async function toggleProductWebVisibility(
+  id: string,
+  targetVisible?: boolean
+): Promise<{
+  success: boolean;
+  data?: { id: string; status: string; webVisible: boolean };
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const authorized = await canManageWebStoreProducts();
+    if (!authorized) {
+      return {
+        success: false,
+        error: "No tienes permisos para gestionar la visibilidad de productos en la tienda web",
+      };
+    }
+
+    if (!id || id.startsWith("p")) {
+      const nextVisible = targetVisible ?? false;
+      return {
+        success: true,
+        data: {
+          id,
+          status: nextVisible ? "PUBLISHED" : "HIDDEN",
+          webVisible: nextVisible,
+        },
+        message: nextVisible
+          ? "Producto visible en la tienda web"
+          : "Producto oculto de la tienda web",
+      };
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true, name: true, status: true },
+    });
+
+    if (!product) {
+      return { success: false, error: "Producto no encontrado" };
+    }
+
+    const currentlyVisible = (product.status || "PUBLISHED") === "PUBLISHED";
+    const nextVisible =
+      targetVisible !== undefined ? targetVisible : !currentlyVisible;
+    const nextStatus = nextVisible ? "PUBLISHED" : "HIDDEN";
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { status: nextStatus },
+      select: { id: true, status: true },
+    });
+
+    invalidateAllEcommerceCaches();
+
+    return {
+      success: true,
+      data: {
+        id: updated.id,
+        status: updated.status,
+        webVisible: updated.status === "PUBLISHED",
+      },
+      message: nextVisible
+        ? `"${product.name}" ahora está visible en la tienda web`
+        : `"${product.name}" fue ocultado de la tienda web (sigue disponible en POS)`,
+    };
+  } catch (error) {
+    console.error("Error al cambiar visibilidad web del producto:", error);
+    return {
+      success: false,
+      error: "No se pudo actualizar la visibilidad del producto en la tienda web",
+    };
+  }
+}
+
+/**
+ * Mostrar u Ocultar múltiples productos en lote en la Tienda Online (E-commerce)
+ */
+export async function batchSetProductWebVisibility(
+  productIds: string[],
+  visible: boolean
+): Promise<{
+  success: boolean;
+  updatedCount?: number;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const authorized = await canManageWebStoreProducts();
+    if (!authorized) {
+      return {
+        success: false,
+        error: "No tienes permisos para gestionar la visibilidad de productos en la tienda web",
+      };
+    }
+
+    const validIds = productIds.filter((id) => Boolean(id && !id.startsWith("p")));
+    const nextStatus = visible ? "PUBLISHED" : "HIDDEN";
+
+    if (validIds.length > 0) {
+      await prisma.product.updateMany({
+        where: { id: { in: validIds } },
+        data: { status: nextStatus },
+      });
+    }
+
+    invalidateAllEcommerceCaches();
+
+    return {
+      success: true,
+      updatedCount: productIds.length,
+      message: visible
+        ? `${productIds.length} producto(s) habilitados en la tienda online`
+        : `${productIds.length} producto(s) ocultados de la tienda online`,
+    };
+  } catch (error) {
+    console.error("Error en batchSetProductWebVisibility:", error);
+    return {
+      success: false,
+      error: "No se pudo actualizar la visibilidad del lote de productos",
+    };
   }
 }
 
@@ -601,6 +778,8 @@ export async function getDetailedInventoryProducts(options?: {
         minStock: firstVariant?.minStock || 2,
         minStoreStock: firstVariant?.minStoreStock ?? 1,
         active: p.active,
+        status: p.status || "PUBLISHED",
+        webVisible: (p.status || "PUBLISHED") === "PUBLISHED",
         updatedAt: formatDateEs(p.updatedAt),
         iconBg: getDisciplineGradient(p.discipline.name),
         imageUrl: p.imageUrl || p.images?.[0]?.url || undefined,

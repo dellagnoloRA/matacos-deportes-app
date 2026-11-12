@@ -138,7 +138,9 @@ export function WebOrdersView() {
         ? "Retiro Salón"
         : method === "CADETERIA_FORMOSA"
         ? "Cadetería"
-        : "Correo Arg";
+        : method === "CORREO_ARGENTINO_SUCURSAL"
+        ? "Correo Sucursal"
+        : "Correo Domicilio";
 
     let color = "bg-slate-100 text-slate-700 border-slate-200";
     if (status === "EN_PREPARACION") color = "bg-blue-50 text-blue-700 border-blue-200";
@@ -350,7 +352,9 @@ export function WebOrdersView() {
               <option value="TODOS">Todas las modalidades de envío</option>
               <option value="RETIRO_LOCAL">Retiro en Salón (Saavedra 241)</option>
               <option value="CADETERIA_FORMOSA">Cadetería Express (Formosa)</option>
-              <option value="CORREO_ARGENTINO">Correo Argentino</option>
+              <option value="CORREO_ARGENTINO">Correo Argentino (Todas)</option>
+              <option value="CORREO_ARGENTINO_DOMICILIO">Correo Argentino (Domicilio)</option>
+              <option value="CORREO_ARGENTINO_SUCURSAL">Correo Argentino (Sucursal)</option>
             </select>
           </div>
         </div>
@@ -437,6 +441,11 @@ export function WebOrdersView() {
                         {/* Modalidad & Estado */}
                         <td className="py-3.5 px-4">
                           {getShippingBadge(order.shippingMethod, order.shippingStatus)}
+                          {order.shippingBranchName && (
+                            <div className="text-[10px] text-blue-700 font-medium truncate max-w-[180px] mt-0.5" title={order.shippingBranchName}>
+                              Sucursal: {order.shippingBranchName}
+                            </div>
+                          )}
                           {order.shippingTrackingCode && (
                             <div className="mt-1">
                               <a

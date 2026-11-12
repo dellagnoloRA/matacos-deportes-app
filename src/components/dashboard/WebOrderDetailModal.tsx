@@ -17,10 +17,15 @@ import {
   Clock,
   Send,
   Loader2,
+  Store,
+  Ban,
+  AlertTriangle,
 } from "lucide-react";
 import {
   WebOrderDTO,
   updateWebOrderShippingStatusAction,
+  generateShippingLabelAction,
+  cancelWebOrderAction,
 } from "@/server/actions/ecommerce/webOrdersActions";
 import { CORREO_ARGENTINO_TRACKING_URL } from "@/lib/emailService";
 
@@ -48,6 +53,10 @@ export function WebOrderDetailModal({
   const [notes, setNotes] = useState("");
   const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
     null
   );
@@ -95,6 +104,80 @@ export function WebOrderDetailModal({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateLabel = async () => {
+    setIsGeneratingLabel(true);
+    setFeedback(null);
+    try {
+      const res = await generateShippingLabelAction({
+        orderId: order.id,
+        operatorName: "Operador Mostrador Saavedra 241",
+      });
+      if (res.success && res.data) {
+        onOrderUpdated(res.data);
+        setTrackingCode(res.trackingNumber || res.data.shippingTrackingCode || "");
+        setShippingStatus("EN_CAMINO");
+        setFeedback({
+          type: "success",
+          message: `Guía generada exitosamente (${res.trackingNumber}). Pedido en camino e imposición registrada en Correo Argentino.`,
+        });
+        setTimeout(() => setFeedback(null), 5000);
+      } else {
+        setFeedback({
+          type: "error",
+          message: res.error || "No se pudo generar la guía de Correo Argentino.",
+        });
+      }
+    } catch {
+      setFeedback({
+        type: "error",
+        message: "Error de conexión al generar la guía postal.",
+      });
+    } finally {
+      setIsGeneratingLabel(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!cancelReason.trim()) {
+      setFeedback({
+        type: "error",
+        message: "Por favor indicá un motivo para la anulación del pedido.",
+      });
+      return;
+    }
+    setIsCancelling(true);
+    setFeedback(null);
+    try {
+      const res = await cancelWebOrderAction({
+        orderId: order.id,
+        reason: cancelReason.trim(),
+        operatorName: "Operador Mostrador Saavedra 241",
+      });
+      if (res.success && res.data) {
+        onOrderUpdated(res.data);
+        setShippingStatus("CANCELADO");
+        setIsCancelDialogOpen(false);
+        setFeedback({
+          type: "success",
+          message: "Pedido anulado con éxito. Las existencias físicas han sido devueltas al inventario (movimiento ANULACION_VENTA).",
+        });
+        setTimeout(() => setFeedback(null), 6000);
+      } else {
+        setFeedback({
+          type: "error",
+          message: res.error || "No se pudo anular la orden.",
+        });
+      }
+    } catch {
+      setFeedback({
+        type: "error",
+        message: "Ocurrió un error al procesar la anulación de la orden.",
+      });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -225,11 +308,13 @@ export function WebOrderDetailModal({
                     ? "Retiro en Saavedra 241"
                     : order.shippingMethod === "CADETERIA_FORMOSA"
                     ? "Cadetería Formosa"
-                    : "Correo Argentino"}
+                    : order.shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+                    ? "Correo Arg (Sucursal)"
+                    : "Correo Arg (Domicilio)"}
                 </span>
               </div>
 
-              <div className="space-y-1.5 text-xs">
+              <div className="space-y-2 text-xs">
                 <div className="flex items-start gap-1.5 text-slate-800">
                   <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                   <span>
@@ -238,6 +323,22 @@ export function WebOrderDetailModal({
                     {order.shippingPostalCode && ` (CP ${order.shippingPostalCode})`}
                   </span>
                 </div>
+
+                {order.shippingBranchName && (
+                  <div className="flex items-start gap-2 text-xs text-blue-900 bg-blue-50/80 p-2.5 rounded-xl border border-blue-200">
+                    <Store className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Sucursal de Retiro Seleccionada:</span>
+                      <span className="text-slate-800">{order.shippingBranchName}</span>
+                      {order.shippingBranchCode && (
+                        <span className="text-[11px] text-blue-700 font-mono block mt-0.5">
+                          Código sucursal: {order.shippingBranchCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {order.shippingTrackingCode && (
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                     <span className="text-slate-500">Código Guía:</span>
@@ -344,6 +445,79 @@ export function WebOrderDetailModal({
             </div>
           </div>
 
+          {/* Operaciones de Correo Argentino y Rótulo Postal (BE-RF25) */}
+          {(order.shippingMethod.startsWith("CORREO_ARGENTINO") || order.shippingTrackingCode) && (
+            <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/40 p-5 rounded-2xl border border-indigo-200/80 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950">
+                      Despacho e Imposición Correo Argentino (RF-25)
+                    </h4>
+                    <p className="text-[11px] text-indigo-700">
+                      Generación de guía postal e impresión de rótulo para embalaje
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    disabled={isGeneratingLabel || order.status === "CANCELADA"}
+                    onClick={handleGenerateLabel}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50"
+                  >
+                    {isGeneratingLabel ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Package className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {order.shippingTrackingCode ? "Regenerar Guía" : "Generar Guía Correo Argentino"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/api/shipping/labels/${order.id}`, "_blank")}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-300 text-xs font-bold shadow-2xs transition-all"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Imprimir Rótulo Postal</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/80">
+                  <span className="text-slate-500 block text-[11px]">Modalidad</span>
+                  <span className="font-bold text-slate-900">
+                    {order.shippingMethod === "CORREO_ARGENTINO_SUCURSAL"
+                      ? "Retiro en Sucursal Oficial"
+                      : "Entrega a Domicilio"}
+                  </span>
+                </div>
+
+                <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/80">
+                  <span className="text-slate-500 block text-[11px]">Código Guía / Tracking</span>
+                  <span className="font-mono font-bold text-indigo-700 text-sm">
+                    {order.shippingTrackingCode || "Pendiente de imposición"}
+                  </span>
+                </div>
+
+                <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/80">
+                  <span className="text-slate-500 block text-[11px]">Destino Declarado</span>
+                  <span className="font-medium text-slate-800 truncate block" title={order.shippingBranchName || order.shippingAddress || ""}>
+                    {order.shippingBranchName || `${order.shippingAddress || ""}, ${order.shippingCity || ""} (CP ${order.shippingPostalCode || ""})`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Status Mutation & Logistics Form */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
@@ -424,6 +598,73 @@ export function WebOrderDetailModal({
               </div>
             </div>
           </div>
+
+          {/* Anulación de Pedido Web (BE-RF25 Subtarea 5) */}
+          {order.shippingStatus !== "CANCELADO" && order.status !== "CANCELADA" && (
+            <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="text-xs font-bold text-rose-900">
+                    Zona de Control: Anulación y Devolución de Stock
+                  </span>
+                </div>
+                {!isCancelDialogOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCancelDialogOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-300 hover:bg-rose-100/60 text-rose-700 text-xs font-bold transition-colors"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>Anular Pedido...</span>
+                  </button>
+                )}
+              </div>
+
+              {isCancelDialogOpen && (
+                <div className="pt-2 border-t border-rose-200 space-y-3">
+                  <p className="text-xs text-rose-700">
+                    Al anular este pedido, el sistema reintegrará automáticamente las existencias físicas al stock del salón (asentando un movimiento inmutable <code>ANULACION_VENTA</code>) o liberará las unidades reservadas.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-bold text-rose-900 mb-1">
+                      Motivo de la anulación *
+                    </label>
+                    <input
+                      type="text"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Ej: Solicitado por el cliente / Falta de pago / Cambio de talle no disponible..."
+                      className="w-full px-3 py-2 rounded-xl border border-rose-300 text-xs focus:outline-hidden focus:ring-2 focus:ring-rose-500 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isCancelling}
+                      onClick={() => setIsCancelDialogOpen(false)}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                    >
+                      Descartar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCancelling}
+                      onClick={handleCancelOrder}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50"
+                    >
+                      {isCancelling ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Ban className="w-3.5 h-3.5" />
+                      )}
+                      <span>Confirmar Anulación y Devolver Stock</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

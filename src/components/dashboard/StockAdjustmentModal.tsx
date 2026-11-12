@@ -931,52 +931,52 @@ export function StockAdjustmentModal({
                   </span>
                   {variants.length <= 1 && (
                     <span className="text-[10px] text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">
-                      Talle Único (Solo Devolución)
+                      Talle Único
                     </span>
                   )}
                 </div>
 
-                {variants.length > 1 ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsExchangeMode(true)}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${
-                        isExchangeMode
-                          ? "bg-white border-amber-500 shadow-xs ring-2 ring-amber-500/20 text-slate-900 font-bold"
-                          : "bg-amber-100/40 border-amber-200/80 text-amber-800 hover:bg-white"
-                      }`}
-                    >
-                      <div className="text-xs flex items-center gap-1.5">
-                        <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Cambio de Talle</span>
-                      </div>
-                      <p className="text-[10px] font-normal text-slate-500 mt-0.5 leading-tight">
-                        Reingresa este talle y entrega otro del producto
-                      </p>
-                    </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsExchangeMode(true)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      isExchangeMode
+                        ? "bg-white border-amber-500 shadow-xs ring-2 ring-amber-500/20 text-slate-900 font-bold"
+                        : "bg-amber-100/40 border-amber-200/80 text-amber-800 hover:bg-white"
+                    }`}
+                  >
+                    <div className="text-xs flex items-center gap-1.5">
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Cambio de Talle</span>
+                    </div>
+                    <p className="text-[10px] font-normal text-slate-500 mt-0.5 leading-tight">
+                      Reingresa este talle y entrega otro del producto
+                    </p>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsExchangeMode(false)}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${
-                        !isExchangeMode
-                          ? "bg-white border-amber-500 shadow-xs ring-2 ring-amber-500/20 text-slate-900 font-bold"
-                          : "bg-amber-100/40 border-amber-200/80 text-amber-800 hover:bg-white"
-                      }`}
-                    >
-                      <div className="text-xs flex items-center gap-1.5">
-                        <RotateCcw className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Solo Devolución</span>
-                      </div>
-                      <p className="text-[10px] font-normal text-slate-500 mt-0.5 leading-tight">
-                        Reingresa a stock (sin entregar otro talle)
-                      </p>
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-amber-800 leading-snug">
-                    Este producto cuenta con una única variante de talle. Se registrará únicamente como reingreso al stock.
+                  <button
+                    type="button"
+                    onClick={() => setIsExchangeMode(false)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      !isExchangeMode
+                        ? "bg-white border-amber-500 shadow-xs ring-2 ring-amber-500/20 text-slate-900 font-bold"
+                        : "bg-amber-100/40 border-amber-200/80 text-amber-800 hover:bg-white"
+                    }`}
+                  >
+                    <div className="text-xs flex items-center gap-1.5">
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Solo Devolución</span>
+                    </div>
+                    <p className="text-[10px] font-normal text-slate-500 mt-0.5 leading-tight">
+                      Reingresa a stock (sin entregar otro talle)
+                    </p>
+                  </button>
+                </div>
+
+                {isExchangeMode && variants.length <= 1 && (
+                  <p className="text-[11px] text-amber-800 leading-snug bg-amber-100/50 p-2.5 rounded-xl border border-amber-200/80">
+                    Este producto cuenta con una única variante de talle registrada. Para realizar un cambio por otro producto de diferente artículo, utilizá la función de <strong>Preventa &gt; Devolución / Cambio</strong>.
                   </p>
                 )}
 

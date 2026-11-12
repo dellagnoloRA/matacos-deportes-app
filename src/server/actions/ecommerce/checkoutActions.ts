@@ -15,12 +15,42 @@ import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
 import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
 import { companyConfig } from "@/config/company";
+import { logLegalConsentHelper } from "./legalActions";
 import {
   ProcessWebOrderPaymentSchema,
   type ProcessWebOrderPaymentInput,
   type WebPaymentOption,
   type WebCardBrand,
 } from "@/schemas/ecommerce";
+import { mpClient, Payment, isMercadoPagoConfigured } from "@/lib/mercadopago";
+
+/**
+ * Mapeo de códigos de rechazo oficiales de Mercado Pago a mensajes amigables para el comprador
+ */
+function getMercadoPagoRejectionMessage(statusDetail?: string): string {
+  switch (statusDetail) {
+    case "cc_rejected_insufficient_amount":
+      return "Pago rechazado por fondos insuficientes en la tarjeta.";
+    case "cc_rejected_bad_filled_security_code":
+      return "El código de seguridad (CVV) ingresado es incorrecto.";
+    case "cc_rejected_bad_filled_date":
+      return "La fecha de vencimiento ingresada es incorrecta.";
+    case "cc_rejected_bad_filled_other":
+      return "Datos de la tarjeta incorrectos. Verificá los campos e intentá nuevamente.";
+    case "cc_rejected_call_for_authorize":
+      return "Debes comunicarte con la entidad emisora de tu tarjeta para autorizar la compra.";
+    case "cc_rejected_card_disabled":
+      return "La tarjeta no se encuentra habilitada para compras online. Contactá a tu banco.";
+    case "cc_rejected_duplicated_payment":
+      return "Ya registramos un pago con este importe recientemente. Verificá tus movimientos.";
+    case "cc_rejected_high_risk":
+      return "El pago no pudo ser procesado por políticas de prevención de fraude de la entidad bancaria.";
+    case "cc_rejected_max_attempts":
+      return "Superaste el límite de intentos permitidos con esta tarjeta.";
+    default:
+      return "Pago rechazado por la entidad bancaria emisora. Podés intentar con otra tarjeta o elegir otro medio de pago.";
+  }
+}
 
 /**
  * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
@@ -34,6 +64,8 @@ const DEFAULT_SHIPPING_COSTS: Record<ShippingMethod, number> = {
   RETIRO_LOCAL: 0,
   CADETERIA_FORMOSA: 2500,
   CORREO_ARGENTINO: 7500,
+  CORREO_ARGENTINO_DOMICILIO: 7500,
+  CORREO_ARGENTINO_SUCURSAL: 5500,
 };
 
 export interface ValidatedCartItem {
@@ -392,6 +424,7 @@ export async function validateCartItems(
             name: true,
             price: true,
             active: true,
+            status: true,
             imageUrl: true,
             discountActive: true,
             discountPercentage: true,
@@ -417,7 +450,7 @@ export async function validateCartItems(
     for (const [variantId, reqInfo] of consolidatedMap.entries()) {
       const dbVariant = variantMap.get(variantId);
 
-      if (!dbVariant || !dbVariant.product.active) {
+      if (!dbVariant || !dbVariant.product.active || dbVariant.product.status !== "PUBLISHED") {
         hasStockIssues = true;
         detailedItems.push({
           variantId,
@@ -684,10 +717,14 @@ export async function createGuestOrder(
           ? validated.shippingCost
           : DEFAULT_SHIPPING_COSTS[shippingMethod];
 
-      const effectiveAddress =
-        shippingMethod === "RETIRO_LOCAL"
-          ? "Retiro en Sucursal — Saavedra 241, Formosa Capital"
-          : validated.shippingAddress!.trim();
+      let effectiveAddress = "Retiro en Salón — Saavedra 241, Formosa Capital";
+      if (shippingMethod === "CORREO_ARGENTINO_SUCURSAL") {
+        effectiveAddress = validated.shippingBranchName
+          ? `Sucursal Correo Argentino: ${validated.shippingBranchName} (${validated.shippingBranchCode || ""})`
+          : "Sucursal Correo Argentino";
+      } else if (shippingMethod !== "RETIRO_LOCAL") {
+        effectiveAddress = (validated.shippingAddress || "").trim();
+      }
 
       const totalOrder = subtotalProducts + shippingCost;
 
@@ -711,6 +748,8 @@ export async function createGuestOrder(
           shippingAddress: effectiveAddress,
           shippingCity: validated.shippingCity,
           shippingPostalCode: validated.shippingPostalCode,
+          shippingBranchCode: validated.shippingBranchCode ?? null,
+          shippingBranchName: validated.shippingBranchName ?? null,
           subtotalGross: new Prisma.Decimal(subtotalGrossTotal),
           discount: new Prisma.Decimal(totalOrderDiscount),
           total: new Prisma.Decimal(totalOrder),
@@ -792,6 +831,18 @@ export async function createGuestOrder(
       };
 
       return response;
+    });
+
+    // Registrar consentimiento legal inmutable (Ley 25.326 y CCCN)
+    await logLegalConsentHelper({
+      formType: "GUEST_CHECKOUT",
+      email: validated.customerEmail,
+      name: validated.customerName,
+      dni: validated.customerDni,
+      customerId: validated.customerId ?? null,
+      saleId: orderResult.saleId,
+      acceptedTerms: validated.acceptedTerms,
+      acceptedPrivacy: validated.acceptedPrivacy,
     });
 
     // Revalidar caché de catálogo y PDP para reflejar inmediatamente el descuento de disponibilidad (Mitigación R-01)
@@ -1297,27 +1348,102 @@ export async function processWebOrderPayment(
       validated.paymentOption === "TARJETA_CREDITO" ||
       validated.paymentOption === "TARJETA_DEBITO"
     ) {
-      const shouldDecline =
-        validated.simulateDecline ||
-        validated.cardLast4 === "0000" ||
-        (validated.cardHolderName?.toUpperCase().includes("RECHAZ") ?? false);
-
-      if (shouldDecline) {
-        return {
-          success: false,
-          code: "PAYMENT_DECLINED",
-          error:
-            "Pago rechazado por la entidad emisora de la tarjeta (código de prueba: autorización denegada). Tu stock continúa reservado: podés intentar con otra tarjeta o elegir otro medio de pago.",
-        };
-      }
-
-      const variantIds = existingSale.items.map((i) => i.variantId);
-      const cardBrand = validated.cardBrand!;
-      const cardLast4 = validated.cardLast4!;
+      let voucherCode = `AUT-${Math.floor(100000 + Math.random() * 900000)}`;
+      let cardBrand: WebCardBrand = validated.cardBrand ?? "VISA";
+      let cardLast4 = validated.cardLast4 ?? "0000";
       const installments =
         validated.paymentOption === "TARJETA_DEBITO"
           ? 1
           : validated.installments;
+
+      // 1. MODO REAL: Si se recibió cardToken desde el navegador y Mercado Pago está configurado
+      if (validated.cardToken && isMercadoPagoConfigured()) {
+        try {
+          const paymentApi = new Payment(mpClient);
+          const mpResponse = await paymentApi.create({
+            body: {
+              transaction_amount: totalAmount,
+              token: validated.cardToken,
+              description: `Matacos Deportes - Pedido ${normalizedOrderCode}`,
+              installments,
+              payment_method_id:
+                validated.paymentMethodId ||
+                (validated.cardBrand ? validated.cardBrand.toLowerCase() : "visa"),
+              issuer_id: validated.issuerId ? Number(validated.issuerId) : undefined,
+              payer: {
+                email: existingSale.customerEmail || "comprador@matacos.com.ar",
+                identification: existingSale.customerDni
+                  ? {
+                      type: "DNI",
+                      number: existingSale.customerDni.replace(/\D/g, ""),
+                    }
+                  : undefined,
+              },
+              external_reference: normalizedOrderCode,
+            },
+          });
+
+          if (mpResponse.status === "rejected") {
+            const detailMsg = getMercadoPagoRejectionMessage(mpResponse.status_detail);
+            return {
+              success: false,
+              code: "PAYMENT_DECLINED",
+              error: `${detailMsg} Tu stock continúa reservado para que intentes con otra tarjeta o medio de pago.`,
+            };
+          }
+
+          if (mpResponse.status !== "approved" && mpResponse.status !== "in_process") {
+            return {
+              success: false,
+              code: "PAYMENT_DECLINED",
+              error: `El pago no pudo ser aprobado (Estado: ${mpResponse.status}). Tu stock continúa reservado.`,
+            };
+          }
+
+          if (mpResponse.authorization_code) {
+            voucherCode = `AUT-${mpResponse.authorization_code}`;
+          } else if (mpResponse.id) {
+            voucherCode = `MP-${mpResponse.id}`;
+          }
+
+          if (mpResponse.card?.last_four_digits) {
+            cardLast4 = mpResponse.card.last_four_digits;
+          }
+
+          if (mpResponse.payment_method_id) {
+            const pmId = mpResponse.payment_method_id.toUpperCase();
+            if (pmId.includes("VISA")) cardBrand = "VISA";
+            else if (pmId.includes("MASTER")) cardBrand = "MASTERCARD";
+            else if (pmId.includes("NARANJA")) cardBrand = "NARANJA_X";
+            else if (pmId.includes("CABAL")) cardBrand = "CABAL";
+          }
+        } catch (mpErr: any) {
+          console.error("Error al procesar tarjeta con Mercado Pago Payments API:", mpErr);
+          const rawMsg = mpErr?.message || "";
+          return {
+            success: false,
+            code: "PAYMENT_DECLINED",
+            error: `No pudimos procesar el cobro con la pasarela (${rawMsg || "Error de autorización"}). Tu stock continúa reservado.`,
+          };
+        }
+      } else {
+        // 2. MODO DESARROLLO / PRUEBAS RÁPIDAS (SIMULACIÓN SEGURA)
+        const shouldDecline =
+          validated.simulateDecline ||
+          validated.cardLast4 === "0000" ||
+          (validated.cardHolderName?.toUpperCase().includes("RECHAZ") ?? false);
+
+        if (shouldDecline) {
+          return {
+            success: false,
+            code: "PAYMENT_DECLINED",
+            error:
+              "Pago rechazado por la entidad emisora de la tarjeta (código de prueba: autorización denegada). Tu stock continúa reservado: podés intentar con otra tarjeta o elegir otro medio de pago.",
+          };
+        }
+      }
+
+      const variantIds = existingSale.items.map((i) => i.variantId);
 
       const approvedResult = await prisma.$transaction(async (tx) => {
         // Re-verificar orden dentro de la transacción
@@ -1421,7 +1547,6 @@ export async function processWebOrderPayment(
           });
         }
 
-        const voucherCode = `AUT-${Math.floor(100000 + Math.random() * 900000)}`;
         const referenceCode = `WEB-${Date.now().toString().slice(-6)}`;
         const prismaMethod =
           validated.paymentOption === "TARJETA_CREDITO" ? "CREDITO" : "DEBITO";
