@@ -336,6 +336,8 @@ model Sale {
   reconciledAt            DateTime?
   reconciledBy            String?
 
+  revocationRequests      RevocationRequest[]
+
   syncedAt      DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
@@ -491,4 +493,49 @@ model StoreSetting {
   instagramHandle    String   @default("@matacosdeportes")
   cadeteriaCost      Decimal  @default(2500) @db.Decimal(12, 2)
   updatedAt          DateTime @default(now()) @updatedAt
+}
+
+// =========================================================================
+// REGISTRO INMUTABLE DE CONSENTIMIENTO LEGAL Y ARREPENTIMIENTO (LEYES 25.326 / 24.240)
+// =========================================================================
+
+model LegalConsentLog {
+  id              String   @id @default(uuid())
+  formType        String   // "GUEST_CHECKOUT", "CUSTOMER_REGISTER", "REVOCATION_REQUEST", "TRANSFER_PROOF"
+  acceptedTerms   Boolean  @default(true)
+  termsVersion    String   // "v1.0"
+  acceptedPrivacy Boolean  @default(true)
+  privacyVersion  String   // "v1.0"
+  email           String
+  dni             String?
+  name            String?
+  customerId      String?
+  saleId          String?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+  @@index([formType])
+}
+
+model RevocationRequest {
+  id              String    @id @default(uuid())
+  code            String    @unique // Formato "REV-XXXXXX"
+  saleId          String?
+  sale            Sale?     @relation(fields: [saleId], references: [id])
+  orderCode       String
+  customerEmail   String
+  customerPhone   String?
+  reason          String?
+  status          String    @default("PENDIENTE_REVISION") // PENDIENTE_REVISION, RECEPCIONADA, APROBADA_REEMBOLSADA, RECHAZADA_DETERIORO, ABANDONADA
+  rejectionReason String?
+  rejectionProof  String?   // URL o notas con fotos de constatación técnica
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([orderCode])
+  @@index([customerEmail])
 }

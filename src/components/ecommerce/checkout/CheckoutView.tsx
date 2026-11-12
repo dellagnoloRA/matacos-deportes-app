@@ -61,6 +61,7 @@ import type {
   WebCardBrand,
 } from "@/schemas/ecommerce";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCartStore } from "@/store/cartStore";
 import { useCustomerStore } from "@/store/customerStore";
 
@@ -245,6 +246,8 @@ export function CheckoutView({
   const [shippingOptions, setShippingOptions] = useState(SHIPPING_OPTIONS);
   const [isQuotingShipping, setIsQuotingShipping] = useState(false);
   const [notes, setNotes] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   const customerName = `${customerFirstName.trim()} ${customerLastName.trim()}`.trim();
   const shippingAddress = `${shippingStreet.trim()} ${shippingNumber.trim()}${
@@ -672,6 +675,13 @@ export function CheckoutView({
       return;
     }
 
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setFormError(
+        "Debés aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar con la compra."
+      );
+      return;
+    }
+
     startReservationTransition(async () => {
       const res = await createGuestOrder({
         customerName: customerName.trim(),
@@ -704,6 +714,8 @@ export function CheckoutView({
         shippingCost,
         customerId: activeCustomer?.id ?? null,
         notes: notes.trim() || null,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
         items: items.map((i) => ({
           variantId: i.variantId,
           quantity: i.quantity,
@@ -3317,28 +3329,43 @@ export function CheckoutView({
               )}
 
               {wizardStep === 3 && (
-                <button
-                  type="button"
-                  onClick={() => handleReserveAndGoToPayment()}
-                  disabled={
-                    isSubmittingReservation ||
-                    isValidating ||
-                    Boolean(validation?.hasStockIssues)
-                  }
-                  className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isSubmittingReservation ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Reservando stock por 15 min...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>CONTINUAR AL PAGO Y RESERVAR STOCK</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                <>
+                  {/* Consentimiento Legal Obligatorio (Ley 25.326 y CCCN) */}
+                  <div className="pt-2 pb-1 border-t border-slate-100">
+                    <LegalConsentCheckboxGroup
+                      acceptedTerms={acceptedTerms}
+                      acceptedPrivacy={acceptedPrivacy}
+                      onTermsChange={setAcceptedTerms}
+                      onPrivacyChange={setAcceptedPrivacy}
+                      disabled={isSubmittingReservation}
+                      termsId="checkout-terms"
+                      privacyId="checkout-privacy"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleReserveAndGoToPayment()}
+                    disabled={
+                      isSubmittingReservation ||
+                      isValidating ||
+                      Boolean(validation?.hasStockIssues)
+                    }
+                    className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingReservation ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Reservando stock por 15 min...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>CONTINUAR AL PAGO Y RESERVAR STOCK</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </>
               )}
 
               <p className="text-[11px] text-center text-slate-400 leading-relaxed">

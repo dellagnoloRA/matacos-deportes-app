@@ -26,7 +26,8 @@
     "test:rf26": "tsx scripts/test-rf26-banners.ts",
     "test:rf27": "tsx scripts/test-rf27-promotional-discounts.ts",
     "test:rf28": "tsx scripts/test-rf28-landing-page.ts",
-    "test:rf29": "tsx scripts/test-rf29-customer-portal.ts"
+    "test:rf29": "tsx scripts/test-rf29-customer-portal.ts",
+    "test:legal": "tsx scripts/test-legal-compliance.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -28,6 +28,7 @@ import {
   CORREO_ARGENTINO_TRACKING_URL,
 } from "@/lib/emailService";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
+import { logLegalConsentHelper } from "./legalActions";
 import { formatCurrency } from "@/lib/utils";
 
 export interface CustomerProfileDTO {
@@ -256,6 +257,17 @@ export async function registerCustomerAction(
     });
 
     await setCustomerSessionCookie(token);
+
+    // Registrar consentimiento legal inmutable (Ley 25.326 y CCCN)
+    await logLegalConsentHelper({
+      formType: "CUSTOMER_REGISTER",
+      email: data.email,
+      name: data.name,
+      dni: data.dni,
+      customerId: txResult.customer.id,
+      acceptedTerms: data.acceptedTerms,
+      acceptedPrivacy: data.acceptedPrivacy,
+    });
 
     return {
       success: true,
