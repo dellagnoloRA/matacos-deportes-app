@@ -34,7 +34,7 @@ export function CatalogFilterSidebar({
     categories: Boolean(activeFilters.categorySlug),
     brands: Boolean(activeFilters.brandSlug),
     gender: Boolean(activeFilters.gender),
-    sizes: Boolean(activeFilters.size),
+    sizes: true,
     price: true,
   });
 
@@ -55,6 +55,15 @@ export function CatalogFilterSidebar({
       activeFilters.minPrice ||
       activeFilters.maxPrice ||
       activeFilters.search
+  );
+
+  // El filtro de talles solo aparece dinámicamente cuando hay contexto (disciplina, categoría, marca, búsqueda o talle activo)
+  const hasContextForSizes = Boolean(
+    activeFilters.disciplineSlug ||
+      activeFilters.categorySlug ||
+      activeFilters.brandSlug ||
+      activeFilters.search ||
+      activeFilters.size
   );
 
   return (
@@ -299,7 +308,53 @@ export function CatalogFilterSidebar({
         </div>
       )}
 
-      {/* 5. Acordeón: RANGO DE PRECIO (Abierto por defecto con MÍNIMO, MÁXIMO y 3 botones rápidos) */}
+      {/* 5. Acordeón: TALLES (Dinámico según disciplina, categoría, marca o búsqueda) */}
+      {hasContextForSizes && facets.sizes.length > 0 && (
+        <div className="pb-3 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => toggleSection("sizes")}
+            className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+          >
+            <span>TALLES</span>
+            {openSections.sizes ? (
+              <ChevronUp className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            )}
+          </button>
+
+          {openSections.sizes && (
+            <div className="pt-2.5 flex flex-wrap gap-1.5">
+              {facets.sizes.map((s) => {
+                const isSelected = activeFilters.size === s.size;
+                return (
+                  <button
+                    key={s.size}
+                    type="button"
+                    onClick={() =>
+                      onFilterChange({
+                        size: isSelected ? undefined : s.size,
+                        page: 1,
+                      })
+                    }
+                    className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-[#0B132B] text-white border-[#0B132B] font-bold shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                    }`}
+                    title={`${s.size} (${s.count} artículos)`}
+                  >
+                    {s.size}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 6. Acordeón: RANGO DE PRECIO (Abierto por defecto con MÍNIMO, MÁXIMO y 3 botones rápidos) */}
       <div className="pb-1">
         <button
           type="button"
