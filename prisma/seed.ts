@@ -575,7 +575,76 @@ async function main() {
     },
   });
 
-  console.log("¡Esquema de seguridad, perfiles, cliente demo y permisos RF-23 sembrado con éxito!");
+  // Planes de Cuotas por defecto de Matacos Deportes
+  const existingPlansCount = await prisma.installmentPlan.count();
+  if (existingPlansCount === 0) {
+    await prisma.installmentPlan.createMany({
+      data: [
+        {
+          name: "1 pago sin interés",
+          description: "Tarjetas de crédito bancarizadas Visa, Mastercard y Cabal sin monto mínimo",
+          cardGroup: "BANCARIZADAS",
+          cardBrands: ["VISA", "MASTERCARD", "CABAL"],
+          installments: 1,
+          interestRate: 0,
+          minAmount: 0,
+          isPlanZ: false,
+          active: true,
+          order: 0,
+        },
+        {
+          name: "3 cuotas sin interés",
+          description: "Con todas las tarjetas bancarizadas (Visa, Mastercard y Cabal) a partir de $ 30.000,00",
+          cardGroup: "BANCARIZADAS",
+          cardBrands: ["VISA", "MASTERCARD", "CABAL"],
+          installments: 3,
+          interestRate: 0,
+          minAmount: 30000,
+          isPlanZ: false,
+          active: true,
+          order: 1,
+        },
+        {
+          name: "1 pago sin interés",
+          description: "Abonando en 1 cuota con Tarjeta Naranja X sin monto mínimo",
+          cardGroup: "NARANJA_X",
+          cardBrands: ["NARANJA_X"],
+          installments: 1,
+          interestRate: 0,
+          minAmount: 0,
+          isPlanZ: false,
+          active: true,
+          order: 2,
+        },
+        {
+          name: "Plan Z (3 cuotas cero interés)",
+          description: "Financiación exclusiva Plan Z de Tarjeta Naranja X en hasta 3 cuotas cero interés",
+          cardGroup: "NARANJA_X",
+          cardBrands: ["NARANJA_X"],
+          installments: 3,
+          interestRate: 0,
+          minAmount: 0,
+          isPlanZ: true,
+          active: true,
+          order: 3,
+        },
+        {
+          name: "4 cuotas sin interés",
+          description: "Promoción exclusiva con Tarjeta Naranja X para compras a partir de $ 80.000,00",
+          cardGroup: "NARANJA_X",
+          cardBrands: ["NARANJA_X"],
+          installments: 4,
+          interestRate: 0,
+          minAmount: 80000,
+          isPlanZ: false,
+          active: true,
+          order: 4,
+        },
+      ],
+    });
+  }
+
+  console.log("¡Esquema de seguridad, perfiles, cliente demo, planes de cuotas y permisos RF-23 sembrado con éxito!");
 }
 
 main()

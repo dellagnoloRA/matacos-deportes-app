@@ -305,7 +305,8 @@ export const ProcessWebOrderPaymentSchema = z
     cardToken: z.string().trim().optional(),
     paymentMethodId: z.string().trim().optional(),
     issuerId: z.string().trim().optional(),
-    installments: z.coerce.number().int().min(1).max(12).default(1),
+    installments: z.coerce.number().int().min(1).max(24).default(1),
+    installmentPlanId: z.string().trim().optional(),
     simulateDecline: z.boolean().optional().default(false),
     transferReference: z.string().trim().max(80).optional().nullable(),
   })
@@ -345,11 +346,11 @@ export const ProcessWebOrderPaymentSchema = z
       }
       if (
         data.paymentOption === "TARJETA_CREDITO" &&
-        ![1, 3, 6].includes(data.installments)
+        (data.installments < 1 || data.installments > 24)
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Las cuotas habilitadas son 1, 3 o 6 cuotas",
+          message: "La cantidad de cuotas debe estar entre 1 y 24",
           path: ["installments"],
         });
       }

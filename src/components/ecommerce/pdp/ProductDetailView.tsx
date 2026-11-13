@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
@@ -8,6 +8,12 @@ import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { SizeGuideModal } from "./SizeGuideModal";
 import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
+import { getActiveInstallmentPlans } from "@/server/actions/installmentActions";
+import type { SerializedInstallmentPlan } from "@/server/services/installmentService";
+import {
+  calculateInstallmentPlanAmounts,
+  DEFAULT_MATACOS_INSTALLMENT_PLANS,
+} from "@/schemas/installment";
 import type {
   PublicProductDetail,
   PublicProductItem,
@@ -314,9 +320,81 @@ export function ProductDetailView({
       : product.discountPercentage || null;
 
   const netPrice = Math.round(effectivePrice / 1.21); // Precio sin IVA/Impuestos nacionales (21%)
-  const cuota2 = Math.round(effectivePrice / 2);
-  const cuota3 = Math.round(effectivePrice / 3);
-  const cuota6 = Math.round(effectivePrice / 6);
+
+  // Planes de cuotas dinámicos configurados desde Administración
+  const [installmentPlans, setInstallmentPlans] = useState<SerializedInstallmentPlan[]>(() =>
+    DEFAULT_MATACOS_INSTALLMENT_PLANS.map((p, idx) => ({
+      id: `default-pdp-${idx}`,
+      ...p,
+      startDate: null,
+      endDate: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isCurrentlyVisible: true,
+      validityStatus: "VIGENTE" as const,
+    }))
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    getActiveInstallmentPlans()
+      .then((res) => {
+        if (mounted && res.success && res.data && res.data.length > 0) {
+          setInstallmentPlans(res.data);
+        }
+      })
+      .catch(() => {
+        // Mantiene fallback local
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Resumen destacado de cuotas para la píldora verde del producto
+  const featuredInstallmentBadge = useMemo(() => {
+    const activePlans = installmentPlans.filter((p) => p.active && p.installments > 1);
+    const eligibleZeroInterest = activePlans
+      .filter((p) => p.interestRate === 0 && effectivePrice >= p.minAmount)
+      .sort((a, b) => {
+        // Priorizar planes bancarizados generales o mayor cantidad de cuotas
+        if (b.installments !== a.installments) return b.installments - a.installments;
+        return a.order - b.order;
+      });
+
+    if (eligibleZeroInterest.length > 0) {
+      const bancarizadaEligible = eligibleZeroInterest.find(
+        (p) => p.cardGroup === "BANCARIZADAS" || p.cardGroup === "TODAS"
+      );
+      const naranjaMax = eligibleZeroInterest.find((p) => p.cardGroup === "NARANJA_X");
+
+      if (bancarizadaEligible && naranjaMax && naranjaMax.installments > bancarizadaEligible.installments) {
+        const calcBanc = calculateInstallmentPlanAmounts(
+          effectivePrice,
+          bancarizadaEligible
+        );
+        return `${bancarizadaEligible.installments} cuotas de ${formatCurrency(calcBanc.installmentAmount)} sin interés (o ${naranjaMax.installments} en Naranja X)`;
+      }
+
+      const best = bancarizadaEligible || eligibleZeroInterest[0];
+      const calc = calculateInstallmentPlanAmounts(effectivePrice, best);
+      if (best.isPlanZ) {
+        return `Plan Z: ${best.installments} cuotas de ${formatCurrency(calc.installmentAmount)} cero interés con Naranja X`;
+      }
+      return `${best.installments} cuotas de ${formatCurrency(calc.installmentAmount)} sin interés`;
+    }
+
+    // Si por el monto del producto aún no alcanza el mínimo de bancarizadas, informar umbral
+    const minBancarizadaPlan = activePlans
+      .filter((p) => p.interestRate === 0 && p.minAmount > 0)
+      .sort((a, b) => a.minAmount - b.minAmount)[0];
+
+    if (minBancarizadaPlan) {
+      return `${minBancarizadaPlan.installments} cuotas sin interés en compras desde ${formatCurrency(minBancarizadaPlan.minAmount)}`;
+    }
+
+    return `Cuotas sin interés con tarjetas seleccionadas`;
+  }, [installmentPlans, effectivePrice]);
 
   const availableStock = activeVariant ? activeVariant.availableStock : product.totalAvailableStock;
   const isAvailable = activeVariant ? activeVariant.inStock && availableStock > 0 : product.hasStock;
@@ -642,7 +720,7 @@ export function ProductDetailView({
             {/* 4. Pill verde de cuotas sin interés */}
             <div>
               <span className="inline-block bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-1 rounded">
-                6 cuotas de {formatCurrency(cuota6)} sin interés
+                {featuredInstallmentBadge}
               </span>
             </div>
 
@@ -1653,24 +1731,136 @@ export function ProductDetailView({
             </div>
 
             <div className="space-y-3 text-xs text-slate-700">
-              <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200 space-y-1">
-                <span className="font-bold text-[#ff6000] block text-sm">
-                  Plan Naranja X: 20% de Descuento
-                </span>
-                <p className="text-slate-600">
-                  Abonando en un solo pago con tarjeta Naranja X o dinero en cuenta disponible.
-                </p>
+              {/* Tarjeta Naranja X */}
+              <div className="p-3.5 rounded-xl bg-orange-50/90 border border-orange-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#ff6000] block text-sm">
+                    Tarjeta Naranja X
+                  </span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-[#ff6000] text-white">
+                    Naranja X
+                  </span>
+                </div>
+                <div className="space-y-1.5 pt-0.5">
+                  {installmentPlans
+                    .filter((p) => p.active && p.cardBrands.includes("NARANJA_X"))
+                    .sort((a, b) => a.installments - b.installments)
+                    .map((plan) => {
+                      const calc = calculateInstallmentPlanAmounts(
+                        effectivePrice,
+                        plan
+                      );
+                      const meetsMin = effectivePrice >= plan.minAmount;
+                      return (
+                        <div
+                          key={plan.id}
+                          className="flex items-center justify-between gap-2 bg-white/80 px-2.5 py-1.5 rounded-lg border border-orange-100"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-900">
+                              {plan.isPlanZ
+                                ? `Plan Z (${plan.installments} cuotas)`
+                                : plan.installments === 1
+                                ? "1 pago"
+                                : `${plan.installments} cuotas`}
+                            </span>{" "}
+                            <span className="text-slate-600">
+                              de {formatCurrency(calc.installmentAmount)}
+                            </span>
+                            {plan.minAmount > 0 && (
+                              <span
+                                className={`block text-[10px] font-semibold ${
+                                  meetsMin ? "text-emerald-700" : "text-amber-700"
+                                }`}
+                              >
+                                A partir de {formatCurrency(plan.minAmount)}
+                                {!meetsMin && " (sumando al carrito)"}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                              plan.interestRate === 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {plan.interestRate === 0
+                              ? "Sin interés"
+                              : `+${plan.interestRate}%`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1">
-                <span className="font-bold text-[#16a34a] block text-sm">
-                  Cuotas sin interés en Matacos Deportes
-                </span>
-                <p className="text-slate-600">• 2 cuotas sin interés de {formatCurrency(cuota2)}</p>
-                <p className="text-slate-600">• 3 cuotas sin interés de {formatCurrency(cuota3)}</p>
-                <p className="text-slate-600">
-                  • 6 cuotas sin interés de {formatCurrency(cuota6)} con tarjetas Visa, Mastercard, Cabal y Naranja X.
-                </p>
+              {/* Tarjetas Bancarizadas */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#16a34a] block text-sm">
+                    Tarjetas Bancarizadas
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                    Visa · Mastercard · Cabal
+                  </span>
+                </div>
+                <div className="space-y-1.5 pt-0.5">
+                  {installmentPlans
+                    .filter(
+                      (p) =>
+                        p.active &&
+                        (p.cardBrands.includes("VISA") ||
+                          p.cardBrands.includes("MASTERCARD") ||
+                          p.cardBrands.includes("CABAL"))
+                    )
+                    .sort((a, b) => a.installments - b.installments)
+                    .map((plan) => {
+                      const calc = calculateInstallmentPlanAmounts(
+                        effectivePrice,
+                        plan
+                      );
+                      const meetsMin = effectivePrice >= plan.minAmount;
+                      return (
+                        <div
+                          key={plan.id}
+                          className="flex items-center justify-between gap-2 bg-white/80 px-2.5 py-1.5 rounded-lg border border-emerald-100"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-900">
+                              {plan.installments === 1
+                                ? "1 pago"
+                                : `${plan.installments} cuotas`}
+                            </span>{" "}
+                            <span className="text-slate-600">
+                              de {formatCurrency(calc.installmentAmount)}
+                            </span>
+                            {plan.minAmount > 0 && (
+                              <span
+                                className={`block text-[10px] font-semibold ${
+                                  meetsMin ? "text-emerald-700" : "text-amber-700"
+                                }`}
+                              >
+                                A partir de {formatCurrency(plan.minAmount)}
+                                {!meetsMin && " (sumando al carrito)"}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                              plan.interestRate === 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {plan.interestRate === 0
+                              ? "Sin interés"
+                              : `+${plan.interestRate}%`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
@@ -1678,7 +1868,7 @@ export function ProductDetailView({
                   Efectivo y Transferencia Bancaria
                 </span>
                 <p className="text-slate-600">
-                  10% de descuento abonando por transferencia inmediata o en efectivo en mostrador (Saavedra 241, Formosa Capital).
+                  Atención personalizada por transferencia inmediata o en efectivo en nuestro mostrador (Saavedra 241, Formosa Capital).
                 </p>
               </div>
             </div>

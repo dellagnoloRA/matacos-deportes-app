@@ -67,6 +67,13 @@ import {
   getPosVariantStockSnapshot,
 } from "@/server/actions/posSaleActions";
 import { getCurrentCashShift } from "@/server/actions/cashShiftActions";
+import { getActiveInstallmentPlans } from "@/server/actions/installmentActions";
+import type { SerializedInstallmentPlan } from "@/server/services/installmentService";
+import {
+  calculateInstallmentPlanAmounts,
+  DEFAULT_MATACOS_INSTALLMENT_PLANS,
+  type CardBrandCode,
+} from "@/schemas/installment";
 import {
   OpenCashShiftModal,
   CashMovementModal,
@@ -303,6 +310,113 @@ export function PosView({
   const [splitPayment2CardBrand, setSplitPayment2CardBrand] = useState<string>("");
   const [splitPayment2CardVoucher, setSplitPayment2CardVoucher] = useState<string>("");
   const [splitPayment2Installments, setSplitPayment2Installments] = useState<number>(1);
+
+  // Planes de cuotas preconfigurados por Administración (con caché Offline en localStorage)
+  const [posInstallmentPlans, setPosInstallmentPlans] = useState<SerializedInstallmentPlan[]>(() =>
+    DEFAULT_MATACOS_INSTALLMENT_PLANS.map((p, idx) => ({
+      id: `pos-default-${idx}`,
+      ...p,
+      startDate: null,
+      endDate: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isCurrentlyVisible: true,
+      validityStatus: "VIGENTE" as const,
+    }))
+  );
+
+  useEffect(() => {
+    const STORAGE_KEY = "matacos_pos_installment_plans_v1";
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached) as SerializedInstallmentPlan[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPosInstallmentPlans(parsed);
+          }
+        }
+      } catch {
+        // Ignorar errores de parseo en localStorage
+      }
+    }
+
+    let mounted = true;
+    getActiveInstallmentPlans()
+      .then((res) => {
+        if (mounted && res.success && res.data && res.data.length > 0) {
+          setPosInstallmentPlans(res.data);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(res.data));
+            } catch {
+              // Ignorar
+            }
+          }
+        }
+      })
+      .catch(() => {
+        // En modo offline mantiene planes de caché o defaults
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Resolver planes aplicables según la marca seleccionada en POS y el monto a cobrar
+  const getPosInstallmentOptions = useCallback(
+    (posBrand: string, chargeAmount: number) => {
+      const normalized = (posBrand || "Visa").trim().toLowerCase();
+      const brandCode: CardBrandCode =
+        normalized === "naranja"
+          ? "NARANJA_X"
+          : normalized === "mastercard"
+          ? "MASTERCARD"
+          : normalized === "cabal"
+          ? "CABAL"
+          : "VISA";
+
+      const matching = posInstallmentPlans
+        .filter((p) => p.active && p.cardBrands.includes(brandCode))
+        .sort((a, b) => a.order - b.order || a.installments - b.installments);
+
+      // Deduplicar por número de cuotas priorizando menor interés
+      const byInstallments = new Map<number, SerializedInstallmentPlan>();
+      for (const plan of matching) {
+        const prev = byInstallments.get(plan.installments);
+        if (!prev || plan.interestRate < prev.interestRate) {
+          byInstallments.set(plan.installments, plan);
+        }
+      }
+
+      const list = Array.from(byInstallments.values()).sort(
+        (a, b) => a.installments - b.installments
+      );
+
+      return list.map((plan) => {
+        const isEligible = chargeAmount >= plan.minAmount;
+        const calc = calculateInstallmentPlanAmounts(chargeAmount, plan);
+        const label = plan.isPlanZ
+          ? "Plan Z (3 cuotas)"
+          : plan.installments === 1
+          ? "1 pago"
+          : `${plan.installments} cuotas`;
+
+        return {
+          plan,
+          installments: plan.installments,
+          label,
+          isEligible,
+          installmentAmount: calc.installmentAmount,
+          totalWithInterest: calc.totalFinanced,
+          interestRate: plan.interestRate,
+          minAmount: plan.minAmount,
+        };
+      });
+    },
+    [posInstallmentPlans]
+  );
 
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedSaleResult, setCompletedSaleResult] = useState<{
@@ -2818,25 +2932,73 @@ export function PosView({
                               </div>
                               {cashierPaymentMethod === "CREDITO" && (
                                 <div>
-                                  <label className="text-xs font-bold text-slate-700 block mb-2">Cuotas:</label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {(cashierCardBrand === "Naranja" 
-                                      ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                      : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                    ).map(inst => (
-                                      <button
-                                        key={inst.v}
-                                        type="button"
-                                        onClick={() => setCashierInstallments(inst.v)}
-                                        className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
-                                          cashierInstallments === inst.v
-                                            ? "bg-slate-900 text-white border-slate-900"
-                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                                        }`}
-                                      >
-                                        {inst.l}
-                                      </button>
-                                    ))}
+                                  <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-bold text-slate-700">
+                                      Planes de Cuotas Configurados:
+                                    </label>
+                                    <span className="text-[10px] font-semibold text-slate-500">
+                                      Monto: {formatCurrency(activeCheckoutSale.total)}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {getPosInstallmentOptions(
+                                      cashierCardBrand || "Visa",
+                                      activeCheckoutSale.total
+                                    ).map((opt) => {
+                                      const isSelected = cashierInstallments === opt.installments;
+                                      return (
+                                        <button
+                                          key={opt.plan.id}
+                                          type="button"
+                                          disabled={!opt.isEligible}
+                                          onClick={() => {
+                                            if (opt.isEligible) {
+                                              setCashierInstallments(opt.installments);
+                                            }
+                                          }}
+                                          className={`px-3 py-2 rounded-xl border text-left transition-all ${
+                                            !opt.isEligible
+                                              ? "bg-slate-100/80 text-slate-400 border-slate-200 opacity-65 cursor-not-allowed"
+                                              : isSelected
+                                              ? "bg-slate-900 text-white border-slate-900 shadow-xs cursor-pointer"
+                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 cursor-pointer"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-1.5">
+                                            <span className="text-xs font-extrabold">
+                                              {opt.label}
+                                            </span>
+                                            <span
+                                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                !opt.isEligible
+                                                  ? "bg-slate-200 text-slate-500"
+                                                  : isSelected
+                                                  ? "bg-emerald-500 text-slate-950"
+                                                  : opt.interestRate === 0
+                                                  ? "bg-emerald-100 text-emerald-800"
+                                                  : "bg-amber-100 text-amber-800"
+                                              }`}
+                                            >
+                                              {opt.interestRate === 0
+                                                ? "Sin interés"
+                                                : `+${opt.interestRate}%`}
+                                            </span>
+                                          </div>
+                                          <div
+                                            className={`text-[11px] font-mono mt-0.5 ${
+                                              isSelected ? "text-slate-300" : "text-slate-500"
+                                            }`}
+                                          >
+                                            {opt.installments}x {formatCurrency(opt.installmentAmount)}
+                                          </div>
+                                          {!opt.isEligible && opt.minAmount > 0 && (
+                                            <div className="text-[10px] font-semibold text-amber-600 mt-0.5">
+                                              Desde {formatCurrency(opt.minAmount)}
+                                            </div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
@@ -3026,23 +3188,40 @@ export function PosView({
                                 </div>
                                 {splitPayment1Method === "CREDITO" && (
                                   <div>
-                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Cuotas:</label>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                                      Planes de Cuotas:
+                                    </label>
                                     <div className="flex flex-wrap gap-1.5">
-                                      {(splitPayment1CardBrand === "Naranja" 
-                                        ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                        : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                      ).map(inst => (
+                                      {getPosInstallmentOptions(
+                                        splitPayment1CardBrand || "Visa",
+                                        parseFloat(splitPayment1Amount) || 0
+                                      ).map((opt) => (
                                         <button
-                                          key={inst.v}
+                                          key={opt.plan.id}
                                           type="button"
-                                          onClick={() => setSplitPayment1Installments(inst.v)}
-                                          className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
-                                            splitPayment1Installments === inst.v
-                                              ? "bg-slate-900 text-white border-slate-900"
-                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                          disabled={!opt.isEligible}
+                                          onClick={() => {
+                                            if (opt.isEligible) {
+                                              setSplitPayment1Installments(opt.installments);
+                                            }
+                                          }}
+                                          title={
+                                            !opt.isEligible
+                                              ? `Disponible desde ${formatCurrency(opt.minAmount)}`
+                                              : `${opt.installments}x ${formatCurrency(opt.installmentAmount)}`
+                                          }
+                                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                                            !opt.isEligible
+                                              ? "bg-slate-100 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed"
+                                              : splitPayment1Installments === opt.installments
+                                              ? "bg-slate-900 text-white border-slate-900 cursor-pointer"
+                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer"
                                           }`}
                                         >
-                                          {inst.l}
+                                          {opt.label}{" "}
+                                          <span className="font-normal opacity-80">
+                                            ({opt.interestRate === 0 ? "s/int" : `+${opt.interestRate}%`})
+                                          </span>
                                         </button>
                                       ))}
                                     </div>
@@ -3201,23 +3380,40 @@ export function PosView({
                                 </div>
                                 {splitPayment2Method === "CREDITO" && (
                                   <div>
-                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Cuotas:</label>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                                      Planes de Cuotas:
+                                    </label>
                                     <div className="flex flex-wrap gap-1.5">
-                                      {(splitPayment2CardBrand === "Naranja" 
-                                        ? [{ v: 1, l: "1 pago" }, { v: 3, l: "Plan Z" }, { v: 4, l: "4 cuotas" }, { v: 5, l: "5 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                        : [{ v: 1, l: "1 pago" }, { v: 2, l: "2 cuotas" }, { v: 3, l: "3 cuotas" }, { v: 6, l: "6 cuotas" }]
-                                      ).map(inst => (
+                                      {getPosInstallmentOptions(
+                                        splitPayment2CardBrand || "Visa",
+                                        parseFloat(splitPayment2Amount) || 0
+                                      ).map((opt) => (
                                         <button
-                                          key={inst.v}
+                                          key={opt.plan.id}
                                           type="button"
-                                          onClick={() => setSplitPayment2Installments(inst.v)}
-                                          className={`px-2 py-1 rounded-md border text-[11px] font-bold transition-all ${
-                                            splitPayment2Installments === inst.v
-                                              ? "bg-slate-900 text-white border-slate-900"
-                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                          disabled={!opt.isEligible}
+                                          onClick={() => {
+                                            if (opt.isEligible) {
+                                              setSplitPayment2Installments(opt.installments);
+                                            }
+                                          }}
+                                          title={
+                                            !opt.isEligible
+                                              ? `Disponible desde ${formatCurrency(opt.minAmount)}`
+                                              : `${opt.installments}x ${formatCurrency(opt.installmentAmount)}`
+                                          }
+                                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                                            !opt.isEligible
+                                              ? "bg-slate-100 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed"
+                                              : splitPayment2Installments === opt.installments
+                                              ? "bg-slate-900 text-white border-slate-900 cursor-pointer"
+                                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer"
                                           }`}
                                         >
-                                          {inst.l}
+                                          {opt.label}{" "}
+                                          <span className="font-normal opacity-80">
+                                            ({opt.interestRate === 0 ? "s/int" : `+${opt.interestRate}%`})
+                                          </span>
                                         </button>
                                       ))}
                                     </div>

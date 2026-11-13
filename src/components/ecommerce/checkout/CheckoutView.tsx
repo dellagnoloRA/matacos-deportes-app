@@ -64,6 +64,12 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCartStore } from "@/store/cartStore";
 import { useCustomerStore } from "@/store/customerStore";
+import { getActiveInstallmentPlans } from "@/server/actions/installmentActions";
+import type { SerializedInstallmentPlan } from "@/server/services/installmentService";
+import {
+  calculateInstallmentPlanAmounts,
+  DEFAULT_MATACOS_INSTALLMENT_PLANS,
+} from "@/schemas/installment";
 
 declare global {
   interface Window {
@@ -152,11 +158,26 @@ const CARD_BRANDS: Array<{ id: WebCardBrand; label: string }> = [
   { id: "CABAL", label: "Cabal" },
 ];
 
-const CREDIT_INSTALLMENTS = [
-  { count: 1, label: "1 pago sin interés" },
-  { count: 3, label: "3 cuotas sin interés" },
-  { count: 6, label: "6 cuotas sin interés" },
-];
+const FALLBACK_INSTALLMENT_PLANS: SerializedInstallmentPlan[] =
+  DEFAULT_MATACOS_INSTALLMENT_PLANS.map((p, idx) => ({
+    id: `fallback-plan-${idx + 1}`,
+    name: p.name,
+    description: p.description,
+    cardGroup: p.cardGroup,
+    cardBrands: p.cardBrands,
+    installments: p.installments,
+    isPlanZ: p.isPlanZ,
+    interestRate: p.interestRate,
+    minAmount: p.minAmount,
+    order: p.order,
+    active: p.active,
+    startDate: null,
+    endDate: null,
+    createdAt: "",
+    updatedAt: "",
+    isCurrentlyVisible: true,
+    validityStatus: "VIGENTE",
+  }));
 
 function formatCardNumberInput(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 16);
@@ -397,6 +418,12 @@ export function CheckoutView({
     useState<WebPaymentOption>("MERCADOPAGO");
   const [cardBrand, setCardBrand] = useState<WebCardBrand>("VISA");
   const [installments, setInstallments] = useState<number>(3);
+  const [selectedInstallmentPlanId, setSelectedInstallmentPlanId] = useState<
+    string | null
+  >(null);
+  const [installmentPlans, setInstallmentPlans] = useState<
+    SerializedInstallmentPlan[]
+  >(FALLBACK_INSTALLMENT_PLANS);
   const [cardNumber, setCardNumber] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
@@ -404,6 +431,52 @@ export function CheckoutView({
   const [simulateDecline, setSimulateDecline] = useState(false);
   const [transferReference, setTransferReference] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Carga de planes de cuotas configurados por el administrador
+  useEffect(() => {
+    let active = true;
+    getActiveInstallmentPlans()
+      .then((res) => {
+        if (active && res.success && res.data && res.data.length > 0) {
+          setInstallmentPlans(res.data);
+        }
+      })
+      .catch(() => {
+        // Mantiene planes por defecto en caso de error
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Auto-seleccionar el mejor plan de cuotas habilitado al cambiar la tarjeta o el total de la orden
+  useEffect(() => {
+    const targetTotal = createdOrder ? createdOrder.totals.total : 0;
+    const brandPlans = installmentPlans.filter(
+      (p) => p.isCurrentlyVisible && p.cardBrands.includes(cardBrand)
+    );
+    const eligiblePlans = brandPlans.filter((p) => targetTotal >= p.minAmount);
+
+    if (eligiblePlans.length > 0) {
+      const stillValid = eligiblePlans.find(
+        (p) => p.id === selectedInstallmentPlanId
+      );
+      if (stillValid) {
+        setInstallments(stillValid.installments);
+        return;
+      }
+      // Priorizar el plan sin interés con más cuotas habilitadas para este monto
+      const zeroInterestBest = [...eligiblePlans]
+        .filter((p) => p.interestRate <= 0)
+        .sort((a, b) => b.installments - a.installments)[0];
+      const chosen = zeroInterestBest ?? eligiblePlans[0]!;
+      setSelectedInstallmentPlanId(chosen.id);
+      setInstallments(chosen.installments);
+    } else {
+      setSelectedInstallmentPlanId(null);
+      setInstallments(1);
+    }
+  }, [cardBrand, createdOrder, installmentPlans, selectedInstallmentPlanId]);
 
   // Countdown en vivo de la reserva (en segundos)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -925,6 +998,10 @@ export function CheckoutView({
         cardToken,
         paymentMethodId: isCard ? cardBrand.toLowerCase() : undefined,
         installments: effectiveInstallments,
+        installmentPlanId:
+          paymentOption === "TARJETA_CREDITO"
+            ? selectedInstallmentPlanId ?? undefined
+            : undefined,
         simulateDecline: isCard ? simulateDecline : false,
         transferReference:
           paymentOption === "TRANSFERENCIA"
@@ -1251,9 +1328,11 @@ export function CheckoutView({
                       </p>
                       <p className="text-emerald-800">
                         Plan:{" "}
-                        {paymentResult.installments === 1
-                          ? `1 pago de ${formatCurrency(paymentResult.totalAmount)}`
-                          : `${paymentResult.installments} cuotas sin interés de ${formatCurrency(paymentResult.installmentAmount)}`}
+                        {paymentResult.planName
+                          ? `${paymentResult.planName} (${paymentResult.installments}x ${formatCurrency(paymentResult.installmentAmount)})`
+                          : paymentResult.installments === 1
+                            ? `1 pago de ${formatCurrency(paymentResult.totalAmount)}`
+                            : `${paymentResult.installments} cuotas de ${formatCurrency(paymentResult.installmentAmount)}`}
                         {" • "}Estado logístico: <strong>EN PREPARACIÓN</strong>
                       </p>
                     </div>
@@ -1581,10 +1660,37 @@ export function CheckoutView({
       paymentOption === "TARJETA_CREDITO" ||
       paymentOption === "TARJETA_DEBITO";
 
+    const brandCreditPlans = installmentPlans.filter(
+      (p) => p.isCurrentlyVisible && p.cardBrands.includes(cardBrand)
+    );
+    const selectedCreditPlan =
+      brandCreditPlans.find((p) => p.id === selectedInstallmentPlanId) ??
+      brandCreditPlans.find(
+        (p) =>
+          p.installments === installments &&
+          createdOrder.totals.total >= p.minAmount
+      ) ??
+      null;
+
+    const selectedCreditCalc = selectedCreditPlan
+      ? calculateInstallmentPlanAmounts(
+          createdOrder.totals.total,
+          selectedCreditPlan
+        )
+      : null;
+
     const effectiveInstallments =
-      paymentOption === "TARJETA_CREDITO" ? installments : 1;
+      paymentOption === "TARJETA_CREDITO"
+        ? selectedCreditCalc?.installments ?? installments
+        : 1;
+    const effectiveTotalWithFinancing =
+      paymentOption === "TARJETA_CREDITO" && selectedCreditCalc
+        ? selectedCreditCalc.totalFinanced
+        : createdOrder.totals.total;
     const installmentAmount =
-      createdOrder.totals.total / effectiveInstallments;
+      paymentOption === "TARJETA_CREDITO" && selectedCreditCalc
+        ? selectedCreditCalc.installmentAmount
+        : createdOrder.totals.total / effectiveInstallments;
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
@@ -1761,7 +1867,7 @@ export function CheckoutView({
                     <div className="flex items-center justify-between">
                       <CreditCard className="w-5 h-5 text-[#00A811]" />
                       <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                        Hasta 6 sin interés
+                        Cuotas sin interés
                       </span>
                     </div>
                     <p className="text-xs sm:text-sm font-black text-slate-900">
@@ -1989,43 +2095,123 @@ export function CheckoutView({
                     {/* Cuotas (solo Crédito) */}
                     {paymentOption === "TARJETA_CREDITO" && (
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Cantidad de cuotas *
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Planes de cuotas disponibles ({cardBrand === "NARANJA_X" ? "Naranja X" : "Bancarizadas"}) *
+                          </label>
+                          <span className="text-[11px] font-semibold text-emerald-700">
+                            Total compra: {formatCurrency(createdOrder.totals.total)}
+                          </span>
+                        </div>
                         <div className="space-y-2">
-                          {CREDIT_INSTALLMENTS.map((plan) => {
-                            const perInstallment =
-                              createdOrder.totals.total / plan.count;
-                            const isPlanSelected = installments === plan.count;
-                            return (
-                              <label
-                                key={plan.count}
-                                onClick={() => setInstallments(plan.count)}
-                                className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                                  isPlanSelected
-                                    ? "border-[#00A811] bg-emerald-50/40 font-bold"
-                                    : "border-slate-200 hover:border-slate-300"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <input
-                                    type="radio"
-                                    name="installments"
-                                    checked={isPlanSelected}
-                                    onChange={() => setInstallments(plan.count)}
-                                    className="text-[#00A811] cursor-pointer"
-                                  />
-                                  <span className="text-slate-900">
-                                    {plan.label}
-                                  </span>
-                                </div>
-                                <span className="font-black text-slate-950">
-                                  {plan.count} x{" "}
-                                  {formatCurrency(perInstallment)}
-                                </span>
-                              </label>
-                            );
-                          })}
+                          {brandCreditPlans.length === 0 ? (
+                            <label className="flex items-center justify-between p-3 rounded-xl border border-[#00A811] bg-emerald-50/40 text-xs font-bold">
+                              <span>1 pago sin interés</span>
+                              <span className="font-black text-slate-950">
+                                1 x {formatCurrency(createdOrder.totals.total)}
+                              </span>
+                            </label>
+                          ) : (
+                            brandCreditPlans.map((plan) => {
+                              const calc = calculateInstallmentPlanAmounts(
+                                createdOrder.totals.total,
+                                plan
+                              );
+                              const isEligible = calc.meetsMinAmount;
+                              const isPlanSelected =
+                                isEligible &&
+                                (selectedCreditPlan?.id === plan.id ||
+                                  (!selectedCreditPlan &&
+                                    installments === plan.installments));
+
+                              return (
+                                <label
+                                  key={plan.id}
+                                  onClick={() => {
+                                    if (!isEligible) return;
+                                    setSelectedInstallmentPlanId(plan.id);
+                                    setInstallments(plan.installments);
+                                  }}
+                                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-xl border text-xs transition-all ${
+                                    !isEligible
+                                      ? "border-slate-200 bg-slate-50/80 opacity-65 cursor-not-allowed"
+                                      : isPlanSelected
+                                        ? "border-[#00A811] bg-emerald-50/50 ring-1 ring-[#00A811] cursor-pointer"
+                                        : "border-slate-200 hover:border-slate-300 bg-white cursor-pointer"
+                                  }`}
+                                >
+                                  <div className="flex items-start sm:items-center gap-2.5">
+                                    <input
+                                      type="radio"
+                                      name="installments"
+                                      disabled={!isEligible}
+                                      checked={isPlanSelected}
+                                      onChange={() => {
+                                        if (!isEligible) return;
+                                        setSelectedInstallmentPlanId(plan.id);
+                                        setInstallments(plan.installments);
+                                      }}
+                                      className="mt-0.5 sm:mt-0 text-[#00A811] cursor-pointer disabled:cursor-not-allowed"
+                                    />
+                                    <div className="space-y-0.5">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="font-extrabold text-slate-900">
+                                          {plan.name}
+                                        </span>
+                                        {plan.isPlanZ && (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-orange-100 text-[#ff6200]">
+                                            Plan Z
+                                          </span>
+                                        )}
+                                        {calc.hasInterest ? (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
+                                            +{plan.interestRate}% interés
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                                            Sin interés
+                                          </span>
+                                        )}
+                                      </div>
+                                      {!isEligible ? (
+                                        <p className="text-[11px] font-semibold text-amber-800">
+                                          Habilitado en compras desde{" "}
+                                          {formatCurrency(plan.minAmount)} (te
+                                          faltan{" "}
+                                          {formatCurrency(
+                                            calc.missingForMinAmount
+                                          )}
+                                          )
+                                        </p>
+                                      ) : plan.minAmount > 0 ? (
+                                        <p className="text-[11px] text-slate-500">
+                                          Beneficio activado (compras desde{" "}
+                                          {formatCurrency(plan.minAmount)})
+                                        </p>
+                                      ) : plan.description ? (
+                                        <p className="text-[11px] text-slate-500">
+                                          {plan.description}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right pl-6 sm:pl-0 shrink-0">
+                                    <span className="font-black text-slate-950 text-sm block">
+                                      {plan.installments} x{" "}
+                                      {formatCurrency(calc.installmentAmount)}
+                                    </span>
+                                    {calc.hasInterest && (
+                                      <span className="text-[10px] text-slate-500 block">
+                                        Total:{" "}
+                                        {formatCurrency(calc.totalFinanced)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     )}
@@ -2325,16 +2511,29 @@ export function CheckoutView({
                         : formatCurrency(createdOrder.totals.shippingCost)}
                     </span>
                   </div>
+                  {paymentOption === "TARJETA_CREDITO" &&
+                    selectedCreditCalc &&
+                    selectedCreditCalc.hasInterest && (
+                      <div className="flex justify-between text-amber-800 font-semibold">
+                        <span>
+                          Costo financiero ({selectedCreditCalc.interestRate}%)
+                        </span>
+                        <span>
+                          + {formatCurrency(selectedCreditCalc.surchargeAmount)}
+                        </span>
+                      </div>
+                    )}
                   <div className="flex justify-between items-baseline text-base font-black text-slate-950 pt-3 border-t border-slate-200">
                     <span>TOTAL</span>
                     <span className="text-2xl text-[#00A811]">
-                      {formatCurrency(createdOrder.totals.total)}
+                      {formatCurrency(effectiveTotalWithFinancing)}
                     </span>
                   </div>
-                  {paymentOption === "TARJETA_CREDITO" && installments > 1 && (
+                  {paymentOption === "TARJETA_CREDITO" && (
                     <p className="text-[11px] text-right font-bold text-emerald-700">
-                      En {installments} cuotas sin interés de{" "}
-                      {formatCurrency(installmentAmount)}
+                      {selectedCreditPlan
+                        ? `${selectedCreditPlan.name}: ${effectiveInstallments} x ${formatCurrency(installmentAmount)}`
+                        : `En ${effectiveInstallments} pago/s de ${formatCurrency(installmentAmount)}`}
                     </p>
                   )}
                 </div>
@@ -2371,7 +2570,7 @@ export function CheckoutView({
                     <>
                       <Lock className="w-4 h-4" />
                       <span>
-                        PAGAR {formatCurrency(createdOrder.totals.total)} AHORA
+                        PAGAR {formatCurrency(effectiveTotalWithFinancing)} AHORA
                       </span>
                     </>
                   ) : paymentOption === "TRANSFERENCIA" ? (
