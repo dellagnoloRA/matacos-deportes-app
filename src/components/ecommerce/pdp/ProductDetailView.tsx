@@ -560,10 +560,10 @@ export function ProductDetailView({
                   key={idx}
                   type="button"
                   onClick={() => setActiveImageIndex(idx)}
-                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded border overflow-hidden bg-slate-50 cursor-pointer transition-all shrink-0 ${
+                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-md border overflow-hidden bg-slate-50 cursor-pointer transition-all shrink-0 ${
                     activeImageIndex === idx
-                      ? "border-slate-900 ring-2 ring-slate-900 opacity-100 shadow-xs"
-                      : "border-slate-200 hover:border-slate-400 opacity-70 hover:opacity-100"
+                      ? "border-slate-800 ring-1 ring-slate-800/30 opacity-100 shadow-2xs"
+                      : "border-slate-200 hover:border-slate-300 opacity-60 hover:opacity-100"
                   }`}
                   title={`Ver foto ${idx + 1}`}
                 >
@@ -607,13 +607,9 @@ export function ProductDetailView({
 
           {/* ================= COLUMNA DERECHA: ORGANIZACIÓN Y ESPACIADO EXACTOS ================= */}
           <section className="lg:col-span-5 flex flex-col space-y-3 lg:sticky lg:top-24 h-fit max-w-lg">
-            {/* 1. SKU / Código y Marca */}
+            {/* 1. Marca */}
             <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold tracking-wide uppercase">
               <span className="text-[#00A811] font-bold">{product.brand?.name}</span>
-              <span>•</span>
-              <span>
-                SKU: {activeVariant?.sku || product.modelCode || product.id.slice(0, 10).toUpperCase()}
-              </span>
             </div>
 
             {/* 2. Título Oficial del Producto */}
@@ -836,9 +832,8 @@ export function ProductDetailView({
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="w-full h-11 bg-[#00D615] hover:bg-[#00b812] text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                  className="w-full h-11 bg-[#00D615] hover:bg-[#00b812] text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center cursor-pointer active:scale-98"
                 >
-                  <Zap className="w-4 h-4 fill-slate-950" />
                   <span>COMPRAR AHORA</span>
                 </button>
               )}
@@ -852,7 +847,7 @@ export function ProductDetailView({
                 className="w-full py-2.5 px-4 rounded-xl border border-emerald-600/40 text-emerald-800 hover:bg-emerald-50 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span>Consultar por WhatsApp con un vendedor</span>
+                <span>Consultar por WhatsApp</span>
               </a>
             </div>
 
