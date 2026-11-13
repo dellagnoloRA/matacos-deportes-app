@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { AuthView } from "@/components/auth/AuthView";
 import {
   CustomerAccountView,
@@ -10,6 +11,7 @@ import {
   getCustomerOrdersAction,
   getCustomerFavoritesDetailsAction,
 } from "@/server/actions/ecommerce/customerActions";
+import { getCurrentUserAction } from "@/server/actions/authActions";
 
 export const metadata: Metadata = {
   title: "Mi Cuenta • Matacos Deportes | Saavedra 241, Formosa",
@@ -35,6 +37,16 @@ export default async function CuentaPage({ searchParams }: CuentaPageProps) {
     typeof resolved.redirect === "string" ? resolved.redirect : "/cuenta";
   const initialError =
     typeof resolved.error === "string" ? resolved.error : undefined;
+
+  // Si ya hay sesión de Administrador o Empleado activa, ir directo al Panel de Gestión
+  const currentStaff = await getCurrentUserAction();
+  if (currentStaff) {
+    const staffDestination =
+      redirectTo.startsWith("/admin") || redirectTo.startsWith("/pos")
+        ? redirectTo
+        : "/admin";
+    redirect(staffDestination);
+  }
 
   let currentCustomer = null;
   try {

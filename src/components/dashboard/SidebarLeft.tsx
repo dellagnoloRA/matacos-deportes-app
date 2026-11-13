@@ -54,7 +54,7 @@ export function SidebarLeft({
 
   const handleLogout = async () => {
     await logoutAction();
-    window.location.href = "/login";
+    window.location.href = "/cuenta";
   };
 
   const hasPerm = (code: string) => {

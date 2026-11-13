@@ -22,6 +22,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
+import { getCurrentUserAction } from "@/server/actions/authActions";
+import { getCurrentCustomerAction } from "@/server/actions/ecommerce/customerActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
 import { useCart } from "@/store/cartStore";
@@ -64,6 +66,35 @@ export function EcommerceHeader({
   const [predictiveResults, setPredictiveResults] = useState<PredictiveSearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [, startTransition] = useTransition();
+
+  const [currentUser, setCurrentUser] = useState<{
+    name: string;
+    email: string;
+    level: number;
+    profileName: string | null;
+  } | null>(null);
+  const [currentCustomerName, setCurrentCustomerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction()
+      .then((u) => {
+        if (u) {
+          setCurrentUser({
+            name: u.name,
+            email: u.email,
+            level: u.level,
+            profileName: u.profileName,
+          });
+          return;
+        }
+        return getCurrentCustomerAction().then((cRes) => {
+          if (cRes.success && cRes.data) {
+            setCurrentCustomerName(cRes.data.name);
+          }
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -401,12 +432,32 @@ export function EcommerceHeader({
 
           {/* User Account Link */}
           <Link
-            href="/cuenta"
+            href={currentUser ? "/admin" : "/cuenta"}
             className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            title="Mi Cuenta"
+            title={currentUser ? "Ir al Panel de Gestión" : "Mi Cuenta"}
             aria-label="Cuenta de usuario"
           >
-            <User className="w-5 h-5" />
+            {currentUser ? (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <span className="w-6 h-6 rounded-full bg-slate-900 text-[#00D615] font-black text-[11px] flex items-center justify-center">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden md:inline max-w-24 truncate">
+                  {currentUser.name.split(" ")[0]}
+                </span>
+              </span>
+            ) : currentCustomerName ? (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
+                  {currentCustomerName.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden md:inline max-w-24 truncate">
+                  {currentCustomerName.split(" ")[0]}
+                </span>
+              </span>
+            ) : (
+              <User className="w-5 h-5" />
+            )}
           </Link>
 
           {/* Shopping Cart Button */}
@@ -492,11 +543,18 @@ export function EcommerceHeader({
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
               <Link
-                href="/admin"
+                href={currentUser ? "/admin" : "/cuenta"}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
               >
                 <User className="w-4 h-4" />
-                <span>Panel de Gestión</span>
+                <span>
+                  {currentUser
+                    ? "Panel de Gestión"
+                    : currentCustomerName
+                    ? "Mi Cuenta"
+                    : "Iniciar Sesión / Mi Cuenta"}
+                </span>
               </Link>
               <p className="text-[11px] text-center text-slate-400">
                 Saavedra 241, Formosa Capital

@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import {
-  loginCustomerAction,
   registerCustomerAction,
 } from "@/server/actions/ecommerce/customerActions";
+import { unifiedLoginAction } from "@/server/actions/authActions";
 import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCustomerStore } from "@/store/customerStore";
 
@@ -23,7 +23,7 @@ export function AuthView({
   initialError,
 }: AuthViewProps) {
   const router = useRouter();
-  const { setCustomer } = useCustomerStore();
+  const { setCustomer, logout: clearCustomerStore } = useCustomerStore();
   const [isPending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<"login" | "register">(initialMode);
@@ -63,7 +63,7 @@ export function AuthView({
     if (!loginEmail.trim() || !loginPassword) {
       setNotification({
         type: "error",
-        message: "Por favor ingresá tu correo electrónico y contraseña.",
+        message: "Por favor ingresá tu correo electrónico o usuario y tu contraseña.",
       });
       return;
     }
@@ -77,12 +77,12 @@ export function AuthView({
     }
 
     startTransition(async () => {
-      const res = await loginCustomerAction({
-        email: loginEmail.trim(),
+      const res = await unifiedLoginAction({
+        identifier: loginEmail.trim(),
         password: loginPassword,
       });
 
-      if (!res.success || !res.data) {
+      if (!res.success) {
         setNotification({
           type: "error",
           message:
@@ -91,19 +91,42 @@ export function AuthView({
         return;
       }
 
-      setCustomer(res.data.customer);
-      const linkedMsg =
-        res.data.linkedOrdersCount > 0
-          ? ` Se vincularon ${res.data.linkedOrdersCount} pedido(s) previo(s).`
-          : "";
+      if (res.accountType === "STAFF" && res.user) {
+        clearCustomerStore();
+        const staffTarget =
+          safeRedirect.startsWith("/admin") || safeRedirect.startsWith("/pos")
+            ? safeRedirect
+            : "/admin";
 
-      setNotification({
-        type: "success",
-        message: `¡Bienvenido/a, ${res.data.customer.name}!${linkedMsg}`,
-      });
+        setNotification({
+          type: "success",
+          message: `¡Bienvenido/a, ${res.user.name}! Ingresando al Panel de Gestión...`,
+        });
 
-      router.push(safeRedirect);
-      router.refresh();
+        window.location.href = staffTarget;
+        return;
+      }
+
+      if (res.accountType === "CUSTOMER" && res.customer) {
+        setCustomer(res.customer);
+        const linkedMsg =
+          (res.linkedOrdersCount ?? 0) > 0
+            ? ` Se vincularon ${res.linkedOrdersCount} pedido(s) previo(s).`
+            : "";
+
+        setNotification({
+          type: "success",
+          message: `¡Bienvenido/a, ${res.customer.name}!${linkedMsg}`,
+        });
+
+        const customerTarget =
+          safeRedirect.startsWith("/admin") || safeRedirect.startsWith("/pos")
+            ? "/cuenta"
+            : safeRedirect;
+
+        router.push(customerTarget);
+        router.refresh();
+      }
     });
   };
 
@@ -223,10 +246,10 @@ export function AuthView({
           <div className="w-full animate-in fade-in duration-200">
             <div className="mb-3.5 sm:mb-4">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Iniciar sesión como cliente
+                Iniciar sesión
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Ingresá a tu cuenta para agilizar tus compras y seguir tus pedidos
+                Ingresá con Google, tu correo electrónico o tu cuenta de Matacos Deportes
               </p>
             </div>
 
@@ -267,13 +290,14 @@ export function AuthView({
             <form onSubmit={handleLoginSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Correo electrónico
+                  Correo electrónico o usuario
                 </label>
                 <input
-                  type="email"
+                  type="text"
+                  autoComplete="username"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="ejemplo@correo.com"
+                  placeholder="ejemplo@correo.com o usuario"
                   disabled={isPending}
                   className="w-full px-3 py-2 sm:py-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white shadow-2xs"
                   required

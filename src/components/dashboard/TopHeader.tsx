@@ -44,7 +44,7 @@ export function TopHeader({
 
   const handleLogout = async () => {
     await logoutAction();
-    router.push("/login");
+    router.push("/cuenta");
     router.refresh();
   };
 

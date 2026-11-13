@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loginOrRegisterGoogleCustomer } from "@/server/actions/ecommerce/customerActions";
+import { matchAndLoginGoogleStaffUser } from "@/server/services/staffAuthService";
 import {
   CUSTOMER_COOKIE_NAME,
   CUSTOMER_SESSION_MAX_AGE_SECONDS,
 } from "@/lib/customerSession";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/lib/authConfig";
 
 interface GoogleTokenResponse {
   access_token?: string;
@@ -114,7 +119,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(errUrl);
     }
 
-    // 3. Registrar o iniciar sesión en la tabla Customer (vinculando pedidos previos y favoritos)
+    // 3. Verificar primero si el correo de Google pertenece a un Administrador o Empleado (User)
+    const staffAuth = await matchAndLoginGoogleStaffUser({
+      googleId,
+      email,
+      avatarUrl: userInfo.picture || null,
+    });
+
+    if (staffAuth.matched) {
+      if (!staffAuth.success) {
+        const errUrl = new URL("/cuenta", appUrl);
+        errUrl.searchParams.set("error", staffAuth.error);
+        return NextResponse.redirect(errUrl);
+      }
+
+      const staffTarget =
+        redirectPath.startsWith("/admin") || redirectPath.startsWith("/pos")
+          ? redirectPath
+          : "/admin";
+
+      const destinationUrl = new URL(staffTarget, appUrl);
+      const response = NextResponse.redirect(destinationUrl);
+
+      response.cookies.set(SESSION_COOKIE_NAME, staffAuth.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: SESSION_MAX_AGE_SECONDS,
+      });
+      response.cookies.delete(CUSTOMER_COOKIE_NAME);
+
+      return response;
+    }
+
+    // 4. Si no es personal interno, registrar o iniciar sesión en la tabla Customer
     const authResult = await loginOrRegisterGoogleCustomer({
       googleId,
       email,
@@ -132,7 +171,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(errUrl);
     }
 
-    const destinationUrl = new URL(redirectPath, appUrl);
+    const customerTarget =
+      redirectPath.startsWith("/admin") || redirectPath.startsWith("/pos")
+        ? "/cuenta"
+        : redirectPath;
+
+    const destinationUrl = new URL(customerTarget, appUrl);
     const response = NextResponse.redirect(destinationUrl);
 
     response.cookies.set(CUSTOMER_COOKIE_NAME, authResult.data.token, {
@@ -142,6 +186,7 @@ export async function GET(request: NextRequest) {
       path: "/",
       maxAge: CUSTOMER_SESSION_MAX_AGE_SECONDS,
     });
+    response.cookies.delete(SESSION_COOKIE_NAME);
 
     return response;
   } catch (error) {

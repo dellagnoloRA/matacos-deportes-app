@@ -67,6 +67,8 @@ model User {
   id             String      @id @default(uuid())
   username       String?     @unique
   email          String      @unique
+  googleId       String?     @unique
+  avatarUrl      String?
   name           String
   password       String
   role           Role?       @default(CAJERO) // Campo legacy para compatibilidad
