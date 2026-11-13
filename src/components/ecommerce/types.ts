@@ -11,12 +11,15 @@ export interface EcommerceProduct {
   originalPrice?: number;
   isOffer?: boolean;
   offerTag?: string;
+  discountPercent?: number;
   image: string;
   images?: Array<{ id: string; url: string; color: string | null; isPrimary: boolean; order: number }>;
   description?: string;
   installments?: string;
   totalAvailableStock?: number;
   hasStock?: boolean;
+  rating?: number;
+  colors?: string[];
   variants?: Array<{
     id: string;
     size: string;

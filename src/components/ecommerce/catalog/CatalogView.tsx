@@ -1,21 +1,24 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
+import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
+import { useCart, buildCartItemFromEcommerceProduct } from "@/store/cartStore";
 import { CatalogFilterSidebar } from "./CatalogFilterSidebar";
 import { CatalogTopBar } from "./CatalogTopBar";
 import { CatalogPaginationNav } from "./CatalogPagination";
 import {
+  Heart,
+  Flame,
   Eye,
   Check,
   ShoppingBag,
   X,
   ExternalLink,
   Loader2,
-  ArrowRight,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type {
@@ -26,10 +29,24 @@ import type {
 import type { CatalogFilterInput } from "@/schemas/ecommerce";
 import type { EcommerceProduct } from "@/components/ecommerce/types";
 import { mapPublicProductToEcommerce } from "@/lib/ecommerceProductMapper";
-import {
-  useCartStore,
-  buildCartItemFromEcommerceProduct,
-} from "@/store/cartStore";
+
+const COLOR_HEX_MAP: Record<string, string> = {
+  negro: "#111827",
+  blanco: "#F8FAFC",
+  gris: "#94A3B8",
+  azul: "#2563EB",
+  marino: "#1E3A8A",
+  rojo: "#DC2626",
+  verde: "#16A34A",
+  amarillo: "#EAB308",
+  naranja: "#EA580C",
+  rosa: "#F472B6",
+  violeta: "#8B5CF6",
+  celeste: "#38BDF8",
+  "celeste y blanco": "#38BDF8",
+  marron: "#78350F",
+  beige: "#D4B996",
+};
 
 interface CatalogViewProps {
   products: PublicProductItem[];
@@ -45,41 +62,63 @@ export function CatalogView({
   activeFilters,
 }: CatalogViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [navigatingProductId, setNavigatingProductId] = useState<string | null>(
     null
   );
-  const { addItem, openDrawer } = useCartStore();
+  const cart = useCart();
+
+  // Wishlist state (persisted in localStorage)
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("matacos_wishlist");
+      if (stored) {
+        setWishlistIds(JSON.parse(stored));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleToggleWishlist = (productId: string) => {
+    setWishlistIds((prev) => {
+      const exists = prev.includes(productId);
+      const next = exists
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId];
+      try {
+        localStorage.setItem("matacos_wishlist", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Mobile filters drawer state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  // Toast notice
+  // Cart notice
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
-  // Quick view modal & selected variant inside Quick View
+  // Quick view modal
   const [activeModalProduct, setActiveModalProduct] =
     useState<EcommerceProduct | null>(null);
-  const [selectedQuickVariantId, setSelectedQuickVariantId] = useState<
-    string | undefined
-  >(undefined);
 
   const openQuickView = (product: EcommerceProduct) => {
-    const firstInStock =
-      product.variants?.find((v) => v.inStock && v.availableStock > 0) ||
-      product.variants?.[0];
-    setSelectedQuickVariantId(firstInStock?.id);
     setActiveModalProduct(product);
   };
 
   const navigateToProductDetail = (
-    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
+    e: React.MouseEvent<HTMLElement>,
     productId: string
   ) => {
-    // Permitir abrir en nueva pestaña con Ctrl/Cmd/Click medio
     if (
       "metaKey" in e &&
-      (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)
+      (e.metaKey || e.ctrlKey || e.shiftKey || (e as React.MouseEvent).button === 1)
     ) {
       return;
     }
@@ -88,47 +127,26 @@ export function CatalogView({
     router.push(`/productos/${productId}`);
   };
 
-  // URL query updater sin depender de useSearchParams() en render inicial
+  // URL query updater
   const updateQueryParams = (newFilters: Partial<CatalogFilterInput>) => {
-    const currentSearch =
-      typeof window !== "undefined" ? window.location.search : "";
-    const params = new URLSearchParams(currentSearch);
+    const params = new URLSearchParams(searchParams.toString());
 
     Object.entries(newFilters).forEach(([key, val]) => {
       let paramKey = key;
-      if (key === "disciplineSlug") {
-        paramKey = "disciplina";
-        params.delete("discipline");
-        params.delete("disciplineSlug");
-      }
-      if (key === "categorySlug") {
-        paramKey = "categoria";
-        params.delete("category");
-        params.delete("categorySlug");
-      }
-      if (key === "brandSlug") {
-        paramKey = "marca";
-        params.delete("brand");
-        params.delete("brandSlug");
-      }
+      if (key === "disciplineSlug") paramKey = "disciplina";
+      if (key === "categorySlug") paramKey = "categoria";
+      if (key === "brandSlug") paramKey = "marca";
       if (key === "size") paramKey = "talle";
-      if (key === "gender") paramKey = "genero";
-      if (key === "ofertas") {
-        paramKey = "ofertas";
-        params.delete("enOferta");
-        params.delete("discount");
-      }
 
-      if (val === undefined || val === null || val === "" || val === false) {
+      if (val === undefined || val === null || val === "") {
         params.delete(paramKey);
       } else {
         params.set(paramKey, String(val));
       }
     });
 
-    const qs = params.toString();
     startTransition(() => {
-      router.push(qs ? `/catalogo?${qs}` : "/catalogo");
+      router.push(`/catalogo?${params.toString()}`);
     });
   };
 
@@ -138,32 +156,15 @@ export function CatalogView({
     });
   };
 
-  // Cart action from Quick View
-  const handleAddToCartFromModal = (product: EcommerceProduct) => {
-    const cartPayload = buildCartItemFromEcommerceProduct(
-      product,
-      selectedQuickVariantId,
-      1
-    );
-    if (!cartPayload) return;
-
-    const res = addItem(cartPayload);
-    if (res.added) {
-      setAddedNotice(
-        `${cartPayload.name} (${cartPayload.size} • ${cartPayload.color})`
-      );
+  // Cart actions
+  const handleAddToCart = (product: EcommerceProduct) => {
+    const itemInput = buildCartItemFromEcommerceProduct(product);
+    if (itemInput) {
+      cart.addItem(itemInput);
+      setAddedNotice(product.name);
       setTimeout(() => setAddedNotice(null), 3000);
-      openDrawer();
     }
   };
-
-  const selectedModalVariant = activeModalProduct?.variants?.find(
-    (v) => v.id === selectedQuickVariantId
-  );
-  const modalDisplayPrice =
-    selectedModalVariant?.price && selectedModalVariant.price > 0
-      ? selectedModalVariant.price
-      : activeModalProduct?.price ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
@@ -174,7 +175,7 @@ export function CatalogView({
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           {/* Desktop Filter Sidebar */}
-          <div className="hidden lg:block w-56 lg:w-60 shrink-0 sticky top-24">
+          <div className="hidden lg:block w-64 shrink-0 sticky top-24">
             <CatalogFilterSidebar
               facets={facets}
               activeFilters={activeFilters}
@@ -198,7 +199,7 @@ export function CatalogView({
             {/* Products Grid with Pending State */}
             <div className="relative min-h-96">
               {isPending && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-2xs z-20 flex items-center justify-center rounded-2xl">
                   <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
                     <Loader2 className="w-4 h-4 animate-spin text-[#00D615]" />
                     <span>Actualizando catálogo...</span>
@@ -229,62 +230,107 @@ export function CatalogView({
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
                   {products.map((item) => {
                     const product = mapPublicProductToEcommerce(item);
-                    const isOutOfStock =
-                      !product.hasStock || product.totalAvailableStock === 0;
+                    const isOutOfStock = !product.hasStock || product.totalAvailableStock === 0;
                     const isLowStock =
                       !isOutOfStock &&
                       product.totalAvailableStock !== undefined &&
                       product.totalAvailableStock > 0 &&
                       product.totalAvailableStock <= 3;
                     const isNavigatingThis = navigatingProductId === product.id;
+                    const isWishlisted = wishlistIds.includes(product.id);
+
+                    const hasOffer = Boolean(
+                      product.isOffer ||
+                      (product.originalPrice && product.originalPrice > product.price) ||
+                      (product.discountPercent && product.discountPercent > 0)
+                    );
+
+                    const originalPrice =
+                      product.originalPrice && product.originalPrice > product.price
+                        ? product.originalPrice
+                        : hasOffer
+                        ? Math.round(product.price * (1 + (product.discountPercent || 15) / 100))
+                        : undefined;
+
+                    const discountPercent =
+                      product.discountPercent ||
+                      (originalPrice
+                        ? Math.round(((originalPrice - product.price) / originalPrice) * 100)
+                        : 15);
+
+                    const installmentCount = 3;
+                    const installmentAmount = Math.round(product.price / installmentCount);
 
                     return (
-                      <div
+                      <article
                         key={product.id}
-                        className="group bg-white rounded-2xl border border-slate-200/90 hover:border-slate-400 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden"
+                        onClick={(e) => navigateToProductDetail(e, product.id)}
+                        className="group flex flex-col bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 cursor-pointer select-none overflow-hidden h-full"
                       >
-                        {/* Image Container: Click en imagen navega al detalle; píldora flotante abre Vista Rápida */}
-                        <div className="relative w-full aspect-square bg-[#f8fafc] overflow-hidden p-4 flex items-center justify-center">
-                          {product.isOffer && (
-                            <span className="absolute top-3 left-3 z-10 bg-[#c2f25b] text-slate-950 font-black text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
-                              {product.offerTag || "OFERTA"}
-                            </span>
-                          )}
+                        {/* 1. Contenedor de Imagen aspect-[4/5] */}
+                        <div className="relative aspect-[4/5] sm:aspect-square md:aspect-[4/5] w-full bg-slate-50 overflow-hidden flex items-center justify-center border-b border-slate-100">
+                          <img
+                            src={product.image || "/placeholder-product.svg"}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                            }}
+                          />
 
-                          {isOutOfStock ? (
-                            <span className="absolute top-3 right-3 z-10 bg-slate-800 text-slate-100 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
-                              Agotado
-                            </span>
-                          ) : isLowStock ? (
-                            <span className="absolute top-3 right-3 z-10 bg-amber-500 text-slate-950 font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm pointer-events-none">
-                              ¡Últimas {product.totalAvailableStock}!
-                            </span>
-                          ) : null}
+                          {/* Badges en la parte inferior izquierda de la imagen */}
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 z-10">
+                            {isOutOfStock ? (
+                              <span className="bg-slate-900/90 text-white font-bold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded shadow-sm">
+                                Agotado
+                              </span>
+                            ) : isLowStock ? (
+                              <div className="flex items-center gap-1 bg-[#ff5722] text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                <Flame className="w-3 h-3 fill-white text-white shrink-0" />
+                                <span>¡ÚLTIMA!</span>
+                              </div>
+                            ) : product.colors && product.colors.length > 0 ? (
+                              <div className="flex items-center gap-1 bg-black/50 backdrop-blur-xs px-1.5 py-1 rounded-full shadow-xs">
+                                {product.colors.slice(0, 3).map((col, idx) => {
+                                  const key = col.toLowerCase().trim();
+                                  const hex = COLOR_HEX_MAP[key] || "#94a3b8";
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className="w-2.5 h-2.5 rounded-full border border-white/70 shadow-2xs shrink-0"
+                                      style={{ backgroundColor: hex }}
+                                      title={col}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
 
-                          <Link
-                            href={`/productos/${product.id}`}
-                            prefetch={false}
-                            onClick={(e) =>
-                              navigateToProductDetail(e, product.id)
-                            }
-                            className="w-full h-full flex items-center justify-center"
+                          {/* Botón de Favorito / Wishlist (arriba a la derecha) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleWishlist(product.id);
+                            }}
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/85 hover:bg-white text-slate-500 hover:text-red-500 border border-slate-200/80 shadow-2xs flex items-center justify-center transition-all z-10 cursor-pointer"
+                            title={isWishlisted ? "Quitar de favoritos" : "Guardar en favoritos"}
                           >
-                            <img
-                              src={product.image || "/placeholder-product.svg"}
-                              alt={product.name}
-                              className="w-full h-full object-contain object-center group-hover:scale-105 transition-transform duration-500"
-                              loading="lazy"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src =
-                                  "/placeholder-product.svg";
-                              }}
+                            <Heart
+                              className={`w-3.5 h-3.5 transition-colors ${
+                                isWishlisted
+                                  ? "fill-red-500 text-red-500"
+                                  : "text-slate-500 hover:text-red-500"
+                              }`}
                             />
-                          </Link>
+                          </button>
 
-                          {/* Botón secundario compacto para Vista Rápida sin bloquear el clic de la imagen */}
+                          {/* Botón secundario flotante para Vista Rápida */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -292,78 +338,80 @@ export function CatalogView({
                               e.stopPropagation();
                               openQuickView(product);
                             }}
-                            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white font-bold text-[11px] bg-slate-950/85 hover:bg-slate-950 backdrop-blur-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                            className="absolute bottom-2 right-2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-bold text-[10px] bg-slate-950/85 hover:bg-slate-950 backdrop-blur-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
                             title="Vista rápida"
                           >
-                            <Eye className="w-3.5 h-3.5 text-[#00D615]" />
-                            <span>Vista Rápida</span>
+                            <Eye className="w-3 h-3 text-[#00D615]" />
+                            <span>Rápida</span>
                           </button>
                         </div>
 
-                        {/* Product Info */}
-                        <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                              <span>{product.brand}</span>
-                              {product.discipline && (
-                                <span className="text-[10px] text-emerald-600 font-semibold">
-                                  {product.discipline}
-                                </span>
-                              )}
-                            </div>
-                            <Link
-                              href={`/productos/${product.id}`}
-                              prefetch={false}
-                              onClick={(e) =>
-                                navigateToProductDetail(e, product.id)
-                              }
-                              className="block"
+                        {/* 2. Cuerpo de Información */}
+                        <div className="p-3 sm:p-3.5 flex flex-col grow justify-between bg-white">
+                          <div>
+                            {/* Nombre / Título */}
+                            <h3
+                              className="text-sm sm:text-[15px] font-normal text-slate-800 group-hover:text-emerald-800 transition-colors line-clamp-2 leading-snug"
+                              title={product.name}
                             >
-                              <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#00A811] transition-colors line-clamp-2">
-                                {product.name}
-                              </h3>
-                            </Link>
-                          </div>
+                              {product.name}
+                            </h3>
 
-                          <div className="space-y-3 pt-1">
-                            {/* Pricing */}
-                            <div className="min-h-10 flex flex-col justify-end">
-                              {product.originalPrice ? (
-                                <span className="text-xs text-slate-400 line-through font-medium">
-                                  {formatCurrency(product.originalPrice)}
-                                </span>
-                              ) : null}
-                              <span className="text-base font-extrabold text-[#00A811] tracking-tight">
-                                {formatCurrency(product.price)}
+                            {/* Marca en negrita uppercase */}
+                            <div className="mt-0.5">
+                              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-tight truncate block">
+                                {product.brand}
                               </span>
                             </div>
 
-                            {/* Actions: Botón Ver producto con navegación explícita y estado de carga */}
-                            <div className="grid grid-cols-1 gap-2 relative z-10">
-                              <Link
-                                href={`/productos/${product.id}`}
-                                prefetch={false}
-                                onClick={(e) =>
-                                  navigateToProductDetail(e, product.id)
-                                }
-                                className="w-full py-2.5 px-4 rounded-lg border border-slate-900 text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-900 hover:text-white active:scale-95 transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer"
-                              >
-                                {isNavigatingThis ? (
-                                  <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Abriendo...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>Ver producto</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                  </>
+                            {/* Rating con estrella azul */}
+                            <div className="flex items-center gap-1 text-[11px] text-[#3483fa] mt-0.5">
+                              <span className="text-xs">★</span>
+                              <span className="font-semibold text-slate-700">
+                                {product.rating ? product.rating.toFixed(1) : "4.8"}
+                              </span>
+                            </div>
+
+                            {/* Precio */}
+                            <div className="mt-1.5">
+                              {hasOffer && originalPrice && (
+                                <div className="text-[11px] sm:text-xs text-slate-400 line-through leading-none">
+                                  {formatCurrency(originalPrice)}
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-base sm:text-lg font-normal text-slate-900 tracking-tight">
+                                  {formatCurrency(product.price)}
+                                </span>
+                                {hasOffer && (
+                                  <span className="text-[10px] sm:text-[11px] font-bold text-[#00a650] bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200/50">
+                                    {discountPercent}% OFF
+                                  </span>
                                 )}
-                              </Link>
+                              </div>
+                            </div>
+
+                            {/* Cuotas sin interés en verde */}
+                            <div className="text-[11px] sm:text-xs font-medium text-[#00a650] leading-tight mt-0.5">
+                              Mismo precio {installmentCount} cuotas de {formatCurrency(installmentAmount)}
+                            </div>
+
+                            {/* Envíos a todo el país */}
+                            <div className="text-[11px] sm:text-xs font-medium text-[#00a650] mt-0.5">
+                              Envíos a todo el país
                             </div>
                           </div>
+
+                          {/* Loading indicator if navigating */}
+                          {isNavigatingThis && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs text-slate-600 font-medium">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00D615]" />
+                              <span>Cargando...</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      </article>
                     );
                   })}
                 </div>
@@ -386,7 +434,7 @@ export function CatalogView({
       {isMobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
             onClick={() => setIsMobileFiltersOpen(false)}
           />
           <div className="fixed inset-y-0 right-0 w-80 max-w-full bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
@@ -412,7 +460,7 @@ export function CatalogView({
 
       {/* 6. Quick View Modal */}
       {activeModalProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col md:flex-row">
             <button
               type="button"
@@ -424,7 +472,7 @@ export function CatalogView({
 
             <div className="md:w-1/2 bg-[#f8fafc] p-8 flex items-center justify-center relative">
               {activeModalProduct.isOffer && (
-                <span className="absolute top-4 left-4 bg-[#c2f25b] text-slate-950 font-black text-xs px-2.5 py-1 rounded shadow-sm">
+                <span className="absolute top-4 left-4 bg-[#c2f25b] text-slate-950 font-black text-xs px-2.5 py-1 rounded shadow-xs">
                   {activeModalProduct.offerTag || "OFERTA"}
                 </span>
               )}
@@ -433,13 +481,12 @@ export function CatalogView({
                 alt={activeModalProduct.name}
                 className="max-h-72 object-contain"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    "/placeholder-product.svg";
+                  (e.target as HTMLImageElement).src = "/placeholder-product.svg";
                 }}
               />
             </div>
 
-            <div className="md:w-1/2 p-6 flex flex-col justify-between space-y-5">
+            <div className="md:w-1/2 p-6 flex flex-col justify-between space-y-6">
               <div className="space-y-3">
                 <div className="space-y-1">
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
@@ -450,84 +497,48 @@ export function CatalogView({
                   </h3>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                <p className="text-xs text-slate-600 leading-relaxed">
                   {activeModalProduct.description ||
                     "Artículo deportivo original garantizado por Matacos Deportes. Local a la calle en Saavedra 241, Formosa."}
                 </p>
 
-                <div className="pt-1">
+                <div className="pt-2">
                   {activeModalProduct.originalPrice && (
                     <span className="text-sm text-slate-400 line-through font-semibold block">
                       {formatCurrency(activeModalProduct.originalPrice)}
                     </span>
                   )}
                   <span className="text-2xl font-black text-[#00A811]">
-                    {formatCurrency(modalDisplayPrice)}
+                    {formatCurrency(activeModalProduct.price)}
                   </span>
                   <span className="block text-[11px] text-emerald-700 font-bold mt-1">
-                    {activeModalProduct.installments ||
-                      "3 y 6 cuotas sin interés en el local"}
+                    {activeModalProduct.installments || "3 y 6 cuotas sin interés en el local"}
                   </span>
                 </div>
 
-                {/* Selector rápido de variantes (Talle / Color) */}
-                {activeModalProduct.variants &&
-                  activeModalProduct.variants.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                        Seleccioná variante (Talle / Color):
-                      </span>
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                        {activeModalProduct.variants.map((v) => {
-                          const isSelected = v.id === selectedQuickVariantId;
-                          const out = !v.inStock || v.availableStock <= 0;
-                          return (
-                            <button
-                              key={v.id}
-                              type="button"
-                              disabled={out}
-                              onClick={() => setSelectedQuickVariantId(v.id)}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                isSelected
-                                  ? "bg-slate-950 text-white border-slate-950"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"
-                              }`}
-                            >
-                              {v.size} • {v.color}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {selectedModalVariant && (
-                        <p className="text-[11px] text-slate-500 font-medium">
-                          Disponibles en esta variante:{" "}
-                          <span className="text-emerald-700 font-bold">
-                            {selectedModalVariant.availableStock} un.
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  )}
+                {activeModalProduct.totalAvailableStock !== undefined && (
+                  <div className="text-xs text-slate-600 font-semibold">
+                    Stock disponible:{" "}
+                    <span className="text-emerald-700 font-bold">
+                      {activeModalProduct.totalAvailableStock} unidades
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => {
-                    handleAddToCartFromModal(activeModalProduct);
+                    handleAddToCart(activeModalProduct);
                     setActiveModalProduct(null);
                   }}
-                  disabled={
-                    !selectedModalVariant ||
-                    !selectedModalVariant.inStock ||
-                    selectedModalVariant.availableStock <= 0
-                  }
-                  className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+                  disabled={!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0}
+                  className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span>
-                    {!selectedModalVariant ||
-                    selectedModalVariant.availableStock <= 0
+                    {!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0
                       ? "Sin Stock"
                       : "Agregar al carrito"}
                   </span>
@@ -535,14 +546,10 @@ export function CatalogView({
 
                 <Link
                   href={`/productos/${activeModalProduct.id}`}
-                  prefetch={false}
-                  onClick={(e) => {
-                    setActiveModalProduct(null);
-                    navigateToProductDetail(e, activeModalProduct.id);
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  onClick={() => setActiveModalProduct(null)}
+                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <span>Ver ficha completa</span>
+                  <span>Ver ficha y selector de talles</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -559,12 +566,13 @@ export function CatalogView({
           </div>
           <div>
             <p className="text-xs font-bold">{addedNotice}</p>
-            <p className="text-[11px] text-slate-300">
-              ¡Agregado al carrito con éxito!
-            </p>
+            <p className="text-[11px] text-slate-300">¡Agregado al carrito con éxito!</p>
           </div>
         </div>
       )}
+
+      {/* 8. Slide-over Cart Drawer */}
+      <EcommerceCartDrawer />
     </div>
   );
 }

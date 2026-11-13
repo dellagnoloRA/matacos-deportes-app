@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Search,
   Heart,
@@ -20,14 +20,11 @@ import {
   Loader2,
   PackageCheck,
   ArrowRight,
-  LogOut,
 } from "lucide-react";
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
-import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
-import { useCart } from "@/stores/cartStore";
-import { EcommerceCartDrawer } from "./EcommerceCartDrawer";
+import { useCart } from "@/store/cartStore";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -47,7 +44,7 @@ interface EcommerceHeaderProps {
 }
 
 export function EcommerceHeader({
-  cartCount = 0,
+  cartCount,
   wishlistCount = 0,
   onOpenCart,
   onOpenSearch,
@@ -55,82 +52,45 @@ export function EcommerceHeader({
 }: EcommerceHeaderProps) {
   const router = useRouter();
   const cart = useCart();
-  const effectiveCartCount = cartCount > 0 ? cartCount : cart.itemCount;
+  const pathname = usePathname();
+  const effectiveCartCount =
+    cartCount !== undefined && cartCount > 0
+      ? cartCount
+      : cart.itemCount;
   const handleOpenCart = onOpenCart || cart.openDrawer;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(true);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [predictiveResults, setPredictiveResults] = useState<PredictiveSearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [, startTransition] = useTransition();
 
-  const [currentUser, setCurrentUser] = useState<{
-    name: string;
-    email: string;
-    level: number;
-    profileName: string | null;
-  } | null>(null);
-  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
-  const accountDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    getCurrentUserAction()
-      .then((u) => {
-        if (u) {
-          setCurrentUser({
-            name: u.name,
-            email: u.email,
-            level: u.level,
-            profileName: u.profileName,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    function handleAccountOutside(event: MouseEvent) {
-      if (
-        accountDropdownRef.current &&
-        !accountDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsAccountDropdownOpen(false);
-      }
-    }
-    if (isAccountDropdownOpen) {
-      document.addEventListener("mousedown", handleAccountOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleAccountOutside);
-    };
-  }, [isAccountDropdownOpen]);
-
-  const handleLogout = async () => {
-    await logoutAction();
-    setCurrentUser(null);
-    setIsAccountDropdownOpen(false);
-    router.refresh();
-  };
-
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close search predictive dropdown when clicking outside
+  // Close search and dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
         searchContainerRef.current &&
         !searchContainerRef.current.contains(event.target as Node)
       ) {
+        setIsSearchOpen(false);
         setPredictiveResults([]);
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    if (isSearchOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isSearchOpen]);
 
   // Debounced predictive search effect
   useEffect(() => {
@@ -168,6 +128,7 @@ export function EcommerceHeader({
       onSearchChange(trimmed);
     }
     if (trimmed.length > 0) {
+      setIsSearchOpen(false);
       setPredictiveResults([]);
       startTransition(() => {
         router.push(`/catalogo?search=${encodeURIComponent(trimmed)}`);
@@ -176,6 +137,7 @@ export function EcommerceHeader({
   };
 
   const handleSelectPredictiveItem = (productId: string) => {
+    setIsSearchOpen(false);
     setPredictiveResults([]);
     startTransition(() => {
       router.push(`/productos/${productId}`);
@@ -239,117 +201,133 @@ export function EcommerceHeader({
         <nav className="hidden lg:flex items-center gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
           <Link
             href="/"
-            className="text-[#0d4a36] border-b-2 border-[#00D615] pb-1 hover:text-[#00A811] transition-colors"
+            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
           >
-            INICIO
+            <span className={pathname === "/" ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+              INICIO
+            </span>
+            {pathname === "/" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
+            )}
           </Link>
           <Link
             href="/catalogo"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
           >
-            CATÁLOGO
-              </Link>
-              <Link
-                href="/catalogo?genero=HOMBRE"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                HOMBRE
-              </Link>
-              <Link
-                href="/catalogo?genero=MUJER"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                MUJER
-              </Link>
-              <Link
-                href="/catalogo?genero=NINO"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                NIÑOS
+<span className={pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos") ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+              CATÁLOGO
+            </span>
+            {(pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
+            )}
           </Link>
-          <a
-            href="#disciplinas"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+          <Link
+            href="/catalogo?sort=disciplina"
+            className="hover:text-[#00A811] transition-colors pb-1"
           >
             DISCIPLINAS
-          </a>
+
+          </Link>
           <Link
             href="/catalogo?sort=newest"
-            className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+            className="hover:text-[#00A811] transition-colors pb-1"
           >
             DESTACADOS
           </Link>
           <Link
             href="/catalogo?ofertas=true"
-            className="flex items-center gap-1.5 text-emerald-700 font-extrabold hover:text-emerald-800 transition-colors pb-1"
+            className="text-red-600 font-extrabold hover:text-red-700 transition-colors pb-1"
+
           >
-            <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-bounce" />
             <span>OFERTAS</span>
           </Link>
         </nav>
 
-        {/* Right: Actions (Search, WhatsApp, Wishlist, Account, Cart) */}
-        <div className="flex items-center gap-2 sm:gap-3 text-slate-700 relative">
-          {/* Help / WhatsApp Support */}
-          <a
-            href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20un%20producto"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
-            title="Atención WhatsApp"
-          >
-            <MessageCircle className="w-5 h-5" />
-          </a>
 
-          {/* Search Bar extendida por default con autocompletado predictivo */}
+        {/* Right: Actions (Search, Account, Cart - Idéntico a la captura) */}
+        <div className="flex items-center gap-1.5 sm:gap-3 text-slate-700">
+          {/* Horizontal Expanding Search Bar (Colapsado por defecto como icono lupa) */}
+
           <div
             ref={searchContainerRef}
-            className="relative flex items-center w-36 sm:w-60 md:w-72 lg:w-88 bg-slate-100 hover:bg-slate-200/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500 border border-slate-200/90 rounded-full px-3 py-1.5 shadow-xs transition-all duration-200"
+            className={`relative flex items-center transition-all duration-300 ease-in-out ${
+              isSearchOpen
+
+                ? "w-44 sm:w-64 md:w-80 bg-slate-100 border border-slate-300 rounded-full px-3 py-1.5 shadow-inner"
+
+                : "w-9 h-9 justify-center"
+            }`}
           >
-            <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
-              {isSearching ? (
-                <Loader2 className="w-4 h-4 text-[#00A811] animate-spin shrink-0" />
-              ) : (
+            {isSearchOpen ? (
+              <form onSubmit={handleSearchSubmit} className="flex items-center w-full gap-2">
+
                 <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              )}
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (onSearchChange) onSearchChange(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setPredictiveResults([]);
-                  }
-                }}
-                placeholder="Buscar por nombre, código o marca..."
-                className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setPredictiveResults([]);
-                    if (onSearchChange) onSearchChange("");
-                    searchInputRef.current?.focus();
+
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (onSearchChange) onSearchChange(e.target.value);
                   }}
-                  className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
-                  title="Borrar texto"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </form>
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setIsSearchOpen(false);
+                      setPredictiveResults([]);
+                    }
+                  }}
+
+                  placeholder="Buscar productos..."
+
+                  className="w-full text-xs sm:text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setPredictiveResults([]);
+                      if (onSearchChange) onSearchChange("");
+                      searchInputRef.current?.focus();
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
+                    title="Borrar texto"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+
+                    onClick={() => setIsSearchOpen(false)}
+
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-full shrink-0 cursor-pointer"
+                    title="Cerrar buscador"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </form>
+            ) : (
+              <button
+
+                type="button"
+
+                onClick={() => {
+                  setIsSearchOpen(true);
+                  if (onOpenSearch) onOpenSearch();
+                }}
+                className="w-full h-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                title="Buscar productos"
+                aria-label="Buscar productos"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Predictive Results Dropdown Popover */}
-            {searchQuery.trim().length >= 2 && (
+            {isSearchOpen && searchQuery.trim().length >= 2 && (
               <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
                   <span>Sugerencias en tiempo real</span>
@@ -380,14 +358,8 @@ export function EcommerceHeader({
                             }}
                           />
                         </div>
-
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
-                            <span>{item.brandName}</span>
-                            <span>•</span>
-                            <span>{item.categoryName}</span>
-                          </div>
-                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#00A811] transition-colors">
+                          <p className="text-xs font-bold text-slate-900 group-hover:text-[#00A811] transition-colors truncate">
                             {item.name}
                           </p>
                           <div className="flex items-center justify-between mt-0.5">
@@ -404,7 +376,7 @@ export function EcommerceHeader({
                   ) : !isSearching ? (
                     <div className="p-6 text-center text-xs text-slate-500 space-y-1">
                       <p className="font-bold text-slate-700">No encontramos coincidencias para "{searchQuery}"</p>
-                      <p className="text-[11px] text-slate-400">Probá buscando por marca (ej. Speedo, Mikasa) o categoría.</p>
+                      <p className="text-[11px] text-slate-400">Probá buscando por marca o categoría.</p>
                     </div>
                   ) : null}
                 </div>
@@ -426,44 +398,26 @@ export function EcommerceHeader({
             )}
           </div>
 
-          {/* Wishlist */}
-          <button
-            className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors relative cursor-pointer"
-            title="Favoritos"
-          >
-            <Heart className="w-5 h-5" />
-            {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
 
-          {/* User Account / Admin Link */}
+          {/* User Account Link */}
           <Link
             href="/cuenta"
-            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
+            className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
             title="Mi Cuenta"
+            aria-label="Cuenta de usuario"
           >
-            {currentUser ? (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
-                  {currentUser.name.charAt(0).toUpperCase()}
-                </span>
-                <span className="hidden md:inline max-w-20 truncate">
-                  {currentUser.name.split(" ")[0]}
-                </span>
-              </span>
-            ) : (
-              <User className="w-5 h-5" />
-            )}
+            <User className="w-5 h-5" />
           </Link>
 
-          {/* Cart with Badge */}
+          {/* Shopping Cart Button */}
           <button
+
+            type="button"
             onClick={handleOpenCart}
-            className="p-2 text-slate-800 hover:text-[#00A811] hover:bg-emerald-50 rounded-full transition-colors relative cursor-pointer"
+            className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors relative cursor-pointer"
+
             title="Carrito de compras"
+            aria-label="Carrito de compras"
           >
             <ShoppingBag className="w-5 h-5" />
             {effectiveCartCount > 0 && (
@@ -508,62 +462,41 @@ export function EcommerceHeader({
               <Link
                 href="/catalogo"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
                 CATÁLOGO
-              </Link>
-              <Link
-                href="/catalogo?genero=HOMBRE"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                HOMBRE
-              </Link>
-              <Link
-                href="/catalogo?genero=MUJER"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                MUJER
-              </Link>
-              <Link
-                href="/catalogo?genero=NINO"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
-              >
-                NIÑOS
               </Link>
               <a
                 href="#disciplinas"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
                 DISCIPLINAS
               </a>
-              <Link
-                href="/catalogo?sort=newest"
+              <a
+                href="#productos"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] transition-colors pb-1 border-b-2 border-transparent hover:border-[#00D615]"
+                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
-                DESTACADOS
-              </Link>
-              <Link
-                href="/catalogo?ofertas=true"
+                PRODUCTOS
+              </a>
+              <a
+                href="#ofertas"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors font-bold"
+                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
               >
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span>OFERTAS</span>
-              </Link>
+              </a>
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
               <Link
-                href="/cuenta"
+                href="/admin"
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase"
               >
                 <User className="w-4 h-4" />
-                <span>{currentUser ? "Mi Cuenta" : "Iniciar Sesión / Mi Cuenta"}</span>
+                <span>Panel de Gestión</span>
               </Link>
               <p className="text-[11px] text-center text-slate-400">
                 Saavedra 241, Formosa Capital
@@ -572,8 +505,6 @@ export function EcommerceHeader({
           </div>
         </div>
       )}
-      {/* Persistent Global Cart Drawer */}
-      <EcommerceCartDrawer />
     </header>
   );
 }

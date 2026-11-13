@@ -25,7 +25,6 @@ export function CatalogTopBar({
 }: CatalogTopBarProps) {
   // Count active filters (excluding sort, page, limit)
   const activeCount = [
-    activeFilters.gender,
     activeFilters.disciplineSlug,
     activeFilters.categorySlug,
     activeFilters.brandSlug,
@@ -36,68 +35,49 @@ export function CatalogTopBar({
   ].filter(Boolean).length;
 
   // Resolve human-readable names for tags
-  const genderMatch = activeFilters.gender
-    ? facets.genders?.find((g) => g.gender === activeFilters.gender)
-    : null;
-  const genderLabel: string | null = genderMatch
-    ? genderMatch.label
-    : activeFilters.gender
-    ? String(activeFilters.gender)
-    : null;
-  const disciplineName =
-    facets.disciplines.find(
-      (d) =>
-        d.slug.toLowerCase() === activeFilters.disciplineSlug?.toLowerCase() ||
-        d.name.toLowerCase() === activeFilters.disciplineSlug?.toLowerCase()
-    )?.name || activeFilters.disciplineSlug;
-  const categoryName =
-    facets.categories.find(
-      (c) =>
-        c.slug.toLowerCase() === activeFilters.categorySlug?.toLowerCase() ||
-        c.name.toLowerCase() === activeFilters.categorySlug?.toLowerCase()
-    )?.name || activeFilters.categorySlug;
-  const brandName =
-    facets.brands.find(
-      (b) =>
-        b.slug.toLowerCase() === activeFilters.brandSlug?.toLowerCase() ||
-        b.name.toLowerCase() === activeFilters.brandSlug?.toLowerCase()
-    )?.name || activeFilters.brandSlug;
+  const disciplineName = facets.disciplines.find(
+    (d) => d.slug === activeFilters.disciplineSlug
+  )?.name;
+  const categoryName = facets.categories.find(
+    (c) => c.slug === activeFilters.categorySlug
+  )?.name;
+  const brandName = facets.brands.find((b) => b.slug === activeFilters.brandSlug)?.name;
 
   return (
     <div className="space-y-4 mb-6">
       {/* 1. Breadcrumbs */}
-      <nav className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-        <Link href="/" className="hover:text-slate-900 transition-colors">
+      <nav className="flex items-center gap-2 text-xs text-slate-400 font-normal mb-3">
+        <Link href="/" className="hover:text-slate-700 transition-colors">
           Inicio
         </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-        <Link href="/catalogo" className="hover:text-slate-900 transition-colors">
+        <span className="text-slate-300">&gt;</span>
+        <Link href="/catalogo" className="hover:text-slate-700 transition-colors">
           Catálogo
         </Link>
         {disciplineName && (
           <>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-bold text-slate-900">{disciplineName}</span>
+            <span className="text-slate-300">&gt;</span>
+            <span className="font-semibold text-slate-800">{disciplineName}</span>
           </>
         )}
         {categoryName && !disciplineName && (
           <>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-bold text-slate-900">{categoryName}</span>
+            <span className="text-slate-300">&gt;</span>
+            <span className="font-semibold text-slate-800">{categoryName}</span>
           </>
         )}
       </nav>
 
-      {/* 2. Controls Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* 2. Controls Toolbar (Barra superior sin contenedor tosco, idéntico a la captura) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 pt-1 border-b border-slate-100 sm:border-none">
         {/* Left: Mobile Filter Button & Results Counter */}
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onOpenMobileFilters}
-            className="lg:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+            className="lg:hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold uppercase tracking-wider cursor-pointer"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-800" />
             <span>Filtros</span>
             {activeCount > 0 && (
               <span className="w-4 h-4 rounded-full bg-[#00D615] text-slate-950 text-[10px] flex items-center justify-center font-black">
@@ -106,9 +86,8 @@ export function CatalogTopBar({
             )}
           </button>
 
-          <span className="text-xs sm:text-sm font-semibold text-slate-600">
-            <strong className="text-slate-900 font-bold">{pagination.totalItems}</strong>{" "}
-            {pagination.totalItems === 1 ? "artículo disponible" : "artículos disponibles"}
+          <span className="text-sm font-bold text-slate-800">
+            {pagination.totalItems} {pagination.totalItems === 1 ? "artículo disponible" : "artículos disponibles"}
           </span>
         </div>
 
@@ -123,7 +102,7 @@ export function CatalogTopBar({
               onChange={(e) =>
                 onFilterChange({ sort: e.target.value as any, page: 1 })
               }
-              className="appearance-none bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 outline-none hover:border-slate-300 focus:border-[#00D615] cursor-pointer"
+              className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-800 outline-none hover:border-slate-300 focus:border-[#00D615] cursor-pointer"
             >
               <option value="newest">Novedades y Destacados</option>
               <option value="price_asc">Menor precio</option>
@@ -149,20 +128,6 @@ export function CatalogTopBar({
                 type="button"
                 onClick={() => onFilterChange({ search: undefined, page: 1 })}
                 className="hover:text-red-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
-          )}
-
-          {genderLabel && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-semibold">
-              <span>Género: {genderLabel}</span>
-              <button
-                type="button"
-                onClick={() => onFilterChange({ gender: undefined, page: 1 })}
-                className="hover:text-red-600 cursor-pointer"
-                title="Quitar filtro de género"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
