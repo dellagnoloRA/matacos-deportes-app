@@ -11,11 +11,13 @@ import {
   RefreshCw,
   Search,
   Lock,
+  Pencil,
 } from "lucide-react";
 import {
   getUsersListAction,
   getProfilesListAction,
   createUserAction,
+  updateUserAction,
   toggleUserActiveAction,
   resetUserPasswordAction,
   SerializedUser,
@@ -32,8 +34,17 @@ export function UsersManagementView() {
 
   // Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [selectedUserForReset, setSelectedUserForReset] = useState<SerializedUser | null>(null);
+  const [editingUser, setEditingUser] = useState<SerializedUser | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    username: "",
+    email: "",
+    profileId: "",
+    active: true,
+  });
 
   // Formularios
   const [formData, setFormData] = useState({
@@ -142,6 +153,47 @@ export function UsersManagementView() {
       setNewPassword("");
     } else {
       setErrorMessage(res.error || "Error al actualizar contraseña");
+    }
+  };
+
+  const openEditUserModal = (user: SerializedUser) => {
+    setEditingUser(user);
+    setEditFormData({
+      name: user.name,
+      username: user.username || "",
+      email: user.email,
+      profileId: user.profileId || profiles[0]?.id || "",
+      active: user.active,
+    });
+    setErrorMessage(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const res = await updateUserAction({
+      userId: editingUser.id,
+      name: editFormData.name,
+      username: editFormData.username,
+      email: editFormData.email,
+      profileId: editFormData.profileId,
+      active: editFormData.active,
+    });
+    setSubmitting(false);
+
+    if (res.success) {
+      setSuccessMessage(`Usuario '${editFormData.username}' actualizado correctamente`);
+      setIsEditModalOpen(false);
+      setEditingUser(null);
+      loadData();
+    } else {
+      setErrorMessage(res.error || "Error al actualizar usuario");
     }
   };
 
@@ -272,7 +324,19 @@ export function UsersManagementView() {
                           {u.username || "—"}
                         </code>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-600">{u.email}</td>
+                      <td className="px-5 py-3.5 text-slate-600">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{u.email}</span>
+                          {u.googleLinked && (
+                            <span
+                              title="Vinculado con Google Auth"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold"
+                            >
+                              Google
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           <Shield className="w-3 h-3 text-emerald-600" />
@@ -291,6 +355,13 @@ export function UsersManagementView() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right space-x-1.5">
+                        <button
+                          onClick={() => openEditUserModal(u)}
+                          title="Editar usuario / correo Google"
+                          className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedUserForReset(u);
@@ -423,6 +494,100 @@ export function UsersManagementView() {
                   className="px-4 py-2 bg-[#00D615] hover:bg-[#00c013] text-slate-950 rounded-xl font-bold transition-all disabled:opacity-50"
                 >
                   {submitting ? "Creando..." : "Guardar Empleado"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Usuario */}
+      {isEditModalOpen && editingUser && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-emerald-600" />
+                <span>Editar Empleado</span>
+              </h3>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Usuario (Mostrador)</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.username}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, username: e.target.value.toLowerCase() })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Correo Electrónico (habilitado para Google Auth)
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Si este correo coincide con una cuenta Google, el empleado ingresará directo al Panel al iniciar sesión con Google.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Perfil y Permisos</label>
+                <select
+                  value={editFormData.profileId}
+                  onChange={(e) => setEditFormData({ ...editFormData, profileId: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-white"
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#00D615] hover:bg-[#00c013] text-slate-950 rounded-xl font-bold transition-all disabled:opacity-50"
+                >
+                  {submitting ? "Guardando..." : "Guardar Cambios"}
                 </button>
               </div>
             </form>

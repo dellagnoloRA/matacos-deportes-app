@@ -23,6 +23,8 @@ import {
   type WebCardBrand,
 } from "@/schemas/ecommerce";
 import { mpClient, Payment, isMercadoPagoConfigured } from "@/lib/mercadopago";
+import { listActiveInstallmentPlansService } from "@/server/services/installmentService";
+import { calculateInstallmentPlanAmounts } from "@/schemas/installment";
 
 /**
  * Mapeo de códigos de rechazo oficiales de Mercado Pago a mensajes amigables para el comprador
@@ -960,6 +962,9 @@ export interface WebOrderPaymentResult {
   cardLast4: string | null;
   installments: number;
   installmentAmount: number;
+  planName?: string | null;
+  interestRate?: number;
+  surchargeAmount?: number;
   totalAmount: number;
   totalFormatted: string;
   voucherCode: string | null;
@@ -1356,13 +1361,55 @@ export async function processWebOrderPayment(
           ? 1
           : validated.installments;
 
+      let planName: string | null = null;
+      let interestRate = 0;
+      let surchargeAmount = 0;
+      let effectiveTotalAmount = totalAmount;
+      let effectiveInstallmentAmount = totalAmount / installments;
+
+      if (validated.paymentOption === "TARJETA_CREDITO") {
+        const plansRes = await listActiveInstallmentPlansService();
+        const activePlans = plansRes.data ?? [];
+
+        const matchedPlan = validated.installmentPlanId
+          ? activePlans.find((p) => p.id === validated.installmentPlanId)
+          : activePlans.find(
+              (p) =>
+                p.cardBrands.includes(cardBrand) &&
+                p.installments === installments &&
+                totalAmount >= p.minAmount
+            ) ??
+            activePlans.find(
+              (p) =>
+                p.cardBrands.includes(cardBrand) &&
+                p.installments === installments
+            );
+
+        if (matchedPlan) {
+          if (totalAmount < matchedPlan.minAmount) {
+            return {
+              success: false,
+              code: "VALIDATION_ERROR",
+              error: `El plan "${matchedPlan.name}" solo está disponible en compras a partir de ${formatCurrency(matchedPlan.minAmount)}.`,
+            };
+          }
+
+          const calc = calculateInstallmentPlanAmounts(totalAmount, matchedPlan);
+          planName = matchedPlan.name;
+          interestRate = calc.interestRate;
+          surchargeAmount = calc.surchargeAmount;
+          effectiveTotalAmount = calc.totalFinanced;
+          effectiveInstallmentAmount = calc.installmentAmount;
+        }
+      }
+
       // 1. MODO REAL: Si se recibió cardToken desde el navegador y Mercado Pago está configurado
       if (validated.cardToken && isMercadoPagoConfigured()) {
         try {
           const paymentApi = new Payment(mpClient);
           const mpResponse = await paymentApi.create({
             body: {
-              transaction_amount: totalAmount,
+              transaction_amount: effectiveTotalAmount,
               token: validated.cardToken,
               description: `Matacos Deportes - Pedido ${normalizedOrderCode}`,
               installments,
@@ -1555,7 +1602,7 @@ export async function processWebOrderPayment(
           data: {
             saleId: existingSale.id,
             method: prismaMethod,
-            amount: existingSale.total,
+            amount: effectiveTotalAmount,
             cardBrand,
             cardVoucher: voucherCode,
             installments,
@@ -1563,7 +1610,10 @@ export async function processWebOrderPayment(
           },
         });
 
-        const auditNote = `[PAGO ONLINE APROBADO] ${prismaMethod} ${cardBrand} ****${cardLast4} (${installments} pago/s) - Cód. Aut: ${voucherCode}`;
+        const planDetailLabel = planName
+          ? `${planName}`
+          : `${installments} pago/s`;
+        const auditNote = `[PAGO ONLINE APROBADO] ${prismaMethod} ${cardBrand} ****${cardLast4} (${planDetailLabel}) - Cód. Aut: ${voucherCode}`;
         const updatedNotes = lockedSale.notes
           ? `${lockedSale.notes} | ${auditNote}`
           : auditNote;
@@ -1573,6 +1623,7 @@ export async function processWebOrderPayment(
           data: {
             status: "COMPLETADA",
             shippingStatus: "EN_PREPARACION",
+            total: effectiveTotalAmount,
             notes: updatedNotes,
           },
           select: {
@@ -1581,7 +1632,7 @@ export async function processWebOrderPayment(
         });
 
         const waMsg = encodeURIComponent(
-          `¡Hola Matacos Deportes! Ya aboné con tarjeta (${cardBrand} ****${cardLast4}, Cód. ${voucherCode}) mi pedido web *${normalizedOrderCode}* por ${formatCurrency(totalAmount)}.`
+          `¡Hola Matacos Deportes! Ya aboné con tarjeta (${cardBrand} ****${cardLast4}, Cód. ${voucherCode}) mi pedido web *${normalizedOrderCode}* por ${formatCurrency(effectiveTotalAmount)}.`
         );
 
         const result: WebOrderPaymentResult = {
@@ -1593,9 +1644,12 @@ export async function processWebOrderPayment(
           cardBrand,
           cardLast4,
           installments,
-          installmentAmount: totalAmount / installments,
-          totalAmount,
-          totalFormatted: formatCurrency(totalAmount),
+          installmentAmount: effectiveInstallmentAmount,
+          planName,
+          interestRate,
+          surchargeAmount,
+          totalAmount: effectiveTotalAmount,
+          totalFormatted: formatCurrency(effectiveTotalAmount),
           voucherCode,
           referenceCode,
           transferReference: null,

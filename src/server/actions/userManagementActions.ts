@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import {
   createUserSchema,
   CreateUserInput,
+  updateUserSchema,
+  UpdateUserInput,
   resetPasswordSchema,
   ResetPasswordInput,
   createProfileSchema,
@@ -18,6 +20,7 @@ export interface SerializedUser {
   name: string;
   username: string | null;
   email: string;
+  googleLinked: boolean;
   active: boolean;
   createdAt: string;
   profileId: string | null;
@@ -72,6 +75,7 @@ export async function getUsersListAction(): Promise<{
       name: u.name,
       username: u.username,
       email: u.email,
+      googleLinked: Boolean(u.googleId),
       active: u.active,
       createdAt: u.createdAt.toISOString(),
       profileId: u.profileId,
@@ -224,6 +228,69 @@ export async function createUserAction(input: CreateUserInput): Promise<{
   } catch (error: any) {
     console.error("Error en createUserAction:", error);
     return { success: false, error: "Ocurrió un error al crear el usuario" };
+  }
+}
+
+/**
+ * Actualizar datos de un usuario del personal (incluyendo correo Google Auth)
+ */
+export async function updateUserAction(
+  input: UpdateUserInput
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const canManage = await hasPermission("admin.usuarios");
+    if (!canManage) {
+      return { success: false, error: "No tienes permisos para editar usuarios" };
+    }
+
+    const validated = updateUserSchema.safeParse(input);
+    if (!validated.success) {
+      return {
+        success: false,
+        error: validated.error.errors[0]?.message || "Datos del usuario inválidos",
+      };
+    }
+
+    const { userId, name, username, email, profileId, active } = validated.data;
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      return { success: false, error: "Usuario no encontrado" };
+    }
+
+    const duplicate = await prisma.user.findFirst({
+      where: {
+        id: { not: userId },
+        OR: [{ username }, { email }],
+      },
+    });
+
+    if (duplicate) {
+      if (duplicate.username === username) {
+        return { success: false, error: `El usuario '${username}' ya está en uso` };
+      }
+      return { success: false, error: `El correo '${email}' ya está en uso` };
+    }
+
+    const emailChanged = existing.email.toLowerCase() !== email.toLowerCase();
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        username,
+        email,
+        profileId,
+        active,
+        ...(emailChanged ? { googleId: null } : {}),
+      },
+    });
+
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("Error en updateUserAction:", error);
+    return { success: false, error: "Ocurrió un error al actualizar el usuario" };
   }
 }
 

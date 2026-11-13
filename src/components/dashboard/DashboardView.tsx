@@ -20,6 +20,7 @@ import { ProfilesManagementView } from "./ProfilesManagementView";
 import { StoreSettingsView } from "./StoreSettingsView";
 import { WebOrdersView } from "./WebOrdersView";
 import { BannersManagementView } from "./BannersManagementView";
+import { InstallmentsManagementView } from "./InstallmentsManagementView";
 import { PromotionManagementView } from "./PromotionManagementView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
@@ -98,6 +99,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "usuarios") return "usuarios";
     if (tab === "perfiles") return "perfiles";
     if (tab === "banners" || tab === "admin-banners") return "banners";
+    if (tab === "cuotas" || tab === "admin-cuotas") return "cuotas";
     if (tab === "promociones" || tab === "admin-promociones") return "promociones";
     return "inventario";
   }, [searchParams]);
@@ -187,6 +189,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
       } else if (id === "admin-banners" || id === "banners") {
         updateUrl({
           tab: "banners",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "admin-cuotas" || id === "cuotas") {
+        updateUrl({
+          tab: "cuotas",
           seccion: null,
           categoria: null,
           producto: null,
@@ -392,7 +401,8 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 ? "admin-perfiles"
                 : currentTab === "banners"
                 ? "admin-banners"
-
+                : currentTab === "cuotas"
+                ? "admin-cuotas"
                 : currentTab === "inventario"
                 ? `inventario-${currentInventorySubView}`
                 : currentTab === "pos"
@@ -440,6 +450,17 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
               <p className="text-xs text-slate-500 mt-1">
                 Tu perfil no cuenta con permisos para gestionar banners web (ecommerce.banners).
+              </p>
+            </div>
+          )
+        ) : currentTab === "cuotas" ? (
+          hasPerm("ecommerce.banners") ? (
+            <InstallmentsManagementView />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para gestionar planes de cuotas (ecommerce.banners).
               </p>
             </div>
           )
@@ -842,7 +863,9 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               ? "admin-perfiles"
               : currentTab === "banners"
               ? "admin-banners"
-                : currentTab === "inventario"
+              : currentTab === "cuotas"
+              ? "admin-cuotas"
+              : currentTab === "inventario"
               ? `inventario-${currentInventorySubView}`
               : currentTab === "pos"
               ? `pos-${currentPosSubView}`

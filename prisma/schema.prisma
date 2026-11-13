@@ -67,6 +67,8 @@ model User {
   id             String      @id @default(uuid())
   username       String?     @unique
   email          String      @unique
+  googleId       String?     @unique
+  avatarUrl      String?
   name           String
   password       String
   role           Role?       @default(CAJERO) // Campo legacy para compatibilidad
@@ -477,6 +479,31 @@ model Banner {
 
   @@index([active, order])
   @@index([startDate, endDate])
+}
+
+// =========================================================================
+// GESTIÓN DE PLANES DE CUOTAS Y FINANCIACIÓN CON TARJETA (ESTILO TIENDANUBE)
+// =========================================================================
+
+model InstallmentPlan {
+  id           String    @id @default(uuid())
+  name         String    // Ej: "3 cuotas sin interés", "Plan Z", "4 cuotas sin interés"
+  description  String?   // Nota comercial opcional: "Con todas las tarjetas bancarizadas"
+  cardGroup    String    @default("BANCARIZADAS") // "BANCARIZADAS", "NARANJA_X", "TODAS", "ESPECIFICAS"
+  cardBrands   String[]  @default(["VISA", "MASTERCARD", "CABAL"]) // "VISA", "MASTERCARD", "CABAL", "NARANJA_X"
+  installments Int       @default(3) // Cantidad de cuotas: 1, 2, 3, 4, 6, 9, 12, etc.
+  isPlanZ      Boolean   @default(false) // Flag especial para Plan Z de Naranja X (hasta 3 cuotas cero interés)
+  interestRate Decimal   @default(0) @db.Decimal(5, 2) // 0 = Sin interés, > 0 = % de recargo financiero sobre el total
+  minAmount    Decimal   @default(0) @db.Decimal(12, 2) // Costo / monto mínimo de compra a partir del cual se habilita
+  order        Int       @default(0)
+  active       Boolean   @default(true)
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([active, order])
+  @@index([cardGroup])
 }
 
 model StoreSetting {

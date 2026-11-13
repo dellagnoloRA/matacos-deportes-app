@@ -58,7 +58,12 @@ export function mapPublicProductToEcommerce(
     image: primaryImage,
     images: item.images,
     description: item.description || undefined,
-    installments: "3 y 6 cuotas sin interés",
+    installments:
+      displayPrice >= 80000
+        ? "3 cuotas s/interés · 4 en Naranja X"
+        : displayPrice >= 30000
+        ? "3 cuotas sin interés · Plan Z"
+        : "Plan Z s/interés · 3 cuotas desde $30.000",
     totalAvailableStock: item.totalAvailableStock,
     hasStock: item.hasStock,
     variants: item.variants,

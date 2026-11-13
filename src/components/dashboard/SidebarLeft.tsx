@@ -25,6 +25,7 @@ import {
   Shield,
   Sparkles,
   Percent,
+  CreditCard,
 } from "lucide-react";
 
 interface SidebarLeftProps {
@@ -54,7 +55,7 @@ export function SidebarLeft({
 
   const handleLogout = async () => {
     await logoutAction();
-    window.location.href = "/login";
+    window.location.href = "/cuenta";
   };
 
   const hasPerm = (code: string) => {
@@ -385,6 +386,22 @@ export function SidebarLeft({
                   <div className="flex items-center gap-3">
                     <Sparkles className={`w-4 h-4 ${activeItem === "admin-banners" ? "text-slate-950" : "text-emerald-300"}`} />
                     <span>Banners Web</span>
+                  </div>
+                </button>
+              )}
+              {hasPerm("ecommerce.banners") && (
+                <button
+                  type="button"
+                  onClick={() => handleItemClick("admin-cuotas")}
+                  className={`flex items-center justify-between w-full py-2.5 px-3.5 rounded-2xl transition-all font-semibold ${
+                    activeItem === "admin-cuotas" || activeItem === "cuotas"
+                      ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CreditCard className={`w-4 h-4 ${activeItem === "admin-cuotas" || activeItem === "cuotas" ? "text-slate-950" : "text-emerald-300"}`} />
+                    <span>Planes de Cuotas</span>
                   </div>
                 </button>
               )}

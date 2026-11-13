@@ -32,6 +32,7 @@ export function CatalogTopBar({
     activeFilters.minPrice,
     activeFilters.maxPrice,
     activeFilters.search,
+    activeFilters.ofertas,
   ].filter(Boolean).length;
 
   // Resolve human-readable names for tags
@@ -120,6 +121,19 @@ export function CatalogTopBar({
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Filtros activos:
           </span>
+
+          {Boolean(activeFilters.ofertas) && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold">
+              <span>Solo en Oferta</span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ ofertas: undefined, page: 1 })}
+                className="hover:text-red-900 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
 
           {activeFilters.search && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-semibold">
