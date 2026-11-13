@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { WizardFormState, HighlightItem } from "./types";
-import { Plus, Trash2, Sparkles, HelpCircle, Activity, Shield, Feather, Wind, Zap } from "lucide-react";
+import { Plus, Trash2, Sparkles } from "lucide-react";
+import {
+  HighlightIcon,
+  getSmartHighlightIcon,
+  AVAILABLE_HIGHLIGHT_ICONS,
+} from "./highlightIcons";
 
 interface Step4Props {
   form: WizardFormState;
@@ -15,14 +20,36 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
 
   const [newSpecKey, setNewSpecKey] = useState("");
   const [newSpecVal, setNewSpecVal] = useState("");
+  const [openIconPickerIdx, setOpenIconPickerIdx] = useState<number | null>(null);
+
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar selector al hacer clic fuera
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setOpenIconPickerIdx(null);
+      }
+    }
+    if (openIconPickerIdx !== null) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openIconPickerIdx]);
 
   // Agregar característica destacada
   const handleAddHighlight = () => {
     if (highlights.length >= 5) return;
+    const defaultTitle = "Tecnología Amortiguación";
+    const defaultText = "Absorbe el impacto en cada pisada para mayor confort.";
+    const smartIcon = getSmartHighlightIcon(defaultTitle, defaultText);
+
     const newH: HighlightItem = {
-      icon: "zap",
-      title: "Tecnología Amortiguación",
-      text: "Absorbe el impacto en cada pisada para mayor confort.",
+      icon: smartIcon,
+      title: defaultTitle,
+      text: defaultText,
     };
     updateForm({ highlights: [...highlights, newH] });
   };
@@ -32,8 +59,24 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
     updateForm({ highlights: updated });
   };
 
+  // Modificación intuitiva en base al texto escrito
+  const handleTitleChange = (index: number, newTitle: string) => {
+    const current = highlights[index];
+    const smartIcon = getSmartHighlightIcon(newTitle, current?.text || "");
+    handleUpdateHighlight(index, { title: newTitle, icon: smartIcon });
+  };
+
+  const handleTextChange = (index: number, newText: string) => {
+    const current = highlights[index];
+    const smartIcon = getSmartHighlightIcon(current?.title || "", newText);
+    handleUpdateHighlight(index, { text: newText, icon: smartIcon });
+  };
+
   const handleRemoveHighlight = (index: number) => {
     updateForm({ highlights: highlights.filter((_, i) => i !== index) });
+    if (openIconPickerIdx === index) {
+      setOpenIconPickerIdx(null);
+    }
   };
 
   // Agregar clave-valor de especificación técnica
@@ -110,7 +153,7 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
         />
       </div>
 
-      {/* Hasta 5 Características Destacadas */}
+      {/* Hasta 5 Características Destacadas con íconos dinámicos e intuitivos */}
       <div className="space-y-3 pt-2 border-t border-slate-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
@@ -134,41 +177,105 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
             No has agregado características destacadas todavía.
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {highlights.map((h, idx) => (
-              <div
-                key={idx}
-                className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-start gap-2.5"
-              >
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Título (Ej: Transpirable)"
-                    value={h.title}
-                    onChange={(e) => handleUpdateHighlight(idx, { title: e.target.value })}
-                    className="h-8 px-2.5 rounded border border-slate-300 text-xs font-bold focus:outline-none focus:border-emerald-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Explicación breve..."
-                    value={h.text}
-                    onChange={(e) => handleUpdateHighlight(idx, { text: e.target.value })}
-                    className="h-8 px-2.5 rounded border border-slate-300 text-xs sm:col-span-2 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveHighlight(idx)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
-                  title="Eliminar"
+          <div className="space-y-2.5" ref={pickerRef}>
+            {highlights.map((h, idx) => {
+              const isOpen = openIconPickerIdx === idx;
+              return (
+                <div
+                  key={idx}
+                  className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-start gap-2.5 relative"
                 >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+                  {/* Selector interactivo y dinámico de ícono */}
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setOpenIconPickerIdx(isOpen ? null : idx)}
+                      className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center mt-0.5 transition-all border border-emerald-200/60 shadow-2xs hover:scale-105 cursor-pointer group"
+                      title="Ícono intuitivo automático (clic para cambiar símbolo manualmente)"
+                    >
+                      <HighlightIcon
+                        icon={h.icon}
+                        className="w-4 h-4 group-hover:scale-110 transition-transform"
+                      />
+                    </button>
+
+                    {/* Popover con catálogo de símbolos deportivos */}
+                    {isOpen && (
+                      <div className="absolute left-0 top-10 z-40 w-64 p-2.5 bg-white rounded-xl shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 text-[11px] font-bold text-slate-700">
+                          <span>Símbolo de la característica</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const autoIcon = getSmartHighlightIcon(h.title, h.text);
+                              handleUpdateHighlight(idx, { icon: autoIcon });
+                              setOpenIconPickerIdx(null);
+                            }}
+                            className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
+                            title="Restablecer detección automática por texto"
+                          >
+                            <Sparkles className="w-3 h-3 text-emerald-600" />
+                            <span>Auto</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                          {AVAILABLE_HIGHLIGHT_ICONS.map((item) => {
+                            const IconComp = item.component;
+                            const isSelected = h.icon === item.key;
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateHighlight(idx, { icon: item.key });
+                                  setOpenIconPickerIdx(null);
+                                }}
+                                className={`p-1.5 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                                  isSelected
+                                    ? "bg-emerald-600 text-white font-bold shadow-xs"
+                                    : "bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900"
+                                }`}
+                                title={item.label}
+                              >
+                                <IconComp className="w-4 h-4" />
+                                <span className="text-[9px] truncate w-full block leading-none">
+                                  {item.label.split("/")[0]?.trim()}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Título (Ej: Transpirable, Amortiguación...)"
+                      value={h.title}
+                      onChange={(e) => handleTitleChange(idx, e.target.value)}
+                      className="h-8 px-2.5 rounded border border-slate-300 text-xs font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Explicación breve..."
+                      value={h.text}
+                      onChange={(e) => handleTextChange(idx, e.target.value)}
+                      className="h-8 px-2.5 rounded border border-slate-300 text-xs sm:col-span-2 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveHighlight(idx)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

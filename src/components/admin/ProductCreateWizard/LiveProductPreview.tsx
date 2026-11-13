@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { WizardFormState, SizeGuideItem } from "./types";
+import { HighlightIcon } from "./highlightIcons";
 import { formatCurrency } from "@/lib/utils";
 import {
   Truck,
@@ -685,7 +686,10 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
                             key={i}
                             className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100"
                           >
-                            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <HighlightIcon
+                              icon={h.icon}
+                              className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"
+                            />
                             <div>
                               <strong className="text-slate-900 block text-[11px]">
                                 {h.title}
