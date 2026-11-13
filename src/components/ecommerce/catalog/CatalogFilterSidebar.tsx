@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  Flame,
   RotateCcw,
   SlidersHorizontal,
   X,
@@ -54,7 +55,8 @@ export function CatalogFilterSidebar({
       activeFilters.size ||
       activeFilters.minPrice ||
       activeFilters.maxPrice ||
-      activeFilters.search
+      activeFilters.search ||
+      activeFilters.ofertas
   );
 
   // El filtro de talles solo aparece dinámicamente cuando hay contexto (disciplina, categoría, marca, búsqueda o talle activo)
@@ -99,6 +101,44 @@ export function CatalogFilterSidebar({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Toggle Solo en Oferta */}
+      <div className="pb-3 border-b border-slate-100">
+        <button
+          type="button"
+          onClick={() =>
+            onFilterChange({
+              ofertas: activeFilters.ofertas ? undefined : true,
+              page: 1,
+            })
+          }
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-xs font-bold cursor-pointer ${
+            activeFilters.ofertas
+              ? "bg-[#0B132B] text-white border-[#0B132B] shadow-xs"
+              : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Flame
+              className={`w-4 h-4 ${
+                activeFilters.ofertas
+                  ? "text-orange-400 fill-orange-400"
+                  : "text-orange-500"
+              }`}
+            />
+            <span>Solo en Oferta</span>
+          </span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+              activeFilters.ofertas
+                ? "bg-[#00D615] text-slate-950"
+                : "bg-slate-200 text-slate-600"
+            }`}
+          >
+            {activeFilters.ofertas ? "ACTIVO" : "VER"}
+          </span>
+        </button>
       </div>
 
       {/* 2. Acordeón: DISCIPLINA (Primero y abierto por defecto) */}

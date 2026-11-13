@@ -517,28 +517,28 @@ export function EcommerceHeader({
               >
                 CATÁLOGO
               </Link>
-              <a
-                href="#disciplinas"
+              <Link
+                href="/catalogo?sort=disciplina"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
                 DISCIPLINAS
-              </a>
-              <a
-                href="#productos"
+              </Link>
+              <Link
+                href="/catalogo?sort=newest"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
               >
-                PRODUCTOS
-              </a>
-              <a
-                href="#ofertas"
+                DESTACADOS
+              </Link>
+              <Link
+                href="/catalogo?ofertas=true"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-emerald-700 py-2 transition-colors"
+                className="flex items-center gap-2 text-red-600 font-extrabold hover:text-red-700 py-2 transition-colors"
               >
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span>OFERTAS</span>
-              </a>
+              </Link>
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
