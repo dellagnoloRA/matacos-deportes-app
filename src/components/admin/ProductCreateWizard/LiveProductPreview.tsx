@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { WizardFormState, SizeGuideItem } from "./types";
-import { HighlightIcon } from "./highlightIcons";
+import { HighlightIcon, getSmartHighlightIcon } from "./highlightIcons";
 import { formatCurrency } from "@/lib/utils";
 import {
   Truck,
@@ -669,9 +669,16 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
                       <p className="font-medium text-slate-900">{form.shortDescription}</p>
                     )}
                     {form.description ? (
-                      <div className="whitespace-pre-line text-slate-600 leading-relaxed">
-                        {form.description}
-                      </div>
+                      form.description.includes("<") ? (
+                        <div
+                          className="text-slate-600 leading-relaxed [&>p]:mb-1.5 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>h3]:font-bold"
+                          dangerouslySetInnerHTML={{ __html: form.description }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-line text-slate-600 leading-relaxed">
+                          {form.description}
+                        </div>
+                      )
                     ) : (
                       <p className="text-slate-400 italic">
                         La descripción detallada del producto aparecerá aquí.
@@ -687,7 +694,11 @@ export const LiveProductPreview: React.FC<LiveProductPreviewProps> = ({
                             className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100"
                           >
                             <HighlightIcon
-                              icon={h.icon}
+                              icon={
+                                h.isCustomIcon && h.icon
+                                  ? h.icon
+                                  : getSmartHighlightIcon(h.title, h.text)
+                              }
                               className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"
                             />
                             <div>

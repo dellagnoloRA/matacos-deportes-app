@@ -8,6 +8,7 @@ import {
   getSmartHighlightIcon,
   AVAILABLE_HIGHLIGHT_ICONS,
 } from "./highlightIcons";
+import { RichTextEditor } from "./RichTextEditor";
 
 interface Step4Props {
   form: WizardFormState;
@@ -63,13 +64,21 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
   const handleTitleChange = (index: number, newTitle: string) => {
     const current = highlights[index];
     const smartIcon = getSmartHighlightIcon(newTitle, current?.text || "");
-    handleUpdateHighlight(index, { title: newTitle, icon: smartIcon });
+    handleUpdateHighlight(index, {
+      title: newTitle,
+      icon: smartIcon,
+      isCustomIcon: false,
+    });
   };
 
   const handleTextChange = (index: number, newText: string) => {
     const current = highlights[index];
     const smartIcon = getSmartHighlightIcon(current?.title || "", newText);
-    handleUpdateHighlight(index, { text: newText, icon: smartIcon });
+    handleUpdateHighlight(index, {
+      text: newText,
+      icon: smartIcon,
+      isCustomIcon: false,
+    });
   };
 
   const handleRemoveHighlight = (index: number) => {
@@ -139,17 +148,19 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
         </div>
       </div>
 
-      {/* Descripción Larga */}
+      {/* Descripción Detallada con TinyMCE */}
       <div className="space-y-1.5">
-        <label className="block text-xs font-bold text-slate-900">
-          Descripción Detallada
-        </label>
-        <textarea
-          rows={5}
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-bold text-slate-900">
+            Descripción Detallada
+          </label>
+          <span className="text-[11px] text-slate-400">Editor con formato enriquecido (WYSIWYG)</span>
+        </div>
+        <RichTextEditor
+          value={form.description || ""}
+          onChange={(newVal) => updateForm({ description: newVal })}
           placeholder="Detalla los beneficios, sensación al uso, tecnologías patentadas e información relevante para el cliente..."
-          value={form.description}
-          onChange={(e) => updateForm({ description: e.target.value })}
-          className="w-full p-3 rounded-xl border border-slate-300 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+          height={260}
         />
       </div>
 
@@ -180,6 +191,12 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
           <div className="space-y-2.5" ref={pickerRef}>
             {highlights.map((h, idx) => {
               const isOpen = openIconPickerIdx === idx;
+              // Si el usuario fijó manualmente un ícono en el selector se respeta, sino se deduce en vivo del texto
+              const displayIcon =
+                h.isCustomIcon && h.icon
+                  ? h.icon
+                  : getSmartHighlightIcon(h.title, h.text);
+
               return (
                 <div
                   key={idx}
@@ -194,7 +211,7 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
                       title="Ícono intuitivo automático (clic para cambiar símbolo manualmente)"
                     >
                       <HighlightIcon
-                        icon={h.icon}
+                        icon={displayIcon}
                         className="w-4 h-4 group-hover:scale-110 transition-transform"
                       />
                     </button>
@@ -208,7 +225,10 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
                             type="button"
                             onClick={() => {
                               const autoIcon = getSmartHighlightIcon(h.title, h.text);
-                              handleUpdateHighlight(idx, { icon: autoIcon });
+                              handleUpdateHighlight(idx, {
+                                icon: autoIcon,
+                                isCustomIcon: false,
+                              });
                               setOpenIconPickerIdx(null);
                             }}
                             className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
@@ -221,13 +241,16 @@ export const Step4TechSpecs: React.FC<Step4Props> = ({ form, updateForm }) => {
                         <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-1">
                           {AVAILABLE_HIGHLIGHT_ICONS.map((item) => {
                             const IconComp = item.component;
-                            const isSelected = h.icon === item.key;
+                            const isSelected = displayIcon === item.key;
                             return (
                               <button
                                 key={item.key}
                                 type="button"
                                 onClick={() => {
-                                  handleUpdateHighlight(idx, { icon: item.key });
+                                  handleUpdateHighlight(idx, {
+                                    icon: item.key,
+                                    isCustomIcon: true,
+                                  });
                                   setOpenIconPickerIdx(null);
                                 }}
                                 className={`p-1.5 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${

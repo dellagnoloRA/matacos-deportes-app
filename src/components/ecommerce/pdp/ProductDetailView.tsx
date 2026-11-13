@@ -988,10 +988,20 @@ export function ProductDetailView({
                   <h3 className="text-base sm:text-lg font-extrabold uppercase text-slate-950 tracking-tight">
                     {product.name}
                   </h3>
-                  <p>
-                    {product.description ||
-                      "Diseñado para atletas y entusiastas del deporte que buscan el equilibrio definitivo entre respuesta, confort y soporte. Cada costura y material ha sido testeado en condiciones reales de entrenamiento para garantizar durabilidad insuperable y confort durante todo el día."}
-                  </p>
+                  {product.description ? (
+                    product.description.includes("<") ? (
+                      <div
+                        className="text-slate-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>h3]:font-bold [&>h4]:font-bold"
+                        dangerouslySetInnerHTML={{ __html: product.description }}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-line">{product.description}</p>
+                    )
+                  ) : (
+                    <p>
+                      Diseñado para atletas y entusiastas del deporte que buscan el equilibrio definitivo entre respuesta, confort y soporte. Cada costura y material ha sido testeado en condiciones reales de entrenamiento para garantizar durabilidad insuperable y confort durante todo el día.
+                    </p>
+                  )}
                   <ul className="list-disc list-inside space-y-1.5 text-slate-600 pt-1">
                     <li>Capellada técnica de malla transpirable con refuerzos estratégicos.</li>
                     <li>Amortiguación reactiva con retorno de energía constante en cada uso.</li>

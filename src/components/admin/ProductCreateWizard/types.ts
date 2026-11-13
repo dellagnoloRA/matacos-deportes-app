@@ -30,6 +30,7 @@ export interface HighlightItem {
   icon: string;
   title: string;
   text: string;
+  isCustomIcon?: boolean;
 }
 
 export interface WizardFormState {
