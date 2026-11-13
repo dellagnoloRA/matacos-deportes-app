@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { WizardFormState, ProductVariantItem } from "./types";
+import { guessColorHexFromName } from "./colorMatcher";
 import { formatCurrency } from "@/lib/utils";
 import {
   Plus,
@@ -39,18 +40,28 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
   // Colores únicos existentes
   const uniqueColors = Array.from(new Set(variants.map((v) => v.color).filter(Boolean)));
 
+  // Detección y ajuste intuitivo del color según lo que escribe el usuario
+  const handleColorInputChange = (value: string) => {
+    setColorInput(value);
+    const autoHex = guessColorHexFromName(value);
+    if (autoHex) {
+      setColorHexInput(autoHex);
+    }
+  };
+
   // Agregar una variante individual o por combinación
   const handleAddManualVariant = () => {
     if (!colorInput.trim() || !sizeInput.trim()) return;
 
     const baseSku = form.skuModel ? form.skuModel : "PROD";
     const cleanColor = colorInput.trim();
+    const cleanHex = colorHexInput || guessColorHexFromName(cleanColor) || "#111827";
     const cleanSize = sizeInput.trim();
     const sku = `${baseSku}-${cleanColor.slice(0, 3).toUpperCase()}-${cleanSize.replace(/\s+/g, "")}`;
 
     const newVariant: ProductVariantItem = {
       color: cleanColor,
-      colorHex: colorHexInput,
+      colorHex: cleanHex,
       size: cleanSize,
       sku,
       barcode: "",
@@ -74,10 +85,11 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
 
     const baseSku = form.skuModel ? form.skuModel : "PROD";
     const cleanColor = colorInput.trim();
+    const cleanHex = colorHexInput || guessColorHexFromName(cleanColor) || "#111827";
 
     const newItems: ProductVariantItem[] = sizesList.map((size) => ({
       color: cleanColor,
-      colorHex: colorHexInput,
+      colorHex: cleanHex,
       size,
       sku: `${baseSku}-${cleanColor.slice(0, 3).toUpperCase()}-${size.replace(/\s+/g, "")}`,
       barcode: "",
@@ -162,19 +174,18 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
           {/* Color y Selector Hex */}
           <div className="space-y-1 sm:col-span-2">
             <label className="text-[11px] font-bold text-slate-900">Color</label>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={colorHexInput}
-                onChange={(e) => setColorHexInput(e.target.value)}
-                className="w-9 h-9 p-0.5 rounded border border-slate-300 cursor-pointer shrink-0"
-                title="Elegir tono exacto"
+            <div className="flex items-center gap-2">
+              {/* Muestra visual automática de color (sin selector emergente nativo) */}
+              <div
+                className="w-9 h-9 rounded-lg border border-slate-300 shadow-2xs shrink-0 transition-colors duration-200 select-none"
+                style={{ backgroundColor: colorHexInput }}
+                title={`Color asignado automáticamente: ${colorHexInput}`}
               />
               <input
                 type="text"
                 placeholder="Ej: Negro / Blanco, Azul Marino"
                 value={colorInput}
-                onChange={(e) => setColorInput(e.target.value)}
+                onChange={(e) => handleColorInputChange(e.target.value)}
                 className="flex-1 h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -351,7 +362,11 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
                     <div className="flex items-center gap-2">
                       <span
                         className="w-4 h-4 rounded-full border border-black/20 shrink-0 shadow-2xs"
-                        style={{ backgroundColor: v.colorHex || "#000" }}
+                        style={{
+                          backgroundColor:
+                            v.colorHex || guessColorHexFromName(v.color) || "#111827",
+                        }}
+                        title={v.colorHex || v.color}
                       />
                       <span className="font-bold text-slate-900 truncate max-w-[90px]">
                         {v.color}

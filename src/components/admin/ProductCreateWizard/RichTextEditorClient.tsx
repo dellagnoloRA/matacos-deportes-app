@@ -22,6 +22,7 @@ export const RichTextEditorClient: React.FC<RichTextEditorClientProps> = ({
     <div className="rounded-xl overflow-hidden border border-slate-300 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all bg-white shadow-2xs">
       <Editor
         tinymceScriptSrc="/tinymce/tinymce.min.js"
+        licenseKey="gpl"
         onInit={(_evt, editor) => {
           editorRef.current = editor;
         }}
@@ -61,3 +62,4 @@ export const RichTextEditorClient: React.FC<RichTextEditorClientProps> = ({
     </div>
   );
 };
+
