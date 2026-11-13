@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
@@ -494,17 +494,21 @@ export function ProductDetailView({
     }
   };
 
-  // RF-18: Enlace de consulta contextual a WhatsApp
-  const currentUrl =
-    typeof window !== "undefined"
-      ? window.location.href
-      : "https://matacosdeportes.com.ar";
+  // RF-18: Enlace de consulta contextual a WhatsApp (estable para evitar errores de hidratación SSR)
+  const [currentUrl, setCurrentUrl] = useState("");
+
+  useEffect(() => {
+    setCurrentUrl(window.location.href);
+  }, []);
+
+  const productUrl =
+    currentUrl || `https://matacosdeportes.com.ar/productos/${product.id}`;
   const waText = encodeURIComponent(
     `¡Hola Matacos Deportes! Quiero consultar por ${product.name} (Talle: ${
       selectedSize || "A consultar"
     }, Color: ${selectedColor || "A consultar"}) por ${formatCurrency(
       effectivePrice
-    )}. Visto en la tienda: ${currentUrl}`
+    )}. Visto en la tienda: ${productUrl}`
   );
   const waUrl = `https://wa.me/5493704000000?text=${waText}`;
 
@@ -844,6 +848,7 @@ export function ProductDetailView({
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                suppressHydrationWarning
                 className="w-full py-2.5 px-4 rounded-xl border border-emerald-600/40 text-emerald-800 hover:bg-emerald-50 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
