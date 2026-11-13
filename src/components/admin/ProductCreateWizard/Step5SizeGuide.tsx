@@ -15,6 +15,10 @@ import {
   Eye,
   FileSpreadsheet,
   CheckCircle2,
+  Footprints,
+  Shirt,
+  Layers,
+  X,
 } from "lucide-react";
 import { createSizeGuide } from "@/server/actions/sizeGuideActions";
 
@@ -52,11 +56,11 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
     "EU",
     "Largo Pie (cm)",
   ]);
-  const [newRows, setNewRows] = useState<Record<string, string>[]>([
-    { "Talle AR": "39", "US": "7.0", "UK": "6.0", "EU": "40", "Largo Pie (cm)": "25.0" },
-    { "Talle AR": "40", "US": "7.5", "UK": "6.5", "EU": "40.5", "Largo Pie (cm)": "25.5" },
-    { "Talle AR": "41", "US": "8.5", "UK": "7.5", "EU": "42", "Largo Pie (cm)": "26.5" },
-    { "Talle AR": "42", "US": "9.0", "UK": "8.0", "EU": "42.5", "Largo Pie (cm)": "27.0" },
+  const [newRows, setNewRows] = useState<string[][]>([
+    ["39", "7.0", "6.0", "40", "25.0"],
+    ["40", "7.5", "6.5", "40.5", "25.5"],
+    ["41", "8.5", "7.5", "42", "26.5"],
+    ["42", "9.0", "8.0", "42.5", "27.0"],
   ]);
   const [pasteExcelText, setPasteExcelText] = useState("");
   const [showPasteArea, setShowPasteArea] = useState(false);
@@ -88,32 +92,32 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
       setNewGuideType("CALZADO");
       setNewColumns(["Talle AR", "US", "UK", "EU", "Largo Pie (cm)"]);
       setNewRows([
-        { "Talle AR": "38", "US": "6.0", "UK": "5.5", "EU": "39", "Largo Pie (cm)": "24.5" },
-        { "Talle AR": "39", "US": "7.0", "UK": "6.0", "EU": "40", "Largo Pie (cm)": "25.0" },
-        { "Talle AR": "40", "US": "7.5", "UK": "6.5", "EU": "40.5", "Largo Pie (cm)": "25.5" },
-        { "Talle AR": "41", "US": "8.5", "UK": "7.5", "EU": "42", "Largo Pie (cm)": "26.5" },
-        { "Talle AR": "42", "US": "9.0", "UK": "8.0", "EU": "42.5", "Largo Pie (cm)": "27.0" },
-        { "Talle AR": "43", "US": "10.0", "UK": "9.0", "EU": "44", "Largo Pie (cm)": "28.0" },
+        ["38", "6.0", "5.5", "39", "24.5"],
+        ["39", "7.0", "6.0", "40", "25.0"],
+        ["40", "7.5", "6.5", "40.5", "25.5"],
+        ["41", "8.5", "7.5", "42", "26.5"],
+        ["42", "9.0", "8.0", "42.5", "27.0"],
+        ["43", "10.0", "9.0", "44", "28.0"],
       ]);
     } else if (type === "remera") {
       setNewGuideName("Guía Remeras y Tops");
       setNewGuideType("PRENDA_SUPERIOR");
       setNewColumns(["Talle", "Pecho (cm)", "Cintura (cm)", "Cadera (cm)"]);
       setNewRows([
-        { "Talle": "S", "Pecho (cm)": "88-94", "Cintura (cm)": "76-82", "Cadera (cm)": "88-94" },
-        { "Talle": "M", "Pecho (cm)": "95-102", "Cintura (cm)": "83-90", "Cadera (cm)": "95-102" },
-        { "Talle": "L", "Pecho (cm)": "103-110", "Cintura (cm)": "91-98", "Cadera (cm)": "103-110" },
-        { "Talle": "XL", "Pecho (cm)": "111-118", "Cintura (cm)": "99-106", "Cadera (cm)": "111-118" },
+        ["S", "88-94", "76-82", "88-94"],
+        ["M", "95-102", "83-90", "95-102"],
+        ["L", "103-110", "91-98", "103-110"],
+        ["XL", "111-118", "99-106", "111-118"],
       ]);
     } else {
       setNewGuideName("Guía Shorts y Pantalones");
       setNewGuideType("PRENDA_INFERIOR");
       setNewColumns(["Talle", "Cintura (cm)", "Cadera (cm)", "Largo (cm)"]);
       setNewRows([
-        { "Talle": "S", "Cintura (cm)": "76-82", "Cadera (cm)": "88-94", "Largo (cm)": "98" },
-        { "Talle": "M", "Cintura (cm)": "83-90", "Cadera (cm)": "95-102", "Largo (cm)": "100" },
-        { "Talle": "L", "Cintura (cm)": "91-98", "Cadera (cm)": "103-110", "Largo (cm)": "102" },
-        { "Talle": "XL", "Cintura (cm)": "99-106", "Cadera (cm)": "111-118", "Largo (cm)": "104" },
+        ["S", "76-82", "88-94", "98"],
+        ["M", "83-90", "95-102", "100"],
+        ["L", "91-98", "103-110", "102"],
+        ["XL", "99-106", "111-118", "104"],
       ]);
     }
   };
@@ -127,17 +131,67 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
     const headers = lines[0].split("\t").map((h) => h.trim());
     const rows = lines.slice(1).map((line) => {
       const values = line.split("\t");
-      const rowObj: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        rowObj[h] = values[i]?.trim() || "";
-      });
-      return rowObj;
+      return headers.map((_, i) => values[i]?.trim() || "");
     });
 
     setNewColumns(headers);
     setNewRows(rows);
     setShowPasteArea(false);
     setPasteExcelText("");
+  };
+
+  // Agregar una nueva columna
+  const handleAddColumn = () => {
+    let colNumber = newColumns.length + 1;
+    let newColName = `Columna ${colNumber}`;
+    while (newColumns.includes(newColName)) {
+      colNumber++;
+      newColName = `Columna ${colNumber}`;
+    }
+
+    setNewColumns((prev) => [...prev, newColName]);
+    setNewRows((prevRows) => prevRows.map((row) => [...row, ""]));
+  };
+
+  // Renombrar una columna existente (sin tocar ni alterar los datos de las filas)
+  const handleRenameColumn = (newName: string, colIndex: number) => {
+    setNewColumns((prev) => {
+      const updated = [...prev];
+      updated[colIndex] = newName;
+      return updated;
+    });
+  };
+
+  // Quitar una columna existente
+  const handleRemoveColumn = (colIndex: number) => {
+    if (newColumns.length <= 1) {
+      alert("La guía debe tener al menos una columna.");
+      return;
+    }
+
+    setNewColumns((prev) => prev.filter((_, idx) => idx !== colIndex));
+    setNewRows((prevRows) => prevRows.map((row) => row.filter((_, idx) => idx !== colIndex)));
+  };
+
+  // Modificar celda individual
+  const handleCellChange = (value: string, rIdx: number, cIdx: number) => {
+    setNewRows((prevRows) => {
+      const updated = [...prevRows];
+      const updatedRow = [...updated[rIdx]];
+      updatedRow[cIdx] = value;
+      updated[rIdx] = updatedRow;
+      return updated;
+    });
+  };
+
+  // Agregar fila
+  const handleAddRow = () => {
+    setNewRows((prev) => [...prev, new Array(newColumns.length).fill("")]);
+  };
+
+  // Eliminar fila
+  const handleRemoveRow = (rIdx: number) => {
+    setNewRows((prev) => prev.filter((_, i) => i !== rIdx));
   };
 
   // Guardar nueva guía en PostgreSQL
@@ -147,15 +201,26 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
       return;
     }
 
+    // Asegurar nombres de columnas válidos
+    const finalColumns = newColumns.map((c, i) => c.trim() || `Columna ${i + 1}`);
+
+    const formattedRows: Record<string, string>[] = newRows.map((row) => {
+      const rowObj: Record<string, string> = {};
+      finalColumns.forEach((colName, cIdx) => {
+        rowObj[colName] = row[cIdx] || "";
+      });
+      return rowObj;
+    });
+
     const res = await createSizeGuide({
       name: newGuideName.trim(),
-      brandId: newGuideBrandId || null,
+      brandId: newGuideBrandId || form.brandId || null,
       gender: newGuideGender,
       type: newGuideType,
       unit: newGuideUnit,
       fitNote: newGuideFitNote,
-      columns: newColumns,
-      rows: newRows,
+      columns: finalColumns,
+      rows: formattedRows,
     });
 
     if (res.success && res.data) {
@@ -382,23 +447,26 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
                   <button
                     type="button"
                     onClick={() => handleApplyTemplate("calzado")}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors border border-slate-200"
                   >
-                    👟 Calzado Deportivo
+                    <Footprints className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Calzado Deportivo</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleApplyTemplate("remera")}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors border border-slate-200"
                   >
-                    👕 Remeras y Tops
+                    <Shirt className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Remeras y Tops</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleApplyTemplate("pantalon")}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors border border-slate-200"
                   >
-                    🩳 Shorts y Calzas
+                    <Layers className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Shorts y Calzas</span>
                   </button>
                 </div>
               </div>
@@ -447,19 +515,30 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
                 />
               </div>
 
-              {/* Botón Pegar desde Excel */}
-              <div className="flex items-center justify-between pt-1">
+              {/* Controles y Botón Pegar desde Excel */}
+              <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
                 <span className="text-xs font-bold text-slate-900">
                   Tabla de Medidas ({newRows.length} talles)
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPasteArea(!showPasteArea)}
-                  className="text-xs text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>{showPasteArea ? "Ocultar pegado" : "Pegar desde Excel (TSV)"}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddColumn}
+                    className="text-xs text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors shadow-2xs"
+                    title="Agregar una nueva columna a la tabla"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Agregar Columna</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasteArea(!showPasteArea)}
+                    className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1 cursor-pointer px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{showPasteArea ? "Ocultar pegado" : "Pegar desde Excel (TSV)"}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Área de pegado desde Excel */}
@@ -485,49 +564,64 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
               )}
 
               {/* Grilla Editable de Columnas y Filas */}
-              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-56">
+              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-64 shadow-2xs">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
                     <tr>
                       {newColumns.map((col, cIdx) => (
-                        <th key={cIdx} className="p-2">
-                          <input
-                            type="text"
-                            value={col}
-                            onChange={(e) => {
-                              const updatedCols = [...newColumns];
-                              updatedCols[cIdx] = e.target.value;
-                              setNewColumns(updatedCols);
-                            }}
-                            className="w-24 bg-transparent font-bold border-b border-slate-300 focus:border-slate-900 focus:outline-none"
-                          />
+                        <th key={cIdx} className="p-2 min-w-[120px]">
+                          <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-slate-200 focus-within:border-emerald-500 shadow-2xs">
+                            <input
+                              type="text"
+                              value={col}
+                              onChange={(e) => handleRenameColumn(e.target.value, cIdx)}
+                              className="w-full bg-transparent font-bold text-slate-800 text-xs focus:outline-none"
+                              title="Editar nombre de columna"
+                            />
+                            {newColumns.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColumn(cIdx)}
+                                className="text-slate-300 hover:text-red-500 p-0.5 rounded transition-colors cursor-pointer shrink-0"
+                                title={`Eliminar columna "${col}"`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         </th>
                       ))}
-                      <th className="p-2 w-10"></th>
+                      <th className="p-2 w-10 text-center">
+                        <button
+                          type="button"
+                          onClick={handleAddColumn}
+                          className="w-6 h-6 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center cursor-pointer transition-colors mx-auto"
+                          title="Agregar Columna"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {newRows.map((row, rIdx) => (
                       <tr key={rIdx} className="hover:bg-slate-50">
-                        {newColumns.map((col) => (
-                          <td key={col} className="p-1.5">
+                        {newColumns.map((_, cIdx) => (
+                          <td key={cIdx} className="p-1.5">
                             <input
                               type="text"
-                              value={row[col] || ""}
-                              onChange={(e) => {
-                                const updatedRows = [...newRows];
-                                updatedRows[rIdx][col] = e.target.value;
-                                setNewRows(updatedRows);
-                              }}
-                              className="w-24 h-7 px-1.5 rounded border border-slate-200 text-xs focus:border-emerald-500 focus:outline-none"
+                              value={row[cIdx] || ""}
+                              onChange={(e) => handleCellChange(e.target.value, rIdx, cIdx)}
+                              className="w-full min-w-[100px] h-7 px-1.5 rounded border border-slate-200 text-xs focus:border-emerald-500 focus:outline-none bg-white"
                             />
                           </td>
                         ))}
-                        <td className="p-1.5">
+                        <td className="p-1.5 text-center">
                           <button
                             type="button"
-                            onClick={() => setNewRows(newRows.filter((_, i) => i !== rIdx))}
+                            onClick={() => handleRemoveRow(rIdx)}
                             className="p-1 text-slate-300 hover:text-red-500 cursor-pointer"
+                            title="Eliminar fila"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -542,15 +636,11 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
               <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => {
-                    const emptyRow: Record<string, string> = {};
-                    newColumns.forEach((c) => (emptyRow[c] = ""));
-                    setNewRows([...newRows, emptyRow]);
-                  }}
+                  onClick={handleAddRow}
                   className="text-xs text-slate-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Agregar Fila de Talle</span>
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Agregar Fila de Talle</span>
                 </button>
 
                 <button

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -62,7 +62,7 @@ const STEPS: StepDefinition[] = [
   { id: 4, key: "ficha", title: "Ficha Técnica", subtitle: "Descripción y detalles" },
   { id: 5, key: "talles", title: "Guía de Talles", subtitle: "Medidas y calce" },
   { id: 6, key: "variantes", title: "Variantes y Stock", subtitle: "Color × Talle dual" },
-  { id: 7, key: "publicacion", title: "Envío y SEO", subtitle: "Logística y publicación" },
+  { id: 7, key: "publicacion", title: "Envío y Publicación", subtitle: "Logística y estado final" },
 ];
 
 const INITIAL_FORM: WizardFormState = {
@@ -95,8 +95,8 @@ const INITIAL_FORM: WizardFormState = {
 
   variants: [],
 
-  weightGrams: 500,
-  dimensions: { length: 30, width: 20, height: 12 },
+  weightGrams: null,
+  dimensions: undefined,
   status: "PUBLISHED",
 };
 
@@ -263,6 +263,20 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     }
   };
 
+  // Detección de códigos de barra duplicados entre variantes
+  const duplicateBarcodes = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const v of form.variants || []) {
+      const code = v.barcode?.trim();
+      if (code) {
+        counts.set(code, (counts.get(code) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([code]) => code);
+  }, [form.variants]);
+
   // Calcular estado de cada paso
   const getStepStatus = (stepId: number): StepStatus => {
     if (currentStep === stepId) return "current";
@@ -281,7 +295,9 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
       case 5:
         return !form.useSizeGuide || Boolean(form.sizeGuideId) ? "complete" : "pending";
       case 6:
-        return (form.variants?.length || 0) > 0 ? "complete" : "pending";
+        return (form.variants?.length || 0) > 0 && duplicateBarcodes.length === 0
+          ? "complete"
+          : "pending";
       case 7:
         return "pending";
       default:
@@ -344,6 +360,15 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
 
   // Publicar producto final (alerta si no tiene fotos)
   const handlePublish = async () => {
+    if (duplicateBarcodes.length > 0) {
+      setErrorMessage(
+        `No se puede publicar: Existen variantes con códigos de barra duplicados (${duplicateBarcodes.join(", ")}). Corrige los códigos para continuar.`
+      );
+      setCurrentStep(6);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     if ((form.generalImages?.length || 0) === 0) {
       setShowNoImagesAlert({
         onConfirm: () => executePublish(),
@@ -353,7 +378,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     executePublish();
   };
 
-  // Avanzar al siguiente paso (alerta si está en fotos y no subió ninguna)
+  // Avanzar al siguiente paso (alerta si está en fotos y no subió ninguna, o si hay códigos duplicados)
   const handleNextStep = () => {
     if (currentStep === 2 && (form.generalImages?.length || 0) === 0) {
       setShowNoImagesAlert({
@@ -361,6 +386,16 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
       });
       return;
     }
+
+    if (currentStep === 6 && duplicateBarcodes.length > 0) {
+      setErrorMessage(
+        `No se puede avanzar: Existen variantes con códigos de barra repetidos (${duplicateBarcodes.join(", ")}). Cada variante debe tener un código único o dejarse en blanco.`
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    setErrorMessage(null);
     setCurrentStep((s) => Math.min(7, s + 1));
   };
 
@@ -372,6 +407,17 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
       });
       return;
     }
+
+    if (targetStep > 6 && duplicateBarcodes.length > 0) {
+      setErrorMessage(
+        `No puedes avanzar al paso ${targetStep}: Hay códigos de barra repetidos en las variantes (${duplicateBarcodes.join(", ")}). Corrige los códigos para continuar.`
+      );
+      setCurrentStep(6);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    setErrorMessage(null);
     setCurrentStep(targetStep);
   };
 
@@ -758,7 +804,13 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-extrabold shadow-sm cursor-pointer flex items-center gap-1.5 shrink-0"
+                disabled={currentStep === 6 && duplicateBarcodes.length > 0}
+                title={
+                  currentStep === 6 && duplicateBarcodes.length > 0
+                    ? `No se puede avanzar: Existen códigos de barra duplicados (${duplicateBarcodes.join(", ")})`
+                    : undefined
+                }
+                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-extrabold shadow-sm cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="hidden xs:inline">Siguiente Paso →</span>
                 <span className="xs:hidden">Siguiente →</span>

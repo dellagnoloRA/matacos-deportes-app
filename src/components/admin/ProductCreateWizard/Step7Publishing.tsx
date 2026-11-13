@@ -4,13 +4,11 @@ import React from "react";
 import { WizardFormState } from "./types";
 import {
   Package,
-  Globe,
   CheckCircle2,
   AlertCircle,
-  Calendar,
-  Send,
-  Eye,
-  Layers,
+  Clock,
+  Rocket,
+  FileText,
   ArrowRight,
 } from "lucide-react";
 
@@ -21,7 +19,7 @@ interface Step7Props {
 }
 
 export const Step7Publishing: React.FC<Step7Props> = ({ form, updateForm, onGoToStep }) => {
-  const dimensions = form.dimensions || { length: 30, width: 20, height: 12 };
+  const dimensions = form.dimensions || {};
 
   // Checklist de Validación
   const checklist = [
@@ -73,9 +71,9 @@ export const Step7Publishing: React.FC<Step7Props> = ({ form, updateForm, onGoTo
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-extrabold text-slate-950">7. Logística, SEO y Publicación</h2>
+        <h2 className="text-lg font-extrabold text-slate-950">7. Logística y Publicación</h2>
         <p className="text-xs text-slate-500">
-          Especifica datos de paquetería, visibilidad en buscadores y el estado del producto.
+          Especifica datos opcionales de paquetería para envíos y define el estado de publicación del producto.
         </p>
       </div>
 
@@ -144,124 +142,100 @@ export const Step7Publishing: React.FC<Step7Props> = ({ form, updateForm, onGoTo
         </div>
       </div>
 
-      {/* Peso y Dimensiones de Envío */}
+      {/* Peso y Dimensiones de Envío (Opcional) */}
       <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-2xs">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-          <Package className="w-4 h-4 text-emerald-600" />
-          <span>Dimensiones y Peso para Paquetería (Andreani / Correo Argentino)</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+            <Package className="w-4 h-4 text-emerald-600" />
+            <span>Dimensiones y Peso para Paquetería (Andreani / Correo Argentino)</span>
+          </div>
+          <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+            Opcional
+          </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Peso (Gramos)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-700">Peso (Gramos)</label>
+              <span className="text-[10px] text-slate-400">Opcional</span>
+            </div>
             <input
               type="number"
-              placeholder="Ej: 650"
-              value={form.weightGrams || ""}
+              placeholder="Ej: 500"
+              value={form.weightGrams ?? ""}
               onChange={(e) =>
-                updateForm({ weightGrams: e.target.value ? parseInt(e.target.value) : null })
+                updateForm({ weightGrams: e.target.value === "" ? null : parseInt(e.target.value) })
               }
-              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs"
+              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white"
               min={0}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Largo (cm)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-700">Largo (cm)</label>
+              <span className="text-[10px] text-slate-400">Opcional</span>
+            </div>
             <input
               type="number"
-              placeholder="30"
-              value={dimensions.length}
+              placeholder="Ej: 30"
+              value={dimensions.length ?? ""}
               onChange={(e) =>
                 updateForm({
-                  dimensions: { ...dimensions, length: parseInt(e.target.value) || 0 },
+                  dimensions: {
+                    ...dimensions,
+                    length: e.target.value === "" ? undefined : parseInt(e.target.value),
+                  },
                 })
               }
-              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs"
+              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+              min={0}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Ancho (cm)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-700">Ancho (cm)</label>
+              <span className="text-[10px] text-slate-400">Opcional</span>
+            </div>
             <input
               type="number"
-              placeholder="20"
-              value={dimensions.width}
+              placeholder="Ej: 20"
+              value={dimensions.width ?? ""}
               onChange={(e) =>
                 updateForm({
-                  dimensions: { ...dimensions, width: parseInt(e.target.value) || 0 },
+                  dimensions: {
+                    ...dimensions,
+                    width: e.target.value === "" ? undefined : parseInt(e.target.value),
+                  },
                 })
               }
-              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs"
+              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+              min={0}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Alto (cm)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-700">Alto (cm)</label>
+              <span className="text-[10px] text-slate-400">Opcional</span>
+            </div>
             <input
               type="number"
-              placeholder="12"
-              value={dimensions.height}
+              placeholder="Ej: 12"
+              value={dimensions.height ?? ""}
               onChange={(e) =>
                 updateForm({
-                  dimensions: { ...dimensions, height: parseInt(e.target.value) || 0 },
+                  dimensions: {
+                    ...dimensions,
+                    height: e.target.value === "" ? undefined : parseInt(e.target.value),
+                  },
                 })
               }
-              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs"
+              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+              min={0}
             />
-          </div>
-        </div>
-      </div>
-
-      {/* Optimización SEO */}
-      <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-2xs">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-          <Globe className="w-4 h-4 text-blue-600" />
-          <span>SEO y Posicionamiento en Buscadores</span>
-        </div>
-
-        <div className="space-y-2 text-xs">
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Meta Título (Google)</label>
-            <input
-              type="text"
-              placeholder={form.name ? `${form.name} | Matacos Deportes` : "Título para Google..."}
-              value={form.metaTitle || ""}
-              onChange={(e) => updateForm({ metaTitle: e.target.value })}
-              className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs"
-              maxLength={70}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-700">Meta Descripción</label>
-            <textarea
-              rows={2}
-              placeholder={
-                form.shortDescription
-                  ? form.shortDescription
-                  : "Comprá online con 6 cuotas sin interés y retiro gratis en Saavedra 241, Formosa..."
-              }
-              value={form.metaDescription || ""}
-              onChange={(e) => updateForm({ metaDescription: e.target.value })}
-              className="w-full p-2 rounded-lg border border-slate-300 text-xs"
-              maxLength={160}
-            />
-          </div>
-
-          {/* Vista Previa Google Snippet */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1 text-left font-sans">
-            <span className="text-[10px] text-slate-400 block">
-              https://matacosdeportes.com.ar/productos/{form.slug || "producto"}
-            </span>
-            <strong className="text-xs text-blue-700 block truncate">
-              {form.metaTitle || form.name || "Título del Producto en Google"} | Matacos Deportes
-            </strong>
-            <p className="text-[11px] text-slate-600 line-clamp-2">
-              {form.metaDescription ||
-                form.shortDescription ||
-                "Comprá online en Matacos Deportes Formosa. 6 cuotas sin interés, envíos a todo el país y retiro en local Saavedra 241."}
-            </p>
           </div>
         </div>
       </div>
@@ -269,46 +243,83 @@ export const Step7Publishing: React.FC<Step7Props> = ({ form, updateForm, onGoTo
       {/* Estado de Publicación */}
       <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-2xs">
         <label className="block text-xs font-bold text-slate-900">Estado de Publicación</label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button
             type="button"
             onClick={() => updateForm({ status: "DRAFT" })}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
               form.status === "DRAFT"
-                ? "bg-slate-950 text-white border-slate-950 shadow-xs"
+                ? "bg-slate-950 text-white border-slate-950 shadow-xs ring-1 ring-slate-950"
                 : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
             }`}
           >
-            <strong className="block text-xs">📝 Guardar como Borrador</strong>
-            <span className="text-[10px] opacity-80">Visible solo en el panel de control.</span>
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                form.status === "DRAFT"
+                  ? "bg-white/15 text-white"
+                  : "bg-white border border-slate-200 text-slate-600 shadow-2xs"
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <strong className="block text-xs font-bold">Guardar como Borrador</strong>
+              <span className="text-[10px] opacity-80 block leading-tight">
+                Visible solo en el panel de control.
+              </span>
+            </div>
           </button>
 
           <button
             type="button"
             onClick={() => updateForm({ status: "PUBLISHED" })}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
               form.status === "PUBLISHED"
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs ring-1 ring-emerald-600"
                 : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
             }`}
           >
-            <strong className="block text-xs">🚀 Publicar Ahora</strong>
-            <span className="text-[10px] opacity-80">
-              Disponible de inmediato en la tienda y mostrador.
-            </span>
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                form.status === "PUBLISHED"
+                  ? "bg-white/15 text-white"
+                  : "bg-white border border-slate-200 text-emerald-600 shadow-2xs"
+              }`}
+            >
+              <Rocket className="w-3.5 h-3.5" />
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <strong className="block text-xs font-bold">Publicar Ahora</strong>
+              <span className="text-[10px] opacity-80 block leading-tight">
+                Disponible de inmediato en la tienda y mostrador.
+              </span>
+            </div>
           </button>
 
           <button
             type="button"
             onClick={() => updateForm({ status: "SCHEDULED" })}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
               form.status === "SCHEDULED"
-                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                ? "bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600"
                 : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
             }`}
           >
-            <strong className="block text-xs">⏰ Programar Lanzamiento</strong>
-            <span className="text-[10px] opacity-80">Se activará en fecha y hora fija.</span>
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                form.status === "SCHEDULED"
+                  ? "bg-white/15 text-white"
+                  : "bg-white border border-slate-200 text-blue-600 shadow-2xs"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <strong className="block text-xs font-bold">Programar Lanzamiento</strong>
+              <span className="text-[10px] opacity-80 block leading-tight">
+                Se activará en fecha y hora fija.
+              </span>
+            </div>
           </button>
         </div>
 

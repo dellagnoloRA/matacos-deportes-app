@@ -74,7 +74,7 @@ export interface WizardFormState {
 
   // Paso 7: Envío y Publicación
   weightGrams?: number | null;
-  dimensions?: { length: number; width: number; height: number };
+  dimensions?: { length?: number; width?: number; height?: number };
   metaTitle?: string;
   metaDescription?: string;
   status: "DRAFT" | "PUBLISHED" | "SCHEDULED";

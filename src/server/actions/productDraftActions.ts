@@ -57,7 +57,7 @@ export interface WizardProductData {
 
   // Paso 7: Envío y Publicación
   weightGrams?: number | null;
-  dimensions?: { length: number; width: number; height: number };
+  dimensions?: { length?: number; width?: number; height?: number };
   metaTitle?: string;
   metaDescription?: string;
   status: "DRAFT" | "PUBLISHED" | "SCHEDULED";
@@ -172,6 +172,34 @@ export async function publishProductFromWizard(data: WizardProductData) {
         success: false,
         error: `Los siguientes SKUs ya están en uso: ${existingSkus.map((s) => s.sku).join(", ")}`,
       };
+    }
+
+    // Comprobar Códigos de Barra duplicados
+    const barcodes = data.variants
+      .map((v) => v.barcode?.trim())
+      .filter((b): b is string => Boolean(b));
+
+    const duplicateBarcodesInPayload = barcodes.filter(
+      (code, index) => barcodes.indexOf(code) !== index
+    );
+    if (duplicateBarcodesInPayload.length > 0) {
+      return {
+        success: false,
+        error: `Hay códigos de barra repetidos entre las variantes: ${Array.from(new Set(duplicateBarcodesInPayload)).join(", ")}. Cada código debe ser único.`,
+      };
+    }
+
+    if (barcodes.length > 0) {
+      const existingBarcodes = await prisma.productVariant.findMany({
+        where: { barcode: { in: barcodes } },
+        select: { barcode: true },
+      });
+      if (existingBarcodes.length > 0) {
+        return {
+          success: false,
+          error: `Los siguientes Códigos de Barra ya están registrados en el sistema: ${existingBarcodes.map((b) => b.barcode).join(", ")}`,
+        };
+      }
     }
 
     // 2. Transacción Atómica en PostgreSQL
