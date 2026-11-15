@@ -382,7 +382,7 @@ export function FeaturedProductsSection({
 
         {/* Success Notice Notification */}
         {addedNotice && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-950 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500 animate-in slide-in-from-bottom duration-300">
+          <div className="fixed bottom-24 right-6 z-50 bg-slate-950 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500 animate-in slide-in-from-bottom duration-300">
             <div className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 flex items-center justify-center font-bold">
               <Check className="w-4 h-4" />
             </div>

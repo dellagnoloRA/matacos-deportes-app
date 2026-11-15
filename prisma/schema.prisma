@@ -509,8 +509,8 @@ model InstallmentPlan {
 model StoreSetting {
   id                 String   @id @default("default")
   storeName          String   @default("Matacos Deportes")
-  whatsappNumber     String   @default("5493704000000")
-  contactPhone       String   @default("+54 370 4429999")
+  whatsappNumber     String   @default("5493704287158")
+  contactPhone       String   @default("+54 9 370 428-7158")
   contactEmail       String   @default("ventas@matacosdeportes.com")
   notificationsEmail String?  @default("notificaciones@matacosdeportes.com")
   storeAddress       String   @default("Saavedra 241")
@@ -518,6 +518,7 @@ model StoreSetting {
   storePostalCode    String   @default("3600")
   businessHours      String   @default("Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs")
   instagramHandle    String   @default("@matacosdeportes")
+  facebookHandle     String?  @default("matacosdeportes")
   cadeteriaCost      Decimal  @default(2500) @db.Decimal(12, 2)
   updatedAt          DateTime @default(now()) @updatedAt
 }

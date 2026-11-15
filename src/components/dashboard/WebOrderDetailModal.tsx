@@ -20,12 +20,15 @@ import {
   Store,
   Ban,
   AlertTriangle,
+  FileText,
+  Eye,
 } from "lucide-react";
 import {
   WebOrderDTO,
   updateWebOrderShippingStatusAction,
   generateShippingLabelAction,
   cancelWebOrderAction,
+  verifyWebOrderTransferPaymentAction,
 } from "@/server/actions/ecommerce/webOrdersActions";
 import { CORREO_ARGENTINO_TRACKING_URL } from "@/lib/emailService";
 
@@ -57,6 +60,14 @@ export function WebOrderDetailModal({
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Estados para verificación de transferencia bancaria (RF-17)
+  const [isVerifyingTransfer, setIsVerifyingTransfer] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [cancelOrderOnReject, setCancelOrderOnReject] = useState(false);
+  const [transferAdminNotes, setTransferAdminNotes] = useState("");
+
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
     null
   );
@@ -71,6 +82,19 @@ export function WebOrderDetailModal({
   });
 
   const handleSaveStatus = async () => {
+    if (
+      order.status !== "COMPLETADA" &&
+      shippingStatus !== "PENDIENTE" &&
+      shippingStatus !== "CANCELADO"
+    ) {
+      setFeedback({
+        type: "error",
+        message:
+          "No se puede avanzar el estado de despacho de una orden sin haber verificado y aprobado su pago previamente.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setFeedback(null);
     try {
@@ -108,6 +132,14 @@ export function WebOrderDetailModal({
   };
 
   const handleGenerateLabel = async () => {
+    if (order.status !== "COMPLETADA") {
+      setFeedback({
+        type: "error",
+        message:
+          "No se puede generar la guía de Correo Argentino para una orden con pago pendiente de verificación.",
+      });
+      return;
+    }
     setIsGeneratingLabel(true);
     setFeedback(null);
     try {
@@ -181,8 +213,80 @@ export function WebOrderDetailModal({
     }
   };
 
-  const getStatusBadge = (status: WebOrderDTO["shippingStatus"]) => {
-    switch (status) {
+  const handleVerifyTransfer = async (approved: boolean) => {
+    if (!approved && !rejectionReason.trim()) {
+      setFeedback({
+        type: "error",
+        message: "Por favor indicá el motivo de rechazo de la transferencia.",
+      });
+      return;
+    }
+
+    setIsVerifyingTransfer(true);
+    setFeedback(null);
+    try {
+      const res = await verifyWebOrderTransferPaymentAction({
+        orderId: order.id,
+        approved,
+        rejectionReason: approved ? undefined : rejectionReason.trim(),
+        cancelOrderOnReject: approved ? undefined : cancelOrderOnReject,
+        adminNotes: transferAdminNotes.trim() || undefined,
+        operatorName: "Administrador Matacos",
+      });
+
+      if (res.success && res.data) {
+        onOrderUpdated(res.data);
+        setShippingStatus(res.data.shippingStatus);
+        setIsRejectDialogOpen(false);
+        setFeedback({
+          type: "success",
+          message: approved
+            ? "Transferencia bancaria aprobada con éxito. Stock físico descontado y orden lista para preparación."
+            : cancelOrderOnReject
+            ? "Comprobante rechazado y pedido cancelado. Stock reservado liberado."
+            : "Comprobante rechazado. El pedido regresó a estado Pendiente de Pago para que el cliente reenvíe el comprobante.",
+        });
+        setTimeout(() => setFeedback(null), 5000);
+      } else {
+        setFeedback({
+          type: "error",
+          message: res.error || "No se pudo procesar la verificación de la transferencia.",
+        });
+      }
+    } catch {
+      setFeedback({
+        type: "error",
+        message: "Ocurrió un error inesperado al procesar la verificación.",
+      });
+    } finally {
+      setIsVerifyingTransfer(false);
+    }
+  };
+
+  const getStatusBadge = (shippingStatus: WebOrderDTO["shippingStatus"], paymentStatus: WebOrderDTO["status"]) => {
+    if (paymentStatus === "CANCELADA" || shippingStatus === "CANCELADO") {
+      return (
+        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+          Cancelado
+        </span>
+      );
+    }
+    if (paymentStatus === "PENDIENTE_VERIFICACION") {
+      return (
+        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300 animate-pulse">
+          Por Verificar Transferencia
+        </span>
+      );
+    }
+    if (paymentStatus === "PENDIENTE_PAGO") {
+      return (
+        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+          Pendiente de Pago (15m)
+        </span>
+      );
+    }
+
+    switch (shippingStatus) {
       case "PENDIENTE":
         return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">Pendiente de Preparación</span>;
       case "EN_PREPARACION":
@@ -193,10 +297,8 @@ export function WebOrderDetailModal({
         return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">En Camino</span>;
       case "ENTREGADO":
         return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900 text-white">Entregado</span>;
-      case "CANCELADO":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">Cancelado</span>;
       default:
-        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800">{status}</span>;
+        return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800">{shippingStatus}</span>;
     }
   };
 
@@ -214,7 +316,7 @@ export function WebOrderDetailModal({
                 <h3 className="font-bold text-base tracking-tight text-white">
                   Orden #{order.orderCode}
                 </h3>
-                {getStatusBadge(order.shippingStatus)}
+                {getStatusBadge(order.shippingStatus, order.status)}
               </div>
               <p className="text-xs text-emerald-300/80 flex items-center gap-1.5 mt-0.5">
                 <Clock className="w-3.5 h-3.5" />
@@ -249,6 +351,223 @@ export function WebOrderDetailModal({
                 <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
               )}
               <span>{feedback.message}</span>
+            </div>
+          )}
+
+          {/* Panel de Conciliación de Transferencia Bancaria (RF-17) */}
+          {(order.status === "PENDIENTE_VERIFICACION" || order.transferProofUrl) && (
+            <div
+              className={`p-5 rounded-2xl border shadow-2xs space-y-4 ${
+                order.status === "PENDIENTE_VERIFICACION"
+                  ? "bg-purple-50/70 border-purple-200"
+                  : order.status === "COMPLETADA"
+                  ? "bg-emerald-50/50 border-emerald-200"
+                  : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-100/60 pb-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black shrink-0 ${
+                      order.status === "PENDIENTE_VERIFICACION"
+                        ? "bg-purple-600 text-white"
+                        : order.status === "COMPLETADA"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-600 text-white"
+                    }`}
+                  >
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                        Transferencia Bancaria y Comprobante (RF-17)
+                      </h4>
+                      {order.status === "PENDIENTE_VERIFICACION" && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-200 text-purple-900 border border-purple-300 animate-pulse">
+                          Acción Requerida: Pendiente de Aprobación
+                        </span>
+                      )}
+                      {order.status === "COMPLETADA" && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ✓ Conciliada y Aprobada
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      {order.status === "PENDIENTE_VERIFICACION"
+                        ? "El comprador cargó un comprobante de pago por el total de la orden. Verifique la acreditación en la cuenta bancaria de Matacos Deportes antes de habilitar el despacho."
+                        : "Pago verificado y conciliado. El stock físico fue descontado del inventario (movimiento VENTA_WEB)."}
+                    </p>
+                  </div>
+                </div>
+
+                {order.transferProofUrl && (
+                  <a
+                    href={order.transferProofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold shadow-2xs transition-colors shrink-0 self-start sm:self-auto"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Ver Comprobante Completo</span>
+                  </a>
+                )}
+              </div>
+
+              {/* Comprobante preview & meta */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                  <span className="text-slate-500 text-[11px]">Importe a Conciliar:</span>
+                  <span className="font-black text-slate-900 text-sm">{order.totalFormatted}</span>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                  <span className="text-slate-500 text-[11px]">Fecha de Carga:</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">
+                    {order.transferProofUploadedAt
+                      ? new Date(order.transferProofUploadedAt).toLocaleString("es-AR", {
+                          timeZone: "America/Argentina/Buenos_Aires",
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "No registrada"}
+                  </span>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                  <span className="text-slate-500 text-[11px]">Estado del Pago:</span>
+                  <span className="font-bold text-purple-900">
+                    {order.status === "PENDIENTE_VERIFICACION"
+                      ? "Por Verificar"
+                      : order.status === "COMPLETADA"
+                      ? "Acreditado"
+                      : order.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Preview de la imagen si existe */}
+              {order.transferProofUrl && (
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-48 h-32 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center shrink-0 relative group">
+                    <img
+                      src={order.transferProofUrl}
+                      alt={`Comprobante de orden ${order.orderCode}`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    <a
+                      href={order.transferProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity"
+                    >
+                      <Eye className="w-4 h-4 mr-1.5" />
+                      Ampliar
+                    </a>
+                  </div>
+                  <div className="flex-1 space-y-1.5 text-xs text-slate-600">
+                    <p className="font-bold text-slate-800">
+                      Archivo adjunto por el cliente
+                    </p>
+                    <p className="text-[11px] text-slate-500 break-all font-mono">
+                      {order.transferProofUrl}
+                    </p>
+                    <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                      💡 Verifique en la app bancaria o home banking de Matacos Deportes que el dinero se encuentre acreditado con este comprobante antes de aprobar.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botonera de Aprobación / Rechazo (Solo si está PENDIENTE_VERIFICACION) */}
+              {order.status === "PENDIENTE_VERIFICACION" && (
+                <div className="pt-2 border-t border-purple-200/80 space-y-3">
+                  {!isRejectDialogOpen ? (
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
+                      <button
+                        type="button"
+                        disabled={isVerifyingTransfer}
+                        onClick={() => setIsRejectDialogOpen(true)}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Rechazar Comprobante...</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isVerifyingTransfer}
+                        onClick={() => handleVerifyTransfer(true)}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50"
+                      >
+                        {isVerifyingTransfer ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        )}
+                        <span>✓ Aprobar Transferencia y Enviar a Picking</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-rose-50 p-4 rounded-xl border border-rose-200 space-y-3 animate-in fade-in">
+                      <h5 className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Rechazo de Transferencia Bancaria</span>
+                      </h5>
+                      <div>
+                        <label className="block text-xs font-semibold text-rose-900 mb-1">
+                          Motivo del rechazo *
+                        </label>
+                        <input
+                          type="text"
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          placeholder="Ej: Fondos no acreditados / Comprobante ilegible / Titular no coincide..."
+                          className="w-full px-3 py-2 rounded-xl border border-rose-300 text-xs bg-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-xs font-medium text-rose-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cancelOrderOnReject}
+                          onChange={(e) => setCancelOrderOnReject(e.target.checked)}
+                          className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500"
+                        />
+                        <span>Cancelar el pedido inmediatamente y liberar stock (si se desmarca, el pedido vuelve a Pendiente de Pago para que el cliente suba otro comprobante)</span>
+                      </label>
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={isVerifyingTransfer}
+                          onClick={() => setIsRejectDialogOpen(false)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-white"
+                        >
+                          Volver
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isVerifyingTransfer}
+                          onClick={() => handleVerifyTransfer(false)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                        >
+                          {isVerifyingTransfer ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Ban className="w-3.5 h-3.5" />
+                          )}
+                          <span>Confirmar Rechazo</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -523,6 +842,22 @@ export function WebOrderDetailModal({
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
               Gestión del Estado de Despacho
             </h4>
+
+            {order.status !== "COMPLETADA" && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">
+                    {order.status === "PENDIENTE_VERIFICACION"
+                      ? "Transferencia bancaria pendiente de verificación"
+                      : "Pago pendiente de acreditación"}
+                  </span>
+                  <span>
+                    No prepare el paquete ni despache la mercadería física antes de verificar y aprobar la acreditación de la transferencia en el panel superior.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

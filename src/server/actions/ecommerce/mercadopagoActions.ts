@@ -213,7 +213,10 @@ export async function createMercadoPagoPreference(
 /**
  * Procesa atómica e idempotentemente un pago notificado por Mercado Pago (Webhooks / IPN)
  */
-export async function processMercadoPagoPayment(paymentId: string | number): Promise<{
+export async function processMercadoPagoPayment(
+  paymentId: string | number,
+  options?: { shouldRevalidate?: boolean }
+): Promise<{
   success: boolean;
   alreadyProcessed?: boolean;
   status?: string;
@@ -468,8 +471,11 @@ export async function processMercadoPagoPayment(paymentId: string | number): Pro
       };
     });
 
-    // Invalida el caché del catálogo público para reflejar las nuevas existencias
-    if (payment.status === "approved" || payment.status === "rejected" || payment.status === "cancelled") {
+    // Invalida el caché del catálogo público para reflejar las nuevas existencias (salvo si se invoca durante render SSR)
+    if (
+      options?.shouldRevalidate !== false &&
+      (payment.status === "approved" || payment.status === "rejected" || payment.status === "cancelled")
+    ) {
       await revalidateEcommerceCatalogCache();
     }
 

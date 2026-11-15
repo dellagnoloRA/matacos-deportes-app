@@ -415,7 +415,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
             onSelectCategory={handleSelectCategory}
             pendingSalesCount={pendingSalesCount}
             onClose={handleToggleLeft}
-            className="transition-all duration-300 hidden md:flex sticky top-0 h-screen overflow-y-auto shrink-0"
+            className="transition-all duration-300 hidden md:flex sticky top-0 h-screen shrink-0"
           />
         )}
 
@@ -562,13 +562,12 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
                 >
                   <PanelLeft className="w-5 h-5" />
                 </button>
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#094d3f] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] font-black italic text-sm">
-                    M
-                  </div>
-                  <span className="font-black italic text-[#00D615] text-base tracking-tighter">
-                    MATACOS
-                  </span>
+                <div className="flex items-center">
+                  <img
+                    src="/matacos-deportes-logo-white.png"
+                    alt="Matacos Deportes"
+                    className="h-6 w-auto object-contain"
+                  />
                 </div>
               </div>
 

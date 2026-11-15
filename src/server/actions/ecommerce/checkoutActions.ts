@@ -730,7 +730,31 @@ export async function createGuestOrder(
 
       const totalOrder = subtotalProducts + shippingCost;
 
-      // 3.1. Generar código correlativo (ej: WEB-2026-0001) y crear registro en tabla Sale
+      // 3.1. Validar defensivamente el vínculo con la tabla Customer (RF-29)
+      // para evitar violaciones de clave foránea en caso de usuarios staff o IDs inexistentes
+      let validCustomerId: string | null = null;
+      if (validated.customerId) {
+        const existingCustomer = await tx.customer.findUnique({
+          where: { id: validated.customerId },
+          select: { id: true },
+        });
+        if (existingCustomer) {
+          validCustomerId = existingCustomer.id;
+        }
+      }
+
+      // Si no se proveyó un customerId válido pero el email pertenece a un cliente registrado, vincularlo
+      if (!validCustomerId && validated.customerEmail) {
+        const customerByEmail = await tx.customer.findUnique({
+          where: { email: validated.customerEmail.trim().toLowerCase() },
+          select: { id: true },
+        });
+        if (customerByEmail) {
+          validCustomerId = customerByEmail.id;
+        }
+      }
+
+      // Generar código correlativo (ej: WEB-2026-0001) y crear registro en tabla Sale
       const orderCode = await generateNextWebOrderCode(tx);
 
       const sale = await tx.sale.create({
@@ -740,7 +764,7 @@ export async function createGuestOrder(
           channel: "WEB",
           status: "PENDIENTE_PAGO",
           reservedUntil: new Date(Date.now() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000),
-          customerId: validated.customerId ?? null,
+          customerId: validCustomerId,
           customerName: validated.customerName,
           customerDni: validated.customerDni,
           customerEmail: validated.customerEmail,
@@ -1809,7 +1833,7 @@ export async function getWebOrderById(orderIdOrCode: string) {
     const waText = encodeURIComponent(
       `¡Hola Matacos Deportes! Realicé la orden web ${orderCode} por ${formattedTotal} a nombre de ${sale.customerName || "Cliente"}. Adjunto comprobante de pago o consulta.`
     );
-    const whatsappContingencyUrl = `https://wa.me/5493704000000?text=${waText}`;
+    const whatsappContingencyUrl = `https://wa.me/${companyConfig.whatsappNumber}?text=${waText}`;
 
     const items = sale.items.map((item) => {
       const img =
@@ -1840,6 +1864,7 @@ export async function getWebOrderById(orderIdOrCode: string) {
         id: sale.id,
         orderCode,
         status: sale.status,
+        notes: sale.notes || "",
         createdAt: createdAtDate.toISOString(),
         expiresAt: expiresAtDate.toISOString(),
         isExpired,

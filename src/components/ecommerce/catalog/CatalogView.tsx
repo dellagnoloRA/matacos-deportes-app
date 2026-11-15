@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
-import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
 import { useCart, buildCartItemFromEcommerceProduct } from "@/store/cartStore";
 import { CatalogFilterSidebar } from "./CatalogFilterSidebar";
 import { CatalogTopBar } from "./CatalogTopBar";
@@ -181,7 +180,7 @@ export function CatalogView({
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           {/* Desktop Filter Sidebar */}
-          <div className="hidden lg:block w-64 shrink-0 sticky top-24">
+          <div className="hidden lg:block w-64 shrink-0">
             <CatalogFilterSidebar
               facets={facets}
               activeFilters={activeFilters}
@@ -566,19 +565,18 @@ export function CatalogView({
 
       {/* 7. Success Toast */}
       {addedNotice && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-950 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500 animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-24 right-6 z-50 bg-slate-950 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500 animate-in slide-in-from-bottom duration-300">
           <div className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 flex items-center justify-center font-bold">
             <Check className="w-4 h-4" />
           </div>
           <div>
             <p className="text-xs font-bold">{addedNotice}</p>
-            <p className="text-[11px] text-slate-300">¡Agregado al carrito con éxito!</p>
+            <p className="text-[11px] text-slate-300">
+              ¡Agregado al carrito con éxito!
+            </p>
           </div>
         </div>
       )}
-
-      {/* 8. Slide-over Cart Drawer */}
-      <EcommerceCartDrawer />
     </div>
   );
 }

@@ -98,6 +98,13 @@ export const StoreSettingSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("")),
+  facebookHandle: z
+    .string()
+    .trim()
+    .max(60, "El usuario o página de Facebook es demasiado extenso")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   cadeteriaCost: z
     .coerce
     .number({ invalid_type_error: "La tarifa de cadetería debe ser un número" })

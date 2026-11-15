@@ -19,6 +19,7 @@ import {
   Eye,
   Loader2,
   XCircle,
+  FileText,
 } from "lucide-react";
 import {
   getWebOrdersAction,
@@ -31,6 +32,7 @@ import { CORREO_ARGENTINO_TRACKING_URL } from "@/lib/emailService";
 
 type ActiveTab =
   | "TODAS"
+  | "PENDIENTE_VERIFICACION"
   | "PENDIENTE_PAGO"
   | "EN_PREPARACION"
   | "LISTO_RETIRO"
@@ -49,6 +51,7 @@ export function WebOrdersView() {
   const [counts, setCounts] = useState<WebOrdersSummaryCounts>({
     total: 0,
     pendingPayment: 0,
+    pendingVerification: 0,
     inPreparation: 0,
     readyForPickup: 0,
     onTheWay: 0,
@@ -67,10 +70,12 @@ export function WebOrdersView() {
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      let paymentStatus: "TODAS" | "PENDIENTE_PAGO" | "COMPLETADA" | "CANCELADA" = "TODAS";
+      let paymentStatus: "TODAS" | "PENDIENTE_PAGO" | "PENDIENTE_VERIFICACION" | "COMPLETADA" | "CANCELADA" = "TODAS";
       let shippingStatus: any = "TODAS";
 
-      if (activeTab === "PENDIENTE_PAGO") {
+      if (activeTab === "PENDIENTE_VERIFICACION") {
+        paymentStatus = "PENDIENTE_VERIFICACION";
+      } else if (activeTab === "PENDIENTE_PAGO") {
         paymentStatus = "PENDIENTE_PAGO";
       } else if (activeTab === "CANCELADAS") {
         paymentStatus = "CANCELADA";
@@ -167,6 +172,14 @@ export function WebOrdersView() {
         </span>
       );
     }
+    if (status === "PENDIENTE_VERIFICACION") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+          <FileText className="w-3 h-3 text-purple-600" />
+          <span>Por Verificar</span>
+        </span>
+      );
+    }
     if (status === "PENDIENTE_PAGO") {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
@@ -229,6 +242,21 @@ export function WebOrdersView() {
             }`}
           >
             Todas ({counts.total})
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("PENDIENTE_VERIFICACION");
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+              activeTab === "PENDIENTE_VERIFICACION"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Por Verificar ({counts.pendingVerification || 0})</span>
           </button>
 
           <button

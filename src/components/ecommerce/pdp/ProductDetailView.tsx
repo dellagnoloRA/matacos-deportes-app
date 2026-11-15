@@ -573,6 +573,8 @@ export function ProductDetailView({
   };
 
   // RF-18: Enlace de consulta contextual a WhatsApp (estable para evitar errores de hidratación SSR)
+  const whatsappPhone =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
   const [currentUrl, setCurrentUrl] = useState("");
 
   useEffect(() => {
@@ -588,7 +590,12 @@ export function ProductDetailView({
       effectivePrice
     )}. Visto en la tienda: ${productUrl}`
   );
-  const waUrl = `https://wa.me/5493704000000?text=${waText}`;
+  const waUrl = `https://wa.me/${whatsappPhone}?text=${waText}`;
+
+  const handleWhatsAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased selection:bg-[#00D615] selection:text-slate-950">
@@ -919,6 +926,7 @@ export function ProductDetailView({
               {/* Botón Asistencia WhatsApp (RF-18) */}
               <a
                 href={waUrl}
+                onClick={handleWhatsAppClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 suppressHydrationWarning

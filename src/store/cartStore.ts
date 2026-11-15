@@ -276,6 +276,8 @@ export function useCart() {
   return {
     ...store,
     items: store.items,
+    isOpen: store.isDrawerOpen,
+    isDrawerOpen: store.isDrawerOpen,
     itemCount: store.hasHydrated ? itemCount : 0,
     subtotal: store.hasHydrated ? subtotal : 0,
     isReady: store.hasHydrated,

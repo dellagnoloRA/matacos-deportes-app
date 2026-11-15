@@ -48,10 +48,10 @@ export default async function CheckoutResultadoPage({
   const orderCode = params.orderCode || params.external_reference || "WEB-ORDEN";
   const paymentId = params.payment_id || params.collection_id;
 
-  // En entorno local (o si el webhook aún no llegó), procesamos el pago de inmediato
+  // En entorno local (o si el webhook aún no llegó), procesamos el pago de inmediato sin revalidar en render SSR
   if (paymentId) {
     try {
-      await processMercadoPagoPayment(paymentId);
+      await processMercadoPagoPayment(paymentId, { shouldRevalidate: false });
     } catch (err) {
       console.warn("[Checkout Resultado] Aviso al procesar pago en retorno:", err);
     }

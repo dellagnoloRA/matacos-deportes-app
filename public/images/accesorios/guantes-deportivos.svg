@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%" fill="none">
+  <rect width="400" height="300" fill="#f8fafc" rx="16"/>
+  <defs>
+    <linearGradient id="gloveDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="gloveShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#gloveShadow)">
+    <!-- LEFT GLOVE -->
+    <g transform="translate(110, 65)">
+      <!-- Main Palm / Back -->
+      <path d="M15 80 C15 50 25 35 45 35 C65 35 75 50 75 80 L75 140 C75 155 60 160 45 160 C30 160 15 155 15 140 Z" fill="url(#gloveDark)"/>
+      <!-- Finger Stubs (Half finger fitness glove) -->
+      <rect x="20" y="20" width="11" height="25" rx="4" fill="#1e293b"/>
+      <rect x="34" y="15" width="11" height="28" rx="4" fill="#1e293b"/>
+      <rect x="48" y="17" width="11" height="26" rx="4" fill="#1e293b"/>
+      <rect x="62" y="24" width="11" height="22" rx="4" fill="#1e293b"/>
+      <!-- Thumb -->
+      <path d="M15 70 C0 65 0 90 15 95 Z" fill="#1e293b"/>
+      <!-- Breathable mesh panel (Matacos Neon Green accent) -->
+      <path d="M30 65 Q45 55 60 65 Q60 100 45 105 Q30 100 30 65 Z" fill="#00D615" opacity="0.9"/>
+      <!-- Knuckle Cushioning -->
+      <circle cx="35" cy="45" r="4" fill="#475569"/>
+      <circle cx="45" cy="43" r="4" fill="#475569"/>
+      <circle cx="55" cy="45" r="4" fill="#475569"/>
+      <!-- Wrist Strap -->
+      <rect x="12" y="135" width="66" height="22" rx="5" fill="#0f172a" stroke="#00D615" stroke-width="2"/>
+      <text x="45" y="150" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="900" fill="#ffffff" letter-spacing="1">MATACOS</text>
+    </g>
+
+    <!-- RIGHT GLOVE -->
+    <g transform="translate(200, 65)">
+      <!-- Main Palm / Back -->
+      <path d="M15 80 C15 50 25 35 45 35 C65 35 75 50 75 80 L75 140 C75 155 60 160 45 160 C30 160 15 155 15 140 Z" fill="url(#gloveDark)"/>
+      <!-- Finger Stubs -->
+      <rect x="17" y="24" width="11" height="22" rx="4" fill="#1e293b"/>
+      <rect x="31" y="17" width="11" height="26" rx="4" fill="#1e293b"/>
+      <rect x="45" y="15" width="11" height="28" rx="4" fill="#1e293b"/>
+      <rect x="59" y="20" width="11" height="25" rx="4" fill="#1e293b"/>
+      <!-- Thumb -->
+      <path d="M75 70 C90 65 90 90 75 95 Z" fill="#1e293b"/>
+      <!-- Breathable mesh panel (Matacos Neon Green accent) -->
+      <path d="M30 65 Q45 55 60 65 Q60 100 45 105 Q30 100 30 65 Z" fill="#00D615" opacity="0.9"/>
+      <!-- Knuckle Cushioning -->
+      <circle cx="35" cy="45" r="4" fill="#475569"/>
+      <circle cx="45" cy="43" r="4" fill="#475569"/>
+      <circle cx="55" cy="45" r="4" fill="#475569"/>
+      <!-- Wrist Strap -->
+      <rect x="12" y="135" width="66" height="22" rx="5" fill="#0f172a" stroke="#00D615" stroke-width="2"/>
+      <text x="45" y="150" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="900" fill="#ffffff" letter-spacing="1">MATACOS</text>
+    </g>
+  </g>
+</svg>

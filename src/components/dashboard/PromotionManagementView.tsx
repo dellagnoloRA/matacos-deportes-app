@@ -417,9 +417,6 @@ export function PromotionManagementView() {
               <h1 className="text-lg font-bold text-slate-900">
                 Campañas & Descuentos Promocionales
               </h1>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                RF-27
-              </span>
             </div>
             <p className="text-xs text-slate-500">
               Gestión omnicanal de ofertas individuales, masivas por rubro y salvaguarda de costos de reposición.

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%" fill="none">
+  <rect width="400" height="300" fill="#f8fafc" rx="16"/>
+  <defs>
+    <linearGradient id="beltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="beltShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#beltShadow)">
+    <!-- Elastic Straps extending to sides -->
+    <path d="M40 144 H360 V156 H40 Z" fill="#334155"/>
+    <rect x="55" y="141" width="16" height="18" rx="3" fill="#0f172a"/>
+    <rect x="329" y="141" width="16" height="18" rx="3" fill="#0f172a"/>
+
+    <!-- Center Pouch Body -->
+    <rect x="90" y="125" width="220" height="50" rx="14" fill="url(#beltGrad)"/>
+    
+    <!-- Neon Reflective Zipper Line -->
+    <path d="M110 150 H290" stroke="#00D615" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 2"/>
+    
+    <!-- Zipper Pull Tab -->
+    <rect x="180" y="144" width="12" height="12" rx="2" fill="#00D615"/>
+    
+    <!-- Earphone Port Grommet -->
+    <circle cx="275" cy="140" r="4" fill="#00D615" opacity="0.8"/>
+    <circle cx="275" cy="140" r="2" fill="#0f172a"/>
+
+    <!-- Subtle Brand text -->
+    <text x="130" y="142" font-family="system-ui, sans-serif" font-size="8" font-weight="900" fill="#94a3b8" letter-spacing="1">MATACOS RUN</text>
+  </g>
+</svg>

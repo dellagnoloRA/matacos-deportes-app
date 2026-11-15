@@ -8,8 +8,8 @@
 export const COMPANY_COUNTRY_CODE = "54";
 export const COMPANY_MOBILE_PREFIX = "9";
 export const COMPANY_AREA_CODE = "370";
-export const DEFAULT_WHATSAPP_NUMBER = "5493704000000";
-export const DEFAULT_PHONE_NUMBER = "+54 370 4429999";
+export const DEFAULT_WHATSAPP_NUMBER = "5493704287158";
+export const DEFAULT_PHONE_NUMBER = "+54 9 370 428-7158";
 
 /**
  * Sanitiza cualquier número telefónico al formato internacional numérico estricto para WhatsApp wa.me.
@@ -68,6 +68,9 @@ export interface CompanyConfig {
   mobilePrefix: string; // "9"
   areaCode: string; // "370"
   instagram: string;
+  facebook: string;
+  instagramUrl: string;
+  facebookUrl: string;
   exchangePolicy: string;
   legalNotice: string;
   fiscalSerialNumber: string;
@@ -123,6 +126,9 @@ export function getCompanyConfig(): CompanyConfig {
     mobilePrefix: COMPANY_MOBILE_PREFIX,
     areaCode: COMPANY_AREA_CODE,
     instagram: process.env.COMPANY_INSTAGRAM || "@matacosdeportes",
+    facebook: process.env.COMPANY_FACEBOOK || "matacosdeportes",
+    instagramUrl: process.env.COMPANY_INSTAGRAM_URL || "https://www.instagram.com/matacosdeportes",
+    facebookUrl: process.env.COMPANY_FACEBOOK_URL || "https://www.facebook.com/matacosdeportes",
     exchangePolicy:
       process.env.COMPANY_EXCHANGE_POLICY ||
       "CAMBIOS: Indispensable presentar este comprobante. El producto debe encontrarse sin uso, sin daños y con sus etiquetas originales adheridas. Prendas íntimas, mallas y medias no tienen cambio.",

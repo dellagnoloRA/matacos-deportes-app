@@ -360,11 +360,33 @@ export function EcommerceFooter() {
           </p>
         </div>
 
-        {/* Bottom Bar: Copyright & Institutional */}
+        {/* Bottom Bar: Copyright, Institutional & Redes Sociales */}
         <div className="pt-4 border-t border-emerald-950/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <p>© {new Date().getFullYear()} {contactInfo.storeName}. Todos los derechos reservados. {contactInfo.storeAddress}, {contactInfo.storeCity} — Argentina.</p>
           <div className="flex items-center gap-1 font-medium">
             <span>Desarrollado para PPS I — Universidad de la Cuenca del Plata</span>
+          </div>
+          <div className="flex items-center gap-3 text-slate-400">
+            <a
+              href="https://www.facebook.com/matacosdeportes"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook de Matacos Deportes"
+              className="hover:text-[#00D615] transition-colors p-1"
+              title="Facebook: matacosdeportes"
+            >
+              <Facebook className="w-4 h-4 fill-current" />
+            </a>
+            <a
+              href="https://www.instagram.com/matacosdeportes"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram de Matacos Deportes"
+              className="hover:text-[#00D615] transition-colors p-1"
+              title="Instagram: @matacosdeportes"
+            >
+              <Instagram className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </div>

@@ -82,11 +82,14 @@ export interface WebOrderDTO {
   payments: WebOrderPaymentDTO[];
   customerWhatsAppUrl: string | null;
   correoArgentinoTrackingUrl: string | null;
+  transferProofUrl: string | null;
+  transferProofUploadedAt: string | null;
 }
 
 export interface WebOrdersSummaryCounts {
   total: number;
   pendingPayment: number;
+  pendingVerification: number;
   inPreparation: number;
   readyForPickup: number;
   onTheWay: number;
@@ -226,6 +229,8 @@ function mapSaleToWebOrderDTO(sale: SaleWithRelations): WebOrderDTO {
     payments,
     customerWhatsAppUrl,
     correoArgentinoTrackingUrl,
+    transferProofUrl: sale.transferProofUrl ?? null,
+    transferProofUploadedAt: sale.transferProofUploadedAt ? sale.transferProofUploadedAt.toISOString() : null,
   };
 }
 
@@ -286,6 +291,7 @@ export async function getWebOrdersAction(
     const [
       totalCount,
       pendingPaymentCount,
+      pendingVerificationCount,
       inPrepCount,
       readyPickupCount,
       onTheWayCount,
@@ -296,6 +302,7 @@ export async function getWebOrdersAction(
     ] = await Promise.all([
       prisma.sale.count({ where: { channel: "WEB" } }),
       prisma.sale.count({ where: { channel: "WEB", status: "PENDIENTE_PAGO" } }),
+      prisma.sale.count({ where: { channel: "WEB", status: "PENDIENTE_VERIFICACION" } }),
       prisma.sale.count({
         where: { channel: "WEB", status: "COMPLETADA", shippingStatus: "EN_PREPARACION" },
       }),
@@ -355,6 +362,7 @@ export async function getWebOrdersAction(
       counts: {
         total: totalCount,
         pendingPayment: pendingPaymentCount,
+        pendingVerification: pendingVerificationCount,
         inPreparation: inPrepCount,
         readyForPickup: readyPickupCount,
         onTheWay: onTheWayCount,
@@ -376,6 +384,7 @@ export async function getWebOrdersAction(
       counts: {
         total: 0,
         pendingPayment: 0,
+        pendingVerification: 0,
         inPreparation: 0,
         readyForPickup: 0,
         onTheWay: 0,
@@ -1044,4 +1053,85 @@ export async function cancelWebOrderManualAction({
     orderId,
     reason: reason || "Cancelación manual desde mostrador Saavedra 241",
   });
+}
+
+/**
+ * Server Action para Administrador para conciliar o rechazar una transferencia bancaria (RF-17).
+ * Si approved === true: marca COMPLETADA, shippingStatus EN_PREPARACION, descuenta stock físico y genera movimiento VENTA_WEB.
+ * Si approved === false: rechaza el comprobante y opcionalmente cancela la orden devolviendo el stock reservado.
+ */
+export async function verifyWebOrderTransferPaymentAction(input: {
+  orderId: string;
+  approved: boolean;
+  rejectionReason?: string;
+  cancelOrderOnReject?: boolean;
+  adminNotes?: string;
+  operatorName?: string;
+}): Promise<{ success: boolean; data?: WebOrderDTO; message?: string; error?: string }> {
+  try {
+    const { verifyTransferPayment } = await import("./bankTransferActions");
+    const result = await verifyTransferPayment({
+      orderId: input.orderId,
+      approved: input.approved,
+      rejectionReason: input.rejectionReason,
+      cancelOrderOnReject: input.cancelOrderOnReject,
+      adminNotes: input.adminNotes,
+      reconciledBy: input.operatorName || "Administrador Matacos",
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error || "No se pudo verificar la transferencia" };
+    }
+
+    const updatedSale = await prisma.sale.findUnique({
+      where: { id: input.orderId },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    imageUrl: true,
+                    brand: { select: { name: true } },
+                    category: { select: { name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        payments: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            dni: true,
+          },
+        },
+      },
+    });
+
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/dashboard");
+      revalidatePath("/seguimiento");
+    } catch {}
+
+    return {
+      success: true,
+      data: updatedSale ? mapSaleToWebOrderDTO(updatedSale) : undefined,
+      message: result.message,
+    };
+  } catch (error) {
+    console.error("Error en verifyWebOrderTransferPaymentAction:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al procesar la verificación",
+    };
+  }
 }

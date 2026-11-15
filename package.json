@@ -12,6 +12,8 @@
     "lint": "next lint",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:clean": "tsx scripts/clean-database.ts",

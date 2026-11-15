@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%" fill="none">
+  <rect width="400" height="300" fill="#f8fafc" rx="16"/>
+  <defs>
+    <!-- Canister gradient -->
+    <linearGradient id="canisterGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e2e8f0" stop-opacity="0.8"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="70%" stop-color="#cbd5e1" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.9"/>
+    </linearGradient>
+    <!-- Ball gradient -->
+    <radialGradient id="ballGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#eaff7b"/>
+      <stop offset="60%" stop-color="#c6e007"/>
+      <stop offset="100%" stop-color="#98ae02"/>
+    </radialGradient>
+    <filter id="padelShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#padelShadow)">
+    <!-- Ball 1 (Back Left) -->
+    <g transform="translate(145, 120)">
+      <circle cx="35" cy="35" r="34" fill="url(#ballGrad)"/>
+      <!-- Felt Seams -->
+      <path d="M12 25 C25 20 40 45 42 65" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.8"/>
+      <path d="M58 45 C45 50 30 25 28 5" stroke="#ffffff" stroke-width="2.5" fill="none" opacity="0.8"/>
+    </g>
+
+    <!-- Ball 2 (Right) -->
+    <g transform="translate(200, 110)">
+      <circle cx="40" cy="40" r="38" fill="url(#ballGrad)"/>
+      <!-- Felt Seams -->
+      <path d="M15 30 C30 25 45 52 48 75" stroke="#ffffff" stroke-width="2.8" fill="none" opacity="0.85"/>
+      <path d="M65 50 C50 55 35 28 32 5" stroke="#ffffff" stroke-width="2.8" fill="none" opacity="0.85"/>
+      <!-- Wilson "W" logomark subtle -->
+      <text x="40" y="44" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" font-style="italic" fill="#c00000" opacity="0.85">W</text>
+    </g>
+
+    <!-- Ball 3 (Front Center Low) -->
+    <g transform="translate(160, 150)">
+      <circle cx="38" cy="38" r="36" fill="url(#ballGrad)"/>
+      <!-- Felt Seams -->
+      <path d="M14 28 C28 22 42 48 45 70" stroke="#ffffff" stroke-width="2.6" fill="none" opacity="0.85"/>
+      <path d="M62 48 C48 52 34 26 31 6" stroke="#ffffff" stroke-width="2.6" fill="none" opacity="0.85"/>
+      <text x="38" y="42" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="900" font-style="italic" fill="#c00000" opacity="0.85">W</text>
+    </g>
+
+    <!-- Badge label -->
+    <rect x="140" y="240" width="120" height="20" rx="10" fill="#06241d"/>
+    <text x="200" y="254" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="900" fill="#00D615" letter-spacing="1.5">TUBO PADDLE X3</text>
+  </g>
+</svg>

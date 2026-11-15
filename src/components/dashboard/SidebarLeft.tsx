@@ -97,33 +97,23 @@ export function SidebarLeft({
 
   return (
     <aside
-      className={`w-64 shrink-0 flex flex-col justify-between py-5 px-4 bg-[#06241d] text-white select-none text-[12.5px] overflow-y-auto ${className}`}
+      className={`w-64 shrink-0 flex flex-col h-screen sticky top-0 bg-[#06241d] text-white select-none text-[12.5px] overflow-hidden z-30 ${className}`}
     >
-      {/* Top Brand Logo & Nav */}
-      <div className="space-y-6">
-        {/* Logo Header */}
+      {/* 1. Header (Logo & Controls) - Fijo en la parte superior */}
+      <div className="shrink-0 pt-5 pb-3 px-4 border-b border-emerald-900/30">
         <div className="flex items-center justify-between px-1">
           <div
             onClick={() => handleItemClick("inicio")}
             className="flex flex-col cursor-pointer group"
           >
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#094d3f] to-[#042820] border border-[#00D615]/40 flex items-center justify-center text-[#00D615] shadow-xs group-hover:scale-105 transition-transform shrink-0">
-                <span className="font-black italic text-xl tracking-tighter">M</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-black italic text-[#00D615] text-[22px] tracking-tighter leading-none select-none drop-shadow-[0_2px_10px_rgba(0,214,21,0.25)]">
-                  MATACOS
-                </span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="font-black italic text-[11.5px] text-white tracking-[0.2em] leading-none uppercase">
-                    DEPORTES
-                  </span>
-                  <span className="text-[9px] text-[#00D615] font-bold -mt-0.5">®</span>
-                </div>
-              </div>
+            <div className="flex items-center">
+              <img
+                src="/matacos-deportes-logo-white.png"
+                alt="Matacos Deportes"
+                className="h-9 sm:h-10 w-auto max-w-[170px] object-contain transition-transform group-hover:scale-102"
+              />
             </div>
-            <span className="text-[11px] text-emerald-300/80 font-medium tracking-wide mt-2 pl-0.5">
+            <span className="text-[11px] text-emerald-300/80 font-medium tracking-wide mt-1.5 pl-0.5">
               Saavedra 241, Formosa
             </span>
           </div>
@@ -148,9 +138,11 @@ export function SidebarLeft({
             </div>
           )}
         </div>
+      </div>
 
-        {/* Main Navigation Menu */}
-        <nav className="space-y-1.5 pt-1">
+      {/* 2. Main Navigation Menu - Contenedor con scroll independiente */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-emerald-800/60 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-emerald-700">
+        <nav className="space-y-1.5">
           {/* 1. Inicio / Dashboard Overview (RF-24) */}
           <button
             onClick={() => handleItemClick("inicio")}
@@ -315,18 +307,18 @@ export function SidebarLeft({
 {hasPerm("caja.auditoria_historial") && (
           <button
             onClick={() => handleItemClick("pos-arqueo")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+            className={`flex items-center justify-between w-full py-3 px-3 rounded-2xl transition-all font-semibold ${
               activeItem === "pos-arqueo"
                 ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
                 : "text-emerald-100 hover:bg-white/10 hover:text-white"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <Lock className={`w-4 h-4 ${activeItem === "pos-arqueo" ? "text-slate-950" : "text-emerald-300"}`} />
-              <span>Arqueos de Caja</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Lock className={`w-4 h-4 shrink-0 ${activeItem === "pos-arqueo" ? "text-slate-950" : "text-emerald-300"}`} />
+              <span className="whitespace-nowrap">Arqueos de Caja</span>
             </div>
             <span
-              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+              className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 ml-1 ${
                 activeItem === "pos-arqueo" ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
               }`}
             >
@@ -335,7 +327,30 @@ export function SidebarLeft({
           </button>
 )}
 
-          {/* 6. Administración (Personal y Perfiles) */}
+          {/* 6. Órdenes Web (Despacho y Preparación - Ubicado directamente tras Arqueos de Caja) */}
+          <button
+            type="button"
+            onClick={() => handleItemClick("ecommerce")}
+            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
+              activeItem === "ecommerce"
+                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
+                : "text-emerald-100 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Globe className={`w-4 h-4 ${activeItem === "ecommerce" ? "text-slate-950" : "text-emerald-300"}`} />
+              <span>Órdenes Web</span>
+            </div>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                activeItem === "ecommerce" ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
+              }`}
+            >
+              Despacho
+            </span>
+          </button>
+
+          {/* 7. Administración (Personal, Perfiles, Banners, Promociones y Configuración) */}
           {(hasPerm("admin.usuarios") || hasPerm("admin.perfiles") || hasPerm("ecommerce.banners")) && (
             <div className="space-y-1 pt-1.5 border-t border-emerald-900/40">
               <div className="px-3.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400/60">
@@ -435,34 +450,11 @@ export function SidebarLeft({
               </button>
             </div>
           )}
-
-          {/* 5. E-commerce (Bloqueado) */}
-          <button
-            type="button"
-            onClick={() => handleItemClick("ecommerce")}
-            className={`flex items-center justify-between w-full py-3 px-3.5 rounded-2xl transition-all font-semibold ${
-              activeItem === "ecommerce"
-                ? "bg-[#c2f25b] text-slate-950 font-bold shadow-md"
-                : "text-emerald-100 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Globe className={`w-4 h-4 ${activeItem === "ecommerce" ? "text-slate-950" : "text-emerald-300"}`} />
-              <span>Órdenes Web</span>
-            </div>
-            <span
-              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                activeItem === "ecommerce" ? "bg-slate-950/15 text-slate-950" : "text-emerald-400/60"
-              }`}
-            >
-              Despacho
-            </span>
-          </button>
         </nav>
       </div>
 
-      {/* Bottom Section: User Role & Logout (Abajo a la izquierda) */}
-      <div className="space-y-2 pt-3 border-t border-emerald-800/60">
+      {/* 3. Bottom Section: User Role & Logout - Fijo en la parte inferior */}
+      <div className="shrink-0 p-4 pt-3 border-t border-emerald-800/60 bg-[#06241d]/95 backdrop-blur-xs">
         <div className="bg-[#042820] border border-emerald-800/60 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#c2f25b] text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm ring-2 ring-emerald-400/40">

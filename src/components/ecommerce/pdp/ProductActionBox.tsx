@@ -63,15 +63,33 @@ export function ProductActionBox({
   };
 
   // RF-18: Pre-build contextual WhatsApp inquiry link
-  const currentUrl = typeof window !== "undefined" ? window.location.href : "https://matacosdeportes.com.ar";
-  const waText = encodeURIComponent(
+  const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
+
+  const getWhatsAppUrl = () => {
+    const pageUrl = typeof window !== "undefined" ? window.location.href : "https://matacosdeportes.com.ar";
+    const text = encodeURIComponent(
+      `¡Hola Matacos Deportes! Quiero consultar por ${productName} (Talle: ${
+        selectedSize || "A consultar"
+      }, Color: ${selectedColor || "A consultar"}) por ${formatCurrency(
+        effectivePrice
+      )}. Visto en la tienda: ${pageUrl}`
+    );
+    return `https://wa.me/${whatsappPhone}?text=${text}`;
+  };
+
+  const handleWhatsAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    window.open(getWhatsAppUrl(), "_blank", "noopener,noreferrer");
+  };
+
+  const staticWaText = encodeURIComponent(
     `¡Hola Matacos Deportes! Quiero consultar por ${productName} (Talle: ${
       selectedSize || "A consultar"
     }, Color: ${selectedColor || "A consultar"}) por ${formatCurrency(
       effectivePrice
-    )}. Visto en la tienda: ${currentUrl}`
+    )}.`
   );
-  const waUrl = `https://wa.me/5493704000000?text=${waText}`;
+  const waUrl = `https://wa.me/${whatsappPhone}?text=${staticWaText}`;
 
   return (
     <div className="space-y-6 pt-4 border-t border-slate-100">
@@ -161,8 +179,10 @@ export function ProductActionBox({
         {/* RF-18: WhatsApp Direct Assistance Button */}
         <a
           href={waUrl}
+          onClick={handleWhatsAppClick}
           target="_blank"
           rel="noopener noreferrer"
+          suppressHydrationWarning
           className="w-full py-3 px-4 rounded-xl border border-emerald-600/40 text-emerald-800 hover:bg-emerald-50/80 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
           <MessageCircle className="w-4 h-4 text-emerald-600" />

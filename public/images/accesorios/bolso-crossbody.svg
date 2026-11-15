@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%" fill="none">
+  <rect width="400" height="300" fill="#f8fafc" rx="16"/>
+  <defs>
+    <linearGradient id="bagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="bagShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#bagShadow)">
+    <!-- Crossbody Webbing Strap -->
+    <path d="M80 60 L140 120" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
+    <path d="M260 200 L320 260" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
+    <rect x="130" y="110" width="16" height="12" rx="2" fill="#0f172a"/>
+    <rect x="254" y="198" width="16" height="12" rx="2" fill="#0f172a"/>
+
+    <!-- Bag Main Body (Sling / Crossbody shape) -->
+    <rect x="130" y="90" width="140" height="130" rx="22" fill="url(#bagGrad)"/>
+    
+    <!-- Diagonal Slanted Front Compartment -->
+    <path d="M130 150 L270 120 V200 C270 212, 260 220, 248 220 H152 C140 220, 130 212, 130 200 Z" fill="#1e293b"/>
+    
+    <!-- Slanted Zipper with Lime Cord Pull -->
+    <path d="M140 148 L260 122" stroke="#00D615" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="200" cy="135" r="4" fill="#00D615"/>
+    <line x1="200" y1="135" x2="195" y2="148" stroke="#00D615" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Topper / Matacos Mini Tag -->
+    <rect x="145" y="185" width="28" height="10" rx="3" fill="#00D615"/>
+    <text x="149" y="193" font-family="system-ui, sans-serif" font-size="6" font-weight="900" fill="#06241d">PRO</text>
+  </g>
+</svg>
