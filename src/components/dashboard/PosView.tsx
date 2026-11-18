@@ -991,16 +991,43 @@ export function PosView({
   const barcodeBufferRef = useRef<string>("");
   const lastKeyTimeRef = useRef<number>(0);
 
+  const isAnyPosModalOpen =
+    isExchangeModalOpen ||
+    isPriceCheckerOpen ||
+    isQuickProductModalOpen ||
+    Boolean(editingTicket) ||
+    Boolean(activeCheckoutSale) ||
+    Boolean(completedSaleResult) ||
+    Boolean(discountModalConfig?.isOpen) ||
+    Boolean(preventaSuccessData) ||
+    Boolean(confirmCancelModal) ||
+    isOpenShiftModalOpen ||
+    isCashMovementModalOpen ||
+    isCloseShiftModalOpen ||
+    Boolean(closingReceipt);
+
   useEffect(() => {
-    if (!isUsbScannerActive) return;
+    if (!isUsbScannerActive || subView !== "preventa" || isAnyPosModalOpen) {
+      barcodeBufferRef.current = "";
+      return;
+    }
 
     const handleWindowKeyPress = (e: KeyboardEvent) => {
-      // Si el verificador de precios o el modal de preventa exitosa están abiertos, ignorar escaneo
-      if (isPriceCheckerOpen || preventaSuccessData) return;
+      const targetEl = e.target as HTMLElement | null;
+      // Ignorar eventos originados dentro de cualquier modal/diálogo abierto
+      if (targetEl?.closest('[role="dialog"]')) {
+        barcodeBufferRef.current = "";
+        return;
+      }
 
-      // Si el foco está en un input normal (excepto si fue por escaneo)
-      const targetTag = (e.target as HTMLElement)?.tagName;
-      const isInputFocused = targetTag === "INPUT" || targetTag === "TEXTAREA";
+      // Ignorar tipeo/escaneo dentro de otros inputs (ej: nombre de cliente o notas) que no sean el buscador principal
+      const targetTag = targetEl?.tagName;
+      const isInputFocused =
+        targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT";
+      if (isInputFocused && targetEl !== searchInputRef.current) {
+        barcodeBufferRef.current = "";
+        return;
+      }
 
       const now = Date.now();
       const diff = now - lastKeyTimeRef.current;
@@ -1030,7 +1057,7 @@ export function PosView({
 
     window.addEventListener("keydown", handleWindowKeyPress);
     return () => window.removeEventListener("keydown", handleWindowKeyPress);
-  }, [isUsbScannerActive, products, isPriceCheckerOpen, preventaSuccessData]);
+  }, [isUsbScannerActive, subView, products, isAnyPosModalOpen]);
 
   // Coincidencias de variantes por código de barras o SKU según lo escaneado/escrito en searchQuery
   const scannedCodeMatches = useMemo(() => {
