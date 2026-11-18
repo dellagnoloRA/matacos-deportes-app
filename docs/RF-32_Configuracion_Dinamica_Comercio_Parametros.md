@@ -5,8 +5,8 @@ Centraliza en una pantalla administrativa autogestionable (`/admin?tab=configura
 
 El requerimiento resuelve cuatro necesidades operativas:
 1. **Fuente Única de Datos Institucionales (`StoreSetting`):** Persiste en PostgreSQL el registro único (`id: "default"`) con nombre comercial (`storeName`), WhatsApp oficial (`whatsappNumber`), teléfono de mostrador (`contactPhone`), correo de contacto (`contactEmail`), correo de notificaciones (`notificationsEmail`), dirección (`storeAddress`, `storeCity`, `storePostalCode`), horarios de atención (`businessHours`), redes sociales (`instagramHandle`, `facebookHandle`) y tarifa plana de envío urbano (`cadeteriaCost`).
-2. **Sanitización Automática de WhatsApp y Propagación Global:** Al guardar, [`updateStoreSettings`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/storeSettingsActions.ts) limpia el número de WhatsApp con `sanitizeWhatsAppNumber` para compatibilidad con enlaces `wa.me/`, revalida las rutas de la aplicación y emite el evento en navegador `store-settings-updated` para actualizar en vivo componentes como [`EcommerceFooter.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/ecommerce/EcommerceFooter.tsx).
-3. **Consumo Transversal en Correo, WhatsApp y Logística:** Los módulos [`getDynamicWhatsAppUrl`](file:///C:/Proyectos/matacos-deportes-app/src/lib/whatsapp.ts), [`emailService.ts`](file:///C:/Proyectos/matacos-deportes-app/src/lib/emailService.ts) (`resolveStoreInfo`) y [`shippingActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/ecommerce/shippingActions.ts) (`getEffectiveCadeteriaCost`) leen dinámicamente los valores persistidos en `StoreSetting`, con respaldo controlado ante fallos de red.
+2. **Sanitización Automática de WhatsApp y Propagación Global:** Al guardar, [`updateStoreSettings`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/storeSettingsActions.ts) limpia el número de WhatsApp con `sanitizeWhatsAppNumber` para compatibilidad con enlaces `wa.me/`, revalida las rutas de la aplicación y emite el evento en navegador `store-settings-updated` para actualizar en vivo componentes como [`EcommerceFooter.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/ecommerce/EcommerceFooter.tsx).
+3. **Consumo Transversal en Correo, WhatsApp y Logística:** Los módulos [`getDynamicWhatsAppUrl`](file:///C:/Users/della/matacos-deportes-app/src/lib/whatsapp.ts), [`emailService.ts`](file:///C:/Users/della/matacos-deportes-app/src/lib/emailService.ts) (`resolveStoreInfo`) y [`shippingActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/ecommerce/shippingActions.ts) (`getEffectiveCadeteriaCost`) leen dinámicamente los valores persistidos en `StoreSetting`, con respaldo controlado ante fallos de red.
 4. **Validaciones Estrictas Compartidas (Zod):** Provee los esquemas reutilizables `StrictEmailSchema`, `StrictPhoneSchema` (10 a 13 dígitos netos) y `StrictDniSchema` (7 a 11 dígitos reales), empleados tanto en la configuración del comercio como en formularios públicos del e-commerce (`GuestCheckoutSchema`, `RevocationRequestSchema`).
 
 ---
@@ -14,31 +14,31 @@ El requerimiento resuelve cuatro necesidades operativas:
 ## 2. Tecnologías, Herramientas y Librerías
 
 - **Next.js 15 (Server Actions & Revalidation):**
-  - [`src/server/actions/storeSettingsActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/storeSettingsActions.ts): Acciones `getStoreSettings()` (con auto-inicialización de `DEFAULT_SETTINGS` y fallback en caso de error) y `updateStoreSettings(input)` con `upsert` atómico y `revalidatePath` sobre `/`, `/(ecommerce)` y `/admin`.
-- **PostgreSQL 16 & Prisma ORM 6:** Modelo [`StoreSetting`](file:///C:/Proyectos/matacos-deportes-app/prisma/schema.prisma#L509) con `id: "default"` y `cadeteriaCost Decimal @default(2500) @db.Decimal(12, 2)`.
-- **Zod (Validación Estricta de Contratos):** [`src/schemas/settings.ts`](file:///C:/Proyectos/matacos-deportes-app/src/schemas/settings.ts) (`STRICT_EMAIL_REGEX`, `StrictEmailSchema`, `StrictPhoneSchema`, `StrictDniSchema`, `StoreSettingSchema`).
-- **React 19, Tailwind CSS y Lucide Icons:** Vista con pestañas en [`src/components/dashboard/StoreSettingsView.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/dashboard/StoreSettingsView.tsx) que incluye vista previa dinámica del enlace `https://wa.me/...` y acceso integrado a la pestaña de clasificadores (`MasterCategoriesManager`).
+  - [`src/server/actions/storeSettingsActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/storeSettingsActions.ts): Acciones `getStoreSettings()` (con auto-inicialización de `DEFAULT_SETTINGS` y fallback en caso de error) y `updateStoreSettings(input)` con `upsert` atómico y `revalidatePath` sobre `/`, `/(ecommerce)` y `/admin`.
+- **PostgreSQL 16 & Prisma ORM 6:** Modelo [`StoreSetting`](file:///C:/Users/della/matacos-deportes-app/prisma/schema.prisma#L509) con `id: "default"` y `cadeteriaCost Decimal @default(2500) @db.Decimal(12, 2)`.
+- **Zod (Validación Estricta de Contratos):** [`src/schemas/settings.ts`](file:///C:/Users/della/matacos-deportes-app/src/schemas/settings.ts) (`STRICT_EMAIL_REGEX`, `StrictEmailSchema`, `StrictPhoneSchema`, `StrictDniSchema`, `StoreSettingSchema`).
+- **React 19, Tailwind CSS y Lucide Icons:** Vista con pestañas en [`src/components/dashboard/StoreSettingsView.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/dashboard/StoreSettingsView.tsx) que incluye vista previa dinámica del enlace `https://wa.me/...` y acceso integrado a la pestaña de clasificadores (`MasterCategoriesManager`).
 
 ---
 
 ## 3. Archivos Involucrados en el Requerimiento
 
 ### Frontend Administrativo y Público
-- [`src/components/dashboard/StoreSettingsView.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/dashboard/StoreSettingsView.tsx): Formulario de edición de parámetros comerciales, tarifa de cadetería, vista previa del enlace WhatsApp y pestaña secundaria de categorías/marcas/disciplinas.
-- [`src/components/dashboard/DashboardView.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/dashboard/DashboardView.tsx) y [`src/components/dashboard/SidebarLeft.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/dashboard/SidebarLeft.tsx): Enrutamiento a `?tab=configuracion`.
-- [`src/components/ecommerce/EcommerceFooter.tsx`](file:///C:/Proyectos/matacos-deportes-app/src/components/ecommerce/EcommerceFooter.tsx): Consumidor dinámico de dirección, horarios, teléfonos y WhatsApp, suscrito al evento `store-settings-updated`.
+- [`src/components/dashboard/StoreSettingsView.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/dashboard/StoreSettingsView.tsx): Formulario de edición de parámetros comerciales, tarifa de cadetería, vista previa del enlace WhatsApp y pestaña secundaria de categorías/marcas/disciplinas.
+- [`src/components/dashboard/DashboardView.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/dashboard/DashboardView.tsx) y [`src/components/dashboard/SidebarLeft.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/dashboard/SidebarLeft.tsx): Enrutamiento a `?tab=configuracion`.
+- [`src/components/ecommerce/EcommerceFooter.tsx`](file:///C:/Users/della/matacos-deportes-app/src/components/ecommerce/EcommerceFooter.tsx): Consumidor dinámico de dirección, horarios, teléfonos y WhatsApp, suscrito al evento `store-settings-updated`.
 
 ### Backend, Utilidades y Esquemas
-- [`src/server/actions/storeSettingsActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/storeSettingsActions.ts): Server Actions `getStoreSettings` y `updateStoreSettings`.
-- [`src/schemas/settings.ts`](file:///C:/Proyectos/matacos-deportes-app/src/schemas/settings.ts): Esquemas Zod compartidos `StoreSettingSchema`, `StrictEmailSchema`, `StrictPhoneSchema` y `StrictDniSchema`.
-- [`src/config/company.ts`](file:///C:/Proyectos/matacos-deportes-app/src/config/company.ts): Función `sanitizeWhatsAppNumber` y parámetros base por variables de entorno.
-- [`src/lib/whatsapp.ts`](file:///C:/Proyectos/matacos-deportes-app/src/lib/whatsapp.ts): `getDynamicWhatsAppUrl` para construir enlaces de chat con el número activo en PostgreSQL.
-- [`src/lib/emailService.ts`](file:///C:/Proyectos/matacos-deportes-app/src/lib/emailService.ts): Helper `resolveStoreInfo` para encabezados y remitentes de correos de órdenes web.
-- [`src/server/actions/ecommerce/shippingActions.ts`](file:///C:/Proyectos/matacos-deportes-app/src/server/actions/ecommerce/shippingActions.ts): Helper `getEffectiveCadeteriaCost` que consulta `StoreSetting.cadeteriaCost` al cotizar envíos locales en Formosa Capital.
-- [`prisma/schema.prisma`](file:///C:/Proyectos/matacos-deportes-app/prisma/schema.prisma): Modelo `StoreSetting`.
+- [`src/server/actions/storeSettingsActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/storeSettingsActions.ts): Server Actions `getStoreSettings` y `updateStoreSettings`.
+- [`src/schemas/settings.ts`](file:///C:/Users/della/matacos-deportes-app/src/schemas/settings.ts): Esquemas Zod compartidos `StoreSettingSchema`, `StrictEmailSchema`, `StrictPhoneSchema` y `StrictDniSchema`.
+- [`src/config/company.ts`](file:///C:/Users/della/matacos-deportes-app/src/config/company.ts): Función `sanitizeWhatsAppNumber` y parámetros base por variables de entorno.
+- [`src/lib/whatsapp.ts`](file:///C:/Users/della/matacos-deportes-app/src/lib/whatsapp.ts): `getDynamicWhatsAppUrl` para construir enlaces de chat con el número activo en PostgreSQL.
+- [`src/lib/emailService.ts`](file:///C:/Users/della/matacos-deportes-app/src/lib/emailService.ts): Helper `resolveStoreInfo` para encabezados y remitentes de correos de órdenes web.
+- [`src/server/actions/ecommerce/shippingActions.ts`](file:///C:/Users/della/matacos-deportes-app/src/server/actions/ecommerce/shippingActions.ts): Helper `getEffectiveCadeteriaCost` que consulta `StoreSetting.cadeteriaCost` al cotizar envíos locales en Formosa Capital.
+- [`prisma/schema.prisma`](file:///C:/Users/della/matacos-deportes-app/prisma/schema.prisma): Modelo `StoreSetting`.
 
 ### Pruebas Automatizadas (QA)
-- [`scripts/test-ticket04-settings-validations.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/test-ticket04-settings-validations.ts): Suite automatizada de 20 aserciones sobre validaciones estrictas (email, teléfono, DNI/CUIT), integración con `GuestCheckoutSchema`, persistencia en `StoreSetting` y propagación a WhatsApp y correos.
+- [`scripts/test-ticket04-settings-validations.ts`](file:///C:/Users/della/matacos-deportes-app/scripts/test-ticket04-settings-validations.ts): Suite automatizada de 20 aserciones sobre validaciones estrictas (email, teléfono, DNI/CUIT), integración con `GuestCheckoutSchema`, persistencia en `StoreSetting` y propagación a WhatsApp y correos.
 
 ---
 
@@ -91,4 +91,4 @@ sequenceDiagram
 4. **Paso 4 (Propagación a Correos y WhatsApp):** Invocar `getDynamicWhatsAppUrl()` y `sendOrderConfirmationEmail()` comprobando que utilicen el nuevo número y nombre comercial.
 
 ### Suite Automatizada Disponible
-- `pnpm tsx scripts/test-ticket04-settings-validations.ts` ([`scripts/test-ticket04-settings-validations.ts`](file:///C:/Proyectos/matacos-deportes-app/scripts/test-ticket04-settings-validations.ts)): Ejecuta 20 pruebas automatizadas cubriendo `StrictEmailSchema`, `StrictPhoneSchema`, `StrictDniSchema`, `GuestCheckoutSchema`, persistencia en `StoreSetting` y propagación a WhatsApp y correo electrónico.
+- `pnpm tsx scripts/test-ticket04-settings-validations.ts` ([`scripts/test-ticket04-settings-validations.ts`](file:///C:/Users/della/matacos-deportes-app/scripts/test-ticket04-settings-validations.ts)): Ejecuta 20 pruebas automatizadas cubriendo `StrictEmailSchema`, `StrictPhoneSchema`, `StrictDniSchema`, `GuestCheckoutSchema`, persistencia en `StoreSetting` y propagación a WhatsApp y correo electrónico.
