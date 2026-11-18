@@ -14,7 +14,7 @@ import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
 import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
-import { companyConfig } from "@/config/company";
+import { companyConfig, getShippingConfig } from "@/config/company";
 import { logLegalConsentHelper } from "./legalActions";
 import {
   ProcessWebOrderPaymentSchema,
@@ -25,6 +25,7 @@ import {
 import { mpClient, Payment, isMercadoPagoConfigured } from "@/lib/mercadopago";
 import { listActiveInstallmentPlansService } from "@/server/services/installmentService";
 import { calculateInstallmentPlanAmounts } from "@/schemas/installment";
+import { sendOrderConfirmationEmail } from "@/lib/emailService";
 
 /**
  * Mapeo de códigos de rechazo oficiales de Mercado Pago a mensajes amigables para el comprador
@@ -757,12 +758,16 @@ export async function createGuestOrder(
       // Generar código correlativo (ej: WEB-2026-0001) y crear registro en tabla Sale
       const orderCode = await generateNextWebOrderCode(tx);
 
+      // Sea cual sea el método de pago del cliente al finalizar compra, la orden se registra en PENDIENTE_VERIFICACION
+      // para revisión y aprobación por parte del encargado en el Panel Admin (RF-17).
+      const initialSaleStatus = "PENDIENTE_VERIFICACION" as const;
+
       const sale = await tx.sale.create({
         data: {
           invoiceNumber: orderCode,
           ticketCode: orderCode,
           channel: "WEB",
-          status: "PENDIENTE_PAGO",
+          status: initialSaleStatus,
           reservedUntil: new Date(Date.now() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000),
           customerId: validCustomerId,
           customerName: validated.customerName,
@@ -1687,6 +1692,28 @@ export async function processWebOrderPayment(
       });
 
       await revalidateEcommerceCatalogCache();
+
+      // Enviar correo de confirmación de compra con código y link directo de seguimiento
+      if (existingSale.customerEmail) {
+        sendOrderConfirmationEmail({
+          to: existingSale.customerEmail,
+          customerName: existingSale.customerName || "Cliente",
+          orderCode: normalizedOrderCode,
+          shippingMethod: existingSale.shippingMethod || "RETIRO_LOCAL",
+          shippingAddress: existingSale.shippingAddress || "Saavedra 241, Formosa Capital",
+          shippingCity: existingSale.shippingCity || "Formosa",
+          total: effectiveTotalAmount,
+          items: existingSale.items.map((it: any) => ({
+            productName: it.productName || "Artículo deportivo",
+            size: it.size || "Único",
+            color: it.color || "Estándar",
+            quantity: it.quantity,
+            subtotal: Number(it.price) * it.quantity,
+          })),
+        }).catch((err) => {
+          console.error("[Checkout] Error al enviar email de confirmación:", err);
+        });
+      }
 
       return {
         success: true,

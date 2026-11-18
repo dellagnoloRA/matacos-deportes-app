@@ -203,6 +203,7 @@ export async function calculateShippingCostAction(
       cost: selectedCost,
       costFormatted: formatCurrency(selectedCost),
       method,
+      postalCode,
       options,
       packageDetails: {
         totalWeightGrams: virtualPackage.weight,

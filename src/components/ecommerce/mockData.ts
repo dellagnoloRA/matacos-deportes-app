@@ -26,9 +26,9 @@ export const MOCK_CATEGORIES: EcommerceCategory[] = [
     image: SHARED_IMAGE,
   },
   {
-    id: "cat-calzado",
-    name: "Calzado Deportivo",
-    slug: "calzado",
+    id: "cat-indumentaria",
+    name: "Indumentaria Deportiva",
+    slug: "indumentaria",
     image: SHARED_IMAGE,
   },
   {

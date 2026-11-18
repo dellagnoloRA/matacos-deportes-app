@@ -355,10 +355,12 @@ export function WebOrderDetailModal({
           )}
 
           {/* Panel de Conciliación de Transferencia Bancaria (RF-17) */}
-          {(order.status === "PENDIENTE_VERIFICACION" || order.transferProofUrl) && (
+          {(order.status === "PENDIENTE_VERIFICACION" ||
+            Boolean(order.transferProofUrl) ||
+            Boolean(order.notes && order.notes.toUpperCase().includes("TRANSFERENCIA"))) && (
             <div
               className={`p-5 rounded-2xl border shadow-2xs space-y-4 ${
-                order.status === "PENDIENTE_VERIFICACION"
+                order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO"
                   ? "bg-purple-50/70 border-purple-200"
                   : order.status === "COMPLETADA"
                   ? "bg-emerald-50/50 border-emerald-200"
@@ -369,7 +371,7 @@ export function WebOrderDetailModal({
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black shrink-0 ${
-                      order.status === "PENDIENTE_VERIFICACION"
+                      order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO"
                         ? "bg-purple-600 text-white"
                         : order.status === "COMPLETADA"
                         ? "bg-emerald-600 text-white"
@@ -381,9 +383,9 @@ export function WebOrderDetailModal({
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                        Transferencia Bancaria y Comprobante (RF-17)
+                        Transferencia Bancaria y Comprobante
                       </h4>
-                      {order.status === "PENDIENTE_VERIFICACION" && (
+                      {(order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO") && (
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-200 text-purple-900 border border-purple-300 animate-pulse">
                           Acción Requerida: Pendiente de Aprobación
                         </span>
@@ -395,8 +397,8 @@ export function WebOrderDetailModal({
                       )}
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5">
-                      {order.status === "PENDIENTE_VERIFICACION"
-                        ? "El comprador cargó un comprobante de pago por el total de la orden. Verifique la acreditación en la cuenta bancaria de Matacos Deportes antes de habilitar el despacho."
+                      {order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO"
+                        ? "El comprador seleccionó transferencia bancaria. Verifique la acreditación en la cuenta oficial de Matacos Deportes y apruebe para habilitar el despacho."
                         : "Pago verificado y conciliado. El stock físico fue descontado del inventario (movimiento VENTA_WEB)."}
                     </p>
                   </div>
@@ -433,14 +435,14 @@ export function WebOrderDetailModal({
                           hour: "2-digit",
                           minute: "2-digit",
                         })
-                      : "No registrada"}
+                      : "Registrada en pedido"}
                   </span>
                 </div>
 
                 <div className="bg-white p-3 rounded-xl border border-slate-200/80 flex items-center justify-between">
                   <span className="text-slate-500 text-[11px]">Estado del Pago:</span>
                   <span className="font-bold text-purple-900">
-                    {order.status === "PENDIENTE_VERIFICACION"
+                    {order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO"
                       ? "Por Verificar"
                       : order.status === "COMPLETADA"
                       ? "Acreditado"
@@ -449,8 +451,8 @@ export function WebOrderDetailModal({
                 </div>
               </div>
 
-              {/* Preview de la imagen si existe */}
-              {order.transferProofUrl && (
+              {/* Preview de la imagen si existe, o banner informativo si no cargó archivo */}
+              {order.transferProofUrl ? (
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-full sm:w-48 h-32 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center shrink-0 relative group">
                     <img
@@ -483,10 +485,28 @@ export function WebOrderDetailModal({
                     </p>
                   </div>
                 </div>
+              ) : (
+                <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                    <span>Datos de la Transferencia Bancaria Declarada</span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    El comprador seleccionó Transferencia Bancaria Directa.
+                    {order.notes && (
+                      <span className="block mt-1 font-mono text-[11.5px] bg-purple-50 text-purple-950 p-2.5 rounded-lg border border-purple-100">
+                        {order.notes}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2">
+                    💡 Podés verificar la acreditación por CBU/Alias en la cuenta bancaria de Saavedra 241 y presionar <strong>«Aprobar Transferencia»</strong> para pasar la orden a preparación de mercadería.
+                  </p>
+                </div>
               )}
 
-              {/* Botonera de Aprobación / Rechazo (Solo si está PENDIENTE_VERIFICACION) */}
-              {order.status === "PENDIENTE_VERIFICACION" && (
+              {/* Botonera de Aprobación / Rechazo (Solo si no está COMPLETADA) */}
+              {(order.status === "PENDIENTE_VERIFICACION" || order.status === "PENDIENTE_PAGO") && (
                 <div className="pt-2 border-t border-purple-200/80 space-y-3">
                   {!isRejectDialogOpen ? (
                     <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
@@ -774,7 +794,7 @@ export function WebOrderDetailModal({
                   </div>
                   <div>
                     <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950">
-                      Despacho e Imposición Correo Argentino (RF-25)
+                      Despacho e Imposición Correo Argentino
                     </h4>
                     <p className="text-[11px] text-indigo-700">
                       Generación de guía postal e impresión de rótulo para embalaje

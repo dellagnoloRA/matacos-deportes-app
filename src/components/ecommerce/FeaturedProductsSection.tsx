@@ -21,8 +21,13 @@ import {
   buildCartItemFromEcommerceProduct,
 } from "@/store/cartStore";
 
+export type ShowcaseTab = "todos" | "ofertas" | "mas-vendidos" | "novedades";
+
 interface FeaturedProductsSectionProps {
   products?: EcommerceProduct[];
+  promoProducts?: EcommerceProduct[];
+  bestSellers?: EcommerceProduct[];
+  newArrivals?: EcommerceProduct[];
 }
 
 type SortByOption = "destacados" | "menor-precio" | "mayor-precio";
@@ -31,10 +36,9 @@ const CATEGORY_TABS = [
   "Todos",
   "Natación",
   "Vóley",
-  "Calzado",
+  "Crocs",
   "Indumentaria",
   "Accesorios",
-  "Crocs",
 ];
 
 const UUID_CHECK_REGEX =
@@ -42,9 +46,13 @@ const UUID_CHECK_REGEX =
 
 export function FeaturedProductsSection({
   products = MOCK_FEATURED_PRODUCTS,
+  promoProducts,
+  bestSellers,
+  newArrivals,
 }: FeaturedProductsSectionProps) {
   const router = useRouter();
   const { addItem, openDrawer } = useCartStore();
+  const [activeShowcase, setActiveShowcase] = useState<ShowcaseTab>("todos");
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [sortBy, setSortBy] = useState<SortByOption>("destacados");
   const [navigatingProductId, setNavigatingProductId] = useState<string | null>(
@@ -89,9 +97,25 @@ export function FeaturedProductsSection({
     router.push(`/productos/${prod.id}`);
   };
 
+  // Productos base según vitrina seleccionada (Ofertas, Más Vendidos, Novedades o Todos)
+  const baseProducts = useMemo(() => {
+    if (activeShowcase === "ofertas") {
+      if (promoProducts && promoProducts.length > 0) return promoProducts;
+      const off = products.filter((p) => p.isOffer);
+      return off.length > 0 ? off : products;
+    }
+    if (activeShowcase === "mas-vendidos") {
+      return bestSellers && bestSellers.length > 0 ? bestSellers : products;
+    }
+    if (activeShowcase === "novedades") {
+      return newArrivals && newArrivals.length > 0 ? newArrivals : products;
+    }
+    return products;
+  }, [activeShowcase, products, promoProducts, bestSellers, newArrivals]);
+
   // Filtrado y ordenamiento de productos
   const filteredProducts = useMemo(() => {
-    const list = [...products].filter((p) => {
+    const list = [...baseProducts].filter((p) => {
       if (selectedCategory === "Todos") return true;
       const target = selectedCategory.toLowerCase();
       if (target === "crocs") {
@@ -134,7 +158,7 @@ export function FeaturedProductsSection({
     }
 
     return list;
-  }, [products, selectedCategory, sortBy]);
+  }, [baseProducts, selectedCategory, sortBy]);
 
   const handleAddProductFromModal = (prod: EcommerceProduct) => {
     const payload = buildCartItemFromEcommerceProduct(
@@ -164,7 +188,7 @@ export function FeaturedProductsSection({
       : activeModalProduct?.price ?? 0;
 
   return (
-    <section id="productos" className="w-full py-12 sm:py-16 bg-white">
+    <section id="productos" className="w-full py-12 sm:py-16 bg-white scroll-mt-24 sm:scroll-mt-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -176,11 +200,57 @@ export function FeaturedProductsSection({
               PRODUCTOS DESTACADOS
             </h2>
           </div>
+        </div>
 
-          <div className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-3 py-1 rounded-full text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#00D615] animate-ping" />
-            <span>Stock en tiempo real • Saavedra 241</span>
-          </div>
+        {/* Showcase Tabs (Ofertas Destacadas RF-27, Más Vendidos, Novedades, Todos) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setActiveShowcase("ofertas")}
+            className={`px-4 py-2.5 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeShowcase === "ofertas"
+                ? "border-red-500 text-red-600 bg-red-50/50 rounded-t-xl"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300"
+            }`}
+          >
+            Ofertas Destacadas
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveShowcase("mas-vendidos")}
+            className={`px-4 py-2.5 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeShowcase === "mas-vendidos"
+                ? "border-[#00D615] text-slate-950 bg-emerald-50/50 rounded-t-xl"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300"
+            }`}
+          >
+            Más Vendidos
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveShowcase("novedades")}
+            className={`px-4 py-2.5 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeShowcase === "novedades"
+                ? "border-sky-500 text-sky-950 bg-sky-50/50 rounded-t-xl"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300"
+            }`}
+          >
+            Novedades
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveShowcase("todos")}
+            className={`px-4 py-2.5 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeShowcase === "todos"
+                ? "border-slate-950 text-slate-950 bg-slate-100/70 rounded-t-xl"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300"
+            }`}
+          >
+            Todo el Catálogo
+          </button>
         </div>
 
         {/* Category Pills Navigation */}

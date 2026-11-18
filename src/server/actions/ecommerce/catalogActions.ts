@@ -456,6 +456,10 @@ async function fetchCatalogFacetsRaw(
     // 1. Obtener disciplinas con productos activos y con stock
     const disciplines = await prisma.discipline.findMany({
       where: {
+        NOT: [
+          { name: { contains: "Test", mode: "insensitive" } },
+          { slug: { contains: "test", mode: "insensitive" } },
+        ],
         products: {
           some: {
             active: true,

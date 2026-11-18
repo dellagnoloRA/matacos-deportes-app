@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
 
-export function ClearCartOnSuccess({ isApproved }: { isApproved: boolean }) {
+export function ClearCartOnSuccess({ isApproved, isFailure }: { isApproved?: boolean; isFailure?: boolean }) {
   useEffect(() => {
-    if (isApproved) {
+    // Limpiar carrito siempre que no sea un fallo explícito
+    if (isApproved || !isFailure) {
       useCartStore.getState().clearCart();
     }
-  }, [isApproved]);
+  }, [isApproved, isFailure]);
 
   return null;
 }

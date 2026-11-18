@@ -61,6 +61,8 @@ async function runRf16Tests() {
       shippingCity: "Formosa",
       shippingPostalCode: "3600",
       items: [{ variantId: sampleVariant.id, quantity: 1 }],
+      acceptedTerms: true,
+      acceptedPrivacy: true,
     });
 
     assert(Boolean(orderRes.success && orderRes.data?.saleId), "Creación de Orden previa para pasarela");
@@ -219,6 +221,8 @@ async function runRf16Tests() {
       customerPhone: "3704998877",
       shippingMethod: "RETIRO_LOCAL",
       items: [{ variantId: sampleVariant.id, quantity: 1 }],
+      acceptedTerms: true,
+      acceptedPrivacy: true,
     });
 
     const saleId2 = orderRes2.data!.saleId;

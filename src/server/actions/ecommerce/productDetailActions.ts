@@ -384,7 +384,15 @@ export async function getRelatedProducts(
   limit = 4
 ): Promise<{ success: boolean; data?: PublicProductItem[]; error?: string }> {
   try {
-    const validated = RelatedProductsSchema.parse({ productId, limit });
+    const parsed = RelatedProductsSchema.safeParse({ productId, limit });
+    if (!parsed.success) {
+      return {
+        success: false,
+        data: [],
+        error: parsed.error.issues[0]?.message || "ID de producto inválido",
+      };
+    }
+    const validated = parsed.data;
 
     // 1. Obtener disciplina y categoría del producto de referencia
     const currentProduct = await prisma.product.findUnique({
@@ -393,7 +401,7 @@ export async function getRelatedProducts(
     });
 
     if (!currentProduct) {
-      return { success: false, error: "Producto base no encontrado" };
+      return { success: true, data: [] };
     }
 
     // 2. Buscar artículos afines con stock positivo excluyendo el actual

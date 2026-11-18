@@ -8,7 +8,7 @@ import { ProductDetailView } from "@/components/ecommerce/pdp/ProductDetailView"
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { ShoppingBag, ArrowLeft } from "lucide-react";
-import type { PublicProductDetail } from "@/types/ecommerce";
+import type { PublicProductDetail, PublicProductItem } from "@/types/ecommerce";
 
 // Revalidar cada 30 segundos
 export const revalidate = 30;
@@ -385,15 +385,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params;
 
   try {
-    const [detailRes, relatedRes] = await Promise.all([
-      getProductDetail(id),
-      getRelatedProducts(id, 4),
-    ]);
+    const detailRes = await getProductDetail(id);
 
     let product: PublicProductDetail | null = null;
+    let relatedProducts: PublicProductItem[] = [];
 
     if (detailRes.success && detailRes.data) {
       product = detailRes.data;
+      const relatedRes = await getRelatedProducts(product.id, 4);
+      if (relatedRes.success && relatedRes.data) {
+        relatedProducts = relatedRes.data;
+      }
     } else {
       // Fallback a productos de muestra de la maqueta
       product = resolveSampleProduct(id);
@@ -427,9 +429,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       );
     }
-
-    const relatedProducts =
-      relatedRes.success && relatedRes.data ? relatedRes.data : [];
 
     return (
       <ProductDetailView

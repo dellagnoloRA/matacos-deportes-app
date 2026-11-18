@@ -36,19 +36,20 @@ export function mapPublicProductToEcommerce(
       : undefined;
 
   // Priorizar imagen primaria o primera de la galería o imageUrl directo
+  const images = Array.isArray(item.images) ? item.images : [];
   const primaryImage =
-    item.images.find((img) => img.isPrimary)?.url ||
-    item.images[0]?.url ||
+    images.find((img) => img.isPrimary)?.url ||
+    images[0]?.url ||
     item.imageUrl ||
     "/placeholder-product.svg";
 
   return {
     id: item.id,
     name: item.name,
-    brand: item.brand.name,
-    brandSlug: item.brand.slug,
-    category: item.category.name,
-    categorySlug: item.category.slug,
+    brand: item.brand?.name || "Matacos",
+    brandSlug: item.brand?.slug || "matacos",
+    category: item.category?.name || "General",
+    categorySlug: item.category?.slug || "general",
     discipline: item.discipline?.name,
     disciplineSlug: item.discipline?.slug,
     price: displayPrice,
@@ -56,7 +57,7 @@ export function mapPublicProductToEcommerce(
     isOffer,
     offerTag,
     image: primaryImage,
-    images: item.images,
+    images: images,
     description: item.description || undefined,
     installments:
       displayPrice >= 80000

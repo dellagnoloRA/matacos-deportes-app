@@ -52,7 +52,7 @@ export const DiscountSchema = z
  */
 export const SaleItemSchema = z
   .object({
-    variantId: z.string().uuid("ID de variante inválido"),
+    variantId: z.string().min(1, "ID de variante inválido"),
     quantity: z
       .number({ invalid_type_error: "La cantidad debe ser un número" })
       .int("La cantidad debe ser un número entero")
@@ -175,7 +175,7 @@ export const CreateSaleSchema = z
  */
 export const PendingSaleItemSchema = z
   .object({
-    variantId: z.string().uuid("ID de variante inválido"),
+    variantId: z.string().min(1, "ID de variante inválido"),
     quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
     originalPrice: z.number().min(0, "El precio no puede ser negativo"),
     discountType: DiscountTypeEnum.optional().nullable(),

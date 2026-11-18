@@ -163,7 +163,7 @@ export function WebOrdersView() {
     );
   };
 
-  const getPaymentBadge = (status: WebOrderDTO["status"]) => {
+  const getPaymentBadge = (status: WebOrderDTO["status"], notes?: string | null) => {
     if (status === "COMPLETADA") {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -172,11 +172,14 @@ export function WebOrdersView() {
         </span>
       );
     }
-    if (status === "PENDIENTE_VERIFICACION") {
+    if (
+      status === "PENDIENTE_VERIFICACION" ||
+      Boolean(notes && notes.toUpperCase().includes("TRANSFERENCIA") && status === "PENDIENTE_PAGO")
+    ) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
-          <FileText className="w-3 h-3 text-purple-600" />
-          <span>Por Verificar</span>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+          <FileText className="w-3 h-3 text-purple-700" />
+          <span>Por Verificar (Transferencia)</span>
         </span>
       );
     }
@@ -494,7 +497,7 @@ export function WebOrdersView() {
                           <div className="font-black text-slate-950 text-sm">
                             {order.totalFormatted}
                           </div>
-                          <div className="mt-1">{getPaymentBadge(order.status)}</div>
+                          <div className="mt-1">{getPaymentBadge(order.status, order.notes)}</div>
                         </td>
 
                         {/* Prendas */}
@@ -510,6 +513,18 @@ export function WebOrdersView() {
                         {/* Acciones */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1.5">
+                            {(order.status === "PENDIENTE_VERIFICACION" ||
+                              (order.status === "PENDIENTE_PAGO" &&
+                                Boolean(order.notes && order.notes.toUpperCase().includes("TRANSFERENCIA")))) && (
+                              <button
+                                onClick={() => handleOpenDetail(order)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-all animate-pulse cursor-pointer"
+                                title="Revisar y Conciliar Transferencia Bancaria"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Aprobar Pago</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenPackingSlip(order)}
                               title="Imprimir Remito / Etiqueta"

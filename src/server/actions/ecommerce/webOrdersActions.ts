@@ -257,7 +257,21 @@ export async function getWebOrdersAction(
     };
 
     if (filters.paymentStatus !== "TODAS") {
-      where.status = filters.paymentStatus as SaleStatus;
+      if (filters.paymentStatus === "PENDIENTE_VERIFICACION") {
+        where.OR = [
+          { status: "PENDIENTE_VERIFICACION" },
+          { transferProofUrl: { not: null }, status: "PENDIENTE_PAGO" },
+          { notes: { contains: "TRANSFERENCIA", mode: "insensitive" }, status: "PENDIENTE_PAGO" },
+        ];
+      } else if (filters.paymentStatus === "PENDIENTE_PAGO") {
+        where.status = "PENDIENTE_PAGO";
+        where.NOT = [
+          { notes: { contains: "TRANSFERENCIA", mode: "insensitive" } },
+          { transferProofUrl: { not: null } },
+        ];
+      } else {
+        where.status = filters.paymentStatus as SaleStatus;
+      }
     }
 
     if (filters.shippingStatus !== "TODAS") {
@@ -301,8 +315,26 @@ export async function getWebOrdersAction(
       sales,
     ] = await Promise.all([
       prisma.sale.count({ where: { channel: "WEB" } }),
-      prisma.sale.count({ where: { channel: "WEB", status: "PENDIENTE_PAGO" } }),
-      prisma.sale.count({ where: { channel: "WEB", status: "PENDIENTE_VERIFICACION" } }),
+      prisma.sale.count({
+        where: {
+          channel: "WEB",
+          status: "PENDIENTE_PAGO",
+          NOT: [
+            { notes: { contains: "TRANSFERENCIA", mode: "insensitive" } },
+            { transferProofUrl: { not: null } },
+          ],
+        },
+      }),
+      prisma.sale.count({
+        where: {
+          channel: "WEB",
+          OR: [
+            { status: "PENDIENTE_VERIFICACION" },
+            { transferProofUrl: { not: null }, status: "PENDIENTE_PAGO" },
+            { notes: { contains: "TRANSFERENCIA", mode: "insensitive" }, status: "PENDIENTE_PAGO" },
+          ],
+        },
+      }),
       prisma.sale.count({
         where: { channel: "WEB", status: "COMPLETADA", shippingStatus: "EN_PREPARACION" },
       }),

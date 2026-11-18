@@ -23,6 +23,7 @@ import {
   Percent,
   ExternalLink,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { CheckoutHeader } from "@/components/ecommerce/checkout/CheckoutHeader";
 import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
@@ -35,6 +36,8 @@ import { createMercadoPagoPreference } from "@/server/actions/ecommerce/mercadop
 import { ShippingMethod } from "@/schemas/ecommerce";
 import { getProvinces, getLocalitiesForProvince } from "@/data/argentinaLocations";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { companyConfig, getShippingConfig } from "@/config/company";
+import { PostalCodeShippingCalculator } from "@/components/ecommerce/checkout/PostalCodeShippingCalculator";
 
 const SHIPPING_RATES: Record<ShippingMethod, { title: string; desc: string; cost: number }> = {
   RETIRO_LOCAL: {
@@ -720,7 +723,7 @@ export default function CheckoutPage() {
   const rawSubtotal = cart.subtotal;
   const discountAmount = discountPercent > 0 ? (rawSubtotal * discountPercent) / 100 : 0;
   const subtotalWithDiscount = rawSubtotal - discountAmount;
-  const currentShippingCost = SHIPPING_RATES[shippingMethod].cost;
+  const currentShippingCost = SHIPPING_RATES[shippingMethod]?.cost ?? 0;
   const totalAmount = subtotalWithDiscount + currentShippingCost;
 
   // Cuotas amounts for credit card
@@ -751,7 +754,7 @@ export default function CheckoutPage() {
 
     try {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
-      const shippingCost = SHIPPING_RATES[shippingMethod].cost;
+      const shippingCost = SHIPPING_RATES[shippingMethod]?.cost ?? 0;
 
       // Format combined delivery address
       let formattedAddress = "Saavedra 241, Formosa Capital";
@@ -817,23 +820,8 @@ export default function CheckoutPage() {
       // Clear cart from Zustand store
       useCartStore.getState().clearCart();
 
-      // If Mercado Pago was selected, initiate Checkout Pro preference
-      if (paymentMethod === "MERCADO_PAGO") {
-        const mpRes = await createMercadoPagoPreference(orderData.orderCode);
-
-        if (mpRes.success && mpRes.data?.initPoint) {
-          const initPoint = mpRes.data.initPoint;
-          if (initPoint.startsWith("/")) {
-            router.push(initPoint);
-          } else {
-            window.location.href = initPoint;
-          }
-          return;
-        }
-      }
-
-      // Default or Card/Transferencia -> go to Order confirmation page
-      router.push(`/pedido/${orderData.saleId}`);
+      // Redirigir directamente a la pantalla de confirmación/resultado con mensaje solicitado (sin pantalla redundante /checkout/pago)
+      router.push(`/checkout/resultado?orderCode=${encodeURIComponent(orderData.orderCode || orderData.saleId)}&status=review`);
     } catch (err) {
       console.error("Error al finalizar orden:", err);
       setSubmissionError("Error de conexión al procesar la compra. Por favor reintentá en unos instantes.");
@@ -1477,6 +1465,20 @@ export default function CheckoutPage() {
                         )}
                       </div>
 
+                      {/* Cotizador Logístico Oficial (RF-19 Subtarea 2) */}
+                      <div className="pt-2">
+                        <PostalCodeShippingCalculator
+                          initialPostalCode={postalCode}
+                          selectedMethod={shippingMethod}
+                          cartItems={cart.items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))}
+                          onShippingCalculated={(res) => {
+                            if (res.postalCode) {
+                              setPostalCode(res.postalCode);
+                            }
+                          }}
+                        />
+                      </div>
+
                       {/* Display delivery address inputs once CP is entered */}
                       {isPostalCodeEntered ? (
                         <div className="space-y-3.5 pt-2 border-t border-slate-100 animate-in fade-in zoom-in-98 duration-200">
@@ -1853,12 +1855,16 @@ export default function CheckoutPage() {
                       }}
                       className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center transition-all cursor-pointer ${
                         paymentMethod === "MERCADO_PAGO"
-                          ? "border-[#00D615] bg-emerald-50/50 ring-2 ring-[#00D615] text-slate-950 font-bold"
+                          ? "border-[#009EE3] bg-sky-50/50 ring-2 ring-[#009EE3] text-slate-950 font-bold"
                           : "border-slate-200 hover:border-slate-300 bg-white text-slate-600"
                       }`}
                     >
-                      <div className="w-5 h-5 mb-1.5 rounded-full bg-sky-500 text-white flex items-center justify-center font-black text-[10px]">
-                        MP
+                      <div className="h-6 w-full mb-1 flex items-center justify-center">
+                        <img
+                          src="/images/mercadopago-logo.png"
+                          alt="Mercado Pago"
+                          className="h-5 w-auto object-contain"
+                        />
                       </div>
                       <span className="text-xs">Mercado Pago</span>
                       <span className="text-[10px] text-sky-700 font-semibold mt-0.5">Checkout Pro</span>
@@ -2263,20 +2269,24 @@ export default function CheckoutPage() {
                   {/* OPTION C: MERCADO PAGO (PROMINENT BOTÓN "Pagar con Mercado Pago") */}
                   {/* ================================================== */}
                   {paymentMethod === "MERCADO_PAGO" && (
-                    <div className="p-4 sm:p-5 rounded-xl border border-sky-200 bg-sky-50/50 space-y-4 animate-in fade-in duration-200 text-xs">
-                      <div className="flex items-center gap-2 text-sky-950 font-bold">
-                        <div className="w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center font-black text-xs">
-                          MP
+                    <div className="p-4 sm:p-5 rounded-2xl border border-sky-200 bg-sky-50/60 space-y-4 animate-in fade-in duration-200 text-xs">
+                      <div className="flex items-center gap-2.5 text-sky-950 font-bold">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-sky-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                          <img
+                            src="/images/mercadopago-logo.png"
+                            alt="Mercado Pago"
+                            className="h-5 w-auto object-contain"
+                          />
                         </div>
-                        <span>Checkout Pro de Mercado Pago</span>
+                        <span className="text-sm font-black">Checkout Pro de Mercado Pago</span>
                       </div>
                       <p className="text-slate-600 leading-relaxed">
                         Serás dirigido a la plataforma oficial y segura de Mercado Pago para abonar con
                         dinero en cuenta, tarjetas bancarias en cuotas o en puntos de efectivo (Pago Fácil / Rapipago).
                       </p>
-                      <div className="p-3 rounded-lg bg-white border border-sky-100 flex items-center justify-between font-medium">
+                      <div className="p-3 rounded-xl bg-white border border-sky-100 flex items-center justify-between font-medium">
                         <span className="text-slate-600">Total a procesar:</span>
-                        <strong className="text-base text-slate-950">{formatCurrency(totalAmount)}</strong>
+                        <strong className="text-base text-slate-950 font-black">{formatCurrency(totalAmount)}</strong>
                       </div>
                     </div>
                   )}
@@ -2365,7 +2375,7 @@ export default function CheckoutPage() {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full py-4 px-6 rounded-full bg-[#009ee3] hover:bg-[#0089c7] active:scale-98 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-[#009ee3]/25 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full py-4 px-6 rounded-full bg-[#009EE3] hover:bg-[#0089c7] active:scale-98 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-3 shadow-xl shadow-[#009EE3]/30 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? (
                           <>
@@ -2374,8 +2384,15 @@ export default function CheckoutPage() {
                           </>
                         ) : (
                           <>
+                            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center p-0.5 shrink-0 shadow-2xs">
+                              <img
+                                src="/images/mercadopago-logo.png"
+                                alt="Mercado Pago"
+                                className="w-5 h-5 object-contain"
+                              />
+                            </div>
                             <span>PAGAR CON MERCADO PAGO — {formatCurrency(totalAmount)}</span>
-                            <ArrowRight className="w-5 h-5" />
+                            <ArrowRight className="w-5 h-5 text-white" />
                           </>
                         )}
                       </button>

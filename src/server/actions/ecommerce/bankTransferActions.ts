@@ -11,6 +11,7 @@ import {
   type VerifyTransferPaymentInput,
 } from "@/schemas/ecommerce";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
+import { sendOrderConfirmationEmail } from "@/lib/emailService";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -263,6 +264,67 @@ export async function submitTransferProof(
 }
 
 /**
+ * Tarea 4.1: Sube el archivo físico de comprobante y actualiza la orden (RF-17).
+ */
+export async function uploadBankTransferReceipt(
+  formData: FormData
+): Promise<{ success: boolean; proofUrl?: string; error?: string }> {
+  try {
+    const file = formData.get("file") as File | null;
+    const orderId = formData.get("orderId") as string | null;
+
+    if (!orderId) {
+      return { success: false, error: "Identificador de orden requerido" };
+    }
+
+    if (!file || file.size === 0) {
+      return { success: false, error: "Debe adjuntar un archivo de comprobante válido" };
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        success: false,
+        error: "Formato no permitido. Solo se aceptan imágenes (JPG, PNG, WebP) o archivos PDF.",
+      };
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const fs = await import("fs/promises");
+    const path = await import("path");
+
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "transfer-receipts");
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const ext = path.extname(file.name) || (file.type === "application/pdf" ? ".pdf" : ".jpg");
+    const filename = `comprobante-${orderId.slice(0, 8)}-${Date.now()}${ext}`;
+    const filePath = path.join(uploadDir, filename);
+    await fs.writeFile(filePath, buffer);
+
+    const proofUrl = `/uploads/transfer-receipts/${filename}`;
+
+    const res = await submitTransferProof({
+      orderId,
+      proofUrl,
+      customerNotes: `Archivo comprobante subido: ${file.name}`,
+    });
+
+    if (!res.success) {
+      return {
+        success: false,
+        error: res.error || "No se pudo asociar el comprobante con la orden de venta",
+      };
+    }
+
+    return { success: true, proofUrl };
+  } catch (err) {
+    console.error("Error al procesar subida de comprobante:", err);
+    return { success: false, error: "Error interno al procesar el archivo en el servidor" };
+  }
+}
+
+/**
  * Tarea 5: Server Action para Administrador para verificar y conciliar la transferencia bancaria (RF-17).
  *
  * 5.1 Si approved === true:
@@ -460,6 +522,28 @@ export async function verifyTransferPayment(
       await revalidateEcommerceCatalogCache();
       safeRevalidatePath("/seguimiento");
       safeRevalidatePath("/cuenta");
+
+      // Disparar correo de confirmación de pago acreditado y orden aprobada
+      if (sale.customerEmail) {
+        sendOrderConfirmationEmail({
+          to: sale.customerEmail,
+          customerName: sale.customerName || "Cliente",
+          orderCode: normalizedOrderCode,
+          shippingMethod: sale.shippingMethod || "RETIRO_LOCAL",
+          shippingAddress: sale.shippingAddress || "Saavedra 241, Formosa Capital",
+          shippingCity: sale.shippingCity || "Formosa",
+          total: Number(sale.total),
+          items: (sale.items || []).map((it: any) => ({
+            productName: it.productName || it.variant?.product?.name || "Artículo deportivo",
+            size: it.size || it.variant?.size || "Único",
+            color: it.color || it.variant?.color || "Estándar",
+            quantity: it.quantity,
+            subtotal: Number(it.price) * it.quantity,
+          })),
+        }).catch((emailErr) => {
+          console.error("[Transferencia] Error al enviar email de confirmación:", emailErr);
+        });
+      }
 
       return {
         success: true,
