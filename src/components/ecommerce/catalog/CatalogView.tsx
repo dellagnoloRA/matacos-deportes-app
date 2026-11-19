@@ -6,18 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
-import { useCart, buildCartItemFromEcommerceProduct } from "@/store/cartStore";
 import { CatalogFilterSidebar } from "./CatalogFilterSidebar";
 import { CatalogTopBar } from "./CatalogTopBar";
 import { CatalogPaginationNav } from "./CatalogPagination";
 import {
   Heart,
   Flame,
-  Eye,
-  Check,
   ShoppingBag,
-  X,
-  ExternalLink,
   Loader2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -67,7 +62,6 @@ export function CatalogView({
   const [navigatingProductId, setNavigatingProductId] = useState<string | null>(
     null
   );
-  const cart = useCart();
 
   // Wishlist state (persisted in localStorage)
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
@@ -100,17 +94,6 @@ export function CatalogView({
 
   // Mobile filters drawer state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-
-  // Cart notice
-  const [addedNotice, setAddedNotice] = useState<string | null>(null);
-
-  // Quick view modal
-  const [activeModalProduct, setActiveModalProduct] =
-    useState<EcommerceProduct | null>(null);
-
-  const openQuickView = (product: EcommerceProduct) => {
-    setActiveModalProduct(product);
-  };
 
   const navigateToProductDetail = (
     e: React.MouseEvent<HTMLElement>,
@@ -160,16 +143,6 @@ export function CatalogView({
     startTransition(() => {
       router.push("/catalogo");
     });
-  };
-
-  // Cart actions
-  const handleAddToCart = (product: EcommerceProduct) => {
-    const itemInput = buildCartItemFromEcommerceProduct(product);
-    if (itemInput) {
-      cart.addItem(itemInput);
-      setAddedNotice(product.name);
-      setTimeout(() => setAddedNotice(null), 3000);
-    }
   };
 
   return (
@@ -335,21 +308,6 @@ export function CatalogView({
                               }`}
                             />
                           </button>
-
-                          {/* Botón secundario flotante para Vista Rápida */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              openQuickView(product);
-                            }}
-                            className="absolute bottom-2 right-2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-bold text-[10px] bg-slate-950/85 hover:bg-slate-950 backdrop-blur-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                            title="Vista rápida"
-                          >
-                            <Eye className="w-3 h-3 text-[#00D615]" />
-                            <span>Rápida</span>
-                          </button>
                         </div>
 
                         {/* 2. Cuerpo de Información */}
@@ -464,120 +422,7 @@ export function CatalogView({
         </div>
       )}
 
-      {/* 6. Quick View Modal */}
-      {activeModalProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col md:flex-row">
-            <button
-              type="button"
-              onClick={() => setActiveModalProduct(null)}
-              className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="md:w-1/2 bg-[#f8fafc] p-8 flex items-center justify-center relative">
-              {activeModalProduct.isOffer && (
-                <span className="absolute top-4 left-4 bg-[#c2f25b] text-slate-950 font-black text-xs px-2.5 py-1 rounded shadow-xs">
-                  {activeModalProduct.offerTag || "OFERTA"}
-                </span>
-              )}
-              <img
-                src={activeModalProduct.image || "/placeholder-product.svg"}
-                alt={activeModalProduct.name}
-                className="max-h-72 object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/placeholder-product.svg";
-                }}
-              />
-            </div>
-
-            <div className="md:w-1/2 p-6 flex flex-col justify-between space-y-6">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                    {activeModalProduct.brand} • {activeModalProduct.category}
-                  </span>
-                  <h3 className="text-xl font-black text-slate-900 leading-tight">
-                    {activeModalProduct.name}
-                  </h3>
-                </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {activeModalProduct.description ||
-                    "Artículo deportivo original garantizado por Matacos Deportes. Local a la calle en Saavedra 241, Formosa."}
-                </p>
-
-                <div className="pt-2">
-                  {activeModalProduct.originalPrice && (
-                    <span className="text-sm text-slate-400 line-through font-semibold block">
-                      {formatCurrency(activeModalProduct.originalPrice)}
-                    </span>
-                  )}
-                  <span className="text-2xl font-black text-[#00A811]">
-                    {formatCurrency(activeModalProduct.price)}
-                  </span>
-                  <span className="block text-[11px] text-emerald-700 font-bold mt-1">
-                    {activeModalProduct.installments || "3 y 6 cuotas sin interés en el local"}
-                  </span>
-                </div>
-
-                {activeModalProduct.totalAvailableStock !== undefined && (
-                  <div className="text-xs text-slate-600 font-semibold">
-                    Stock disponible:{" "}
-                    <span className="text-emerald-700 font-bold">
-                      {activeModalProduct.totalAvailableStock} unidades
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleAddToCart(activeModalProduct);
-                    setActiveModalProduct(null);
-                  }}
-                  disabled={!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0}
-                  className="w-full py-3.5 px-4 rounded-xl bg-[#00D615] hover:bg-[#00b812] disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                  <span>
-                    {!activeModalProduct.hasStock || activeModalProduct.totalAvailableStock === 0
-                      ? "Sin Stock"
-                      : "Agregar al carrito"}
-                  </span>
-                </button>
-
-                <Link
-                  href={`/productos/${activeModalProduct.id}`}
-                  onClick={() => setActiveModalProduct(null)}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <span>Ver ficha y selector de talles</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Success Toast */}
-      {addedNotice && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-950 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-500 animate-in slide-in-from-bottom duration-300">
-          <div className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 flex items-center justify-center font-bold">
-            <Check className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="text-xs font-bold">{addedNotice}</p>
-            <p className="text-[11px] text-slate-300">¡Agregado al carrito con éxito!</p>
-          </div>
-        </div>
-      )}
-
-      {/* 8. Slide-over Cart Drawer */}
+      {/* Slide-over Cart Drawer */}
       <EcommerceCartDrawer />
     </div>
   );

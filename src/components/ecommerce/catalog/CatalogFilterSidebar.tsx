@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
-  Flame,
   RotateCcw,
   SlidersHorizontal,
   X,
@@ -119,16 +118,7 @@ export function CatalogFilterSidebar({
               : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
           }`}
         >
-          <span className="flex items-center gap-2">
-            <Flame
-              className={`w-4 h-4 ${
-                activeFilters.ofertas
-                  ? "text-orange-400 fill-orange-400"
-                  : "text-orange-500"
-              }`}
-            />
-            <span>Solo en Oferta</span>
-          </span>
+          <span>Solo en Oferta</span>
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
               activeFilters.ofertas

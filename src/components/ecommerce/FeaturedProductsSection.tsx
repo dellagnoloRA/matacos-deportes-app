@@ -7,7 +7,6 @@ import { EcommerceProduct } from "./types";
 import { MOCK_FEATURED_PRODUCTS } from "./mockData";
 import {
   ChevronDown,
-  Eye,
   Check,
   ShoppingBag,
   X,
@@ -300,21 +299,6 @@ export function FeaturedProductsSection({
                         }}
                       />
                     </Link>
-
-                    {/* Botón compacto de Vista Rápida sin cubrir toda la imagen */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openQuickView(product);
-                      }}
-                      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white font-bold text-[11px] bg-slate-950/85 hover:bg-slate-950 backdrop-blur-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                      title="Vista rápida"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#00D615]" />
-                      <span>Vista Rápida</span>
-                    </button>
                   </div>
 
                   {/* Product Info */}
