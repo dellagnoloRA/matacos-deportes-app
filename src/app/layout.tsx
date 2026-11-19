@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { WhatsAppFloatingButton } from "@/components/ecommerce/WhatsAppFloatingButton";
+import { EcommerceCartDrawer } from "@/components/ecommerce/EcommerceCartDrawer";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,6 +26,8 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
+        <WhatsAppFloatingButton />
+        <EcommerceCartDrawer />
       </body>
     </html>
   );

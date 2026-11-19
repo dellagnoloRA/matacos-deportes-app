@@ -15,6 +15,7 @@ import {
   Loader2,
   AlertTriangle,
   CreditCard,
+  ArrowLeft,
 } from "lucide-react";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
@@ -74,7 +75,18 @@ export function OrderTrackingView({
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
       <EcommerceHeader />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
+        {/* Breadcrumb / Back button */}
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:text-emerald-950 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Volver a la tienda</span>
+          </Link>
+        </div>
+
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6">
           <div className="space-y-1">
             <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#00A811]">

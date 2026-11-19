@@ -1106,7 +1106,10 @@ export async function createDirectSale(input: CreateSaleInput) {
 export async function getPendingSales() {
   try {
     const sales = await prisma.sale.findMany({
-      where: { status: "PENDIENTE_PAGO" },
+      where: {
+        status: "PENDIENTE_PAGO",
+        channel: "MOSTRADOR",
+      },
       orderBy: { createdAt: "asc" }, // FIFO: primero en salón, primero en caja
       include: {
         seller: {
@@ -1239,7 +1242,10 @@ export async function getPosSyncPulse(): Promise<{
         select: { createdAt: true },
       }),
       prisma.sale.count({
-        where: { status: "PENDIENTE_PAGO" },
+        where: {
+          status: "PENDIENTE_PAGO",
+          channel: "MOSTRADOR",
+        },
       }),
     ]);
 

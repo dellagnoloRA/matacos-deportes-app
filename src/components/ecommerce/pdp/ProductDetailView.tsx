@@ -573,6 +573,8 @@ export function ProductDetailView({
   };
 
   // RF-18: Enlace de consulta contextual a WhatsApp (estable para evitar errores de hidratación SSR)
+  const whatsappPhone =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
   const [currentUrl, setCurrentUrl] = useState("");
 
   useEffect(() => {
@@ -588,7 +590,12 @@ export function ProductDetailView({
       effectivePrice
     )}. Visto en la tienda: ${productUrl}`
   );
-  const waUrl = `https://wa.me/5493704000000?text=${waText}`;
+  const waUrl = `https://wa.me/${whatsappPhone}?text=${waText}`;
+
+  const handleWhatsAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased selection:bg-[#00D615] selection:text-slate-950">
@@ -760,6 +767,19 @@ export function ProductDetailView({
                 <span className="font-black text-white ml-0.5 text-[10px]">X</span>
               </span>
 
+              {/* Mercado Pago */}
+              <span
+                className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-white border border-slate-200 shadow-2xs select-none gap-1"
+                title="Mercado Pago Checkout Pro"
+              >
+                <img
+                  src="/images/mercadopago-logo.png"
+                  alt="Mercado Pago"
+                  className="h-3.5 w-auto object-contain"
+                />
+                <span className="font-extrabold text-[9px] text-[#009EE3]">Mercado Pago</span>
+              </span>
+
               <button
                 type="button"
                 onClick={() => setIsPaymentModalOpen(true)}
@@ -773,7 +793,7 @@ export function ProductDetailView({
             {/* 6. Beneficio de Envío */}
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 pt-1">
               <Truck className="w-4 h-4 text-slate-800 shrink-0" />
-              <span>¡Envío gratuito en pedidos de {formatCurrency(109999)}!</span>
+              <span>Retiro gratis en Saavedra 241 • Envíos a todo el país</span>
             </div>
 
             {/* 7. Selector de Colores en Circulitos con Nombre al Lado */}
@@ -919,6 +939,7 @@ export function ProductDetailView({
               {/* Botón Asistencia WhatsApp (RF-18) */}
               <a
                 href={waUrl}
+                onClick={handleWhatsAppClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 suppressHydrationWarning
@@ -1871,6 +1892,28 @@ export function ProductDetailView({
                       );
                     })}
                 </div>
+              </div>
+
+              {/* Mercado Pago Checkout Pro */}
+              <div className="p-3.5 rounded-xl bg-sky-50/90 border border-sky-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src="/images/mercadopago-logo.png"
+                      alt="Mercado Pago"
+                      className="h-5 w-auto object-contain"
+                    />
+                    <span className="font-bold text-slate-900 text-sm">
+                      Mercado Pago (Checkout Pro)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-[#009EE3] text-white">
+                    HASTA 6 CUOTAS
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Aboná de forma segura con tarjetas de crédito (Visa, Mastercard, Cabal, Naranja X), tarjetas de débito o dinero en cuenta de Mercado Pago con acreditación inmediata.
+                </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">

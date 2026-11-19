@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
 
@@ -28,7 +29,20 @@ export function EcommerceCartDrawer({
   const open = externalIsOpen !== undefined ? externalIsOpen : isDrawerOpen;
   const handleClose = externalOnClose ?? closeDrawer;
 
-  if (!open || !hasHydrated) return null;
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const pathname = usePathname();
+
+  if (
+    !open ||
+    !hasHydrated ||
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/pos") ||
+    pathname?.startsWith("/login") ||
+    pathname === "/carrito"
+  ) {
+    return null;
+  }
 
   const totalUnits = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalAmount = items.reduce(
@@ -64,7 +78,7 @@ export function EcommerceCartDrawer({
               {items.length > 0 && (
                 <button
                   type="button"
-                  onClick={clearCart}
+                  onClick={() => setShowClearConfirm(true)}
                   className="text-[11px] font-semibold text-slate-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                 >
                   Vaciar
@@ -252,14 +266,70 @@ export function EcommerceCartDrawer({
                 </p>
               </div>
 
-              <Link
-                href="/checkout"
-                onClick={handleClose}
-                className="w-full py-4 px-6 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#00D615]/20 transition-all text-center"
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <Link
+                  href="/carrito"
+                  onClick={handleClose}
+                  className="py-3 px-2 rounded-xl border-2 border-slate-900 bg-white hover:bg-slate-50 active:scale-98 text-slate-900 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center shadow-xs cursor-pointer"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                  <span>VER CARRITO</span>
+                </Link>
+
+                <Link
+                  href="/checkout"
+                  onClick={handleClose}
+                  className="py-3 px-2 rounded-xl bg-[#00D615] hover:bg-[#00b812] active:scale-98 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-[#00D615]/20 transition-all text-center cursor-pointer"
+                >
+                  <span>INICIAR COMPRA</span>
+                  <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de confirmación para Vaciar en Drawer */}
+          {showClearConfirm && (
+            <div
+              className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+              onClick={() => setShowClearConfirm(false)}
+            >
+              <div
+                className="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 text-center relative"
+                onClick={(e) => e.stopPropagation()}
               >
-                <span>INICIAR COMPRA</span>
-                <ArrowRight className="w-4 h-4 inline-block" />
-              </Link>
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-3">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+
+                <h3 className="text-base font-black text-slate-900 mb-1">
+                  ¿Vaciar tu carrito?
+                </h3>
+
+                <p className="text-xs text-slate-500 leading-relaxed mb-5">
+                  Se quitarán todos los productos ({totalUnits} {totalUnits === 1 ? "artículo" : "artículos"}) de tu pedido.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(false)}
+                    className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCart();
+                      setShowClearConfirm(false);
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 active:scale-98 text-white font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-red-600/20 cursor-pointer"
+                  >
+                    Sí, vaciar
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

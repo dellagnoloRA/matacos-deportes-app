@@ -72,19 +72,13 @@ const LINK_PRESETS: LinkPreset[] = [
     id: "voley",
     label: "🏐 Disciplina: Vóley",
     url: "/catalogo?disciplineSlug=voley",
-    description: "Lleva a rodilleras, pelotas, redes, calzado e indumentaria de vóley.",
-  },
-  {
-    id: "calzado",
-    label: "👟 Disciplina: Calzado Deportivo",
-    url: "/catalogo?disciplineSlug=calzado",
-    description: "Vitrina de zapatillas de running, entrenamiento, trekking y deportes.",
+    description: "Lleva a rodilleras, pelotas, redes e indumentaria técnica de vóley.",
   },
   {
     id: "crocs",
-    label: "🐊 Disciplina: Crocs & Urbano",
+    label: "🐊 Disciplina: Crocs Oficial",
     url: "/catalogo?disciplineSlug=crocs-urbano",
-    description: "Catálogo exclusivo de sandalias y clogs Crocs originales y línea urbana.",
+    description: "Catálogo exclusivo de sandalias y clogs Crocs originales.",
   },
   {
     id: "fitness",

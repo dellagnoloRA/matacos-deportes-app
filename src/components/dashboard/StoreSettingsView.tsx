@@ -8,6 +8,7 @@ import {
   MapPin,
   Clock,
   Instagram,
+  Facebook,
   Save,
   CheckCircle2,
   AlertCircle,
@@ -33,8 +34,8 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
   const [isLoadingInitial, setIsLoadingInitial] = useState(!initialSettings);
   const [settings, setSettings] = useState({
     storeName: initialSettings?.storeName || "Matacos Deportes",
-    whatsappNumber: initialSettings?.whatsappNumber || "5493704000000",
-    contactPhone: initialSettings?.contactPhone || "+54 370 4429999",
+    whatsappNumber: initialSettings?.whatsappNumber || "5493704287158",
+    contactPhone: initialSettings?.contactPhone || "+54 9 370 428-7158",
     contactEmail: initialSettings?.contactEmail || "ventas@matacosdeportes.com",
     notificationsEmail: initialSettings?.notificationsEmail || "",
     storeAddress: initialSettings?.storeAddress || "Saavedra 241",
@@ -44,6 +45,7 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
       initialSettings?.businessHours ||
       "Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs",
     instagramHandle: initialSettings?.instagramHandle || "@matacosdeportes",
+    facebookHandle: initialSettings?.facebookHandle || "matacosdeportes",
     cadeteriaCost: initialSettings?.cadeteriaCost ?? 2500,
   });
 
@@ -62,6 +64,7 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
             storePostalCode: res.data.storePostalCode,
             businessHours: res.data.businessHours,
             instagramHandle: res.data.instagramHandle || "",
+            facebookHandle: res.data.facebookHandle || "",
             cadeteriaCost: res.data.cadeteriaCost ?? 2500,
           });
         }
@@ -106,6 +109,7 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
           storePostalCode: res.data.storePostalCode,
           businessHours: res.data.businessHours,
           instagramHandle: res.data.instagramHandle || "",
+          facebookHandle: res.data.facebookHandle || "",
           cadeteriaCost: res.data.cadeteriaCost,
         });
         if (typeof window !== "undefined") {
@@ -394,8 +398,24 @@ export function StoreSettingsView({ initialSettings }: StoreSettingsViewProps) {
               />
             </div>
 
+            {/* Facebook */}
+            <div className="space-y-1.5 md:col-span-1">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Facebook className="w-3.5 h-3.5 text-blue-600" />
+                <span>Facebook</span>
+              </label>
+              <input
+                type="text"
+                name="facebookHandle"
+                value={settings.facebookHandle}
+                onChange={handleChange}
+                placeholder="matacosdeportes"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00D615] focus:border-transparent"
+              />
+            </div>
+
             {/* Horarios de Atención */}
-            <div className="space-y-1.5 md:col-span-3">
+            <div className="space-y-1.5 md:col-span-2">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 <span>Horarios de Atención Comercial</span>

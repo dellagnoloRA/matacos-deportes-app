@@ -268,6 +268,8 @@ async function runTests() {
           expectedUnitPrice: Number(testVariant.price),
         },
       ],
+      acceptedTerms: true,
+      acceptedPrivacy: true,
     });
 
     assert(orderRes.success && Boolean(orderRes.data), "createGuestOrder crea la orden web exitosamente");

@@ -14,7 +14,7 @@ import { WEB_ORDER_RESERVATION_MINUTES } from "@/types/ecommerce";
 import { revalidateEcommerceCatalogCache } from "./catalogActions";
 import { formatCurrency } from "@/lib/utils";
 import { formatCheckoutContingencyWhatsAppUrl } from "@/lib/whatsapp";
-import { companyConfig } from "@/config/company";
+import { companyConfig, getShippingConfig } from "@/config/company";
 import { logLegalConsentHelper } from "./legalActions";
 import {
   ProcessWebOrderPaymentSchema,
@@ -25,6 +25,7 @@ import {
 import { mpClient, Payment, isMercadoPagoConfigured } from "@/lib/mercadopago";
 import { listActiveInstallmentPlansService } from "@/server/services/installmentService";
 import { calculateInstallmentPlanAmounts } from "@/schemas/installment";
+import { sendOrderConfirmationEmail } from "@/lib/emailService";
 
 /**
  * Mapeo de códigos de rechazo oficiales de Mercado Pago a mensajes amigables para el comprador
@@ -730,17 +731,45 @@ export async function createGuestOrder(
 
       const totalOrder = subtotalProducts + shippingCost;
 
-      // 3.1. Generar código correlativo (ej: WEB-2026-0001) y crear registro en tabla Sale
+      // 3.1. Validar defensivamente el vínculo con la tabla Customer (RF-29)
+      // para evitar violaciones de clave foránea en caso de usuarios staff o IDs inexistentes
+      let validCustomerId: string | null = null;
+      if (validated.customerId) {
+        const existingCustomer = await tx.customer.findUnique({
+          where: { id: validated.customerId },
+          select: { id: true },
+        });
+        if (existingCustomer) {
+          validCustomerId = existingCustomer.id;
+        }
+      }
+
+      // Si no se proveyó un customerId válido pero el email pertenece a un cliente registrado, vincularlo
+      if (!validCustomerId && validated.customerEmail) {
+        const customerByEmail = await tx.customer.findUnique({
+          where: { email: validated.customerEmail.trim().toLowerCase() },
+          select: { id: true },
+        });
+        if (customerByEmail) {
+          validCustomerId = customerByEmail.id;
+        }
+      }
+
+      // Generar código correlativo (ej: WEB-2026-0001) y crear registro en tabla Sale
       const orderCode = await generateNextWebOrderCode(tx);
+
+      // Sea cual sea el método de pago del cliente al finalizar compra, la orden se registra en PENDIENTE_VERIFICACION
+      // para revisión y aprobación por parte del encargado en el Panel Admin (RF-17).
+      const initialSaleStatus = "PENDIENTE_VERIFICACION" as const;
 
       const sale = await tx.sale.create({
         data: {
           invoiceNumber: orderCode,
           ticketCode: orderCode,
           channel: "WEB",
-          status: "PENDIENTE_PAGO",
+          status: initialSaleStatus,
           reservedUntil: new Date(Date.now() + WEB_ORDER_RESERVATION_MINUTES * 60 * 1000),
-          customerId: validated.customerId ?? null,
+          customerId: validCustomerId,
           customerName: validated.customerName,
           customerDni: validated.customerDni,
           customerEmail: validated.customerEmail,
@@ -1664,6 +1693,28 @@ export async function processWebOrderPayment(
 
       await revalidateEcommerceCatalogCache();
 
+      // Enviar correo de confirmación de compra con código y link directo de seguimiento
+      if (existingSale.customerEmail) {
+        sendOrderConfirmationEmail({
+          to: existingSale.customerEmail,
+          customerName: existingSale.customerName || "Cliente",
+          orderCode: normalizedOrderCode,
+          shippingMethod: existingSale.shippingMethod || "RETIRO_LOCAL",
+          shippingAddress: existingSale.shippingAddress || "Saavedra 241, Formosa Capital",
+          shippingCity: existingSale.shippingCity || "Formosa",
+          total: effectiveTotalAmount,
+          items: existingSale.items.map((it: any) => ({
+            productName: it.productName || "Artículo deportivo",
+            size: it.size || "Único",
+            color: it.color || "Estándar",
+            quantity: it.quantity,
+            subtotal: Number(it.price) * it.quantity,
+          })),
+        }).catch((err) => {
+          console.error("[Checkout] Error al enviar email de confirmación:", err);
+        });
+      }
+
       return {
         success: true,
         data: serialize(approvedResult),
@@ -1809,7 +1860,7 @@ export async function getWebOrderById(orderIdOrCode: string) {
     const waText = encodeURIComponent(
       `¡Hola Matacos Deportes! Realicé la orden web ${orderCode} por ${formattedTotal} a nombre de ${sale.customerName || "Cliente"}. Adjunto comprobante de pago o consulta.`
     );
-    const whatsappContingencyUrl = `https://wa.me/5493704000000?text=${waText}`;
+    const whatsappContingencyUrl = `https://wa.me/${companyConfig.whatsappNumber}?text=${waText}`;
 
     const items = sale.items.map((item) => {
       const img =
@@ -1840,6 +1891,7 @@ export async function getWebOrderById(orderIdOrCode: string) {
         id: sale.id,
         orderCode,
         status: sale.status,
+        notes: sale.notes || "",
         createdAt: createdAtDate.toISOString(),
         expiresAt: expiresAtDate.toISOString(),
         isExpired,

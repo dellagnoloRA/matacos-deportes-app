@@ -461,6 +461,7 @@ async function main() {
     where: { email: "admin@matacosdeportes.com.ar" },
     update: {
       username: "admin",
+      password: hashedAdminPassword,
       profileId: profileAdmin.id,
       role: "ADMIN",
       active: true,

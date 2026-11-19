@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
@@ -10,7 +11,6 @@ import {
   Instagram,
   Facebook,
   MessageCircle,
-  RotateCcw,
   ExternalLink,
 } from "lucide-react";
 import { getStoreSettings } from "@/server/actions/storeSettingsActions";
@@ -102,14 +102,15 @@ export function EcommerceFooter() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {/* Column 1: Brand & Contact Info */}
           <div className="space-y-4">
-            <div className="flex flex-col">
-              <span className="font-black italic text-2xl text-[#00D615] tracking-tighter leading-none">
-                MATACOS
-              </span>
-              <span className="font-black italic text-[11px] text-white tracking-[0.2em] leading-none uppercase mt-1">
-                DEPORTES
-              </span>
-            </div>
+            <Link href="/" className="inline-block pb-1">
+              <Image
+                src="/matacos-deportes-logo-white.png"
+                alt="Matacos Deportes"
+                width={190}
+                height={46}
+                className="h-9 sm:h-10 w-auto object-contain"
+              />
+            </Link>
 
             <p className="text-slate-400 text-xs leading-relaxed">
               Equipamiento técnico, calzado e indumentaria para todas tus disciplinas.
@@ -271,10 +272,18 @@ export function EcommerceFooter() {
               </li>
               <li>
                 <Link
-                  href="/acerca-de"
+                  href="/sobre-nosotros"
                   className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
                 >
                   <span>Acerca de Matacos Deportes</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/medios-de-pago"
+                  className="hover:text-[#00D615] transition-colors flex items-center gap-1.5"
+                >
+                  <span>Medios de Pago y Financiación</span>
                 </Link>
               </li>
               <li>
@@ -305,25 +314,15 @@ export function EcommerceFooter() {
               Protección al Consumidor
             </h4>
 
-            {/* Botón de Arrepentimiento Oficial (Res. 271/2020 SCI) */}
+            {/* Botón de Arrepentimiento Oficial */}
             <div>
               <Link
                 href="/arrepentimiento"
-                className="group w-full flex items-center justify-between p-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-700/80 text-white transition-all shadow-xs"
+                className="group w-full flex items-center justify-center p-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-700/80 text-white transition-all shadow-xs text-center"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-[#00D615] text-[#041c16] flex items-center justify-center shrink-0">
-                    <RotateCcw className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="font-black text-xs uppercase tracking-wider text-[#00D615]">
-                      Botón de Arrepentimiento
-                    </span>
-                    <span className="text-[10px] text-slate-300">
-                      Revocá tu compra online (10 días)
-                    </span>
-                  </div>
-                </div>
+                <span className="font-black text-xs uppercase tracking-wider text-[#00D615]">
+                  Botón de Arrepentimiento
+                </span>
               </Link>
             </div>
 
@@ -342,13 +341,6 @@ export function EcommerceFooter() {
                   className="w-11 h-auto rounded shadow-xs"
                 />
               </a>
-
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 hover:text-white transition-colors text-[11px]"
-              >
-                <span>Acceso Panel de Gestión / POS</span>
-              </Link>
             </div>
           </div>
         </div>
@@ -360,11 +352,30 @@ export function EcommerceFooter() {
           </p>
         </div>
 
-        {/* Bottom Bar: Copyright & Institutional */}
+        {/* Bottom Bar: Copyright & Redes Sociales */}
         <div className="pt-4 border-t border-emerald-950/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <p>© {new Date().getFullYear()} {contactInfo.storeName}. Todos los derechos reservados. {contactInfo.storeAddress}, {contactInfo.storeCity} — Argentina.</p>
-          <div className="flex items-center gap-1 font-medium">
-            <span>Desarrollado para PPS I — Universidad de la Cuenca del Plata</span>
+          <div className="flex items-center gap-3 text-slate-400">
+            <a
+              href="https://www.facebook.com/matacosdeportes"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook de Matacos Deportes"
+              className="hover:text-[#00D615] transition-colors p-1"
+              title="Facebook: matacosdeportes"
+            >
+              <Facebook className="w-4 h-4" />
+            </a>
+            <a
+              href="https://www.instagram.com/matacosdeportes"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram de Matacos Deportes"
+              className="hover:text-[#00D615] transition-colors p-1"
+              title="Instagram: @matacosdeportes"
+            >
+              <Instagram className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </div>

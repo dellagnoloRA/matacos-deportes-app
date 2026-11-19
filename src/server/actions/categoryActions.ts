@@ -98,6 +98,12 @@ const FALLBACK_BRANDS = [
 export async function getDisciplines() {
   try {
     const disciplines = await prisma.discipline.findMany({
+      where: {
+        NOT: [
+          { name: { contains: "Test", mode: "insensitive" } },
+          { slug: { contains: "test", mode: "insensitive" } },
+        ],
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,

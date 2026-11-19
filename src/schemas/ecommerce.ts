@@ -106,7 +106,7 @@ export type PredictiveSearchInput = z.infer<typeof PredictiveSearchSchema>;
  * Esquema de validación para verificación atómica de stock de variante (RF-14)
  */
 export const CheckVariantStockSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
+  variantId: z.string().min(1, "ID de variante inválido"),
 });
 export type CheckVariantStockInput = z.infer<typeof CheckVariantStockSchema>;
 
@@ -114,7 +114,7 @@ export type CheckVariantStockInput = z.infer<typeof CheckVariantStockSchema>;
  * Esquema de validación para productos relacionados (RF-14)
  */
 export const RelatedProductsSchema = z.object({
-  productId: z.string().uuid("ID de producto inválido"),
+  productId: z.string().min(1, "ID de producto inválido"),
   limit: z.coerce.number().int().min(1).max(12).default(4),
 });
 export type RelatedProductsInput = z.infer<typeof RelatedProductsSchema>;
@@ -146,7 +146,7 @@ export type ShippingMethod = z.infer<typeof ShippingMethodEnum>;
  * Esquema Zod para cada ítem del carrito web (RF-15)
  */
 export const CartItemSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
+  variantId: z.string().min(1, "ID de variante inválido"),
   quantity: z
     .coerce
     .number({ invalid_type_error: "La cantidad debe ser un número" })
@@ -196,7 +196,7 @@ export const GuestCheckoutSchema = z
       .optional(),
     shippingBranchCode: z.string().trim().max(30).optional().nullable(),
     shippingBranchName: z.string().trim().max(120).optional().nullable(),
-    customerId: z.string().uuid("ID de cliente inválido").optional().nullable(),
+    customerId: z.string().min(1, "ID de cliente inválido").optional().nullable(),
     notes: z.string().trim().max(500).optional().nullable(),
     items: z
       .array(CartItemSchema)

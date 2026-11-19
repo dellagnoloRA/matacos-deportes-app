@@ -154,7 +154,7 @@ export function CatalogView({
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           {/* Desktop Filter Sidebar */}
-          <div className="hidden lg:block w-64 shrink-0 sticky top-24">
+          <div className="hidden lg:block w-64 shrink-0">
             <CatalogFilterSidebar
               facets={facets}
               activeFilters={activeFilters}

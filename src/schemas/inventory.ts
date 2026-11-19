@@ -23,7 +23,7 @@ export const LocationEnum = z.enum(["STORE", "WAREHOUSE", "WAREHOUSE_TO_STORE"])
  * Esquema de validación para registrar un movimiento manual de stock
  */
 export const InventoryMovementSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
+  variantId: z.string().min(1, "ID de variante inválido"),
   type: z.enum([
     "VENTA_MOSTRADOR",
     "INGRESO_COMPRA",
@@ -64,7 +64,7 @@ export const InventoryMovementSchema = z.object({
  * Esquema para registrar una transferencia interna (Reposición de Depósito a Salón)
  */
 export const StockTransferSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
+  variantId: z.string().min(1, "ID de variante inválido"),
   quantity: z
     .number({ invalid_type_error: "La cantidad debe ser un número" })
     .int("La cantidad debe ser un número entero")

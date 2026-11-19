@@ -39,7 +39,7 @@ export const PrintLabelsPayloadSchema = z.object({
   items: z
     .array(
       z.object({
-        variantId: z.string().uuid("ID de variante inválido"),
+        variantId: z.string().min(1, "ID de variante inválido"),
         copies: z
           .number({ invalid_type_error: "La cantidad de copias debe ser un número" })
           .int()

@@ -5,7 +5,7 @@ export const WebOrdersFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().trim().optional(),
   paymentStatus: z
-    .enum(["TODAS", "PENDIENTE_PAGO", "COMPLETADA", "CANCELADA"])
+    .enum(["TODAS", "PENDIENTE_PAGO", "PENDIENTE_VERIFICACION", "COMPLETADA", "CANCELADA"])
     .default("TODAS"),
   shippingStatus: z
     .enum([

@@ -45,7 +45,7 @@ export interface VariantSelectorModalProps {
  * Ordena las variantes naturalmente por talle (numérico o indumentaria estándar)
  * y luego alfabéticamente por color.
  */
-function sortVariantsNaturally<T extends { size: string; color?: string | null }>(
+export function sortVariantsNaturally<T extends { size: string; color?: string | null }>(
   variants: T[]
 ): T[] {
   const sizeOrder: Record<string, number> = {

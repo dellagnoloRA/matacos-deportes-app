@@ -1,5 +1,6 @@
 import React from "react";
 import { Metadata } from "next";
+import Link from "next/link";
 import {
   Briefcase,
   Users,
@@ -8,6 +9,7 @@ import {
   Mail,
   CheckCircle2,
   Send,
+  ArrowLeft,
 } from "lucide-react";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
@@ -57,6 +59,17 @@ export default function TrabajaConNosotrosPage() {
       <EcommerceHeader />
 
       <main className="flex-1">
+        {/* Breadcrumb / Back button */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:text-emerald-950 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Volver a la tienda</span>
+          </Link>
+        </div>
+
         {/* Hero Section */}
         <section className="bg-[#06241d] text-white py-14 sm:py-20 relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#00D615]/10 blur-3xl pointer-events-none" />

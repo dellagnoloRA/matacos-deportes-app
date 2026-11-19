@@ -46,7 +46,7 @@ export const HEURISTIC_DIMENSIONS_CM = {
  * Ítem individual del carrito para el cálculo de flete volumétrico
  */
 export const ShippingItemInputSchema = z.object({
-  variantId: z.string().uuid("ID de variante inválido"),
+  variantId: z.string().min(1, "ID de variante inválido"),
   quantity: z
     .number()
     .int("La cantidad debe ser un entero")
@@ -103,6 +103,7 @@ export interface ShippingCalculationResult {
   cost: number;
   costFormatted: string;
   method: ShippingMethod;
+  postalCode?: string;
   options: ShippingRateOption[];
   packageDetails: {
     totalWeightGrams: number;

@@ -175,6 +175,7 @@ export function EcommerceHeader({
     });
   };
 
+
   return (
     <header className="w-full bg-white sticky top-0 z-40 shadow-xs border-b border-slate-100">
       {/* 1. Top Announcement Marquee Ticker Tape */}
@@ -229,7 +230,7 @@ export function EcommerceHeader({
         </div>
 
         {/* Center: Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
+        <nav className="hidden lg:flex items-center gap-6 xl:gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
           <Link
             href="/"
             className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
@@ -271,6 +272,12 @@ export function EcommerceHeader({
 
           >
             <span>OFERTAS</span>
+          </Link>
+          <Link
+            href="/sobre-nosotros"
+            className="hover:text-[#00A811] transition-colors pb-1 whitespace-nowrap"
+          >
+            <span>SOBRE NOSOTROS</span>
           </Link>
         </nav>
 
@@ -534,10 +541,17 @@ export function EcommerceHeader({
               <Link
                 href="/catalogo?ofertas=true"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-red-600 font-extrabold hover:text-red-700 py-2 transition-colors"
+                className="flex items-center gap-2 text-red-600 font-extrabold hover:text-red-700 py-2 border-b border-slate-50 transition-colors"
               >
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span>OFERTAS</span>
+              </Link>
+              <Link
+                href="/sobre-nosotros"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+              >
+                SOBRE NOSOTROS
               </Link>
             </nav>
 

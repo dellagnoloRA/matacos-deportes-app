@@ -17,6 +17,7 @@ export interface StoreSettingsOutput {
   storePostalCode: string;
   businessHours: string;
   instagramHandle?: string | null;
+  facebookHandle?: string | null;
   cadeteriaCost: number;
   updatedAt: Date;
 }
@@ -24,8 +25,8 @@ export interface StoreSettingsOutput {
 const DEFAULT_SETTINGS = {
   id: "default",
   storeName: process.env.NEXT_PUBLIC_STORE_NAME || "Matacos Deportes",
-  whatsappNumber: process.env.COMPANY_WHATSAPP || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704000000",
-  contactPhone: process.env.COMPANY_PHONE || "+54 370 4429999",
+  whatsappNumber: process.env.COMPANY_WHATSAPP || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158",
+  contactPhone: process.env.COMPANY_PHONE || "+54 9 370 428-7158",
   contactEmail: process.env.COMPANY_EMAIL || "ventas@matacosdeportes.com",
   notificationsEmail: "notificaciones@matacosdeportes.com",
   storeAddress: process.env.COMPANY_ADDRESS || "Saavedra 241",
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS = {
   storePostalCode: process.env.COMPANY_POSTAL_CODE || "3600",
   businessHours: "Lunes a Sábado de 08:30 a 12:30 y de 16:30 a 20:30 hs",
   instagramHandle: process.env.COMPANY_INSTAGRAM || "@matacosdeportes",
+  facebookHandle: process.env.COMPANY_FACEBOOK || "matacosdeportes",
   cadeteriaCost: 2500,
 };
 
@@ -97,12 +99,14 @@ export async function updateStoreSettings(input: StoreSettingInput): Promise<{
         ...validated,
         notificationsEmail: validated.notificationsEmail || null,
         instagramHandle: validated.instagramHandle || "",
+        facebookHandle: validated.facebookHandle || "",
         whatsappNumber: cleanWhatsapp,
       },
       update: {
         ...validated,
         notificationsEmail: validated.notificationsEmail || null,
         instagramHandle: validated.instagramHandle || "",
+        facebookHandle: validated.facebookHandle || "",
         whatsappNumber: cleanWhatsapp,
       },
     });
