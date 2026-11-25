@@ -10,6 +10,7 @@ import {
 import { unifiedLoginAction } from "@/server/actions/authActions";
 import { LegalConsentCheckboxGroup } from "@/components/ecommerce/legal/LegalConsentCheckboxGroup";
 import { useCustomerStore } from "@/store/customerStore";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 
 interface AuthViewProps {
   initialMode?: "login" | "register";
@@ -24,6 +25,7 @@ export function AuthView({
 }: AuthViewProps) {
   const router = useRouter();
   const { setCustomer, logout: clearCustomerStore } = useCustomerStore();
+  const storeSettings = useStoreSettings();
   const [isPending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<"login" | "register">(initialMode);
@@ -310,7 +312,7 @@ export function AuthView({
                     Contraseña
                   </label>
                   <a
-                    href="https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Necesito%20ayuda%20para%20recuperar%20mi%20contrase%C3%B1a"
+                    href={`https://wa.me/${storeSettings.whatsappNumber}?text=Hola%20Matacos%20Deportes!%20Necesito%20ayuda%20para%20recuperar%20mi%20contrase%C3%B1a`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[11px] text-slate-500 hover:text-slate-900 hover:underline"

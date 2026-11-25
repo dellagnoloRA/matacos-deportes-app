@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 import type { PublicVariantItem } from "@/types/ecommerce";
 
 interface ProductActionBoxProps {
@@ -62,8 +63,9 @@ export function ProductActionBox({
     onBuyNow(quantity);
   };
 
-  // RF-18: Pre-build contextual WhatsApp inquiry link
-  const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
+  // RF-18: Pre-build contextual WhatsApp inquiry link (dinámico desde StoreSettings)
+  const storeSettings = useStoreSettings();
+  const whatsappPhone = storeSettings.whatsappNumber;
 
   const getWhatsAppUrl = () => {
     const pageUrl = typeof window !== "undefined" ? window.location.href : "https://matacosdeportes.com.ar";

@@ -7,6 +7,7 @@ import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { SizeGuideModal } from "./SizeGuideModal";
 import { formatCurrency } from "@/lib/utils";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { useCartStore } from "@/store/cartStore";
 import { getActiveInstallmentPlans } from "@/server/actions/installmentActions";
 import type { SerializedInstallmentPlan } from "@/server/services/installmentService";
@@ -572,9 +573,9 @@ export function ProductDetailView({
     }
   };
 
-  // RF-18: Enlace de consulta contextual a WhatsApp (estable para evitar errores de hidratación SSR)
-  const whatsappPhone =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
+  // RF-18: Enlace de consulta contextual a WhatsApp (dinámico desde StoreSettings)
+  const storeSettings = useStoreSettings();
+  const whatsappPhone = storeSettings.whatsappNumber;
   const [currentUrl, setCurrentUrl] = useState("");
 
   useEffect(() => {

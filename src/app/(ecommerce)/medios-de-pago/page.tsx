@@ -18,7 +18,9 @@ import {
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { buildWhatsAppChatUrl } from "@/lib/whatsapp";
-import { companyConfig } from "@/config/company";
+import { getStoreSettings } from "@/server/actions/storeSettingsActions";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Financiación y Medios de Pago • Matacos Deportes | Saavedra 241, Formosa",
@@ -26,9 +28,10 @@ export const metadata: Metadata = {
     "Conocé todos los medios de pago disponibles en Matacos Deportes: hasta 6 cuotas con Mercado Pago, transferencias directas con descuento y pago en efectivo en nuestro local de Saavedra 241, Formosa.",
 };
 
-export default function MediosDePagoPage() {
+export default async function MediosDePagoPage() {
+  const { data: settings } = await getStoreSettings();
   const whatsappUrl = buildWhatsAppChatUrl(
-    companyConfig.whatsappNumber,
+    settings.whatsappNumber,
     "Hola Matacos Deportes! Quiero consultar por promociones vigentes con tarjetas y medios de pago."
   );
 

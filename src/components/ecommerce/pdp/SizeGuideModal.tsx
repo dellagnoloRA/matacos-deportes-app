@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Ruler, Footprints, Shirt, HelpCircle } from "lucide-react";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 
 interface SizeGuideModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function SizeGuideModal({
       ? (gender === "MUJER" ? "mujer" : "hombre")
       : (gender === "MUJER" ? "mujer" : gender === "HOMBRE" ? "hombre" : "medidas");
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const storeSettings = useStoreSettings();
 
   if (!isOpen) return null;
 
@@ -232,7 +234,7 @@ export function SizeGuideModal({
               <strong>¿Tenés dudas con tu talle?</strong> Acercate al local de Saavedra 241 para probarte sin compromiso o consultanos directamente por WhatsApp.
             </div>
             <a
-              href="https://wa.me/5493704287158?text=Hola%20Matacos!%20Tengo%20dudas%20con%20el%20talle%20de%20un%20producto"
+              href={`https://wa.me/${storeSettings.whatsappNumber}?text=Hola%20Matacos!%20Tengo%20dudas%20con%20el%20talle%20de%20un%20producto`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 bg-[#00D615] hover:bg-[#00b812] text-slate-950 font-black rounded-lg uppercase tracking-wider shrink-0 transition-colors shadow-xs"

@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
+import { getStoreSettings } from "@/server/actions/storeSettingsActions";
+import { sanitizeWhatsAppNumber } from "@/config/company";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Preguntas Frecuentes & Ayuda • Matacos Deportes | Saavedra 241, Formosa",
@@ -87,7 +91,10 @@ const FAQS = [
   },
 ];
 
-export default function PreguntasFrecuentesPage() {
+export default async function PreguntasFrecuentesPage() {
+  const { data: settings } = await getStoreSettings();
+  const whatsappDigits = sanitizeWhatsAppNumber(settings.whatsappNumber);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <EcommerceHeader />
@@ -172,7 +179,7 @@ export default function PreguntasFrecuentesPage() {
             </div>
 
             <a
-              href="https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Tengo%20una%20consulta"
+              href={`https://wa.me/${whatsappDigits}?text=Hola%20Matacos%20Deportes!%20Tengo%20una%20consulta`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider shrink-0 transition-all shadow-xs"

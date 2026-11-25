@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 
 interface WhatsAppFloatingButtonProps {
   phoneNumber?: string;
@@ -9,11 +10,12 @@ interface WhatsAppFloatingButtonProps {
 }
 
 export function WhatsAppFloatingButton({
-  phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158",
+  phoneNumber,
   defaultMessage = "Hola Matacos Deportes! Tengo consultas de la tienda online",
 }: WhatsAppFloatingButtonProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  const storeSettings = useStoreSettings();
 
   useEffect(() => {
     setMounted(true);
@@ -29,7 +31,8 @@ export function WhatsAppFloatingButton({
     return null;
   }
 
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  const effectivePhone = phoneNumber || storeSettings.whatsappNumber;
+  const cleanPhone = effectivePhone.replace(/\D/g, "");
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
     defaultMessage
   )}`;

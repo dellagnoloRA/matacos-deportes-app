@@ -3,7 +3,10 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
+import { getStoreSettings } from "@/server/actions/storeSettingsActions";
 import { ShieldCheck, FileText, ArrowLeft, Scale, Clock, AlertCircle } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Términos y Condiciones • Matacos Deportes | Saavedra 241, Formosa",
@@ -11,7 +14,9 @@ export const metadata: Metadata = {
     "Términos y condiciones contractuales de compra, envíos, reservas de stock y garantías en Matacos Deportes.",
 };
 
-export default function TerminosYCondicionesPage() {
+export default async function TerminosYCondicionesPage() {
+  const { data: settings } = await getStoreSettings();
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       <EcommerceHeader />
@@ -61,7 +66,7 @@ export default function TerminosYCondicionesPage() {
                 Identificación del Comercio
               </h2>
               <p>
-                El presente sitio web es operado por <strong>Matacos Deportes</strong>, con domicilio comercial legal sito en <strong>Saavedra 241, Ciudad de Formosa (CP 3600), Provincia de Formosa, República Argentina</strong>. Contacto directo: ventas@matacosdeportes.com / WhatsApp: +54 9 370 428-7158.
+                El presente sitio web es operado por <strong>Matacos Deportes</strong>, con domicilio comercial legal sito en <strong>Saavedra 241, Ciudad de Formosa (CP 3600), Provincia de Formosa, República Argentina</strong>. Contacto directo: {settings.contactEmail} / WhatsApp: {settings.contactPhone}.
               </p>
             </section>
 

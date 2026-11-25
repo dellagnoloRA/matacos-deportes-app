@@ -12,12 +12,13 @@ import {
   Store,
 } from "lucide-react";
 import { buildWhatsAppChatUrl } from "@/lib/whatsapp";
-import { companyConfig } from "@/config/company";
+import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { FadeInOnScroll } from "@/components/ui/FadeInOnScroll";
 
 export function AboutStoreSection() {
+  const storeSettings = useStoreSettings();
   const whatsappUrl = buildWhatsAppChatUrl(
-    companyConfig.whatsappNumber,
+    storeSettings.whatsappNumber,
     "Hola Matacos Deportes! Quiero consultar por asesoramiento en el local de Saavedra 241."
   );
 

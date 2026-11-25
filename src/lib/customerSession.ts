@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { isHttpsRequest } from "./session";
 
 export const CUSTOMER_COOKIE_NAME = "matacos_customer_token";
 
@@ -76,10 +77,13 @@ export async function decryptCustomerSession(
 export async function setCustomerSessionCookie(token: string): Promise<void> {
   testContextCustomerToken = token;
   try {
-    const cookieStore = await cookies();
+    const [cookieStore, secure] = await Promise.all([
+      cookies(),
+      isHttpsRequest(),
+    ]);
     cookieStore.set(CUSTOMER_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure,
       sameSite: "lax",
       path: "/",
       maxAge: CUSTOMER_SESSION_MAX_AGE_SECONDS,
@@ -95,10 +99,13 @@ export async function setCustomerSessionCookie(token: string): Promise<void> {
 export async function deleteCustomerSessionCookie(): Promise<void> {
   testContextCustomerToken = null;
   try {
-    const cookieStore = await cookies();
+    const [cookieStore, secure] = await Promise.all([
+      cookies(),
+      isHttpsRequest(),
+    ]);
     cookieStore.set(CUSTOMER_COOKIE_NAME, "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure,
       sameSite: "lax",
       path: "/",
       maxAge: 0,

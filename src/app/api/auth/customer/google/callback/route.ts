@@ -140,10 +140,13 @@ export async function GET(request: NextRequest) {
 
       const destinationUrl = new URL(staffTarget, appUrl);
       const response = NextResponse.redirect(destinationUrl);
+      const useSecureCookie =
+        destinationUrl.protocol === "https:" ||
+        request.headers.get("x-forwarded-proto")?.split(",")[0].trim().toLowerCase() === "https";
 
       response.cookies.set(SESSION_COOKIE_NAME, staffAuth.token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: useSecureCookie,
         sameSite: "lax",
         path: "/",
         maxAge: SESSION_MAX_AGE_SECONDS,
@@ -178,10 +181,13 @@ export async function GET(request: NextRequest) {
 
     const destinationUrl = new URL(customerTarget, appUrl);
     const response = NextResponse.redirect(destinationUrl);
+    const useSecureCookie =
+      destinationUrl.protocol === "https:" ||
+      request.headers.get("x-forwarded-proto")?.split(",")[0].trim().toLowerCase() === "https";
 
     response.cookies.set(CUSTOMER_COOKIE_NAME, authResult.data.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: useSecureCookie,
       sameSite: "lax",
       path: "/",
       maxAge: CUSTOMER_SESSION_MAX_AGE_SECONDS,
