@@ -63,24 +63,37 @@ enum Gender {
   UNISEX
 }
 
+enum ReviewStatus {
+  PUBLICADA
+  OCULTA
+  EN_REVISION
+}
+
+enum FitFeedback {
+  CHICO
+  EXACTO
+  HOLGADO
+}
+
 model User {
-  id             String      @id @default(uuid())
-  username       String?     @unique
-  email          String      @unique
-  googleId       String?     @unique
-  avatarUrl      String?
-  name           String
-  password       String
-  role           Role?       @default(CAJERO) // Campo legacy para compatibilidad
-  profileId      String?
-  profile        Profile?    @relation(fields: [profileId], references: [id])
-  active         Boolean     @default(true)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  sales          Sale[]
-  salesAsSeller  Sale[]      @relation("SaleSeller")
-  salesAsCashier Sale[]      @relation("SaleCashier")
-  cashShifts     CashShift[]
+  id                   String          @id @default(uuid())
+  username             String?         @unique
+  email                String          @unique
+  googleId             String?         @unique
+  avatarUrl            String?
+  name                 String
+  password             String
+  role                 Role?           @default(CAJERO) // Campo legacy para compatibilidad
+  profileId            String?
+  profile              Profile?        @relation(fields: [profileId], references: [id])
+  active               Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  sales                Sale[]
+  salesAsSeller        Sale[]          @relation("SaleSeller")
+  salesAsCashier       Sale[]          @relation("SaleCashier")
+  cashShifts           CashShift[]
+  productReviewReplies ProductReview[] @relation("ProductReviewResponder")
 }
 
 model Category {
@@ -206,6 +219,10 @@ model Product {
   variants         ProductVariant[]
   images           ProductImage[]
   favorites        Favorite[]
+  // Agregados desnormalizados de reseñas y valoraciones (se recalculan al crear/moderar)
+  ratingAverage    Decimal?        @db.Decimal(3, 2)
+  reviewsCount     Int             @default(0)
+  reviews          ProductReview[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -353,6 +370,7 @@ model Sale {
   reconciledBy            String?
 
   revocationRequests      RevocationRequest[]
+  productReviews          ProductReview[]
 
   syncedAt      DateTime?
   createdAt     DateTime      @default(now())
@@ -402,21 +420,23 @@ model SalePayment {
 // =========================================================================
 
 model Customer {
-  id                String     @id @default(uuid())
-  email             String     @unique
-  password          String?    // Hash con bcryptjs (nullable para Google OAuth)
-  googleId          String?    @unique
+  id                String          @id @default(uuid())
+  email             String          @unique
+  password          String?         // Hash con bcryptjs (nullable para Google OAuth)
+  googleId          String?         @unique
   avatarUrl         String?
   name              String
   phone             String?
   dni               String?
-  defaultAddress    String?    // Calle y número
-  defaultCity       String?    @default("Formosa")
-  defaultPostalCode String?    @default("3600")
-  favorites         Favorite[] // Productos guardados en lista de deseos
-  sales             Sale[]     // Historial de compras vinculadas
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  defaultAddress    String?         // Calle y número
+  defaultCity       String?         @default("Formosa")
+  defaultPostalCode String?         @default("3600")
+  favorites         Favorite[]      // Productos guardados en lista de deseos
+  sales             Sale[]          // Historial de compras vinculadas
+  reviews           ProductReview[] // Reseñas publicadas por el cliente
+  reviewReports     ReviewReport[]  // Reportes realizados por el cliente
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([email])
 }
@@ -432,6 +452,69 @@ model Favorite {
   @@unique([customerId, productId])
   @@index([customerId])
   @@index([productId])
+}
+
+// =========================================================================
+// RESEÑAS, CALIFICACIONES DE CALCE Y MODERACIÓN DE PRODUCTOS
+// =========================================================================
+
+model ProductReview {
+  id                 String         @id @default(uuid())
+  productId          String
+  product            Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Calificación principal (1 a 5)
+  rating             Int
+  title              String
+  comment            String
+
+  // Talle adquirido/usado y feedback de calce
+  purchasedSize      String?
+  fitFeedback        FitFeedback?
+
+  // Autenticidad de compra verificada
+  isVerifiedPurchase Boolean        @default(false)
+  saleId             String?
+  sale               Sale?          @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  // Estado de publicación y moderación
+  status             ReviewStatus   @default(PUBLICADA)
+  moderationReason   String?
+
+  // Respuesta oficial del comercio (firmada siempre como "Matacos Deportes" en la web)
+  adminResponse      String?
+  adminResponseAt    DateTime?
+  adminResponderId   String?
+  adminResponder     User?          @relation("ProductReviewResponder", fields: [adminResponderId], references: [id], onDelete: SetNull)
+
+  // Comunidad y reportes
+  reportsCount       Int            @default(0)
+  helpfulVotes       Int            @default(0)
+  reports            ReviewReport[]
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([productId, customerId])
+  @@index([productId, status, createdAt])
+  @@index([customerId])
+  @@index([status, reportsCount])
+}
+
+model ReviewReport {
+  id         String        @id @default(uuid())
+  reviewId   String
+  review     ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reporterId String?
+  reporter   Customer?     @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+  reason     String        // "SPAM", "LENGUAJE_INAPROPIADO", "INFORMACION_FALSA", "DATOS_PERSONALES", "OTRO"
+  comment    String?
+  createdAt  DateTime      @default(now())
+
+  @@index([reviewId])
+  @@index([reviewId, reporterId])
 }
 
 // =========================================================================

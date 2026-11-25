@@ -322,6 +322,7 @@ async function main() {
     { code: "ecommerce.banners", module: "ECOMMERCE", description: "Modificar banners del carrusel hero y vitrinas destacadas" },
     { code: "ecommerce.cupones", module: "ECOMMERCE", description: "Crear y gestionar cupones de descuento y promociones online" },
     { code: "ecommerce.clientes", module: "ECOMMERCE", description: "Visualizar cartera de clientes registrados en la tienda online" },
+    { code: "ecommerce.resenas", module: "ECOMMERCE", description: "Moderar, ocultar y responder reseñas de clientes en la tienda online" },
     { code: "productos.descuento_bajo_costo", module: "PRODUCTOS", description: "Permite fijar precios promocionales inferiores al costo de reposición" },
 
     // REPORTES (Métricas de Negocio)
@@ -400,7 +401,7 @@ async function main() {
     },
   });
 
-  // Admin tiene TODOS los 30 permisos
+  // Admin tiene TODOS los permisos
   const adminPermissionsData = Array.from(permissionsMap.values()).map((permissionId) => ({
     profileId: profileAdmin.id,
     permissionId,
@@ -433,6 +434,7 @@ async function main() {
     "inventario.etiquetas_codigos",
     "inventario.alertas_stock",
     "ecommerce.pedidos",
+    "ecommerce.resenas",
     "reportes.ver_kpis",
   ];
   const encargadoPermissionsData = encargadoSpecificCodes
