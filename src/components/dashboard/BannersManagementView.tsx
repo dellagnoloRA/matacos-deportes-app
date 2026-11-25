@@ -89,7 +89,7 @@ const LINK_PRESETS: LinkPreset[] = [
   {
     id: "whatsapp",
     label: "💬 WhatsApp Oficial de Atención",
-    url: "https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20una%20promoci%C3%B3n",
+    url: "https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Quiero%20consultar%20por%20una%20promoci%C3%B3n",
     description: "Abre una conversación directa por WhatsApp con el equipo de Saavedra 241.",
   },
   {

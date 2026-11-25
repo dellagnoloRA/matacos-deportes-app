@@ -61,7 +61,7 @@ export default function TerminosYCondicionesPage() {
                 Identificación del Comercio
               </h2>
               <p>
-                El presente sitio web es operado por <strong>Matacos Deportes</strong>, con domicilio comercial legal sito en <strong>Saavedra 241, Ciudad de Formosa (CP 3600), Provincia de Formosa, República Argentina</strong>. Contacto directo: ventas@matacosdeportes.com / WhatsApp: +54 9 370 400-0000.
+                El presente sitio web es operado por <strong>Matacos Deportes</strong>, con domicilio comercial legal sito en <strong>Saavedra 241, Ciudad de Formosa (CP 3600), Provincia de Formosa, República Argentina</strong>. Contacto directo: ventas@matacosdeportes.com / WhatsApp: +54 9 370 428-7158.
               </p>
             </section>
 

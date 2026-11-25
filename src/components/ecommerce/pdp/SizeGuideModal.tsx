@@ -232,7 +232,7 @@ export function SizeGuideModal({
               <strong>¿Tenés dudas con tu talle?</strong> Acercate al local de Saavedra 241 para probarte sin compromiso o consultanos directamente por WhatsApp.
             </div>
             <a
-              href="https://wa.me/5493704000000?text=Hola%20Matacos!%20Tengo%20dudas%20con%20el%20talle%20de%20un%20producto"
+              href="https://wa.me/5493704287158?text=Hola%20Matacos!%20Tengo%20dudas%20con%20el%20talle%20de%20un%20producto"
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 bg-[#00D615] hover:bg-[#00b812] text-slate-950 font-black rounded-lg uppercase tracking-wider shrink-0 transition-colors shadow-xs"

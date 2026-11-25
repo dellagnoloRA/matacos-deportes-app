@@ -97,7 +97,7 @@ export function getCompanyConfig(): CompanyConfig {
   const rawWhatsapp =
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     process.env.COMPANY_WHATSAPP ||
-    "+54 9 370 4000000";
+    DEFAULT_PHONE_NUMBER;
   const whatsappNumber = sanitizeWhatsAppNumber(rawWhatsapp);
 
   return {

@@ -100,7 +100,7 @@ export function WebOrderPackingSlipModal({
                   MATACOS <span className="text-[#00b012] font-black">DEPORTES</span>
                 </h1>
                 <p className="text-xs font-semibold text-slate-600 mt-0.5">
-                  Saavedra 241, Formosa Capital (CP 3600) • Tel: +54 9 3704-123456
+                  Saavedra 241, Formosa Capital (CP 3600) • Tel: +54 9 370 428-7158
                 </p>
               </div>
               <div className="text-right">

@@ -36,9 +36,9 @@ export function EcommerceFooter() {
     storeAddress: "Saavedra 241",
     storeCity: "Formosa Capital",
     businessHours: "Lunes a Sábado: 8:00 - 12:30 / 17:00 - 21:00",
-    contactPhone: "+54 (370) 400-0000",
+    contactPhone: "+54 9 370 428-7158",
     contactEmail: "ventas@matacosdeportes.com",
-    whatsappNumber: "5493704000000",
+    whatsappNumber: "5493704287158",
   });
 
   const [disciplines, setDisciplines] = useState<FooterLinkItem[]>(DEFAULT_DISCIPLINES);
@@ -57,9 +57,9 @@ export function EcommerceFooter() {
               businessHours:
                 res.data.businessHours ||
                 "Lunes a Sábado: 8:00 - 12:30 / 17:00 - 21:00",
-              contactPhone: res.data.contactPhone || "+54 (370) 400-0000",
+              contactPhone: res.data.contactPhone || "+54 9 370 428-7158",
               contactEmail: res.data.contactEmail || "ventas@matacosdeportes.com",
-              whatsappNumber: res.data.whatsappNumber || "5493704000000",
+              whatsappNumber: res.data.whatsappNumber || "5493704287158",
             });
           }
         })

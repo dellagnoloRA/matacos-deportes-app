@@ -310,7 +310,7 @@ export function AuthView({
                     Contraseña
                   </label>
                   <a
-                    href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Necesito%20ayuda%20para%20recuperar%20mi%20contrase%C3%B1a"
+                    href="https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Necesito%20ayuda%20para%20recuperar%20mi%20contrase%C3%B1a"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[11px] text-slate-500 hover:text-slate-900 hover:underline"

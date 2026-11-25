@@ -857,7 +857,7 @@ export async function createGuestOrder(
           expiresAt: expiresAtDate.toISOString(),
           expirationMinutes: WEB_ORDER_RESERVATION_MINUTES,
         },
-        whatsappContingencyUrl: `https://wa.me/5493704000000?text=${waMessage}`,
+        whatsappContingencyUrl: `https://wa.me/${companyConfig.whatsappNumber}?text=${waMessage}`,
         createdAt: sale.createdAt.toISOString(),
       };
 

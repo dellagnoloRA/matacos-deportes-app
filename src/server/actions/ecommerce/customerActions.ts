@@ -125,7 +125,7 @@ function buildWhatsappOrderSupportUrl(
   shippingMethod: string | null
 ): string {
   const whatsappNumber =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704000000";
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
   const methodText =
     shippingMethod === "CADETERIA_FORMOSA"
       ? "envío por cadetería en Formosa Capital"
@@ -955,7 +955,7 @@ export async function getCustomerFavoritesDetailsAction(
     });
 
     const whatsappNumber =
-      process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704000000";
+      process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5493704287158";
 
     const productMap = new Map(products.map((p) => [p.id, p]));
     const result: CustomerFavoriteItemDTO[] = [];

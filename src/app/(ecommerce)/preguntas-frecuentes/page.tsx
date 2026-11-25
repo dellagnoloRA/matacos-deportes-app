@@ -172,7 +172,7 @@ export default function PreguntasFrecuentesPage() {
             </div>
 
             <a
-              href="https://wa.me/5493704000000?text=Hola%20Matacos%20Deportes!%20Tengo%20una%20consulta"
+              href="https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Tengo%20una%20consulta"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider shrink-0 transition-all shadow-xs"
