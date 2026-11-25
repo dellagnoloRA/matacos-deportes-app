@@ -1,15 +1,32 @@
 # =========================================================================
 # Caddyfile: Configuración de Proxy Inverso y SSL Automático (HTTPS)
 # =========================================================================
+# En producción con dominio real, reemplazar ':80' por:
+#   matacosdeportes.com, www.matacosdeportes.com {
+# (Caddy emitirá y renovará automáticamente el certificado SSL de Let's Encrypt)
+# Si todavía no tenés dominio y querés probar por IP pública, dejá ':80'.
+:80 {
+    # Servir archivos subidos en tiempo de ejecución (fotos, banners, comprobantes)
+    # directamente desde el volumen compartido 'uploads_data'
+    handle_path /uploads/* {
+        root * /srv/uploads
+        file_server
+    }
 
-# Reemplazar 'tudominio.com' por el dominio real de Matacos Deportes (ej. matacosdeportes.com.ar)
-# Para pruebas locales puedes usar 'localhost:80'
-http://localhost, https://localhost {
-    # Redirección de tráfico al contenedor Next.js
-    reverse_proxy app:3000
+    # Redirección del resto del tráfico al contenedor Next.js
+    handle {
+        reverse_proxy app:3000
+    }
 
     # Compresión automática de respuestas (Gzip y Zstandard)
     encode gzip zstd
+
+    # Cabeceras de seguridad básicas
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
 
     # Logs de acceso
     log {
