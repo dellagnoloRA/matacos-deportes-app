@@ -82,10 +82,10 @@ export default function MediosDePagoPage() {
 
                 <div>
                   <h2 className="text-lg font-black text-slate-900 uppercase">
-                    Mercado Pago (Checkout Pro)
+                    Mercado Pago
                   </h2>
                   <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Pagá con la máxima seguridad a través de la pasarela líder de Argentina.
+                    Aboná de forma simple y segura con la plataforma de pagos líder de Argentina.
                   </p>
                 </div>
 

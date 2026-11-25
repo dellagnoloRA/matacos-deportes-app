@@ -42,11 +42,11 @@ export function AboutStoreSection() {
             </div>
 
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
-              Desde nuestro emblemático salón ubicado en <strong>Saavedra 241</strong>, Matacos Deportes nació con un compromiso inquebrantable: acercar a atletas, clubes e instituciones del nordeste argentino indumentaria, accesorios deportivos y la línea oficial Crocs de primeras marcas internacionales, garantizando <strong>calidad 100% original</strong> y asesoramiento técnico genuino.
+              Desde nuestro emblemático salón ubicado en <strong>Saavedra 241</strong>, Matacos Deportes nació con un compromiso inquebrantable: acercar a atletas, clubes e instituciones del nordeste argentino indumentaria, calzado y equipamiento deportivo de primeras marcas internacionales, garantizando <strong>calidad 100% original</strong> y asesoramiento técnico genuino.
             </p>
 
             <p className="text-sm text-slate-600 leading-relaxed font-normal">
-              Somos especialistas y referentes en disciplinas clave como <strong>Natación de competición</strong> (Speedo), <strong>Vóley profesional</strong> (Mikasa), la línea oficial <strong>Crocs</strong>, y equipamiento de <strong>Fitness & Gimnasio</strong>.
+              Somos especialistas y referentes en disciplinas clave como <strong>Natación de competición</strong>, <strong>Vóley profesional</strong>, <strong>Calzado y tiempo libre</strong>, y equipamiento de <strong>Fitness & Gimnasio</strong>.
             </p>
 
             {/* Highlights Grid */}
@@ -167,7 +167,7 @@ export function AboutStoreSection() {
                       </span>
                     </div>
                     <p className="text-slate-300/85 text-xs leading-relaxed font-normal">
-                      Contamos con probadores y asesoramiento en el salón para elegir tu talle exacto de Crocs y equipamiento técnico.
+                      Contamos con probadores y asesoramiento personalizado en el salón para elegir tu talle exacto y el equipamiento técnico ideal.
                     </p>
                   </div>
                 </div>

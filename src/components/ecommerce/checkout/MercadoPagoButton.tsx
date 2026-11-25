@@ -88,7 +88,7 @@ export function MercadoPagoButton({
                 : "Pagar con Mercado Pago"}
             </span>
             <span className="block text-[11px] sm:text-xs text-white/90 font-medium">
-              Checkout Pro • Tarjetas de crédito, débito o dinero en cuenta
+              Tarjetas de crédito, débito o dinero en cuenta
             </span>
           </div>
         </div>

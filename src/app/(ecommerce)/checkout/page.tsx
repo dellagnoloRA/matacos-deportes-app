@@ -1867,7 +1867,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <span className="text-xs">Mercado Pago</span>
-                      <span className="text-[10px] text-sky-700 font-semibold mt-0.5">Checkout Pro</span>
+                      <span className="text-[10px] text-sky-700 font-semibold mt-0.5">Tarjetas o saldo</span>
                     </button>
 
                     {/* 4. Transferencia Bancaria */}
@@ -2278,11 +2278,10 @@ export default function CheckoutPage() {
                             className="h-5 w-auto object-contain"
                           />
                         </div>
-                        <span className="text-sm font-black">Checkout Pro de Mercado Pago</span>
+                        <span className="text-sm font-black">Mercado Pago</span>
                       </div>
                       <p className="text-slate-600 leading-relaxed">
-                        Serás dirigido a la plataforma oficial y segura de Mercado Pago para abonar con
-                        dinero en cuenta, tarjetas bancarias en cuotas o en puntos de efectivo (Pago Fácil / Rapipago).
+                        Pagá de forma rápida y protegida con dinero en cuenta, tarjetas de crédito o débito, o efectivo en puntos habilitados a través de Mercado Pago.
                       </p>
                       <div className="p-3 rounded-xl bg-white border border-sky-100 flex items-center justify-between font-medium">
                         <span className="text-slate-600">Total a procesar:</span>

@@ -210,10 +210,10 @@ export function PaymentMethodSelectionView({
             <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-xs">
               <div className="space-y-1">
                 <h3 className="font-black text-slate-900 text-sm sm:text-base uppercase tracking-tight">
-                  Checkout Pro de Mercado Pago
+                  Mercado Pago
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Serás redirigido a la pasarela segura oficial de Mercado Pago para elegir tu tarjeta o pagar con saldo.
+                  Aboná de forma segura con tarjetas de crédito, débito o dinero disponible en tu cuenta de Mercado Pago.
                 </p>
               </div>
 

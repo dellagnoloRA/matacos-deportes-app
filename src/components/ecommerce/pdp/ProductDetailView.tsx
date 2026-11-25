@@ -770,7 +770,7 @@ export function ProductDetailView({
               {/* Mercado Pago */}
               <span
                 className="inline-flex items-center justify-center h-5 px-1.5 rounded bg-white border border-slate-200 shadow-2xs select-none gap-1"
-                title="Mercado Pago Checkout Pro"
+                title="Mercado Pago"
               >
                 <img
                   src="/images/mercadopago-logo.png"
@@ -1894,7 +1894,7 @@ export function ProductDetailView({
                 </div>
               </div>
 
-              {/* Mercado Pago Checkout Pro */}
+              {/* Mercado Pago */}
               <div className="p-3.5 rounded-xl bg-sky-50/90 border border-sky-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1904,7 +1904,7 @@ export function ProductDetailView({
                       className="h-5 w-auto object-contain"
                     />
                     <span className="font-bold text-slate-900 text-sm">
-                      Mercado Pago (Checkout Pro)
+                      Mercado Pago
                     </span>
                   </div>
                   <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-[#009EE3] text-white">

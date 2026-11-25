@@ -116,7 +116,7 @@ export default function TerminosYCondicionesPage() {
                 Los pagos online se procesan de manera cifrada a través de:
               </p>
               <ul className="list-disc pl-5 space-y-1">
-                <li><strong>Mercado Pago Checkout Pro:</strong> Tarjetas de crédito, débito y dinero en cuenta con protocolos PCI-DSS.</li>
+                <li><strong>Mercado Pago:</strong> Tarjetas de crédito, débito y dinero en cuenta con estándares internacionales de seguridad (PCI-DSS).</li>
                 <li><strong>Transferencia Bancaria Directa:</strong> Sujeta a verificación manual del comprobante bancario adjuntado antes de la liberación y despacho del paquete.</li>
                 <li><strong>Cobro en Mostrador:</strong> Efectivo, tarjetas y QR en Saavedra 241 para pedidos con retiro pactado en el local.</li>
               </ul>

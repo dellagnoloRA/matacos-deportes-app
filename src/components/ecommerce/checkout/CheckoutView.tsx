@@ -892,7 +892,7 @@ export function CheckoutView({
 
         if (!targetUrl) {
           setPaymentError(
-            "No se obtuvo la URL de pago de Mercado Pago Sandbox."
+            "No pudimos iniciar el enlace de pago en Mercado Pago. Intentá nuevamente."
           );
           return;
         }
@@ -1818,7 +1818,7 @@ export function CheckoutView({
 
                 {/* Opciones de Medio de Pago */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Opción Destacada: Mercado Pago Checkout Pro (Sandbox) */}
+                  {/* Opción Destacada: Mercado Pago */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1838,15 +1838,15 @@ export function CheckoutView({
                         </span>
                         <div>
                           <p className="text-xs sm:text-sm font-black text-slate-900">
-                            Mercado Pago Checkout Pro (Sandbox)
+                            Mercado Pago
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            Tarjetas de prueba oficiales, dinero en cuenta o efectivo en puntos de cobro
+                            Tarjetas de crédito, débito, dinero en cuenta o efectivo en puntos habilitados
                           </p>
                         </div>
                       </div>
                       <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#009ee3]/15 text-[#0074a6] shrink-0">
-                        Oficial Sandbox
+                        Pago protegido
                       </span>
                     </div>
                   </button>
@@ -1972,62 +1972,64 @@ export function CheckoutView({
                     <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-5 space-y-3.5 text-xs text-sky-950">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 font-black text-sm text-[#0074a6]">
-                          <span>Pasarela Oficial Mercado Pago Checkout Pro</span>
+                          <span>Mercado Pago</span>
                         </div>
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#009ee3] text-white">
-                          Sandbox
+                          Pago protegido
                         </span>
                       </div>
                       <p className="text-sky-900 leading-relaxed">
-                        Al presionar <strong>PAGAR CON MERCADO PAGO</strong> se creará una preferencia oficial en tiempo real y te redirigiremos a la pasarela protegida de Mercado Pago.
+                        Al presionar <strong>PAGAR CON MERCADO PAGO</strong> te redirigiremos de forma segura a Mercado Pago para elegir tu medio de pago preferido.
                       </p>
 
-                      {/* Tarjetas de prueba oficiales de la guía */}
-                      <div className="bg-white rounded-2xl p-4 border border-sky-200/80 space-y-2.5">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                          Tarjetas de Prueba Oficiales para Sandbox (Argentina)
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
-                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-0.5">
-                            <span className="font-black text-emerald-800 block text-[10px] uppercase">
-                              Pago Aprobado (Éxito)
-                            </span>
-                            <span className="font-mono font-bold text-slate-900 block text-xs">
-                              4000 0000 0000 0001
-                            </span>
-                            <p className="text-[10px] text-slate-500">
-                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: APRO
-                            </p>
-                          </div>
+                      {/* Tarjetas de prueba solo visibles en entorno de desarrollo */}
+                      {process.env.NODE_ENV !== "production" && (
+                        <div className="bg-white rounded-2xl p-4 border border-sky-200/80 space-y-2.5">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                            Tarjetas de Prueba (Solo Desarrollo)
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-0.5">
+                              <span className="font-black text-emerald-800 block text-[10px] uppercase">
+                                Pago Aprobado (Éxito)
+                              </span>
+                              <span className="font-mono font-bold text-slate-900 block text-xs">
+                                4000 0000 0000 0001
+                              </span>
+                              <p className="text-[10px] text-slate-500">
+                                Vto: Futura (ej. 12/28) • CVV: 123 • Titular: APRO
+                              </p>
+                            </div>
 
-                          <div className="p-3 rounded-xl bg-red-50 border border-red-200 space-y-0.5">
-                            <span className="font-black text-red-800 block text-[10px] uppercase">
-                              Rechazado (Fondos)
-                            </span>
-                            <span className="font-mono font-bold text-slate-900 block text-xs">
-                              4000 0000 0000 0002
-                            </span>
-                            <p className="text-[10px] text-slate-500">
-                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: RECH
-                            </p>
-                          </div>
+                            <div className="p-3 rounded-xl bg-red-50 border border-red-200 space-y-0.5">
+                              <span className="font-black text-red-800 block text-[10px] uppercase">
+                                Rechazado (Fondos)
+                              </span>
+                              <span className="font-mono font-bold text-slate-900 block text-xs">
+                                4000 0000 0000 0002
+                              </span>
+                              <p className="text-[10px] text-slate-500">
+                                Vto: Futura (ej. 12/28) • CVV: 123 • Titular: RECH
+                              </p>
+                            </div>
 
-                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-0.5">
-                            <span className="font-black text-amber-800 block text-[10px] uppercase">
-                              Pendiente Acreditación
-                            </span>
-                            <span className="font-mono font-bold text-slate-900 block text-xs">
-                              4000 0000 0000 0003
-                            </span>
-                            <p className="text-[10px] text-slate-500">
-                              Vto: Futura (ej. 12/28) • CVV: 123 • Titular: PEND
-                            </p>
+                            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-0.5">
+                              <span className="font-black text-amber-800 block text-[10px] uppercase">
+                                Pendiente Acreditación
+                              </span>
+                              <span className="font-mono font-bold text-slate-900 block text-xs">
+                                4000 0000 0000 0003
+                              </span>
+                              <p className="text-[10px] text-slate-500">
+                                Vto: Futura (ej. 12/28) • CVV: 123 • Titular: PEND
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       <p className="text-[11px] text-sky-800">
-                        Al completar el pago, Mercado Pago te retornará automáticamente a <strong>/checkout/resultado</strong> actualizando el estado de tu orden y vaciando el carrito.
+                        Una vez acreditado el pago, volverás automáticamente a la tienda con la confirmación de tu pedido.
                       </p>
                     </div>
                   </div>
@@ -2553,7 +2555,7 @@ export function CheckoutView({
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>
                         {paymentOption === "MERCADOPAGO"
-                          ? "Conectando con Mercado Pago Sandbox..."
+                          ? "Redirigiendo a Mercado Pago..."
                           : isCardSelected
                             ? "Autorizando pago con tarjeta..."
                             : "Registrando modalidad de pago..."}
