@@ -2,15 +2,16 @@
 # Multi-stage Dockerfile para Next.js 15 Standalone con PNPM
 # =========================================================================
 
-# 1. Base image con Node.js 20 LTS Alpine
-FROM node:20-alpine AS base
+# 1. Base image con Node.js 22 LTS Alpine (requerido por pnpm@11)
+FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN npm install -g pnpm@11
 WORKDIR /app
 
 # 2. Etapa de dependencias con PNPM
 FROM base AS deps
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
 
 # 3. Etapa de construcción (Build)
@@ -40,7 +41,7 @@ ENV NODE_ENV=production
 RUN pnpm build
 
 # 4. Etapa de ejecución (Runner producción ultra ligero)
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl tzdata
