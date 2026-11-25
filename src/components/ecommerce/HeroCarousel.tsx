@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import type { SerializedBanner } from "@/server/services/bannerService";
 
 export interface HeroCarouselProps {
@@ -15,7 +15,6 @@ export interface HeroCarouselProps {
 
 interface SlideItem {
   id: string;
-  eyebrow: string;
   title: string;
   description: string | null;
   ctaText: string;
@@ -28,7 +27,6 @@ interface SlideItem {
 const FALLBACK_SLIDES: SlideItem[] = [
   {
     id: "fallback-1",
-    eyebrow: "MATACOS DEPORTES • SAAVEDRA 241",
     title: "EQUIPAMIENTO DEPORTIVO DE MÁXIMO RENDIMIENTO",
     description:
       "Más de 25 años acercando indumentaria, accesorios técnicos y las mejores marcas oficiales a Formosa y todo el país.",
@@ -40,7 +38,6 @@ const FALLBACK_SLIDES: SlideItem[] = [
   },
   {
     id: "fallback-2",
-    eyebrow: "NATACIÓN DE COMPETICIÓN • LÍNEA SPEEDO",
     title: "SUPERÁ TUS LÍMITES EN EL AGUA",
     description:
       "Mallas de competición, antiparras profesionales, gorras y accesorios acuáticos 100% originales con garantía.",
@@ -52,11 +49,10 @@ const FALLBACK_SLIDES: SlideItem[] = [
   },
   {
     id: "fallback-3",
-    eyebrow: "CROCS OFICIAL • MÁXIMO CONFORT",
-    title: "AUTÉNTICOS CLOGS Y SANDALIAS CROCS",
+    title: "CONFORT Y ESTILO PARA TODO EL DÍA",
     description:
-      "Descubrí la colección oficial de Crocs en Saavedra 241. Calce ergonómico, ligereza y durabilidad para todo el día.",
-    ctaText: "VER CROCS OFICIAL",
+      "Descubrí nuestra colección de calzado urbano y tiempo libre en Saavedra 241. Calce ergonómico, ligereza y durabilidad.",
+    ctaText: "VER CALZADO",
     ctaHref: "/catalogo?disciplina=crocs",
     imageUrl:
       "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=1920&q=80",
@@ -64,10 +60,9 @@ const FALLBACK_SLIDES: SlideItem[] = [
   },
   {
     id: "fallback-4",
-    eyebrow: "VÓLEY PROFESIONAL • BALONES MIKASA FIVB",
     title: "BALONES OFICIALES Y PROTECCIÓN DE IMPACTO",
     description:
-      "Pelotas de juego aprobadas por FIVB, rodilleras de alto impacto e indumentaria técnica para clubes y atletas.",
+      "Pelotas de juego reglamentarias, rodilleras de alto impacto e indumentaria técnica para clubes y atletas.",
     ctaText: "VER LÍNEA VÓLEY",
     ctaHref: "/catalogo?disciplina=voley",
     imageUrl:
@@ -104,7 +99,6 @@ export function HeroCarousel({
     if (banners && banners.length > 0) {
       return banners.map((b) => ({
         id: b.id,
-        eyebrow: "PROMOCIÓN DESTACADA",
         title: b.title,
         description: b.subtitle,
         ctaText: b.linkUrl ? "VER PROMOCIÓN" : "EXPLORAR TIENDA",
@@ -195,7 +189,7 @@ export function HeroCarousel({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className={`relative w-full h-[480px] sm:h-[540px] lg:h-[620px] overflow-hidden bg-slate-950 select-none outline-hidden ${className}`}
+      className={`relative w-full h-[480px] sm:h-[540px] lg:h-[620px] overflow-hidden bg-slate-950 select-none focus-visible:outline-none ${className}`}
     >
       {/* 1. Diapositivas de fondo con next/image optimizado para LCP */}
       <div className="absolute inset-0 overflow-hidden bg-slate-950">
@@ -260,34 +254,26 @@ export function HeroCarousel({
           );
         })}
 
-        {/* 2. Capas de gradiente de alto contraste para máxima legibilidad */}
-        <div className="absolute inset-0 bg-black/40 z-15 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/25 z-15 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 z-15 pointer-events-none" />
+        {/* 2. Capas de gradiente de alto contraste sobre la imagen (z-[15] válido en Tailwind v3) */}
+        <div className="absolute inset-0 bg-black/30 z-[15] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/15 z-[15] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25 z-[15] pointer-events-none" />
       </div>
 
       {/* 3. Contenedor de Texto y CTA institucional */}
       <div className="relative z-20 max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
         <div
           key={activeSlide?.id || safeIdx}
-          className="max-w-2xl space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500"
+          className="max-w-2xl space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
         >
-          {/* Eyebrow / Tag */}
-          <div className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00D615]/15 border border-[#00D615]/30 text-[#00D615] font-black tracking-[0.2em] text-[11px] sm:text-xs uppercase drop-shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-[#00D615]" />
-              <span>{activeSlide?.eyebrow}</span>
-            </span>
-          </div>
-
           {/* Título Principal */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.06] uppercase drop-shadow-md">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.06] uppercase [text-shadow:0_4px_24px_rgba(0,0,0,0.75),0_2px_6px_rgba(0,0,0,0.65)]">
             {activeSlide?.title}
           </h1>
 
           {/* Subtítulo / Descripción */}
           {activeSlide?.description && (
-            <p className="text-sm sm:text-base lg:text-lg text-slate-200 font-medium leading-relaxed max-w-xl drop-shadow-sm">
+            <p className="text-sm sm:text-base lg:text-lg text-white/95 font-medium leading-relaxed max-w-xl [text-shadow:0_2px_14px_rgba(0,0,0,0.85),0_1px_4px_rgba(0,0,0,0.75)]">
               {activeSlide.description}
             </p>
           )}
