@@ -137,6 +137,18 @@ model SizeGuide {
   updatedAt  DateTime  @updatedAt
 }
 
+model CareGuide {
+  id           String    @id @default(uuid())
+  name         String
+  type         String    @default("INDUMENTARIA") // INDUMENTARIA, NATACION, CALZADO, CROCS, ACCESORIO
+  summary      String?
+  instructions Json      // Array de { icon?: string, text: string }
+  warning      String?
+  products     Product[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 model ProductDraft {
   id        String   @id @default(uuid())
   name      String?
@@ -189,6 +201,8 @@ model Product {
   brand            Brand           @relation(fields: [brandId], references: [id])
   sizeGuideId      String?
   sizeGuide        SizeGuide?      @relation(fields: [sizeGuideId], references: [id])
+  careGuideId      String?
+  careGuide        CareGuide?      @relation(fields: [careGuideId], references: [id])
   variants         ProductVariant[]
   images           ProductImage[]
   favorites        Favorite[]

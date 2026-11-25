@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { getTaxonomies } from "@/server/actions/taxonomyActions";
 import { getSizeGuides } from "@/server/actions/sizeGuideActions";
+import { getCareGuides } from "@/server/actions/careGuideActions";
 import { ProductCreateWizard } from "@/components/admin/ProductCreateWizard/ProductCreateWizard";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +12,10 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminNuevoProductoPage() {
-  const [taxonomiesRes, sizeGuidesRes] = await Promise.all([
+  const [taxonomiesRes, sizeGuidesRes, careGuidesRes] = await Promise.all([
     getTaxonomies(),
     getSizeGuides(),
+    getCareGuides(),
   ]);
 
   const initialTaxonomies =
@@ -24,10 +26,14 @@ export default async function AdminNuevoProductoPage() {
   const initialSizeGuides =
     sizeGuidesRes.success && sizeGuidesRes.data ? sizeGuidesRes.data : [];
 
+  const initialCareGuides =
+    careGuidesRes.success && careGuidesRes.data ? careGuidesRes.data : [];
+
   return (
     <ProductCreateWizard
       initialTaxonomies={initialTaxonomies}
       initialSizeGuides={initialSizeGuides}
+      initialCareGuides={initialCareGuides}
     />
   );
 }

@@ -1,39 +1,80 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Ruler, Footprints, Shirt, HelpCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Ruler, Footprints, Shirt, HelpCircle, Info } from "lucide-react";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
+import type { PublicSizeGuide } from "@/types/ecommerce";
 
 interface SizeGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   gender?: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
   defaultTab?: "hombre" | "mujer" | "medidas" | "indumentaria" | "calzado";
+  sizeGuide?: PublicSizeGuide | null;
 }
 
-type TabKey = "hombre" | "mujer" | "medidas" | "indumentaria";
+type TabKey = "producto" | "hombre" | "mujer" | "medidas" | "indumentaria";
+
+function resolveInitialTab(
+  sizeGuide: PublicSizeGuide | null | undefined,
+  defaultTab: SizeGuideModalProps["defaultTab"],
+  gender: NonNullable<SizeGuideModalProps["gender"]>
+): TabKey {
+  if (sizeGuide && (sizeGuide.columns.length > 0 || sizeGuide.guideImage)) {
+    return "producto";
+  }
+  if (defaultTab === "indumentaria") return "indumentaria";
+  if (defaultTab === "calzado") return gender === "MUJER" ? "mujer" : "hombre";
+  if (gender === "MUJER") return "mujer";
+  if (gender === "HOMBRE") return "hombre";
+  return "medidas";
+}
 
 export function SizeGuideModal({
   isOpen,
   onClose,
   gender = "UNISEX",
   defaultTab,
+  sizeGuide,
 }: SizeGuideModalProps) {
-  // Default tab based on product category/gender
-  const initialTab: TabKey =
-    defaultTab === "indumentaria"
-      ? "indumentaria"
-      : defaultTab === "calzado"
-      ? (gender === "MUJER" ? "mujer" : "hombre")
-      : (gender === "MUJER" ? "mujer" : gender === "HOMBRE" ? "hombre" : "medidas");
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const storeSettings = useStoreSettings();
+  const hasCustomGuide = Boolean(
+    sizeGuide && (sizeGuide.columns.length > 0 || sizeGuide.guideImage)
+  );
+
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
+    resolveInitialTab(sizeGuide, defaultTab, gender)
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(resolveInitialTab(sizeGuide, defaultTab, gender));
+    }
+  }, [isOpen, sizeGuide, defaultTab, gender]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="size-guide-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200 overscroll-contain"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] overscroll-contain"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
@@ -41,8 +82,11 @@ export function SizeGuideModal({
               <Ruler className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-tight">
-                Guía Oficial de Talles y Medidas
+              <h3
+                id="size-guide-modal-title"
+                className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-tight"
+              >
+                {hasCustomGuide && sizeGuide ? sizeGuide.name : "Guía Oficial de Talles y Medidas"}
               </h3>
               <p className="text-[11px] text-slate-500">
                 Matacos Deportes • Saavedra 241, Formosa Capital
@@ -60,9 +104,31 @@ export function SizeGuideModal({
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-slate-200 px-4 sm:px-6 pt-3 gap-2 sm:gap-4 bg-white overflow-x-auto text-xs">
+        <div
+          role="tablist"
+          aria-label="Opciones de guía de talles"
+          className="flex border-b border-slate-200 px-4 sm:px-6 pt-3 gap-2 sm:gap-4 bg-white overflow-x-auto text-xs"
+        >
+          {hasCustomGuide && sizeGuide && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "producto"}
+              onClick={() => setActiveTab("producto")}
+              className={`pb-3 font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                activeTab === "producto"
+                  ? "border-[#00D615] text-slate-950 font-black"
+                  : "border-transparent text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <Ruler className="w-3.5 h-3.5" />
+              <span>Tabla del Producto</span>
+            </button>
+          )}
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "hombre"}
             onClick={() => setActiveTab("hombre")}
             className={`pb-3 font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === "hombre"
@@ -75,6 +141,8 @@ export function SizeGuideModal({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "mujer"}
             onClick={() => setActiveTab("mujer")}
             className={`pb-3 font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === "mujer"
@@ -87,6 +155,8 @@ export function SizeGuideModal({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "medidas"}
             onClick={() => setActiveTab("medidas")}
             className={`pb-3 font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === "medidas"
@@ -99,6 +169,8 @@ export function SizeGuideModal({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "indumentaria"}
             onClick={() => setActiveTab("indumentaria")}
             className={`pb-3 font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === "indumentaria"
@@ -113,6 +185,64 @@ export function SizeGuideModal({
 
         {/* Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs text-slate-600">
+          {/* 0. Guía específica vinculada al producto en BD */}
+          {activeTab === "producto" && sizeGuide && (
+            <div className="space-y-4">
+              {sizeGuide.fitNote && (
+                <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Nota de calce:</strong> {sizeGuide.fitNote}
+                  </span>
+                </div>
+              )}
+
+              {sizeGuide.guideImage && (
+                <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
+                  <img
+                    src={sizeGuide.guideImage}
+                    alt={sizeGuide.name}
+                    className="w-full max-h-80 object-contain rounded-xl"
+                  />
+                </div>
+              )}
+
+              {sizeGuide.columns.length > 0 && sizeGuide.rows.length > 0 && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                      <tr>
+                        {sizeGuide.columns.map((col) => (
+                          <th key={col} className="p-2.5 whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-800">
+                      {sizeGuide.rows.map((row, idx) => (
+                        <tr key={idx} className={idx % 2 === 1 ? "bg-slate-50/50" : "bg-white"}>
+                          {sizeGuide.columns.map((col, cIdx) => (
+                            <td
+                              key={col}
+                              className={`p-2.5 whitespace-nowrap ${cIdx === 0 ? "font-bold text-slate-950" : "font-medium"}`}
+                            >
+                              {row[col] || "-"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500">
+                Medidas expresadas en <strong>{sizeGuide.unit || "cm"}</strong> • {sizeGuide.type.replace("_", " ")}
+              </p>
+            </div>
+          )}
+
           {/* 1. Calzado Hombre */}
           {activeTab === "hombre" && (
             <div className="space-y-4">

@@ -26,6 +26,8 @@ const INITIAL_FORM: WizardFormState = {
   specs: {},
   useSizeGuide: true,
   sizeGuideId: null,
+  useCareGuide: false,
+  careGuideId: null,
   variants: [],
   weightGrams: 500,
   dimensions: { length: 30, width: 20, height: 12 },

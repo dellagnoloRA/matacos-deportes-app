@@ -11,10 +11,97 @@ import type {
   PublicProductDetail,
   PublicVariantItem,
   PublicProductItem,
+  PublicHighlightItem,
+  PublicSizeGuide,
+  PublicCareGuide,
+  PublicCareInstruction,
+  PublicDimensionsCm,
   ColorOption,
   SizeOption,
   VariantStockCheckResult,
 } from "@/types/ecommerce";
+
+function parseHighlights(raw: unknown): PublicHighlightItem[] | null {
+  if (!Array.isArray(raw)) return null;
+  const items: PublicHighlightItem[] = [];
+  for (const item of raw) {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const rec = item as Record<string, unknown>;
+      const title = typeof rec.title === "string" ? rec.title.trim() : "";
+      const text = typeof rec.text === "string" ? rec.text.trim() : "";
+      if (title || text) {
+        items.push({
+          icon: typeof rec.icon === "string" && rec.icon.trim() ? rec.icon.trim() : "zap",
+          title,
+          text,
+          isCustomIcon: typeof rec.isCustomIcon === "boolean" ? rec.isCustomIcon : undefined,
+        });
+      }
+    }
+  }
+  return items.length > 0 ? items : null;
+}
+
+function parseSpecs(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const key = k.trim();
+    if (!key || v === null || v === undefined) continue;
+    const val = String(v).trim();
+    if (val) result[key] = val;
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function parseDimensionsCm(raw: unknown): PublicDimensionsCm | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const rec = raw as Record<string, unknown>;
+  const length = typeof rec.length === "number" ? rec.length : undefined;
+  const width = typeof rec.width === "number" ? rec.width : undefined;
+  const height = typeof rec.height === "number" ? rec.height : undefined;
+  if (length === undefined && width === undefined && height === undefined) return null;
+  return { length, width, height };
+}
+
+function parseSizeGuide(raw: {
+  id: string;
+  name: string;
+  gender: string;
+  type: string;
+  unit: string;
+  fitNote: string | null;
+  columns: unknown;
+  rows: unknown;
+  guideImage: string | null;
+} | null | undefined): PublicSizeGuide | null {
+  if (!raw) return null;
+  const columns = Array.isArray(raw.columns)
+    ? raw.columns.filter((c): c is string => typeof c === "string")
+    : [];
+  const rows: Record<string, string>[] = Array.isArray(raw.rows)
+    ? raw.rows
+        .filter((r): r is Record<string, unknown> => Boolean(r && typeof r === "object" && !Array.isArray(r)))
+        .map((r) => {
+          const cleanRow: Record<string, string> = {};
+          for (const [k, v] of Object.entries(r)) {
+            cleanRow[k] = v === null || v === undefined ? "" : String(v);
+          }
+          return cleanRow;
+        })
+    : [];
+  return {
+    id: raw.id,
+    name: raw.name,
+    gender: raw.gender,
+    type: raw.type,
+    unit: raw.unit,
+    fitNote: raw.fitNote,
+    columns,
+    rows,
+    guideImage: raw.guideImage,
+  };
+}
 
 /**
  * Serializador seguro para Client Components (convierte Decimals de Prisma a numbers nativos)
@@ -31,6 +118,46 @@ function serialize<T>(data: T): T {
       return value;
     })
   );
+}
+
+function parseCareGuide(raw: {
+  id: string;
+  name: string;
+  type: string;
+  summary: string | null;
+  instructions: unknown;
+  warning: string | null;
+} | null | undefined): PublicCareGuide | null {
+  if (!raw) return null;
+  const instructions: PublicCareInstruction[] = Array.isArray(raw.instructions)
+    ? raw.instructions.flatMap((entry) => {
+        if (typeof entry === "string" && entry.trim()) {
+          return [{ text: entry.trim() }];
+        }
+        if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+          const rec = entry as Record<string, unknown>;
+          const text = typeof rec.text === "string" ? rec.text.trim() : "";
+          if (text) {
+            return [
+              {
+                icon: typeof rec.icon === "string" && rec.icon.trim() ? rec.icon.trim() : undefined,
+                text,
+              },
+            ];
+          }
+        }
+        return [];
+      })
+    : [];
+  if (instructions.length === 0 && !raw.summary && !raw.warning) return null;
+  return {
+    id: raw.id,
+    name: raw.name,
+    type: raw.type,
+    summary: raw.summary,
+    instructions,
+    warning: raw.warning,
+  };
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +212,36 @@ export async function getProductDetail(
         id: true,
         name: true,
         description: true,
+        shortDescription: true,
+        highlights: true,
+        specs: true,
+        weightGrams: true,
+        dimensionsCm: true,
+        sizeGuideId: true,
+        sizeGuide: {
+          select: {
+            id: true,
+            name: true,
+            gender: true,
+            type: true,
+            unit: true,
+            fitNote: true,
+            columns: true,
+            rows: true,
+            guideImage: true,
+          },
+        },
+        careGuideId: true,
+        careGuide: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            summary: true,
+            instructions: true,
+            warning: true,
+          },
+        },
         imageUrl: true,
         modelCode: true,
         price: true,
@@ -248,6 +405,15 @@ export async function getProductDetail(
       id: product.id,
       name: product.name,
       description: product.description,
+      shortDescription: product.shortDescription,
+      highlights: parseHighlights(product.highlights),
+      specs: parseSpecs(product.specs),
+      sizeGuideId: product.sizeGuideId,
+      sizeGuide: parseSizeGuide(product.sizeGuide),
+      careGuideId: product.careGuideId,
+      careGuide: parseCareGuide(product.careGuide),
+      weightGrams: product.weightGrams,
+      dimensionsCm: parseDimensionsCm(product.dimensionsCm),
       imageUrl: product.imageUrl,
       modelCode: product.modelCode,
       price: promo.isPromoActive ? effectiveProductPrice : basePrice,
@@ -429,6 +595,36 @@ export async function getRelatedProducts(
         id: true,
         name: true,
         description: true,
+        shortDescription: true,
+        highlights: true,
+        specs: true,
+        weightGrams: true,
+        dimensionsCm: true,
+        sizeGuideId: true,
+        sizeGuide: {
+          select: {
+            id: true,
+            name: true,
+            gender: true,
+            type: true,
+            unit: true,
+            fitNote: true,
+            columns: true,
+            rows: true,
+            guideImage: true,
+          },
+        },
+        careGuideId: true,
+        careGuide: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            summary: true,
+            instructions: true,
+            warning: true,
+          },
+        },
         imageUrl: true,
         modelCode: true,
         price: true,

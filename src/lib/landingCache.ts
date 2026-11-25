@@ -78,7 +78,7 @@ export function invalidateLandingCache(
       revalidateTag("ecommerce-catalog");
       revalidateTag("catalog-facets");
       revalidatePath("/catalogo");
-      revalidatePath("/productos");
+      revalidatePath("/productos", "layout");
     }
 
     if (source === "banner") {

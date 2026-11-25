@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { WizardFormState, SizeGuideItem } from "./types";
+import { WizardFormState, SizeGuideItem, CareGuideItem } from "./types";
 import {
   Ruler,
   Plus,
@@ -19,14 +19,18 @@ import {
   Shirt,
   Layers,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { createSizeGuide } from "@/server/actions/sizeGuideActions";
+import { createCareGuide, type CareIconKey } from "@/server/actions/careGuideActions";
 
 interface Step5Props {
   form: WizardFormState;
   updateForm: (updates: Partial<WizardFormState>) => void;
   sizeGuides: SizeGuideItem[];
   refreshSizeGuides: () => Promise<void>;
+  careGuides: CareGuideItem[];
+  refreshCareGuides: () => Promise<void>;
   brands: { id: string; name: string }[];
 }
 
@@ -35,6 +39,8 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
   updateForm,
   sizeGuides,
   refreshSizeGuides,
+  careGuides,
+  refreshCareGuides,
   brands,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,6 +70,45 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
   ]);
   const [pasteExcelText, setPasteExcelText] = useState("");
   const [showPasteArea, setShowPasteArea] = useState(false);
+
+  // Estado del selector y creador de Guía de Cuidados
+  const [isCreatingCareGuide, setIsCreatingCareGuide] = useState(false);
+  const [newCareName, setNewCareName] = useState("");
+  const [newCareType, setNewCareType] = useState("INDUMENTARIA");
+  const [newCareSummary, setNewCareSummary] = useState("");
+  const [newCareWarning, setNewCareWarning] = useState("");
+  const [newCareInstructions, setNewCareInstructions] = useState<
+    { icon: CareIconKey; text: string }[]
+  >([
+    { icon: "wash_cold", text: "Lavar a máquina con agua fría (30°C)." },
+    { icon: "no_bleach", text: "No usar blanqueador ni suavizante." },
+  ]);
+
+  const selectedCareGuide = careGuides.find((cg) => cg.id === form.careGuideId);
+
+  const handleSaveCareGuide = async () => {
+    const clean = newCareInstructions.filter((i) => i.text.trim().length > 0);
+    if (!newCareName.trim() || clean.length === 0) {
+      alert("Ingresá un nombre y al menos una instrucción de cuidado.");
+      return;
+    }
+
+    const res = await createCareGuide({
+      name: newCareName.trim(),
+      type: newCareType,
+      summary: newCareSummary.trim() || null,
+      instructions: clean,
+      warning: newCareWarning.trim() || null,
+    });
+
+    if (res.success && res.data) {
+      await refreshCareGuides();
+      updateForm({ careGuideId: res.data.id, useCareGuide: true });
+      setIsCreatingCareGuide(false);
+    } else {
+      alert(res.error || "No se pudo guardar la guía de cuidados.");
+    }
+  };
 
   // Guía actualmente seleccionada
   const selectedGuide = sizeGuides.find((g) => g.id === form.sizeGuideId);
@@ -655,6 +700,288 @@ export const Step5SizeGuide: React.FC<Step5Props> = ({
           )}
         </div>
       )}
+
+      {/* ===================================================================== */}
+      {/* SECCIÓN 5B: GUÍA DE CUIDADOS REUTILIZABLE                             */}
+      {/* ===================================================================== */}
+      <div className="pt-6 border-t border-slate-200 space-y-5">
+        <div>
+          <h3 className="text-base font-extrabold text-slate-950 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>Guía de Cuidados y Mantenimiento</span>
+          </h3>
+          <p className="text-xs text-slate-500">
+            Asigná una guía reutilizable acorde al tipo de producto. Si no tiene guía asociada, la pestaña Cuidados no se mostrará en la web.
+          </p>
+        </div>
+
+        {/* Switch: ¿Usa guía de cuidados? */}
+        <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-bold text-slate-900 block">
+              ¿Este producto muestra Guía de Cuidados en la tienda web?
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Elegí una guía reutilizable (Indumentaria, Natación, Calzado, Crocs o Accesorios).
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              updateForm({
+                useCareGuide: !form.useCareGuide,
+                careGuideId: !form.useCareGuide ? form.careGuideId : null,
+              })
+            }
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              form.useCareGuide ? "bg-emerald-600" : "bg-slate-300"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                form.useCareGuide ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {form.useCareGuide && (
+          <div className="space-y-4">
+            {selectedCareGuide && !isCreatingCareGuide && (
+              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-extrabold text-emerald-950 block">
+                      {selectedCareGuide.name}
+                    </span>
+                    <span className="text-[11px] text-emerald-700">
+                      {selectedCareGuide.type} · {selectedCareGuide.instructions.length} instrucciones
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateForm({ careGuideId: null })}
+                    className="text-xs text-slate-500 hover:text-red-600 underline font-medium cursor-pointer"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+                <ul className="space-y-1 text-[11px] text-slate-700">
+                  {selectedCareGuide.instructions.map((ins, i) => (
+                    <li key={i}>• {ins.text}</li>
+                  ))}
+                </ul>
+                {selectedCareGuide.warning && (
+                  <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    <strong>Importante:</strong> {selectedCareGuide.warning}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isCreatingCareGuide && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900">
+                    Seleccionar Guía de Cuidados del Catálogo
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCareGuide(true)}
+                    className="px-3 py-1.5 bg-slate-950 hover:bg-black text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Crear Guía de Cuidados</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                  {careGuides.map((cg) => {
+                    const isSelected = form.careGuideId === cg.id;
+                    return (
+                      <div
+                        key={cg.id}
+                        onClick={() => updateForm({ careGuideId: cg.id, useCareGuide: true })}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                          isSelected
+                            ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs"
+                            : "bg-white border-slate-200 hover:border-slate-400"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <strong className="text-xs text-slate-950 block truncate">{cg.name}</strong>
+                          <span className="text-[10px] text-slate-400">
+                            {cg.type} · {cg.instructions.length} indicaciones
+                          </span>
+                        </div>
+                        {isSelected ? (
+                          <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        ) : (
+                          <span className="text-[11px] font-bold text-slate-400 shrink-0">Elegir</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {isCreatingCareGuide && (
+              <div className="p-4 rounded-2xl border-2 border-emerald-500/60 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-sm font-extrabold text-slate-950">
+                    Nueva Guía de Cuidados Reutilizable
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCareGuide(false)}
+                    className="text-xs text-slate-400 hover:text-slate-700 underline font-medium cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-900">
+                      Nombre de la Guía <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Camisetas Térmicas / Compresión"
+                      value={newCareName}
+                      onChange={(e) => setNewCareName(e.target.value)}
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-900">Tipo</label>
+                    <select
+                      value={newCareType}
+                      onChange={(e) => setNewCareType(e.target.value)}
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+                    >
+                      <option value="INDUMENTARIA">Indumentaria</option>
+                      <option value="NATACION">Natación</option>
+                      <option value="CALZADO">Calzado</option>
+                      <option value="CROCS">Crocs</option>
+                      <option value="ACCESORIO">Accesorio / Equipamiento</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-900">Resumen (opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Breve descripción de los materiales cubiertos..."
+                    value={newCareSummary}
+                    onChange={(e) => setNewCareSummary(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Instrucciones</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewCareInstructions((prev) => [
+                          ...prev,
+                          { icon: "wipe_clean", text: "" },
+                        ])
+                      }
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar instrucción</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {newCareInstructions.map((inst, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <select
+                          value={inst.icon}
+                          onChange={(e) =>
+                            setNewCareInstructions((prev) =>
+                              prev.map((item, i) =>
+                                i === idx ? { ...item, icon: e.target.value as CareIconKey } : item
+                              )
+                            )
+                          }
+                          className="h-8 px-2 rounded-lg border border-slate-300 text-[11px] bg-white shrink-0"
+                        >
+                          <option value="wash_cold">Lavar 30°</option>
+                          <option value="hand_wash">A mano</option>
+                          <option value="rinse_cold">Enjuague frío</option>
+                          <option value="wipe_clean">Paño húmedo</option>
+                          <option value="no_bleach">No lavandina</option>
+                          <option value="no_dry_clean">No lavado en seco</option>
+                          <option value="iron_low">Plancha tibia</option>
+                          <option value="tumble_low">Secadora baja</option>
+                          <option value="shade_dry">Secar a la sombra</option>
+                          <option value="no_heat">Evitar calor/sol</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={inst.text}
+                          onChange={(e) =>
+                            setNewCareInstructions((prev) =>
+                              prev.map((item, i) =>
+                                i === idx ? { ...item, text: e.target.value } : item
+                              )
+                            )
+                          }
+                          placeholder="Indicación de cuidado..."
+                          className="flex-1 h-8 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                        {newCareInstructions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNewCareInstructions((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="p-1 text-slate-400 hover:text-red-500 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-900">
+                    Advertencia / Nota final (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: No exponer a temperaturas elevadas..."
+                    value={newCareWarning}
+                    onChange={(e) => setNewCareWarning(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSaveCareGuide}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
+                  >
+                    Guardar y Vincular Cuidados
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Modal interactivo de Vista Previa Cliente */}
       {isPreviewModalOpen && selectedGuide && (

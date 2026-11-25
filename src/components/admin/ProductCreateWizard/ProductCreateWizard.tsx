@@ -8,6 +8,7 @@ import {
   StepDefinition,
   StepStatus,
   SizeGuideItem,
+  CareGuideItem,
 } from "./types";
 import { LiveProductPreview } from "./LiveProductPreview";
 import { Step1Identification } from "./Step1Identification";
@@ -22,6 +23,7 @@ import {
   getLatestDraftFromPostgres,
   deleteProductDraft,
   publishProductFromWizard,
+  updateProductFromWizard,
 } from "@/server/actions/productDraftActions";
 import {
   ArrowLeft,
@@ -53,6 +55,9 @@ interface ProductCreateWizardProps {
     disciplines: { id: string; name: string }[];
   };
   initialSizeGuides: SizeGuideItem[];
+  initialCareGuides?: CareGuideItem[];
+  editProductId?: string;
+  initialEditForm?: WizardFormState;
 }
 
 const STEPS: StepDefinition[] = [
@@ -60,7 +65,7 @@ const STEPS: StepDefinition[] = [
   { id: 2, key: "fotos", title: "Fotos", subtitle: "Galería y vistas color" },
   { id: 3, key: "precios", title: "Precios", subtitle: "Venta, cuotas e IVA" },
   { id: 4, key: "ficha", title: "Ficha Técnica", subtitle: "Descripción y detalles" },
-  { id: 5, key: "talles", title: "Guía de Talles", subtitle: "Medidas y calce" },
+  { id: 5, key: "talles", title: "Talles y Cuidados", subtitle: "Guías reutilizables" },
   { id: 6, key: "variantes", title: "Variantes y Stock", subtitle: "Color × Talle dual" },
   { id: 7, key: "publicacion", title: "Envío y Publicación", subtitle: "Logística y estado final" },
 ];
@@ -92,6 +97,8 @@ const INITIAL_FORM: WizardFormState = {
 
   useSizeGuide: true,
   sizeGuideId: null,
+  useCareGuide: false,
+  careGuideId: null,
 
   variants: [],
 
@@ -103,13 +110,18 @@ const INITIAL_FORM: WizardFormState = {
 export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
   initialTaxonomies,
   initialSizeGuides,
+  initialCareGuides = [],
+  editProductId,
+  initialEditForm,
 }) => {
   const router = useRouter();
+  const isEditMode = Boolean(editProductId && initialEditForm);
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [form, setForm] = useState<WizardFormState>(INITIAL_FORM);
+  const [form, setForm] = useState<WizardFormState>(initialEditForm || INITIAL_FORM);
   const [taxonomies, setTaxonomies] = useState(initialTaxonomies);
   const [sizeGuides, setSizeGuides] = useState<SizeGuideItem[]>(initialSizeGuides);
+  const [careGuides, setCareGuides] = useState<CareGuideItem[]>(initialCareGuides);
 
   // Estados de guardado
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -181,8 +193,9 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     setForm((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  // Cargar borrador previo de PostgreSQL al montar si existe
+  // Cargar borrador previo de PostgreSQL al montar si existe (solo en creación)
   useEffect(() => {
+    if (isEditMode) return;
     async function loadDraft() {
       try {
         const res = await getLatestDraftFromPostgres();
@@ -191,6 +204,8 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
           setForm((prev) => ({
             ...prev,
             ...res.draft.data,
+            useCareGuide: res.draft.data.useCareGuide ?? Boolean(res.draft.data.careGuideId),
+            careGuideId: res.draft.data.careGuideId ?? null,
             draftId: res.draft.id,
           }));
           if (res.draft.step && res.draft.step >= 1 && res.draft.step <= 7) {
@@ -210,10 +225,11 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
       }
     }
     loadDraft();
-  }, []);
+  }, [isEditMode]);
 
-  // Efecto de Autoguardado con Debounce en PostgreSQL
+  // Efecto de Autoguardado con Debounce en PostgreSQL (solo en creación)
   useEffect(() => {
+    if (isEditMode) return;
     // No autoguardar si aún está vacío
     if (!form.name && !form.price && (!form.variants || form.variants.length === 0)) {
       return;
@@ -243,7 +259,7 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [form, currentStep]);
+  }, [form, currentStep, isEditMode]);
 
   // Refrescar taxonomías (categorías, marcas, etc.)
   const handleRefreshTaxonomies = async () => {
@@ -260,6 +276,15 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     const res = await getSizeGuides();
     if (res.success && res.data) {
       setSizeGuides(res.data);
+    }
+  };
+
+  // Refrescar guías de cuidados
+  const handleRefreshCareGuides = async () => {
+    const { getCareGuides } = await import("@/server/actions/careGuideActions");
+    const res = await getCareGuides();
+    if (res.success && res.data) {
+      setCareGuides(res.data);
     }
   };
 
@@ -335,22 +360,34 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
     }
   };
 
-  // Publicación efectiva en base de datos
+  // Publicación o actualización efectiva en base de datos
   const executePublish = async () => {
     setErrorMessage(null);
     setIsPublishing(true);
 
     try {
-      const res = await publishProductFromWizard(form);
+      const res =
+        isEditMode && editProductId
+          ? await updateProductFromWizard(editProductId, form)
+          : await publishProductFromWizard(form);
       setIsPublishing(false);
 
       if (!res.success) {
-        setErrorMessage(res.error || "Ocurrió un error al publicar el producto.");
+        setErrorMessage(
+          res.error ||
+            (isEditMode
+              ? "Ocurrió un error al actualizar la ficha del producto."
+              : "Ocurrió un error al publicar el producto.")
+        );
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
 
-      alert("¡Producto publicado con éxito en el catálogo de Matacos Deportes!");
+      alert(
+        isEditMode
+          ? "¡Ficha web del producto actualizada con éxito!"
+          : "¡Producto publicado con éxito en el catálogo de Matacos Deportes!"
+      );
       router.push("/admin");
     } catch (err) {
       setIsPublishing(false);
@@ -449,9 +486,13 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
               </span>
             </div>
 
-            {/* Indicador de Autoguardado en PostgreSQL */}
+            {/* Indicador de Modo / Autoguardado */}
             <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px] text-slate-400 truncate">
-              {isSavingDraft ? (
+              {isEditMode ? (
+                <span className="text-emerald-700 font-semibold truncate">
+                  Edición de ficha web (el stock existente no se sobrescribe)
+                </span>
+              ) : isSavingDraft ? (
                 <>
                   <Loader2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin text-emerald-600 shrink-0" />
                   <span className="text-emerald-700 font-medium truncate">
@@ -483,26 +524,30 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
             <span className="hidden xs:inline sm:inline">Vista Previa</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleDiscardDraft}
-            className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl text-slate-500 hover:text-red-600 text-xs font-bold transition-colors cursor-pointer hidden md:flex items-center gap-1"
-            title="Descartar borrador"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Descartar</span>
-          </button>
+          {!isEditMode && (
+            <>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl text-slate-500 hover:text-red-600 text-xs font-bold transition-colors cursor-pointer hidden md:flex items-center gap-1"
+                title="Descartar borrador"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Descartar</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={handleManualSaveDraft}
-            disabled={isSavingDraft}
-            className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <Save className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-            <span className="hidden sm:inline">Guardar Borrador</span>
-            <span className="sm:hidden">Guardar</span>
-          </button>
+              <button
+                type="button"
+                onClick={handleManualSaveDraft}
+                disabled={isSavingDraft}
+                className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                <span className="hidden sm:inline">Guardar Borrador</span>
+                <span className="sm:hidden">Guardar</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -515,8 +560,10 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
             ) : (
               <Rocket className="w-3.5 h-3.5 shrink-0" />
             )}
-            <span className="hidden sm:inline">Publicar Producto</span>
-            <span className="sm:hidden">Publicar</span>
+            <span className="hidden sm:inline">
+              {isEditMode ? "Guardar Cambios" : "Publicar Producto"}
+            </span>
+            <span className="sm:hidden">{isEditMode ? "Guardar" : "Publicar"}</span>
           </button>
         </div>
       </header>
@@ -774,11 +821,19 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
               updateForm={updateForm}
               sizeGuides={sizeGuides}
               refreshSizeGuides={handleRefreshSizeGuides}
+              careGuides={careGuides}
+              refreshCareGuides={handleRefreshCareGuides}
               brands={taxonomies.brands}
             />
           )}
 
-          {currentStep === 6 && <Step6VariantsStock form={form} updateForm={updateForm} />}
+          {currentStep === 6 && (
+            <Step6VariantsStock
+              form={form}
+              updateForm={updateForm}
+              isEditMode={isEditMode}
+            />
+          )}
 
           {currentStep === 7 && (
             <Step7Publishing
@@ -823,8 +878,10 @@ export const ProductCreateWizard: React.FC<ProductCreateWizardProps> = ({
                 className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <Rocket className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">Publicar Producto</span>
-                <span className="xs:hidden">Publicar</span>
+                <span className="hidden xs:inline">
+                  {isEditMode ? "Guardar Cambios" : "Publicar Producto"}
+                </span>
+                <span className="xs:hidden">{isEditMode ? "Guardar" : "Publicar"}</span>
               </button>
             )}
           </div>

@@ -63,9 +63,14 @@ function sortVariantsList(list: ProductVariantItem[]): ProductVariantItem[] {
 interface Step6Props {
   form: WizardFormState;
   updateForm: (updates: Partial<WizardFormState>) => void;
+  isEditMode?: boolean;
 }
 
-export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) => {
+export const Step6VariantsStock: React.FC<Step6Props> = ({
+  form,
+  updateForm,
+  isEditMode = false,
+}) => {
   // Generador Color × Talle
   const [colorInput, setColorInput] = useState("");
   const [colorHexInput, setColorHexInput] = useState("#111827");
@@ -398,6 +403,15 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
       )}
 
       {/* Renderizado de Variantes: Agrupado vs Tabla Plana */}
+      {isEditMode && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <strong>Modo edición web (protección de inventario):</strong> El stock de variantes existentes se muestra en solo lectura para no sobrescribir ventas simultáneas en el POS o tienda web. Para ajustar stock, usá <strong>Ajustar Stock</strong> desde Inventario.
+          </div>
+        </div>
+      )}
+
       {variants.length > 0 ? (
         isGrouped ? (
           /* ================= VISTA AGRUPADA / MINIMIZADA ================= */
@@ -565,32 +579,50 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
 
                                 {/* Stock Salón */}
                                 <td className="p-2 bg-emerald-50/30">
-                                  <input
-                                    type="number"
-                                    value={v.stockStore}
-                                    onChange={(e) =>
-                                      handleUpdateVariant(origIdx, {
-                                        stockStore: Math.max(0, parseInt(e.target.value) || 0),
-                                      })
-                                    }
-                                    className="w-16 h-7 px-1.5 rounded border border-emerald-300 text-xs font-bold text-emerald-950 text-center bg-white"
-                                    min={0}
-                                  />
+                                  {isEditMode && Boolean(v.id) ? (
+                                    <span
+                                      className="inline-flex w-16 h-7 items-center justify-center rounded border border-emerald-200 text-xs font-bold text-emerald-900 bg-emerald-50/70"
+                                      title="Solo lectura en edición web"
+                                    >
+                                      {v.stockStore}
+                                    </span>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      value={v.stockStore}
+                                      onChange={(e) =>
+                                        handleUpdateVariant(origIdx, {
+                                          stockStore: Math.max(0, parseInt(e.target.value) || 0),
+                                        })
+                                      }
+                                      className="w-16 h-7 px-1.5 rounded border border-emerald-300 text-xs font-bold text-emerald-950 text-center bg-white"
+                                      min={0}
+                                    />
+                                  )}
                                 </td>
 
                                 {/* Stock Depósito */}
                                 <td className="p-2 bg-blue-50/30">
-                                  <input
-                                    type="number"
-                                    value={v.stockWarehouse}
-                                    onChange={(e) =>
-                                      handleUpdateVariant(origIdx, {
-                                        stockWarehouse: Math.max(0, parseInt(e.target.value) || 0),
-                                      })
-                                    }
-                                    className="w-16 h-7 px-1.5 rounded border border-blue-300 text-xs font-bold text-blue-950 text-center bg-white"
-                                    min={0}
-                                  />
+                                  {isEditMode && Boolean(v.id) ? (
+                                    <span
+                                      className="inline-flex w-16 h-7 items-center justify-center rounded border border-blue-200 text-xs font-bold text-blue-900 bg-blue-50/70"
+                                      title="Solo lectura en edición web"
+                                    >
+                                      {v.stockWarehouse}
+                                    </span>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      value={v.stockWarehouse}
+                                      onChange={(e) =>
+                                        handleUpdateVariant(origIdx, {
+                                          stockWarehouse: Math.max(0, parseInt(e.target.value) || 0),
+                                        })
+                                      }
+                                      className="w-16 h-7 px-1.5 rounded border border-blue-300 text-xs font-bold text-blue-950 text-center bg-white"
+                                      min={0}
+                                    />
+                                  )}
                                 </td>
 
                                 {/* Eliminar */}
@@ -729,30 +761,48 @@ export const Step6VariantsStock: React.FC<Step6Props> = ({ form, updateForm }) =
 
                       {/* Stock Salón */}
                       <td className="p-2.5 bg-emerald-50/40">
-                        <input
-                          type="number"
-                          value={v.stockStore}
-                          onChange={(e) =>
-                            handleUpdateVariant(idx, { stockStore: Math.max(0, parseInt(e.target.value) || 0) })
-                          }
-                          className="w-16 h-7 px-1.5 rounded border border-emerald-300 text-xs font-bold text-emerald-950 text-center bg-white"
-                          min={0}
-                        />
+                        {isEditMode && Boolean(v.id) ? (
+                          <span
+                            className="inline-flex w-16 h-7 items-center justify-center rounded border border-emerald-200 text-xs font-bold text-emerald-900 bg-emerald-50/70"
+                            title="Solo lectura en edición web"
+                          >
+                            {v.stockStore}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            value={v.stockStore}
+                            onChange={(e) =>
+                              handleUpdateVariant(idx, { stockStore: Math.max(0, parseInt(e.target.value) || 0) })
+                            }
+                            className="w-16 h-7 px-1.5 rounded border border-emerald-300 text-xs font-bold text-emerald-950 text-center bg-white"
+                            min={0}
+                          />
+                        )}
                       </td>
 
                       {/* Stock Depósito */}
                       <td className="p-2.5 bg-blue-50/40">
-                        <input
-                          type="number"
-                          value={v.stockWarehouse}
-                          onChange={(e) =>
-                            handleUpdateVariant(idx, {
-                              stockWarehouse: Math.max(0, parseInt(e.target.value) || 0),
-                            })
-                          }
-                          className="w-16 h-7 px-1.5 rounded border border-blue-300 text-xs font-bold text-blue-950 text-center bg-white"
-                          min={0}
-                        />
+                        {isEditMode && Boolean(v.id) ? (
+                          <span
+                            className="inline-flex w-16 h-7 items-center justify-center rounded border border-blue-200 text-xs font-bold text-blue-900 bg-blue-50/70"
+                            title="Solo lectura en edición web"
+                          >
+                            {v.stockWarehouse}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            value={v.stockWarehouse}
+                            onChange={(e) =>
+                              handleUpdateVariant(idx, {
+                                stockWarehouse: Math.max(0, parseInt(e.target.value) || 0),
+                              })
+                            }
+                            className="w-16 h-7 px-1.5 rounded border border-blue-300 text-xs font-bold text-blue-950 text-center bg-white"
+                            min={0}
+                          />
+                        )}
                       </td>
 
                       {/* Eliminar */}

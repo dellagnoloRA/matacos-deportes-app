@@ -137,11 +137,59 @@ export interface SizeOption {
 
 export type ProductStockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
 
+export interface PublicHighlightItem {
+  icon: string;
+  title: string;
+  text: string;
+  isCustomIcon?: boolean;
+}
+
+export interface PublicSizeGuide {
+  id: string;
+  name: string;
+  gender: string;
+  type: string;
+  unit: string;
+  fitNote: string | null;
+  columns: string[];
+  rows: Record<string, string>[];
+  guideImage: string | null;
+}
+
+export interface PublicCareInstruction {
+  icon?: string;
+  text: string;
+}
+
+export interface PublicCareGuide {
+  id: string;
+  name: string;
+  type: string;
+  summary: string | null;
+  instructions: PublicCareInstruction[];
+  warning: string | null;
+}
+
+export interface PublicDimensionsCm {
+  length?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface PublicProductDetail extends PublicProductItem {
   colorOptions: ColorOption[];
   sizeOptions: SizeOption[];
   isLowStock: boolean;
   stockStatus: ProductStockStatus;
+  shortDescription?: string | null;
+  highlights?: PublicHighlightItem[] | null;
+  specs?: Record<string, string> | null;
+  sizeGuideId?: string | null;
+  sizeGuide?: PublicSizeGuide | null;
+  careGuideId?: string | null;
+  careGuide?: PublicCareGuide | null;
+  weightGrams?: number | null;
+  dimensionsCm?: PublicDimensionsCm | null;
 }
 
 export interface VariantStockCheckResult {

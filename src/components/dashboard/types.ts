@@ -92,6 +92,37 @@ export interface DetailedProductItem {
   id: string;
   name: string;
   description: string;
+  shortDescription?: string | null;
+  highlights?: {
+    icon: string;
+    title: string;
+    text: string;
+    isCustomIcon?: boolean;
+  }[] | null;
+  specs?: Record<string, string> | null;
+  sizeGuideId?: string | null;
+  sizeGuide?: {
+    id: string;
+    name: string;
+    gender: string;
+    type: string;
+    unit: string;
+    fitNote?: string | null;
+    columns: string[];
+    rows: Record<string, string>[];
+    guideImage?: string | null;
+  } | null;
+  careGuideId?: string | null;
+  careGuide?: {
+    id: string;
+    name: string;
+    type: string;
+    summary?: string | null;
+    instructions: { icon?: string; text: string }[];
+    warning?: string | null;
+  } | null;
+  weightGrams?: number | null;
+  dimensionsCm?: { length?: number; width?: number; height?: number } | null;
   brand: string;
   discipline: string;
   category: string;

@@ -39,14 +39,17 @@ async function canManageWebStoreProducts(): Promise<boolean> {
   }
 }
 
-function invalidateAllEcommerceCaches() {
+function invalidateAllEcommerceCaches(productId?: string) {
   try {
     invalidateLandingCache("product");
     revalidateTag("ecommerce-catalog");
     revalidateTag("catalog-facets");
     revalidatePath("/");
     revalidatePath("/catalogo");
-    revalidatePath("/productos");
+    revalidatePath("/productos", "layout");
+    if (productId) {
+      revalidatePath(`/productos/${productId}`);
+    }
     revalidatePath("/admin");
   } catch {
     // Silenciar fuera del ciclo HTTP de Next.js
@@ -122,6 +125,8 @@ export async function getProducts(options: ProductFilterOptions = {}) {
         category: true,
         brand: true,
         discipline: true,
+        sizeGuide: true,
+        careGuide: true,
         images: {
           orderBy: { order: "asc" },
         },
@@ -151,6 +156,8 @@ export async function getProductById(id: string) {
         category: true,
         brand: true,
         discipline: true,
+        sizeGuide: true,
+        careGuide: true,
         images: {
           orderBy: { order: "asc" },
         },
@@ -248,6 +255,21 @@ export async function createProduct(input: CreateProductInput) {
         data: {
           name: validated.name,
           description: validated.description ?? null,
+          shortDescription: validated.shortDescription ?? null,
+          highlights:
+            validated.highlights && validated.highlights.length > 0
+              ? (validated.highlights as unknown as Prisma.InputJsonValue)
+              : undefined,
+          specs:
+            validated.specs && Object.keys(validated.specs).length > 0
+              ? (validated.specs as unknown as Prisma.InputJsonValue)
+              : undefined,
+          sizeGuideId: validated.sizeGuideId ?? null,
+          careGuideId: validated.careGuideId ?? null,
+          weightGrams: validated.weightGrams ?? null,
+          dimensionsCm: validated.dimensionsCm
+            ? (validated.dimensionsCm as unknown as Prisma.InputJsonValue)
+            : undefined,
           imageUrl: primaryImage,
           modelCode: canonicalModelCode,
           disciplineId: validated.disciplineId,
@@ -353,6 +375,36 @@ export async function updateProduct(input: UpdateProductInput) {
         data: {
           ...(validated.name ? { name: validated.name } : {}),
           ...(validated.description !== undefined ? { description: validated.description } : {}),
+          ...(validated.shortDescription !== undefined
+            ? { shortDescription: validated.shortDescription }
+            : {}),
+          ...(validated.highlights !== undefined
+            ? {
+                highlights:
+                  validated.highlights === null || validated.highlights.length === 0
+                    ? Prisma.JsonNull
+                    : (validated.highlights as unknown as Prisma.InputJsonValue),
+              }
+            : {}),
+          ...(validated.specs !== undefined
+            ? {
+                specs:
+                  validated.specs === null || Object.keys(validated.specs).length === 0
+                    ? Prisma.JsonNull
+                    : (validated.specs as unknown as Prisma.InputJsonValue),
+              }
+            : {}),
+          ...(validated.sizeGuideId !== undefined ? { sizeGuideId: validated.sizeGuideId } : {}),
+          ...(validated.careGuideId !== undefined ? { careGuideId: validated.careGuideId } : {}),
+          ...(validated.weightGrams !== undefined ? { weightGrams: validated.weightGrams } : {}),
+          ...(validated.dimensionsCm !== undefined
+            ? {
+                dimensionsCm:
+                  validated.dimensionsCm === null
+                    ? Prisma.JsonNull
+                    : (validated.dimensionsCm as unknown as Prisma.InputJsonValue),
+              }
+            : {}),
           imageUrl: primaryImage,
           ...(validated.modelCode !== undefined ? { modelCode: validated.modelCode?.trim() || null } : {}),
           ...(validated.disciplineId ? { disciplineId: validated.disciplineId } : {}),
@@ -456,6 +508,7 @@ export async function updateProduct(input: UpdateProductInput) {
           category: true,
           brand: true,
           discipline: true,
+          sizeGuide: true,
           images: {
             orderBy: { order: "asc" },
           },
@@ -466,7 +519,7 @@ export async function updateProduct(input: UpdateProductInput) {
       });
     });
 
-    invalidateAllEcommerceCaches();
+    invalidateAllEcommerceCaches(validated.id);
     return { success: true, data: serializeData(updatedProduct) };
   } catch (error) {
     console.error("Error al actualizar producto:", error);
@@ -548,7 +601,7 @@ export async function toggleProductActive(id: string) {
     });
 
     try {
-      invalidateAllEcommerceCaches();
+      invalidateAllEcommerceCaches(id);
     } catch {
       // Silenciar fuera del ciclo de petición HTTP
     }
@@ -622,7 +675,7 @@ export async function toggleProductWebVisibility(
       select: { id: true, status: true },
     });
 
-    invalidateAllEcommerceCaches();
+    invalidateAllEcommerceCaches(id);
 
     return {
       success: true,
@@ -734,6 +787,8 @@ export async function getDetailedInventoryProducts(options?: {
         category: true,
         brand: true,
         discipline: true,
+        sizeGuide: true,
+        careGuide: true,
         images: {
           orderBy: { order: "asc" },
         },
@@ -763,6 +818,50 @@ export async function getDetailedInventoryProducts(options?: {
         id: p.id,
         name: p.name,
         description: p.description || "",
+        shortDescription: p.shortDescription || null,
+        highlights: Array.isArray(p.highlights)
+          ? (p.highlights as { icon: string; title: string; text: string; isCustomIcon?: boolean }[])
+          : null,
+        specs:
+          p.specs && typeof p.specs === "object" && !Array.isArray(p.specs)
+            ? (p.specs as Record<string, string>)
+            : null,
+        sizeGuideId: p.sizeGuideId || null,
+        sizeGuide: p.sizeGuide
+          ? {
+              id: p.sizeGuide.id,
+              name: p.sizeGuide.name,
+              gender: p.sizeGuide.gender,
+              type: p.sizeGuide.type,
+              unit: p.sizeGuide.unit,
+              fitNote: p.sizeGuide.fitNote,
+              columns: Array.isArray(p.sizeGuide.columns)
+                ? (p.sizeGuide.columns as string[])
+                : [],
+              rows: Array.isArray(p.sizeGuide.rows)
+                ? (p.sizeGuide.rows as Record<string, string>[])
+                : [],
+              guideImage: p.sizeGuide.guideImage,
+            }
+          : null,
+        careGuideId: p.careGuideId || null,
+        careGuide: p.careGuide
+          ? {
+              id: p.careGuide.id,
+              name: p.careGuide.name,
+              type: p.careGuide.type,
+              summary: p.careGuide.summary,
+              instructions: Array.isArray(p.careGuide.instructions)
+                ? (p.careGuide.instructions as { icon?: string; text: string }[])
+                : [],
+              warning: p.careGuide.warning,
+            }
+          : null,
+        weightGrams: p.weightGrams ?? null,
+        dimensionsCm:
+          p.dimensionsCm && typeof p.dimensionsCm === "object" && !Array.isArray(p.dimensionsCm)
+            ? (p.dimensionsCm as { length?: number; width?: number; height?: number })
+            : null,
         brand: p.brand.name,
         discipline: p.discipline.name,
         category: p.category.name,

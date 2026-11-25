@@ -140,6 +140,9 @@ export async function createSizeGuide(data: SizeGuideData) {
     });
 
     revalidatePath("/admin");
+    revalidatePath("/");
+    revalidatePath("/catalogo");
+    revalidatePath("/productos", "layout");
     return { success: true, data: guide };
   } catch (error) {
     console.error("Error al crear guía de talles:", error);

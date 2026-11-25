@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { SizeGuideModal } from "./SizeGuideModal";
+import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import {
+  HighlightIcon,
+  getSmartHighlightIcon,
+} from "@/components/admin/ProductCreateWizard/highlightIcons";
 import { formatCurrency } from "@/lib/utils";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { useCartStore } from "@/store/cartStore";
@@ -28,8 +33,6 @@ import {
   Check,
   ZoomIn,
   ArrowRight,
-  ThumbsUp,
-  ThumbsDown,
   Sparkles,
   ShoppingBag,
   Zap,
@@ -38,7 +41,10 @@ import {
   MessageCircle,
   MapPin,
   ShieldCheck,
-  Star,
+  Info,
+  Droplets,
+  Sun,
+  AlertTriangle,
 } from "lucide-react";
 
 // =============================================================================
@@ -226,14 +232,8 @@ export function ProductDetailView({
 
   // 4. Pestaña activa de los apartados inferiores
   const [activeTab, setActiveTab] = useState<
-    "descripcion" | "cuidados" | "talles" | "valoraciones"
+    "descripcion" | "cuidados" | "talles"
   >("descripcion");
-
-  // 5. Filtros y modal de valoraciones
-  const [selectedStarFilter, setSelectedStarFilter] = useState<number | null>(null);
-  const [reviewSort, setReviewSort] = useState("novedades");
-  const [isWritingReview, setIsWritingReview] = useState(false);
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   // Galería de fotos del producto (con fallbacks realistas si la BD tiene pocas fotos)
   const images = useMemo(() => {
@@ -454,85 +454,86 @@ export function ProductDetailView({
     }));
   }, [product.sizeOptions, product.variants, selectedColor]);
 
-  // Apartado de Tecnologías del Producto
-  const technologiesList = useMemo(() => {
-    const nameLower = (product.name || "").toLowerCase();
+  const hasSizeGuide = Boolean(
+    product.sizeGuide &&
+      (product.sizeGuide.columns.length > 0 || product.sizeGuide.guideImage)
+  );
+
+  const hasCareGuide = Boolean(
+    product.careGuide &&
+      (product.careGuide.instructions.length > 0 ||
+        product.careGuide.summary ||
+        product.careGuide.warning)
+  );
+
+  const effectiveActiveTab =
+    (activeTab === "cuidados" && !hasCareGuide) ||
+    (activeTab === "talles" && !hasSizeGuide)
+      ? "descripcion"
+      : activeTab;
+
+  useEffect(() => {
+    if (
+      (activeTab === "cuidados" && !hasCareGuide) ||
+      (activeTab === "talles" && !hasSizeGuide)
+    ) {
+      setActiveTab("descripcion");
+    }
+  }, [activeTab, hasCareGuide, hasSizeGuide]);
+
+  const isFootwear = useMemo(() => {
+    const categorySlug = (product.category?.slug || "").toLowerCase();
     const categoryLower = (product.category?.name || "").toLowerCase();
-    const disciplineLower = (product.discipline?.name || "").toLowerCase();
-
-    // Natación / Acuático
-    if (
-      nameLower.includes("malla") ||
-      nameLower.includes("endurance") ||
-      categoryLower.includes("nataci") ||
-      disciplineLower.includes("nataci")
-    ) {
-      return [
-        {
-          title: "Endurance+ (Anti-cloro)",
-          description:
-            "Tejido técnico de polibutileno 100% resistente al cloro y a los efectos solares, garantizando máxima vida útil sin perder compresión.",
-        },
-        {
-          title: "4-Way Stretch",
-          description:
-            "Elasticidad multidireccional que asegura total libertad de movimiento en el agua sin deformarse ni perder su calce ergonómico.",
-        },
-        {
-          title: "Secado Rápido (Quick Dry)",
-          description:
-            "Tecnología de rápida evaporación de humedad que optimiza el confort térmico al salir de la pileta.",
-        },
-      ];
-    }
-
-    // Calzado / Zapatillas / Crocs
-    if (
-      nameLower.includes("zapatilla") ||
-      nameLower.includes("clog") ||
-      nameLower.includes("croc") ||
+    const disciplineSlug = (product.discipline?.slug || "").toLowerCase();
+    const nameLower = (product.name || "").toLowerCase();
+    return (
+      categorySlug === "calzado" ||
       categoryLower.includes("calzado") ||
-      disciplineLower.includes("running") ||
-      disciplineLower.includes("crocs")
-    ) {
-      return [
-        {
-          title: "Amortiguación Reactiva",
-          description:
-            "Espuma de retorno de energía continuo que absorbe el impacto articular y favorece la propulsión en cada pisada.",
-        },
-        {
-          title: "Malla Engineered Transpirable",
-          description:
-            "Tejido técnico con microperforaciones estratégicas que regulan el flujo de aire y previenen la humedad interna.",
-        },
-        {
-          title: "Suela Grippy Multisuperficie",
-          description:
-            "Compuesto de goma de alta resistencia al desgaste con tracción multidireccional apta para asfalto, pista y superficies lisas.",
-        },
-      ];
-    }
+      disciplineSlug === "crocs" ||
+      /zapatilla|botin|botín|ojota|sandalia|clog|croc/.test(nameLower)
+    );
+  }, [product.category, product.discipline, product.name]);
 
-    // Indumentaria general
-    return [
-      {
-        title: "Tejido Técnico Transpirable",
-        description:
-          "Fibras de ventilación avanzada que absorben el sudor y lo trasladan al exterior para mantener el cuerpo seco y fresco.",
-      },
-      {
-        title: "Costuras Planas Flatlock",
-        description:
-          "Costuras anatómicas ultra lisas desarrolladas para reducir la fricción con la piel y eliminar rozaduras durante el entrenamiento.",
-      },
-      {
-        title: "Corte Ergonómico Anatómico",
-        description:
-          "Diseño ceñido que se adapta a la silueta corporal, reduciendo la fatiga muscular sin restringir la flexibilidad.",
-      },
-    ];
-  }, [product.name, product.category, product.discipline]);
+  // Características destacadas reales guardadas en la BD (highlights)
+  const productHighlights = useMemo(() => {
+    return (product.highlights || []).filter((h) => h.title || h.text);
+  }, [product.highlights]);
+
+  // Especificaciones técnicas reales (specs) guardadas en la BD
+  const specEntries = useMemo(() => {
+    return Object.entries(product.specs || {}).filter(
+      ([k, v]) => k.trim() !== "" && v.trim() !== ""
+    );
+  }, [product.specs]);
+
+  const sanitizedDescriptionHtml = useMemo(() => {
+    if (!product.description || !product.description.includes("<")) return "";
+    return sanitizeRichHtml(product.description);
+  }, [product.description]);
+
+  const renderCareIcon = (iconKey?: string) => {
+    switch (iconKey) {
+      case "no_bleach":
+        return <BleachNoIcon />;
+      case "tumble_low":
+        return <TumbleDryLowIcon />;
+      case "no_dry_clean":
+        return <DryCleanNoIcon />;
+      case "iron_low":
+        return <IronLowIcon />;
+      case "wash_cold":
+        return <Wash30ColdIcon />;
+      case "hand_wash":
+      case "rinse_cold":
+        return <Droplets className="w-5 h-5 shrink-0 text-sky-700" />;
+      case "shade_dry":
+      case "no_heat":
+        return <Sun className="w-5 h-5 shrink-0 text-amber-600" />;
+      case "wipe_clean":
+      default:
+        return <Check className="w-5 h-5 shrink-0 text-emerald-700" />;
+    }
+  };
 
   // Acciones de Carrito
   const pushVariantToCart = (qty: number): boolean => {
@@ -835,19 +836,17 @@ export function ProductDetailView({
                   Talle: <span className="font-extrabold text-slate-950 ml-1">{selectedSize}</span>
                 </div>
 
-                {/* Enlace Guía de talles */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("talles");
-                    const el = document.getElementById("apartados-inferiores");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-slate-950 underline underline-offset-2 cursor-pointer"
-                >
-                  <Ruler className="w-3.5 h-3.5" />
-                  <span>Guía de talles</span>
-                </button>
+                {/* Enlace Guía de talles (solo si tiene guía asignada) */}
+                {hasSizeGuide && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSizeGuideModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-slate-950 underline underline-offset-2 cursor-pointer"
+                  >
+                    <Ruler className="w-3.5 h-3.5" />
+                    <span>Guía de talles</span>
+                  </button>
+                )}
               </div>
 
               {/* Botones de Talles */}
@@ -1021,603 +1020,298 @@ export function ProductDetailView({
 
         {/* =========================================================================
             4. APARTADOS INFERIORES: PESTAÑAS INTERACTIVAS
-            - DESCRIPCIÓN
-            - LAVADO Y CUIDADO
-            - TABLA DE TALLES
-            - VALORACIONES (44) ★★★★★
+            - DESCRIPCIÓN (siempre visible: resumen, texto rico, destacados y specs)
+            - CUIDADOS (solo si el producto tiene CareGuide asignada en BD)
+            - TABLA DE TALLES (solo si el producto tiene SizeGuide asignada en BD)
            ========================================================================= */}
         <section id="apartados-inferiores" className="mt-14 sm:mt-20 pt-8 border-t border-slate-200">
           {/* Barra de Pestañas Superior */}
-          <div className="flex items-center gap-6 sm:gap-10 border-b border-slate-200 overflow-x-auto scrollbar-none pb-0 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
+          <div
+            role="tablist"
+            aria-label="Información detallada del producto"
+            className="flex items-center gap-6 sm:gap-8 border-b border-slate-200 overflow-x-auto scrollbar-none pb-0 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500"
+          >
             <button
+              id="tab-descripcion"
               type="button"
+              role="tab"
+              aria-selected={effectiveActiveTab === "descripcion"}
               onClick={() => setActiveTab("descripcion")}
-              className={`pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === "descripcion"
-                  ? "border-slate-950 text-slate-950 font-extrabold"
-                  : "border-transparent hover:text-slate-950"
-              }`}
+              className="pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 border-transparent hover:text-slate-950 aria-selected:border-slate-950 aria-selected:text-slate-950 aria-selected:font-extrabold"
             >
               Descripción
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("cuidados")}
-              className={`pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === "cuidados"
-                  ? "border-slate-950 text-slate-950 font-extrabold"
-                  : "border-transparent hover:text-slate-950"
-              }`}
-            >
-              Lavado y Cuidado
-            </button>
+            {hasCareGuide && (
+              <button
+                id="tab-cuidados"
+                type="button"
+                role="tab"
+                aria-selected={effectiveActiveTab === "cuidados"}
+                onClick={() => setActiveTab("cuidados")}
+                className="pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 border-transparent hover:text-slate-950 aria-selected:border-slate-950 aria-selected:text-slate-950 aria-selected:font-extrabold"
+              >
+                Cuidados
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("talles")}
-              className={`pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === "talles"
-                  ? "border-slate-950 text-slate-950 font-extrabold"
-                  : "border-transparent hover:text-slate-950"
-              }`}
-            >
-              Tabla de Talles
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("valoraciones")}
-              className={`pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === "valoraciones"
-                  ? "border-slate-950 text-slate-950 font-extrabold"
-                  : "border-transparent hover:text-slate-950"
-              }`}
-            >
-              <span>Valoraciones (44)</span>
-              <span className="text-amber-500 text-xs font-normal">★★★★★</span>
-            </button>
+            {hasSizeGuide && (
+              <button
+                id="tab-talles"
+                type="button"
+                role="tab"
+                aria-selected={effectiveActiveTab === "talles"}
+                onClick={() => setActiveTab("talles")}
+                className="pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 border-transparent hover:text-slate-950 aria-selected:border-slate-950 aria-selected:text-slate-950 aria-selected:font-extrabold"
+              >
+                Tabla de Talles
+              </button>
+            )}
           </div>
 
           {/* CONTENIDO DE CADA PESTAÑA */}
           <div className="py-8">
             {/* ----------------- PESTAÑA 1: DESCRIPCIÓN ----------------- */}
-            {activeTab === "descripcion" && (
-              <div className="max-w-4xl space-y-6 text-xs sm:text-sm text-slate-700 leading-relaxed">
+            {effectiveActiveTab === "descripcion" && (
+              <div
+                role="tabpanel"
+                aria-labelledby="tab-descripcion"
+                className="max-w-4xl space-y-6 text-xs sm:text-sm text-slate-700 leading-relaxed"
+              >
                 <div className="space-y-3">
                   <h3 className="text-base sm:text-lg font-extrabold uppercase text-slate-950 tracking-tight">
                     {product.name}
                   </h3>
+
+                  {product.shortDescription && (
+                    <p className="font-semibold text-slate-900 text-sm sm:text-base leading-relaxed">
+                      {product.shortDescription}
+                    </p>
+                  )}
+
                   {product.description ? (
                     product.description.includes("<") ? (
                       <div
                         className="text-slate-700 leading-relaxed [&>p]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>h3]:font-bold [&>h4]:font-bold"
-                        dangerouslySetInnerHTML={{ __html: product.description }}
+                        dangerouslySetInnerHTML={{ __html: sanitizedDescriptionHtml }}
                       />
                     ) : (
                       <p className="whitespace-pre-line">{product.description}</p>
                     )
                   ) : (
-                    <p>
-                      Diseñado para atletas y entusiastas del deporte que buscan el equilibrio definitivo entre respuesta, confort y soporte. Cada costura y material ha sido testeado en condiciones reales de entrenamiento para garantizar durabilidad insuperable y confort durante todo el día.
+                    !product.shortDescription && (
+                      <p className="text-slate-600">
+                        {product.name} de {product.brand.name}, categoría {product.category.name}. Producto 100% original con respaldo y garantía oficial de Matacos Deportes (Saavedra 241, Formosa Capital).
+                      </p>
+                    )
+                  )}
+                </div>
+
+                {/* Apartado de Características Destacadas / Tecnología reales de la BD */}
+                {productHighlights.length > 0 && (
+                  <div className="pt-6 border-t border-slate-200 space-y-3">
+                    <h4 className="text-sm sm:text-base font-extrabold uppercase tracking-tight text-slate-950 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span>Características Destacadas</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                      {productHighlights.map((h, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-1.5 hover:border-emerald-300 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 font-bold text-xs text-slate-950">
+                            <HighlightIcon
+                              icon={
+                                h.isCustomIcon && h.icon
+                                  ? h.icon
+                                  : getSmartHighlightIcon(h.title, h.text)
+                              }
+                              className="w-4 h-4 text-emerald-600 shrink-0"
+                            />
+                            <span>{h.title}</span>
+                          </div>
+                          {h.text && (
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {h.text}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Especificaciones técnicas reales (specs) guardadas en la BD (sin peso/dimensiones logísticas) */}
+                {specEntries.length > 0 && (
+                  <div className="pt-6 border-t border-slate-200 space-y-3">
+                    <h4 className="text-sm sm:text-base font-extrabold uppercase tracking-tight text-slate-950 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-emerald-600" />
+                      <span>Especificaciones Técnicas</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {specEntries.map(([key, val]) => (
+                        <div
+                          key={key}
+                          className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80"
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            {key}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 block">
+                            {val}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ----------------- PESTAÑA 2: CUIDADOS (CareGuide BD) ----------------- */}
+            {effectiveActiveTab === "cuidados" && hasCareGuide && product.careGuide && (
+              <div
+                role="tabpanel"
+                aria-labelledby="tab-cuidados"
+                className="max-w-4xl space-y-6"
+              >
+                <div className="space-y-2">
+                  <span className="text-[11px] font-black tracking-widest text-emerald-700 uppercase block">
+                    GUÍA DE CUIDADOS • {product.careGuide.type.replace("_", " ")}
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-950">
+                    {product.careGuide.name}
+                  </h3>
+                  {product.careGuide.summary && (
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      {product.careGuide.summary}
                     </p>
                   )}
-                  <ul className="list-disc list-inside space-y-1.5 text-slate-600 pt-1">
-                    <li>Capellada técnica de malla transpirable con refuerzos estratégicos.</li>
-                    <li>Amortiguación reactiva con retorno de energía constante en cada uso.</li>
-                    <li>Suela de alta tracción apta para múltiples superficies y uso intensivo.</li>
-                    <li>Ajuste ceñido ergonómico para reducir fatiga muscular.</li>
-                  </ul>
                 </div>
 
-                {/* Apartado de Tecnología */}
-                <div className="pt-6 border-t border-slate-200 space-y-3">
-                  <h4 className="text-sm sm:text-base font-extrabold uppercase tracking-tight text-slate-950 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span>Tecnología</span>
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
-                    {technologiesList.map((t, idx) => (
+                {product.careGuide.instructions.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {product.careGuide.instructions.map((inst, idx) => (
                       <div
                         key={idx}
-                        className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-1 hover:border-emerald-300 transition-colors"
+                        className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 text-xs sm:text-sm text-slate-700"
                       >
-                        <div className="flex items-center gap-2 font-bold text-xs text-slate-950">
-                          <Zap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>{t.title}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                          {t.description}
-                        </p>
+                        <div className="mt-0.5 shrink-0">{renderCareIcon(inst.icon)}</div>
+                        <span className="leading-relaxed">{inst.text}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* ----------------- PESTAÑA 2: LAVADO Y CUIDADO ----------------- */}
-            {activeTab === "cuidados" && (
-              <div className="max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Columna Izquierda: Instrucciones con Iconos */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
-                    INSTRUCCIONES DE LAVADO
-                  </h3>
-                  <div className="space-y-3.5 text-xs text-slate-700">
-                    <div className="flex items-center gap-3">
-                      <BleachNoIcon />
-                      <span>No usar blanqueador</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <TumbleDryLowIcon />
-                      <span>Puede utilizarse secadora en temperatura baja.</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <DryCleanNoIcon />
-                      <span>No lavar en seco.</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <IronLowIcon />
-                      <span>Planchar a temperatura baja.</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Wash30ColdIcon />
-                      <span>Lavar a máquina en temperatura fría (30°C).</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Columna Derecha: Información Adicional sobre el Cuidado */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-950 font-mono">
-                    INFORMACIÓN ADICIONAL SOBRE EL CUIDADO
-                  </h3>
-                  <ul className="space-y-2 text-xs text-slate-700 list-none">
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>Lavar a máquina dentro de bolsa para lavar ropa</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>Lavar con cierres y abrojos ajustados</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>Usar únicamente detergente suave</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>No planchar las cintas ni estampas termoselladas</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>Retirar rápidamente del tambor después de lavar</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>No usar suavizante textil</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-slate-900 font-bold">•</span>
-                      <span>Lavar por separado del revés</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* ----------------- PESTAÑA 3: TABLA DE TALLES ----------------- */}
-            {activeTab === "talles" && (
-              <div className="max-w-4xl space-y-8">
-                {/* Tabla 1: CALZAS, SHORTS, JOGGERS */}
-                <div className="space-y-2.5">
-                  <div className="text-center sm:text-left">
-                    <span className="text-xs font-black tracking-widest text-slate-500 uppercase block">
-                      INDUMENTARIA INFERIOR
+                {product.careGuide.warning && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Atención:</strong> {product.careGuide.warning}
                     </span>
-                    <h4 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
-                      CALZAS • SHORTS • JOGGERS • PANTALONES
-                    </h4>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border border-slate-200 rounded overflow-hidden">
-                      <thead className="bg-slate-50 text-slate-900 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                )}
+              </div>
+            )}
+
+            {/* ----------------- PESTAÑA 3: TABLA DE TALLES (SizeGuide BD) ----------------- */}
+            {effectiveActiveTab === "talles" && hasSizeGuide && product.sizeGuide && (
+              <div
+                role="tabpanel"
+                aria-labelledby="tab-talles"
+                className="max-w-4xl space-y-6"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-black tracking-widest text-emerald-700 uppercase block">
+                      GUÍA ASIGNADA AL PRODUCTO • {product.sizeGuide.type.replace("_", " ")}
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-950">
+                      {product.sizeGuide.name}
+                    </h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                    Unidad: {product.sizeGuide.unit || "cm"}
+                  </span>
+                </div>
+
+                {product.sizeGuide.fitNote && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Nota de calce:</strong> {product.sizeGuide.fitNote}
+                    </span>
+                  </div>
+                )}
+
+                {product.sizeGuide.guideImage && (
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-3">
+                    <img
+                      src={product.sizeGuide.guideImage}
+                      alt={product.sizeGuide.name}
+                      className="w-full max-h-96 object-contain rounded-xl"
+                    />
+                  </div>
+                )}
+
+                {product.sizeGuide.columns.length > 0 && product.sizeGuide.rows.length > 0 && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-left text-xs sm:text-sm">
+                      <thead className="bg-slate-100 text-slate-900 font-extrabold uppercase text-[11px] tracking-wider border-b border-slate-200">
                         <tr>
-                          <th className="p-2 sm:p-2.5">TALLE</th>
-                          <th className="p-2 sm:p-2.5">EQUIVALENCIA</th>
-                          <th className="p-2 sm:p-2.5">PANTALÓN</th>
-                          <th className="p-2 sm:p-2.5">1. CINTURA</th>
-                          <th className="p-2 sm:p-2.5">2. CADERA</th>
-                          <th className="p-2 sm:p-2.5">3. TIRO</th>
+                          {product.sizeGuide.columns.map((col) => (
+                            <th key={col} className="p-2.5 sm:p-3 whitespace-nowrap">
+                              {col}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        <tr>
-                          <td className="p-2 sm:p-2.5 font-bold">XS</td>
-                          <td className="p-2 sm:p-2.5">0</td>
-                          <td className="p-2 sm:p-2.5">30-32</td>
-                          <td className="p-2 sm:p-2.5">61-66cm</td>
-                          <td className="p-2 sm:p-2.5">86-91cm</td>
-                          <td className="p-2 sm:p-2.5">78cm</td>
-                        </tr>
-                        <tr className="bg-slate-50/40">
-                          <td className="p-2 sm:p-2.5 font-bold">S</td>
-                          <td className="p-2 sm:p-2.5">1</td>
-                          <td className="p-2 sm:p-2.5">34-36</td>
-                          <td className="p-2 sm:p-2.5">67-72cm</td>
-                          <td className="p-2 sm:p-2.5">92-97cm</td>
-                          <td className="p-2 sm:p-2.5">78.5cm</td>
-                        </tr>
-                        <tr>
-                          <td className="p-2 sm:p-2.5 font-bold">M</td>
-                          <td className="p-2 sm:p-2.5">2</td>
-                          <td className="p-2 sm:p-2.5">38-40</td>
-                          <td className="p-2 sm:p-2.5">73-78cm</td>
-                          <td className="p-2 sm:p-2.5">98-103cm</td>
-                          <td className="p-2 sm:p-2.5">79cm</td>
-                        </tr>
-                        <tr className="bg-slate-50/40">
-                          <td className="p-2 sm:p-2.5 font-bold">L</td>
-                          <td className="p-2 sm:p-2.5">3</td>
-                          <td className="p-2 sm:p-2.5">42-44</td>
-                          <td className="p-2 sm:p-2.5">79-85cm</td>
-                          <td className="p-2 sm:p-2.5">104-110cm</td>
-                          <td className="p-2 sm:p-2.5">79.5cm</td>
-                        </tr>
-                        <tr>
-                          <td className="p-2 sm:p-2.5 font-bold">XL</td>
-                          <td className="p-2 sm:p-2.5">4</td>
-                          <td className="p-2 sm:p-2.5">46-48</td>
-                          <td className="p-2 sm:p-2.5">86-96cm</td>
-                          <td className="p-2 sm:p-2.5">111-118cm</td>
-                          <td className="p-2 sm:p-2.5">80cm</td>
-                        </tr>
-                        <tr className="bg-slate-50/40">
-                          <td className="p-2 sm:p-2.5 font-bold">XXL</td>
-                          <td className="p-2 sm:p-2.5">5</td>
-                          <td className="p-2 sm:p-2.5">50-52</td>
-                          <td className="p-2 sm:p-2.5">97-104cm</td>
-                          <td className="p-2 sm:p-2.5">119-125cm</td>
-                          <td className="p-2 sm:p-2.5">80.5cm</td>
-                        </tr>
+                        {product.sizeGuide.rows.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className={idx % 2 === 1 ? "bg-slate-50/50" : "bg-white"}
+                          >
+                            {product.sizeGuide!.columns.map((col, cIdx) => (
+                              <td
+                                key={col}
+                                className={`p-2.5 sm:p-3 whitespace-nowrap ${
+                                  cIdx === 0 ? "font-bold text-slate-950" : ""
+                                }`}
+                              >
+                                {row[col] || "-"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
+                )}
 
-                {/* Tabla 2: TOPS, REMERAS, CAMPERAS */}
-                <div className="space-y-2.5">
-                  <div className="text-center sm:text-left">
-                    <span className="text-xs font-black tracking-widest text-slate-500 uppercase block">
-                      INDUMENTARIA SUPERIOR
-                    </span>
-                    <h4 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
-                      TOPS • REMERAS • CAMPERAS • BUZOS
-                    </h4>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border border-slate-200 rounded overflow-hidden">
-                      <thead className="bg-slate-50 text-slate-900 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200">
-                        <tr>
-                          <th className="p-2 sm:p-2.5">TALLE</th>
-                          <th className="p-2 sm:p-2.5">CORPIÑO</th>
-                          <th className="p-2 sm:p-2.5">BRA COPA</th>
-                          <th className="p-2 sm:p-2.5">BUSTO</th>
-                          <th className="p-2 sm:p-2.5">ABAJO BUSTO</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        <tr>
-                          <td className="p-2 sm:p-2.5 font-bold">S</td>
-                          <td className="p-2 sm:p-2.5">80-85</td>
-                          <td className="p-2 sm:p-2.5">34 B-DD</td>
-                          <td className="p-2 sm:p-2.5">84-88cm</td>
-                          <td className="p-2 sm:p-2.5">68-72cm</td>
-                        </tr>
-                        <tr className="bg-slate-50/40">
-                          <td className="p-2 sm:p-2.5 font-bold">M</td>
-                          <td className="p-2 sm:p-2.5">85-90</td>
-                          <td className="p-2 sm:p-2.5">36 B-DD</td>
-                          <td className="p-2 sm:p-2.5">89-93cm</td>
-                          <td className="p-2 sm:p-2.5">73-77cm</td>
-                        </tr>
-                        <tr>
-                          <td className="p-2 sm:p-2.5 font-bold">L</td>
-                          <td className="p-2 sm:p-2.5">90-95</td>
-                          <td className="p-2 sm:p-2.5">38 A-C</td>
-                          <td className="p-2 sm:p-2.5">94-98cm</td>
-                          <td className="p-2 sm:p-2.5">78-82cm</td>
-                        </tr>
-                        <tr className="bg-slate-50/40">
-                          <td className="p-2 sm:p-2.5 font-bold">XL</td>
-                          <td className="p-2 sm:p-2.5">95-105</td>
-                          <td className="p-2 sm:p-2.5">38 D-DD</td>
-                          <td className="p-2 sm:p-2.5">99-103cm</td>
-                          <td className="p-2 sm:p-2.5">83-87cm</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Sección de Instrucciones de Medición con Siluetas */}
-                <div className="pt-6 border-t border-slate-200">
-                  <p className="text-xs sm:text-sm font-semibold text-slate-800 mb-4">
-                    Para saber cuál es tu talle, sigue los siguientes pasos:
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                    <div className="md:col-span-7 space-y-4 text-xs sm:text-sm text-slate-700">
-                      <div>
-                        <p className="font-extrabold text-slate-900 tracking-tight">■ 1. PECHO</p>
-                        <p className="text-slate-600 mt-0.5">
-                          Medí alrededor de la parte más ancha del pecho, manteniendo la cinta métrica horizontal sin apretar.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-extrabold text-slate-900 tracking-tight">■ 2. CINTURA</p>
-                        <p className="text-slate-600 mt-0.5">
-                          Rodeá la parte más estrecha de tu cintura con la cinta métrica en posición recta.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-extrabold text-slate-900 tracking-tight">■ 3. CADERA</p>
-                        <p className="text-slate-600 mt-0.5">
-                          Parate con los pies juntos y rodeá tus caderas con la cinta métrica en la parte de mayor volumen.
-                        </p>
-                      </div>
+                {product.sizeGuide.type === "CALZADO" && (
+                  <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="md:col-span-7 space-y-2 text-xs text-slate-600">
+                      <h4 className="font-extrabold text-slate-900 uppercase tracking-tight text-xs sm:text-sm">
+                        ¿Cómo medir tu pie en casa?
+                      </h4>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>Colocá una hoja de papel en el suelo pegada a la pared.</li>
+                        <li>Apoyá tu pie descalzo con el talón firme contra la pared.</li>
+                        <li>Marcá con un lápiz vertical hasta dónde llega tu dedo más largo.</li>
+                        <li>Medí la distancia en centímetros y comparala con la columna de largo de pie.</li>
+                      </ol>
                     </div>
-
-                    {/* Siluetas Hombre y Mujer cargadas desde /public/images/talles */}
-                    <div className="md:col-span-5 flex items-center justify-center gap-4 py-3 px-4 bg-slate-50/80 rounded-xl border border-slate-100">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                          Hombre
-                        </span>
-                        <div className="h-44 sm:h-52 w-auto overflow-hidden rounded-md flex items-center justify-center bg-white p-1 border border-slate-200 shadow-2xs">
-                          <img
-                            src="/images/talles/guia-talles-hombre.jpg"
-                            alt="Guía de talles Hombre - Pecho, Cintura, Cadera"
-                            className="h-full w-auto object-contain"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-center">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                          Mujer
-                        </span>
-                        <div className="h-44 sm:h-52 w-auto overflow-hidden rounded-md flex items-center justify-center bg-white p-1 border border-slate-200 shadow-2xs">
-                          <img
-                            src="/images/talles/guia-talles-mujer.jpg"
-                            alt="Guía de talles Mujer - Pecho, Cintura, Cadera"
-                            className="h-full w-auto object-contain"
-                          />
-                        </div>
-                      </div>
+                    <div className="md:col-span-5 rounded-xl border border-slate-200 bg-slate-50 p-2 flex items-center justify-center">
+                      <img
+                        src="/images/talles/guia-talles-medidas.png"
+                        alt="Instructivo para medir tu pie"
+                        className="max-h-44 w-auto object-contain"
+                      />
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ----------------- PESTAÑA 4: VALORACIONES ----------------- */}
-            {activeTab === "valoraciones" && (
-              <div className="space-y-8 max-w-4xl">
-                {/* Cabecera de Valoraciones */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-6">
-                  <div className="flex items-center gap-3">
-                    <span className="text-4xl font-extrabold text-slate-950">4.8</span>
-                    <div>
-                      <div className="text-amber-500 text-lg">★★★★★</div>
-                      <span className="text-xs text-slate-500 font-medium">
-                        Basado en 44 opiniones verificadas
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsWritingReview(true)}
-                    className="px-5 py-2.5 rounded border border-slate-900 text-slate-900 hover:bg-slate-950 hover:text-white font-bold text-xs uppercase tracking-wider transition-colors self-start sm:self-auto cursor-pointer flex items-center gap-2"
-                  >
-                    <span>Escribir una reseña</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Dimensiones / Sliders de Calidad y Ajuste */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-extrabold text-slate-900 block">Comodidad</span>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-slate-900 w-[92%]" />
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                      <span>Deficiente</span>
-                      <span className="font-bold text-slate-900">Excelente (92%)</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-extrabold text-slate-900 block">Calidad</span>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-slate-900 w-[95%]" />
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                      <span>Deficiente</span>
-                      <span className="font-bold text-slate-900">Excelente (95%)</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-extrabold text-slate-900 block">Ajuste</span>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-slate-900 w-[50%] ml-[25%]" />
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                      <span>Ajustado</span>
-                      <span className="font-bold text-slate-900">Perfecto (Calce Real)</span>
-                      <span>Holgado</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-extrabold text-slate-900 block">Longitud</span>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-slate-900 w-[50%] ml-[25%]" />
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                      <span>Corta</span>
-                      <span className="font-bold text-slate-900">Exacta a la Guía</span>
-                      <span>Larga</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Caja de "Lo que dicen las reseñas" (Resumen Asistido por IA) */}
-                <div className="p-4 sm:p-5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-tight">
-                      Lo que dicen las reseñas
-                    </h4>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Este resumen es generado por inteligencia artificial analizando opiniones de clientes reales.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-700">
-                    <ul className="space-y-2">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Los clientes elogian la amortiguación ligera y el confort térmico durante todo el día.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Muchos destacan la estética versátil que combina fácilmente para entrenamiento y uso urbano.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>La mayoría aprecia la suela con buen agarre tanto en asfalto como en el gimnasio.</span>
-                      </li>
-                    </ul>
-                    <ul className="space-y-2">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Recomiendan guiarse por la tabla de medidas de la ficha para elegir el calce ideal.</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-900 font-bold">•</span>
-                        <span>Excelente atención y rapidez al retirar en el local de Saavedra 241, Formosa.</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Barra de Filtros y Orden */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-bold text-slate-700 mr-1">Filtrar por estrellas:</span>
-                    {[5, 4, 3, 2, 1].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() =>
-                          setSelectedStarFilter(selectedStarFilter === star ? null : star)
-                        }
-                        className={`px-2.5 py-1 rounded text-xs font-bold border transition-colors cursor-pointer ${
-                          selectedStarFilter === star
-                            ? "bg-slate-950 text-white border-slate-950"
-                            : "bg-white text-slate-700 border-slate-300 hover:border-slate-500"
-                        }`}
-                      >
-                        ★ {star}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-700">Ordenar por:</span>
-                    <select
-                      value={reviewSort}
-                      onChange={(e) => setReviewSort(e.target.value)}
-                      className="h-8 px-2.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="novedades">Novedades</option>
-                      <option value="mas-alta">Calificación más alta</option>
-                      <option value="mas-baja">Calificación más baja</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Lista de Reseñas de Clientes */}
-                <div className="space-y-6 divide-y divide-slate-100 pt-2">
-                  <div className="space-y-2 pt-4">
-                    <div className="flex items-center gap-2">
-                      <div className="text-amber-500 text-xs">★★★★★</div>
-                      <span className="text-xs font-black text-slate-900">Yohanaoje</span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
-                        ✓ Comprador verificado
-                      </span>
-                      <span className="text-[11px] text-slate-400">• 25 de septiembre de 2026</span>
-                    </div>
-                    <h5 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                      Muy lindo, excelente calidad
-                    </h5>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Me gustó mucho el material y la comodidad al usarlo todo el día. El calce es perfecto y la atención al retirar en el local de Saavedra fue súper rápida.
-                    </p>
-                    <div className="flex items-center gap-4 text-[11px] text-slate-500 pt-1">
-                      <span>¿Te resultó útil?</span>
-                      <button
-                        type="button"
-                        className="hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-                      >
-                        <ThumbsUp className="w-3 h-3" /> <span>4</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-                      >
-                        <ThumbsDown className="w-3 h-3" /> <span>0</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-6">
-                    <div className="flex items-center gap-2">
-                      <div className="text-amber-500 text-xs">★★★★★</div>
-                      <span className="text-xs font-black text-slate-900">Samy</span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
-                        ✓ Comprador verificado
-                      </span>
-                      <span className="text-[11px] text-slate-400">• 23 de agosto de 2026</span>
-                    </div>
-                    <h5 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                      Súper cómodas para entrenar
-                    </h5>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      La amortiguación se nota desde el primer día. Las uso para correr y el calce es impecable. Recomiendo seguir la tabla de medidas al pie de la letra.
-                    </p>
-                    <div className="flex items-center gap-4 text-[11px] text-slate-500 pt-1">
-                      <span>¿Te resultó útil?</span>
-                      <button
-                        type="button"
-                        className="hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-                      >
-                        <ThumbsUp className="w-3 h-3" /> <span>2</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-                      >
-                        <ThumbsDown className="w-3 h-3" /> <span>0</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -1930,126 +1624,16 @@ export function ProductDetailView({
         </div>
       )}
 
-      {/* 8. Modal para Escribir una Reseña */}
-      {isWritingReview && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setIsWritingReview(false)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-5 relative max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Escribir una reseña
-                </h3>
-                <p className="text-xs text-slate-500">{product.name}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsWritingReview(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {reviewSubmitted ? (
-              <div className="text-center py-6 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
-                  <Check className="w-6 h-6 stroke-[3]" />
-                </div>
-                <h4 className="font-extrabold text-slate-900">¡Muchas gracias por tu reseña!</h4>
-                <p className="text-xs text-slate-600">
-                  Tu opinión fue registrada y será publicada una vez verificada.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsWritingReview(false);
-                    setReviewSubmitted(false);
-                  }}
-                  className="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wider"
-                >
-                  Cerrar
-                </button>
-              </div>
-            ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setReviewSubmitted(true);
-                }}
-                className="space-y-4 text-xs"
-              >
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Puntuación general</label>
-                  <div className="flex items-center gap-2 text-xl text-amber-500 cursor-pointer">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <span key={s} className="hover:scale-110 transition-transform">
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Título de la reseña</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Excelente calidad y calce perfecto"
-                    className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Tu opinión</label>
-                  <textarea
-                    rows={4}
-                    required
-                    placeholder="Contanos tu experiencia con el producto, materiales, calce y comodidad..."
-                    className="w-full p-3 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-slate-900 resize-none"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Tu nombre</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Sofía"
-                    className="w-full h-10 px-3 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-slate-900"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full h-11 bg-slate-950 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                >
-                  Enviar reseña
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
+      {/* 8. Size Guide Modal Rápido (solo si tiene guía asignada) */}
+      {hasSizeGuide && (
+        <SizeGuideModal
+          isOpen={isSizeGuideModalOpen}
+          onClose={() => setIsSizeGuideModalOpen(false)}
+          gender={product.gender}
+          sizeGuide={product.sizeGuide}
+          defaultTab={isFootwear ? "calzado" : "indumentaria"}
+        />
       )}
-
-      {/* 9. Size Guide Modal Rápido */}
-      <SizeGuideModal
-        isOpen={isSizeGuideModalOpen}
-        onClose={() => setIsSizeGuideModalOpen(false)}
-        gender={product.gender}
-        defaultTab={
-          product.discipline?.slug === "crocs" || product.category?.slug === "calzado"
-            ? "calzado"
-            : "indumentaria"
-        }
-      />
     </div>
   );
 }

@@ -12,6 +12,20 @@ export interface SizeGuideItem {
   guideImage?: string | null;
 }
 
+export interface CareInstructionItem {
+  icon?: string;
+  text: string;
+}
+
+export interface CareGuideItem {
+  id: string;
+  name: string;
+  type: string;
+  summary?: string | null;
+  instructions: CareInstructionItem[];
+  warning?: string | null;
+}
+
 export interface ProductVariantItem {
   id?: string;
   size: string;
@@ -65,9 +79,11 @@ export interface WizardFormState {
   highlights: HighlightItem[];
   specs: Record<string, string>;
 
-  // Paso 5: Guía de Talles
+  // Paso 5: Guía de Talles y Cuidados
   useSizeGuide: boolean;
   sizeGuideId?: string | null;
+  useCareGuide: boolean;
+  careGuideId?: string | null;
 
   // Paso 6: Variantes y Stock
   variants: ProductVariantItem[];

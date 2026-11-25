@@ -82,12 +82,32 @@ export const ProductImageSchema = z.object({
   order: z.number().int().default(0),
 });
 
+export const HighlightItemSchema = z.object({
+  icon: z.string().default("zap"),
+  title: z.string().trim().min(1, "El título de la característica es requerido"),
+  text: z.string().trim().default(""),
+  isCustomIcon: z.boolean().optional(),
+});
+
+export const ProductDimensionsSchema = z.object({
+  length: z.number().min(0).optional(),
+  width: z.number().min(0).optional(),
+  height: z.number().min(0).optional(),
+});
+
 /**
  * Esquema para CREAR un Producto completo con sus variantes e imágenes
  */
 export const CreateProductSchema = z.object({
   name: z.string().min(3, "El nombre del producto debe tener al menos 3 caracteres"),
   description: z.string().nullable().optional(),
+  shortDescription: z.string().max(300).nullable().optional(),
+  highlights: z.array(HighlightItemSchema).max(10).nullable().optional(),
+  specs: z.record(z.string(), z.string()).nullable().optional(),
+  sizeGuideId: z.string().uuid("ID de guía de talles inválido").nullable().optional(),
+  careGuideId: z.string().uuid("ID de guía de cuidados inválido").nullable().optional(),
+  weightGrams: z.number().int().min(0).nullable().optional(),
+  dimensionsCm: ProductDimensionsSchema.nullable().optional(),
   imageUrl: z.string().nullable().optional(),
   modelCode: z.string().nullable().optional(),
   disciplineId: z.string().uuid("Debe seleccionar una disciplina válida"),
