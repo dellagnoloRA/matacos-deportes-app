@@ -24,7 +24,13 @@ import {
   LogOut,
   Lock,
   ChevronRight,
+  ChevronDown,
   Store,
+  Volleyball,
+  Footprints,
+  Dumbbell,
+  Bike,
+  Shirt,
 } from "lucide-react";
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
 import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
@@ -41,6 +47,133 @@ const ANNOUNCEMENTS = [
   { icon: MapPin, text: "Retiro gratis en Saavedra 241, Formosa", highlight: false },
   { icon: Flame, text: "Hasta 40% OFF en Ofertas de temporada", highlight: true },
   { icon: ShieldCheck, text: "Garantía oficial y cambio en el local", highlight: false },
+];
+
+export interface MatacosDisciplineNavItem {
+  name: string;
+  slug: string;
+  subtitle: string;
+  badge?: string;
+  icon: React.ReactNode;
+}
+
+export const MATACOS_DISCIPLINES: MatacosDisciplineNavItem[] = [
+  {
+    name: "Natación",
+    slug: "natacion",
+    subtitle: "Speedo, Arena y mallas",
+    badge: "Insignia",
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 17c1.5 1 3 1 4.5 0 1.5-1 3-1 4.5 0 1.5 1 3 1 4.5 0 1.5-1 3-1 4.5 0" />
+        <path d="M2 21c1.5 1 3 1 4.5 0 1.5-1 3-1 4.5 0 1.5 1 3 1 4.5 0 1.5-1 3-1 4.5 0" />
+        <path d="M18 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+        <path d="m5 12 5-3 4 2 4-2" />
+      </svg>
+    ),
+  },
+  {
+    name: "Vóley",
+    slug: "voley",
+    subtitle: "Mikasa FIVB y rodilleras",
+    badge: "Insignia",
+    icon: <Volleyball className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Crocs",
+    slug: "crocs",
+    subtitle: "Clogs, sandalias y slides",
+    badge: "Oficial",
+    icon: <Footprints className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Fitness & Gym",
+    slug: "fitness",
+    subtitle: "Musculación y funcional",
+    badge: "Insignia",
+    icon: <Dumbbell className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Running",
+    slug: "running-urbano",
+    subtitle: "Calzado e indumentaria",
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="14" cy="4" r="2" />
+        <path d="m14 10-3 3-4-1" />
+        <path d="m13 10 3 3 4-1" />
+        <path d="m11 13-2 5-4 1" />
+        <path d="m14 13 2 4 4 2" />
+      </svg>
+    ),
+  },
+  {
+    name: "Pádel",
+    slug: "padel",
+    subtitle: "Paletas y pelotas pro",
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="9" r="6" />
+        <path d="M12 15v7" />
+        <circle cx="10" cy="8" r="0.8" fill="currentColor" />
+        <circle cx="14" cy="8" r="0.8" fill="currentColor" />
+        <circle cx="12" cy="10" r="0.8" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    name: "Fútbol",
+    slug: "futbol",
+    subtitle: "Balones, canilleras y guantes",
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="m12 7 3.5 2.5-1.5 4h-4l-1.5-4z" />
+        <path d="M12 2v5" />
+        <path d="m20.5 7.5-5 2" />
+        <path d="m17 19-3-5.5" />
+        <path d="m7 19 3-5.5" />
+        <path d="m3.5 7.5 5 2" />
+      </svg>
+    ),
+  },
+  {
+    name: "Básquet",
+    slug: "basquet",
+    subtitle: "Balones e indumentaria",
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10" />
+        <path d="M12 2a15.3 15.3 0 0 0-4 10 15.3 15.3 0 0 0 4 10" />
+        <path d="M2 12h20" />
+      </svg>
+    ),
+  },
+  {
+    name: "Ciclismo",
+    slug: "ciclismo",
+    subtitle: "Cascos y accesorios",
+    icon: <Bike className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Indumentaria",
+    slug: "indumentaria",
+    subtitle: "Remeras, shorts y calzas",
+    icon: <Shirt className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Accesorios",
+    slug: "accesorios",
+    subtitle: "Mochilas, bolsos y termos",
+    icon: <Package className="w-8 h-8" strokeWidth={1.8} />,
+  },
+  {
+    name: "Ver Todo",
+    slug: "all",
+    subtitle: "Catálogo completo",
+    icon: <ChevronRight className="w-8 h-8" strokeWidth={1.8} />,
+  },
 ];
 
 interface EcommerceHeaderProps {
@@ -84,6 +217,34 @@ export function EcommerceHeader({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  // Estados y referencias para el megamenú desplegable de Disciplinas (estilo Solo Deportes)
+  const [isDisciplinesOpen, setIsDisciplinesOpen] = useState(false);
+  const [isMobileDisciplinesOpen, setIsMobileDisciplinesOpen] = useState(false);
+  const disciplinesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const disciplinesContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleDisciplinesMouseEnter = () => {
+    if (disciplinesTimeoutRef.current) {
+      clearTimeout(disciplinesTimeoutRef.current);
+      disciplinesTimeoutRef.current = null;
+    }
+    setIsDisciplinesOpen(true);
+  };
+
+  const handleDisciplinesMouseLeave = () => {
+    disciplinesTimeoutRef.current = setTimeout(() => {
+      setIsDisciplinesOpen(false);
+    }, 180);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (disciplinesTimeoutRef.current) {
+        clearTimeout(disciplinesTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     getCurrentUserAction()
       .then((u) => {
@@ -110,15 +271,22 @@ export function EcommerceHeader({
       ) {
         setIsUserMenuOpen(false);
       }
+      if (
+        disciplinesContainerRef.current &&
+        !disciplinesContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsDisciplinesOpen(false);
+      }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsUserMenuOpen(false);
+        setIsDisciplinesOpen(false);
       }
     }
 
-    if (isUserMenuOpen) {
+    if (isUserMenuOpen || isDisciplinesOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("keydown", handleKeyDown);
     }
@@ -281,9 +449,15 @@ export function EcommerceHeader({
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8 text-[13px] font-bold tracking-wider text-slate-800 uppercase">
           <Link
             href="/"
-            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
+            className="group flex flex-col items-center pb-1 transition-all"
           >
-            <span className={pathname === "/" ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+            <span
+              className={`transition-all ${
+                pathname === "/"
+                  ? "text-[#0d4a36] font-black"
+                  : "text-slate-800 group-hover:text-[#0d4a36] group-hover:font-black"
+              }`}
+            >
               INICIO
             </span>
             {pathname === "/" && (
@@ -292,40 +466,77 @@ export function EcommerceHeader({
           </Link>
           <Link
             href="/catalogo"
-            className="group flex flex-col items-center pb-1 transition-colors hover:text-[#00A811]"
+            className="group flex flex-col items-center pb-1 transition-all"
           >
-<span className={pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos") ? "text-[#0d4a36] font-black" : "text-slate-800"}>
+            <span
+              className={`transition-all ${
+                (pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && !pathname?.startsWith("/sobre-nosotros")
+                  ? "text-[#0d4a36] font-black"
+                  : "text-slate-800 group-hover:text-[#0d4a36] group-hover:font-black"
+              }`}
+            >
               CATÁLOGO
             </span>
-            {(pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && (
+            {(pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && !pathname?.startsWith("/sobre-nosotros") && (
               <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
             )}
           </Link>
-          <Link
-            href="/catalogo?sort=disciplina"
-            className="hover:text-[#00A811] transition-colors pb-1"
+          {/* Disciplinas Menu Trigger (Desplegable interactivo al pasar el cursor) */}
+          <div
+            className="relative h-full flex items-center"
+            onMouseEnter={handleDisciplinesMouseEnter}
+            onMouseLeave={handleDisciplinesMouseLeave}
           >
-            DISCIPLINAS
+            <button
+              type="button"
+              onClick={() => {
+                setIsDisciplinesOpen((prev) => !prev);
+              }}
+              className="group flex flex-col items-center pb-1 transition-all cursor-pointer"
+              aria-expanded={isDisciplinesOpen}
+              aria-haspopup="true"
+            >
+              <span
+                className={`flex items-center gap-1 transition-all ${
+                  isDisciplinesOpen
+                    ? "text-[#0d4a36] font-black"
+                    : "text-slate-800 group-hover:text-[#0d4a36] group-hover:font-black"
+                }`}
+              >
+                <span>DISCIPLINAS</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isDisciplinesOpen
+                      ? "rotate-180 text-[#00D615]"
+                      : "text-slate-400 group-hover:text-[#0d4a36]"
+                  }`}
+                />
+              </span>
+            </button>
+          </div>
 
-          </Link>
-          <Link
-            href="/catalogo?sort=newest"
-            className="hover:text-[#00A811] transition-colors pb-1"
-          >
-            DESTACADOS
-          </Link>
           <Link
             href="/catalogo?ofertas=true"
             className="text-red-600 font-extrabold hover:text-red-700 transition-colors pb-1"
-
           >
             <span>OFERTAS</span>
           </Link>
           <Link
             href="/sobre-nosotros"
-            className="hover:text-[#00A811] transition-colors pb-1 whitespace-nowrap"
+            className="group flex flex-col items-center pb-1 transition-all whitespace-nowrap"
           >
-            <span>SOBRE NOSOTROS</span>
+            <span
+              className={`transition-all ${
+                pathname?.startsWith("/sobre-nosotros")
+                  ? "text-[#0d4a36] font-black"
+                  : "text-slate-800 group-hover:text-[#0d4a36] group-hover:font-black"
+              }`}
+            >
+              SOBRE NOSOTROS
+            </span>
+            {pathname?.startsWith("/sobre-nosotros") && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D615] mt-0.5" />
+            )}
           </Link>
         </nav>
 
@@ -714,6 +925,64 @@ export function EcommerceHeader({
         </div>
       </div>
 
+      {/* 3. Disciplinas Megamenu Popover (Hover Solo Deportes style) */}
+      <div
+        ref={disciplinesContainerRef}
+        onMouseEnter={handleDisciplinesMouseEnter}
+        onMouseLeave={handleDisciplinesMouseLeave}
+        className={`absolute left-0 right-0 top-full w-full bg-white border-t border-slate-200/90 shadow-2xl transition-all duration-200 z-50 ${
+          isDisciplinesOpen
+            ? "opacity-100 visible translate-y-0 pointer-events-auto"
+            : "opacity-0 invisible -translate-y-2 pointer-events-none"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-7 sm:py-9">
+          {/* Encabezado del megamenú */}
+          <div className="flex items-center justify-between pb-3.5 mb-6 border-b border-slate-100">
+            <div>
+              <span className="text-xs sm:text-sm font-black tracking-wider text-slate-900 uppercase">
+                Disciplinas y Deportes en Matacos
+              </span>
+            </div>
+            <Link
+              href="/catalogo"
+              onClick={() => setIsDisciplinesOpen(false)}
+              className="text-xs font-bold text-[#00A811] hover:text-[#0d4a36] hover:underline flex items-center gap-1.5 transition-colors group cursor-pointer"
+            >
+              <span>Ver todo el catálogo</span>
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+
+          {/* Cuadrícula de disciplinas estilo Solo Deportes */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {MATACOS_DISCIPLINES.map((disc) => (
+              <Link
+                key={disc.slug}
+                href={disc.slug === "all" ? "/catalogo" : `/catalogo?disciplina=${disc.slug}`}
+                onClick={() => setIsDisciplinesOpen(false)}
+                className="group flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-emerald-300 bg-white hover:bg-emerald-50/50 hover:shadow-md transition-all duration-200 text-center cursor-pointer relative"
+              >
+                {disc.badge && (
+                  <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                    {disc.badge}
+                  </span>
+                )}
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-slate-800 group-hover:text-[#00A811] group-hover:scale-110 transition-transform duration-200 mb-2">
+                  {disc.icon}
+                </div>
+                <span className="text-xs font-black tracking-wider uppercase text-slate-800 group-hover:text-[#00A811] transition-colors leading-tight">
+                  {disc.name}
+                </span>
+                <span className="text-[10px] text-slate-400 group-hover:text-slate-600 transition-colors mt-0.5 line-clamp-1">
+                  {disc.subtitle}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -736,35 +1005,78 @@ export function EcommerceHeader({
               </button>
             </div>
 
-            <nav className="flex flex-col gap-4 mt-6 text-sm font-bold uppercase tracking-wider text-slate-800">
+            <nav className="flex flex-col gap-2 mt-6 text-sm font-bold uppercase tracking-wider text-slate-800">
               <Link
                 href="/"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-[#00A811] py-2 border-b border-slate-50"
+                className={`flex items-center justify-between py-2 border-b border-slate-50 transition-colors ${
+                  pathname === "/"
+                    ? "text-[#00A811] font-black"
+                    : "text-slate-800 hover:text-[#00A811]"
+                }`}
               >
-                INICIO
+                <span>INICIO</span>
+                {pathname === "/" && (
+                  <span className="w-2 h-2 rounded-full bg-[#00D615]" />
+                )}
               </Link>
               <Link
                 href="/catalogo"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className={`flex items-center justify-between py-2 border-b border-slate-50 transition-colors ${
+                  (pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && !pathname?.startsWith("/sobre-nosotros")
+                    ? "text-[#00A811] font-black"
+                    : "text-slate-800 hover:text-[#00A811]"
+                }`}
               >
-                CATÁLOGO
+                <span>CATÁLOGO</span>
+                {(pathname?.startsWith("/catalogo") || pathname?.startsWith("/productos")) && !pathname?.startsWith("/sobre-nosotros") && (
+                  <span className="w-2 h-2 rounded-full bg-[#00D615]" />
+                )}
               </Link>
-              <Link
-                href="/catalogo?sort=disciplina"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
-              >
-                DISCIPLINAS
-              </Link>
-              <Link
-                href="/catalogo?sort=newest"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
-              >
-                DESTACADOS
-              </Link>
+
+              {/* Acordeón de Disciplinas en móvil */}
+              <div className="border-b border-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDisciplinesOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between py-2 text-slate-800 hover:text-[#00A811] font-bold text-sm tracking-wider uppercase transition-colors"
+                >
+                  <span>DISCIPLINAS</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isMobileDisciplinesOpen ? "rotate-180 text-[#00A811]" : "text-slate-400"
+                    }`}
+                  />
+                </button>
+                {isMobileDisciplinesOpen && (
+                  <div className="grid grid-cols-2 gap-2 py-2.5 px-1 animate-in fade-in duration-200">
+                    {MATACOS_DISCIPLINES.filter((d) => d.slug !== "all").map((disc) => (
+                      <Link
+                        key={disc.slug}
+                        href={`/catalogo?disciplina=${disc.slug}`}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setIsMobileDisciplinesOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-[#00A811] transition-colors"
+                      >
+                        <div className="w-4 h-4 shrink-0 flex items-center justify-center text-slate-700">
+                          {React.isValidElement(disc.icon)
+                            ? React.cloneElement(disc.icon as React.ReactElement<{ className?: string }>, {
+                                className: "w-3.5 h-3.5",
+                              })
+                            : disc.icon}
+                        </div>
+                        <span className="text-[11px] font-bold truncate">
+                          {disc.name}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Link
                 href="/catalogo?ofertas=true"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -776,9 +1088,16 @@ export function EcommerceHeader({
               <Link
                 href="/sobre-nosotros"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="hover:text-[#00A811] py-2 border-b border-slate-50 transition-colors"
+                className={`flex items-center justify-between py-2 border-b border-slate-50 transition-colors ${
+                  pathname?.startsWith("/sobre-nosotros")
+                    ? "text-[#00A811] font-black"
+                    : "text-slate-800 hover:text-[#00A811]"
+                }`}
               >
-                SOBRE NOSOTROS
+                <span>SOBRE NOSOTROS</span>
+                {pathname?.startsWith("/sobre-nosotros") && (
+                  <span className="w-2 h-2 rounded-full bg-[#00D615]" />
+                )}
               </Link>
             </nav>
 

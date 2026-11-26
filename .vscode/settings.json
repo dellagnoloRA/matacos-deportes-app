@@ -7,6 +7,8 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "files.eol": "\n",
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
   "tailwindCSS.experimental.classRegex": [
     [
       "cva\\(([^)]*)\\)",

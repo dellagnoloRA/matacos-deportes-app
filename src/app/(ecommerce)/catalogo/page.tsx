@@ -34,8 +34,20 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
   const getString = (val: string | string[] | undefined) =>
     Array.isArray(val) ? val[0] : val;
 
-  const rawGender = getString(resolvedParams.genero)?.trim().toUpperCase();
-  const parsedGender = EcommerceGenderEnum.safeParse(rawGender);
+  const rawGender = (
+    getString(resolvedParams.genero) || getString(resolvedParams.gender)
+  )?.trim().toUpperCase();
+
+  const normalizedGender =
+    rawGender === "NIÑOS" || rawGender === "NINOS" || rawGender === "NINO" || rawGender === "INFANTIL" || rawGender === "KIDS"
+      ? "NINO"
+      : rawGender === "HOMBRE" || rawGender === "MASCULINO" || rawGender === "MEN"
+      ? "HOMBRE"
+      : rawGender === "MUJER" || rawGender === "FEMENINO" || rawGender === "WOMEN"
+      ? "MUJER"
+      : rawGender;
+
+  const parsedGender = EcommerceGenderEnum.safeParse(normalizedGender);
 
   const rawSort = getString(resolvedParams.sort)?.trim();
   const parsedSort = CatalogSortEnum.safeParse(rawSort);

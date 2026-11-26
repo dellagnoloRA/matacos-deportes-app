@@ -111,15 +111,15 @@ export function FeaturedDisciplinesGrid({
               href={disc.linkUrl}
               className="group relative h-80 sm:h-96 rounded-3xl overflow-hidden border border-slate-800 hover:border-[#00D615] transition-all duration-300 shadow-lg flex flex-col justify-end p-5 select-none"
             >
-              {/* Background Image with Zoom */}
+              {/* Background Image with Zoom and Smooth Darkening on Hover */}
               <img
                 src={disc.imageUrl}
                 alt={disc.name}
-                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-108"
+                className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 group-hover:scale-108 group-hover:brightness-60"
               />
 
-              {/* Dark Vignette Overlay */}
-              <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/60 to-transparent group-hover:via-slate-950/40 transition-colors" />
+              {/* Dark Vignette Overlay with extra darkening on hover */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-black/30 group-hover:via-slate-950/90 group-hover:to-black/55 transition-colors duration-300" />
 
               {/* Card Content */}
               <div className="relative z-10 space-y-2">
@@ -136,10 +136,10 @@ export function FeaturedDisciplinesGrid({
                 </div>
 
                 <div>
-                  <h3 className="text-lg sm:text-xl font-black italic uppercase tracking-tight text-white group-hover:text-[#00D615] transition-colors leading-tight">
+                  <h3 className="text-lg sm:text-xl font-black italic uppercase tracking-tight text-white group-hover:text-[#00D615] transition-colors leading-tight drop-shadow-md">
                     {disc.name}
                   </h3>
-                  <p className="text-xs text-slate-300 font-normal line-clamp-2 mt-1 leading-relaxed">
+                  <p className="text-xs text-slate-200 font-medium line-clamp-2 mt-1 leading-relaxed drop-shadow-sm group-hover:text-white transition-colors">
                     {disc.subtitle}
                   </p>
                 </div>

@@ -28,15 +28,36 @@ export function CatalogFilterSidebar({
   onCloseMobile,
   isMobile = false,
 }: CatalogFilterSidebarProps) {
-  // Estados de acordeones: Disciplina y Precio abiertos por defecto, idéntico a la captura
+  // Estados de acordeones: todos cerrados por defecto al ingresar al catálogo
   const [openSections, setOpenSections] = useState({
-    disciplines: true,
+    gender: Boolean(activeFilters.gender),
+    disciplines: Boolean(activeFilters.disciplineSlug),
     categories: Boolean(activeFilters.categorySlug),
     brands: Boolean(activeFilters.brandSlug),
-    gender: Boolean(activeFilters.gender),
-    sizes: true,
-    price: true,
+    sizes: Boolean(activeFilters.size),
+    price: Boolean(activeFilters.minPrice || activeFilters.maxPrice),
   });
+
+  const genderOptions: {
+    gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
+    label: string;
+  }[] = [
+    { gender: "HOMBRE", label: "Hombre" },
+    { gender: "MUJER", label: "Mujer" },
+    { gender: "NINO", label: "Niños" },
+    { gender: "UNISEX", label: "Unisex" },
+  ];
+
+  const genderList = genderOptions
+    .map((opt) => {
+      const found = facets.genders?.find((g) => g.gender === opt.gender);
+      return {
+        gender: opt.gender,
+        label: opt.label,
+        count: found?.count,
+      };
+    })
+    .filter((g) => g.gender !== "UNISEX" || (typeof g.count === "number" && g.count > 0));
 
   const [showAllDisciplines, setShowAllDisciplines] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -131,7 +152,59 @@ export function CatalogFilterSidebar({
         </button>
       </div>
 
-      {/* 2. Acordeón: DISCIPLINA (Primero y abierto por defecto) */}
+      {/* 2. Acordeón: GÉNERO (Niños, Mujer, Hombre) */}
+      <div className="pb-3 border-b border-slate-100">
+        <button
+          type="button"
+          onClick={() => toggleSection("gender")}
+          className="w-full flex items-center justify-between font-black uppercase text-xs tracking-wide text-slate-900 py-1 cursor-pointer"
+        >
+          <span>GÉNERO</span>
+          {openSections.gender ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
+
+        {openSections.gender && (
+          <div className="pt-2.5 space-y-1">
+            {genderList.map((g) => {
+              const isSelected = activeFilters.gender === g.gender;
+              return (
+                <button
+                  key={g.gender}
+                  type="button"
+                  onClick={() =>
+                    onFilterChange({
+                      gender: isSelected ? undefined : g.gender,
+                      page: 1,
+                    })
+                  }
+                  className={`w-full text-left py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                    isSelected
+                      ? "bg-[#0B132B] text-white font-bold shadow-xs"
+                      : "text-slate-700 hover:bg-slate-50 font-medium"
+                  }`}
+                >
+                  <span>{g.label}</span>
+                  {typeof g.count === "number" && g.count > 0 && (
+                    <span
+                      className={`text-xs ${
+                        isSelected ? "text-white font-bold" : "text-slate-400"
+                      }`}
+                    >
+                      {g.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Acordeón: DISCIPLINA */}
       {facets.disciplines.length > 0 && (
         <div className="pb-3 border-b border-slate-100">
           <button
@@ -200,7 +273,7 @@ export function CatalogFilterSidebar({
         </div>
       )}
 
-      {/* 3. Acordeón: CATEGORÍA (Cerrado por defecto) */}
+      {/* 4. Acordeón: CATEGORÍA */}
       {facets.categories.length > 0 && (
         <div className="pb-3 border-b border-slate-100">
           <button
@@ -269,7 +342,7 @@ export function CatalogFilterSidebar({
         </div>
       )}
 
-      {/* 4. Acordeón: MARCA (Cerrado por defecto) */}
+      {/* 5. Acordeón: MARCA */}
       {facets.brands.length > 0 && (
         <div className="pb-3 border-b border-slate-100">
           <button
@@ -338,7 +411,7 @@ export function CatalogFilterSidebar({
         </div>
       )}
 
-      {/* 5. Acordeón: TALLES (Dinámico según disciplina, categoría, marca o búsqueda) */}
+      {/* 6. Acordeón: TALLES (Dinámico según disciplina, categoría, marca o búsqueda) */}
       {hasContextForSizes && facets.sizes.length > 0 && (
         <div className="pb-3 border-b border-slate-100">
           <button
@@ -384,7 +457,7 @@ export function CatalogFilterSidebar({
         </div>
       )}
 
-      {/* 6. Acordeón: RANGO DE PRECIO (Abierto por defecto con MÍNIMO, MÁXIMO y 3 botones rápidos) */}
+      {/* 7. Acordeón: RANGO DE PRECIO */}
       <div className="pb-1">
         <button
           type="button"

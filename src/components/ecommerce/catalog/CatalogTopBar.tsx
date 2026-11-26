@@ -28,6 +28,7 @@ export function CatalogTopBar({
     activeFilters.disciplineSlug,
     activeFilters.categorySlug,
     activeFilters.brandSlug,
+    activeFilters.gender,
     activeFilters.size,
     activeFilters.minPrice,
     activeFilters.maxPrice,
@@ -180,6 +181,28 @@ export function CatalogTopBar({
               <button
                 type="button"
                 onClick={() => onFilterChange({ brandSlug: undefined, page: 1 })}
+                className="hover:text-red-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
+
+          {Boolean(activeFilters.gender) && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-semibold">
+              <span>
+                Género:{" "}
+                {String(activeFilters.gender) === "HOMBRE"
+                  ? "Hombre"
+                  : String(activeFilters.gender) === "MUJER"
+                  ? "Mujer"
+                  : String(activeFilters.gender) === "NINO"
+                  ? "Niños"
+                  : "Unisex"}
+              </span>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ gender: undefined, page: 1 })}
                 className="hover:text-red-600 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />

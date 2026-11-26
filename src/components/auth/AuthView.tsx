@@ -34,7 +34,6 @@ export function AuthView({
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [acceptTermsLogin, setAcceptTermsLogin] = useState(true);
 
   // Form states - Register
   const [regNombre, setRegNombre] = useState("");
@@ -319,7 +318,7 @@ export function AuthView({
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Ingresá tu contraseña"
                     disabled={isPending}
-                    className="w-full px-3 py-2 sm:py-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs"
+                    className="w-full px-3 py-2 sm:py-2.5 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
                     required
                   />
                   <button
@@ -463,7 +462,7 @@ export function AuthView({
                     placeholder="Creá tu contraseña"
                     minLength={6}
                     disabled={isPending}
-                    className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs"
+                    className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-slate-200 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-colors bg-white pr-9 shadow-2xs [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
                     required
                   />
                   <button
