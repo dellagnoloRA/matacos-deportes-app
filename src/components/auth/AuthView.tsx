@@ -70,14 +70,6 @@ export function AuthView({
       return;
     }
 
-    if (!acceptTermsLogin) {
-      setNotification({
-        type: "error",
-        message: "Debés aceptar los Términos del servicio para continuar.",
-      });
-      return;
-    }
-
     startTransition(async () => {
       const res = await unifiedLoginAction({
         identifier: loginEmail.trim(),
@@ -342,20 +334,6 @@ export function AuthView({
                     )}
                   </button>
                 </div>
-              </div>
-
-              <div className="pt-0.5">
-                <label className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={acceptTermsLogin}
-                    onChange={(e) => setAcceptTermsLogin(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-slate-900 focus:ring-slate-500 mt-0.5 cursor-pointer shrink-0"
-                  />
-                  <span className="leading-tight">
-                    Acepto los términos del servicio y políticas de privacidad
-                  </span>
-                </label>
               </div>
 
               <button

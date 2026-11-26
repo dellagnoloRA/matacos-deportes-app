@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import {
@@ -517,14 +518,26 @@ export function SidebarLeft({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            title="Cerrar Sesión"
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Ir a la Tienda Web (abre en nueva pestaña)"
+              className="p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+            >
+              <Globe className="w-4 h-4" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </aside>

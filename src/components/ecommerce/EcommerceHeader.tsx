@@ -487,48 +487,55 @@ export function EcommerceHeader({
 
           {/* User Account Popover (Personita) */}
           <div ref={userMenuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setIsUserMenuOpen((prev) => !prev);
-                if (isSearchOpen) setIsSearchOpen(false);
-              }}
-              className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer relative"
-              title={
-                currentUser
-                  ? `Sesión activa: ${currentUser.name}`
-                  : customer
-                  ? `Cuenta: ${customer.name}`
-                  : "Mi Cuenta y Favoritos"
-              }
-              aria-label="Cuenta de usuario"
-              aria-expanded={isUserMenuOpen}
-            >
-              {currentUser ? (
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <span className="w-6 h-6 rounded-full bg-slate-900 text-[#00D615] font-black text-[11px] flex items-center justify-center">
-                    {currentUser.name.charAt(0).toUpperCase()}
+            {customer || currentUser ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUserMenuOpen((prev) => !prev);
+                  if (isSearchOpen) setIsSearchOpen(false);
+                }}
+                className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer relative"
+                title={
+                  currentUser
+                    ? `Sesión activa: ${currentUser.name}`
+                    : `Cuenta: ${customer?.name}`
+                }
+                aria-label="Cuenta de usuario"
+                aria-expanded={isUserMenuOpen}
+              >
+                {currentUser ? (
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <span className="w-6 h-6 rounded-full bg-slate-900 text-[#00D615] font-black text-[11px] flex items-center justify-center">
+                      {currentUser.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="hidden md:inline max-w-24 truncate">
+                      {currentUser.name.split(" ")[0]}
+                    </span>
                   </span>
-                  <span className="hidden md:inline max-w-24 truncate">
-                    {currentUser.name.split(" ")[0]}
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
+                      {customer?.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="hidden md:inline max-w-24 truncate">
+                      {customer?.name.split(" ")[0]}
+                    </span>
                   </span>
-                </span>
-              ) : customer ? (
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
-                    {customer.name.charAt(0).toUpperCase()}
-                  </span>
-                  <span className="hidden md:inline max-w-24 truncate">
-                    {customer.name.split(" ")[0]}
-                  </span>
-                </span>
-              ) : (
+                )}
+              </button>
+            ) : (
+              <Link
+                href="/cuenta?mode=login"
+                className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer relative block"
+                title="Iniciar sesión"
+                aria-label="Iniciar sesión"
+              >
                 <User className="w-5 h-5" />
-              )}
-            </button>
+              </Link>
+            )}
 
-            {/* Dropdown Popover de la Personita */}
-            {isUserMenuOpen && (
+            {/* Dropdown Popover de la Personita (solo cuando hay sesión activa) */}
+            {isUserMenuOpen && (customer || currentUser) && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
                 {customer ? (
                   /* 1. Cliente logueado — estilo MercadoLibre */
@@ -682,45 +689,7 @@ export function EcommerceHeader({
                       </button>
                     </div>
                   </div>
-                ) : (
-                  /* 3. No está logueado: Aviso claro para iniciar sesión y ver favoritos */
-                  <div className="p-4 space-y-3.5">
-                    <div className="text-center space-y-1">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
-                        <Heart className="w-6 h-6 fill-amber-500 text-amber-500" />
-                      </div>
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight pt-1">
-                        ¿Querés ver tus favoritos?
-                      </h4>
-                      <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
-                        Tenés que iniciar sesión en tu cuenta para acceder a tu lista de artículos guardados y gestionar tus pedidos.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2 pt-1">
-                      <Link
-                        href="/cuenta?mode=login&redirect=/cuenta?tab=favoritos"
-                        onClick={() => setIsUserMenuOpen(false)}
-                        className="w-full py-2.5 px-4 bg-[#00D615] hover:bg-[#00ba13] text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider text-center block shadow-md shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer"
-                      >
-                        Iniciar Sesión
-                      </Link>
-
-                      <Link
-                        href="/cuenta?mode=register&redirect=/cuenta?tab=favoritos"
-                        onClick={() => setIsUserMenuOpen(false)}
-                        className="w-full py-2 px-4 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider text-center block transition-colors cursor-pointer"
-                      >
-                        Crear Cuenta Nueva
-                      </Link>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400">
-                      <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span>Acceso seguro a tu perfil</span>
-                    </div>
-                  </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
