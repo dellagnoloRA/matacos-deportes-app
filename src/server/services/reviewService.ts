@@ -8,15 +8,16 @@ import {
   ReviewIdSchema,
 } from "@/schemas/review";
 import { analyzeReviewText } from "@/lib/profanityFilter";
-import type {
-  FitFeedbackType,
-  ProductReviewAggregates,
-  ReviewStatusType,
-  ReviewReportReason,
-  PublicProductReviewsResponse,
-  PublicReviewItem,
-  ProductReviewsSummary,
-  CustomerReviewContext,
+import {
+  STORE_PUBLIC_SIGNATURE,
+  type FitFeedbackType,
+  type ProductReviewAggregates,
+  type ReviewStatusType,
+  type ReviewReportReason,
+  type PublicProductReviewsResponse,
+  type PublicReviewItem,
+  type ProductReviewsSummary,
+  type CustomerReviewContext,
 } from "@/types/reviews";
 
 export const AUTO_REVIEW_REPORTS_THRESHOLD = 3;
@@ -193,7 +194,7 @@ function buildReviewWriteFields(
   };
 }
 
-async function recalculateProductAggregatesTx(
+export async function recalculateProductAggregatesTx(
   tx: Prisma.TransactionClient,
   productId: string
 ): Promise<ProductReviewAggregates> {
@@ -560,7 +561,7 @@ export async function createOrUpdateCustomerReview(
   };
 }
 
-function formatArgentinaLongDate(date: Date): string {
+export function formatArgentinaLongDate(date: Date): string {
   return new Intl.DateTimeFormat("es-AR", {
     dateStyle: "long",
     timeZone: "America/Argentina/Buenos_Aires",
@@ -642,7 +643,7 @@ function mapToPublicReviewItem(r: StoredReviewWithAuthor): PublicReviewItem {
     adminReply:
       r.adminResponse && r.adminResponse.trim().length > 0
         ? {
-            authorName: "Matacos Deportes",
+            authorName: STORE_PUBLIC_SIGNATURE,
             message: r.adminResponse,
             repliedAt: replyDate.toISOString(),
             repliedAtFormatted: formatArgentinaLongDate(replyDate),
