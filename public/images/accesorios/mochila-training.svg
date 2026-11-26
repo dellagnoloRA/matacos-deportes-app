@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="100%" height="100%" fill="none">
+  <rect width="400" height="300" fill="#f8fafc" rx="16"/>
+  <defs>
+    <linearGradient id="packGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="packShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#packShadow)">
+    <!-- Top Carry Handle -->
+    <path d="M170 65 C170 50, 230 50, 230 65" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+    
+    <!-- Shoulder Straps Peek -->
+    <path d="M145 75 C130 90, 125 150, 135 220" stroke="#1e293b" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <path d="M255 75 C270 90, 275 150, 265 220" stroke="#1e293b" stroke-width="12" stroke-linecap="round" fill="none"/>
+
+    <!-- Main Backpack Body -->
+    <rect x="140" y="65" width="120" height="180" rx="28" fill="url(#packGrad)"/>
+    
+    <!-- Front Pocket Panel -->
+    <path d="M150 140 C150 130, 250 130, 250 140 L245 225 C245 235, 155 235, 155 225 Z" fill="#1e293b"/>
+    
+    <!-- Vertical Water-Resistant Zipper -->
+    <path d="M200 145 V215" stroke="#00D615" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Top Curve Zipper Flap -->
+    <path d="M155 105 C175 95, 225 95, 245 105" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Side Mesh Water Bottle Pocket -->
+    <rect x="135" y="160" width="8" height="50" rx="4" fill="#334155" opacity="0.6"/>
+    <rect x="257" y="160" width="8" height="50" rx="4" fill="#334155" opacity="0.6"/>
+
+    <!-- Sport Brand Badge -->
+    <circle cx="200" cy="115" r="8" fill="#00D615"/>
+    <polygon points="196,112 204,115 196,118" fill="#06241d"/>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   X,
   Plus,
@@ -27,6 +28,9 @@ import {
   Palette,
   Ruler,
   Store,
+  Globe,
+  EyeOff,
+  ExternalLink,
 } from "lucide-react";
 import { DetailedProductItem, ProductVariantItem } from "./types";
 import {
@@ -84,12 +88,13 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const isEditing = Boolean(productToEdit);
 
-  // Estados del formulario base
+  // Estados del formulario base (Edición Rápida Operativa — no toca ficha web ni HTML)
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [disciplineId, setDisciplineId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [gender, setGender] = useState<"HOMBRE" | "MUJER" | "NINO" | "UNISEX">("UNISEX");
+  const [webVisible, setWebVisible] = useState<boolean>(true);
   const [costPrice, setCostPrice] = useState<number | "">("");
   const [price, setPrice] = useState<number | "">("");
 
@@ -427,13 +432,18 @@ export function ProductFormModal({
 
     if (productToEdit && isOpen) {
       setName(productToEdit.name);
-      setDescription(productToEdit.description || "");
       setCostPrice(
         productToEdit.costPrice !== null && productToEdit.costPrice !== undefined
           ? productToEdit.costPrice
           : ""
       );
       setPrice(productToEdit.price);
+      setGender(productToEdit.gender || "UNISEX");
+      setWebVisible(
+        productToEdit.webVisible !== undefined
+          ? productToEdit.webVisible
+          : productToEdit.status !== "HIDDEN" && productToEdit.status !== "DRAFT"
+      );
       setImageUrl(productToEdit.imageUrl || null);
 
       if (productToEdit.images && productToEdit.images.length > 0) {
@@ -516,7 +526,6 @@ export function ProductFormModal({
 
       initialSnapshotRef.current = JSON.stringify({
         name: productToEdit.name.trim(),
-        description: (productToEdit.description || "").trim(),
         discipline: (productToEdit.discipline || "").trim().toLowerCase(),
         category: (productToEdit.category || "").trim().toLowerCase(),
         brand: (productToEdit.brand || "").trim().toLowerCase(),
@@ -525,16 +534,18 @@ export function ProductFormModal({
             ? Number(productToEdit.costPrice)
             : 0,
         price: Number(productToEdit.price) || 0,
+        gender: productToEdit.gender || "UNISEX",
         images: editImagesSnapshot,
         variants: editVariantsSnapshot,
       });
     } else if (isOpen) {
       // Limpiar formulario en modo creación
       setName("");
-      setDescription("");
       setDisciplineId("");
       setCategoryId("");
       setBrandId("");
+      setGender("UNISEX");
+      setWebVisible(true);
       setCostPrice("");
       setPrice("");
       setImageUrl(null);
@@ -558,11 +569,11 @@ export function ProductFormModal({
 
       initialSnapshotRef.current = JSON.stringify({
         name: "",
-        description: "",
         discipline: "",
         category: "",
         brand: "",
         costPrice: 0,
+        gender: "UNISEX",
         price: 0,
         images: [],
         variants: [
@@ -622,23 +633,23 @@ export function ProductFormModal({
   const buildSnapshot = useCallback(
     (
       pName: string,
-      pDesc: string,
       pDisc: string,
       pCat: string,
       pBrand: string,
       pCost: number | string,
       pPrice: number | string,
+      pGender: string,
       pImages: FormProductImage[],
       pVariants: FormVariant[]
     ) => {
       return JSON.stringify({
         name: pName.trim(),
-        description: pDesc.trim(),
         discipline: pDisc.trim().toLowerCase(),
         category: pCat.trim().toLowerCase(),
         brand: pBrand.trim().toLowerCase(),
         costPrice: typeof pCost === "number" ? pCost : parseFloat(String(pCost)) || 0,
         price: typeof pPrice === "number" ? pPrice : parseFloat(String(pPrice)) || 0,
+        gender: pGender,
         images: pImages.map((img) => ({
           url: img.url,
           color: img.color || "General",
@@ -663,23 +674,23 @@ export function ProductFormModal({
   const currentSnapshot = useMemo(() => {
     return buildSnapshot(
       name,
-      description,
       selectedDisciplineName,
       selectedCategoryName,
       selectedBrandName,
       costPrice,
       price,
+      gender,
       productImages,
       variants
     );
   }, [
     name,
-    description,
     selectedDisciplineName,
     selectedCategoryName,
     selectedBrandName,
     costPrice,
     price,
+    gender,
     productImages,
     variants,
     buildSnapshot,
@@ -1275,15 +1286,16 @@ export function ProductFormModal({
         });
 
       if (isEditing && productToEdit) {
-        // Modo Actualización con Variantes e Imágenes por Color
+        // Modo Actualización Rápida Operativa: no toca description HTML, highlights, specs, sizeGuideId ni careGuideId
         const res = await updateProduct({
           id: productToEdit.id,
           name: name.trim(),
-          description: description.trim() || null,
           modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
+          gender,
+          webVisible,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1298,14 +1310,15 @@ export function ProductFormModal({
           return;
         }
       } else {
-        // Modo Creación con Variantes e Imágenes por Color
+        // Modo Creación Rápida con Variantes e Imágenes por Color
         const res = await createProduct({
           name: name.trim(),
-          description: description.trim() || null,
           modelCode: canonicalModelCode,
           disciplineId,
           categoryId,
           brandId,
+          gender,
+          webVisible,
           costPrice: costNum,
           price: priceNum,
           imageUrl: coverImageUrl,
@@ -1411,6 +1424,18 @@ export function ProductFormModal({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {isEditing && productToEdit && (
+              <Link
+                href={`/admin/productos/${productToEdit.id}/editar`}
+                onClick={onClose}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-colors"
+                title="Abrir editor web completo (descripción enriquecida, ficha técnica, guía de talles y cuidados)"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Editar ficha web</span>
+              </Link>
+            )}
+
             {/* Botón de Guardar accesible arriba a la derecha */}
             <button
               type="button"
@@ -1664,18 +1689,21 @@ export function ProductFormModal({
               )}
             </div>
 
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1.5">
-                Descripción Comercial <span className="text-slate-400 font-normal">(Opcional)</span>
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                placeholder="Detalla características técnicas, materiales o recomendaciones..."
-                className="w-full bg-slate-50 text-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium resize-none"
-              />
-            </div>
+            {isEditing && productToEdit && (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600">
+                <span>
+                  Esta edición rápida actualiza precios, stock y datos operativos sin modificar la descripción ni guías de la tienda web.
+                </span>
+                <Link
+                  href={`/admin/productos/${productToEdit.id}/editar`}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0"
+                >
+                  <span>Ir a Ficha Web</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
 
             {/* Selects: Disciplina, Categoría, Marca */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1974,6 +2002,102 @@ export function ProductFormModal({
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Selector de Género / Público Objetivo */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-700 font-semibold text-xs">
+                  Género / Público Objetivo <span className="text-slate-400 font-normal">(Filtro de tienda)</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                  {gender === "UNISEX" && "Aplica para todos o accesorio neutro"}
+                  {gender === "HOMBRE" && "Indumentaria y calzado masculino"}
+                  {gender === "MUJER" && "Indumentaria y calzado femenino"}
+                  {gender === "NINO" && "Línea infantil y juvenil"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                {(
+                  [
+                    { id: "UNISEX", label: "Unisex" },
+                    { id: "HOMBRE", label: "Hombre" },
+                    { id: "MUJER", label: "Mujer" },
+                    { id: "NINO", label: "Niños" },
+                  ] as const
+                ).map((item) => {
+                  const isSelected = gender === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setGender(item.id)}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer active:scale-95 ${
+                        isSelected
+                          ? "bg-slate-900 text-white shadow-xs ring-1 ring-slate-900"
+                          : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Visibilidad en Tienda Online (E-commerce) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
+              <div className="flex items-start gap-2.5">
+                <div
+                  className={`p-2 rounded-lg shrink-0 ${
+                    webVisible
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  {webVisible ? (
+                    <Globe className="w-4 h-4" />
+                  ) : (
+                    <EyeOff className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">
+                    Visibilidad en Tienda Online (E-commerce)
+                  </span>
+                  <span className="block text-[11px] text-slate-500">
+                    {webVisible
+                      ? "El producto aparecerá publicado en el catálogo web y buscador público."
+                      : "Oculto en la tienda web. Seguirá activo para ventas en mostrador (POS)."}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shrink-0 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setWebVisible(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    webVisible
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Visible en Web
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWebVisible(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    !webVisible
+                      ? "bg-slate-800 text-white shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  Ocultar de Web
+                </button>
               </div>
             </div>
           </div>

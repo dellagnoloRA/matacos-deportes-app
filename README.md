@@ -53,6 +53,7 @@ matacos-deportes/
 ├── docs/                      # [DOCUMENTACIÓN OPERATIVA Y USUARIO]
 │   ├── MANUAL_DE_USUARIO.md   # [MANUAL] Guía práctica y paso a paso para el local
 │   ├── ESTRUCTURA_PLANTILLA_EXCEL.md # Guía para armado de planillas Excel/CSV
+│   ├── GUIA_DESPLIEGUE_PRODUCCION_VPS_HOSTINGER.md # Despliegue en VPS Hostinger KVM 2 + Caddy
 │   └── GUIA_DESPLIEGUE_LOCAL_MULTI_TERMINAL.md # Configuración de red en Saavedra 241
 ├── prisma/                    # [BACKEND]
 │   ├── schema.prisma          # Modelado relacional PostgreSQL (Tablas, variantes, relaciones)

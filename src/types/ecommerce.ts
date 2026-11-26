@@ -1,0 +1,257 @@
+import type { SerializedBanner } from "@/server/services/bannerService";
+
+/**
+ * DTOs Públicos y Contratos de Datos para el E-commerce de Matacos Deportes (RF-13 / RF-28)
+ * Diseñados estrictamente sin datos sensibles internos (sin precios de costo ni proveedores).
+ */
+
+/**
+ * Tiempo máximo de reserva de stock en pasarela de pago para órdenes web impagas (15 minutos según Hoja de Riesgo R-01 / RF-15)
+ */
+export const WEB_ORDER_RESERVATION_MINUTES = 15;
+
+export interface PublicVariantItem {
+  id: string;
+  size: string;
+  color: string;
+  sku: string;
+  barcode: string | null;
+  price: number | null; // Precio diferencial si difiere del base
+  originalPrice?: number | null; // Precio regular de lista para tachar si difiere
+  availableStock: number; // Existencias netas: (stockStore + stockWarehouse) - stockReserved
+  inStock: boolean;
+}
+
+export interface PublicImageItem {
+  id: string;
+  url: string;
+  color: string | null;
+  isPrimary: boolean;
+  order: number;
+}
+
+export interface PublicProductItem {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  modelCode: string | null;
+  price: number; // Precio base en ARS
+  gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  brand: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  discipline: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  images: PublicImageItem[];
+  variants: PublicVariantItem[];
+  totalAvailableStock: number;
+  hasStock: boolean;
+  minPrice: number;
+  maxPrice: number;
+  createdAt: string;
+
+  // Campos opcionales de Descuento Promocional (RF-27 / RF-28) y Analítica de Ventas
+  originalPrice?: number;
+  discountActive?: boolean;
+  discountPercentage?: number | null;
+  discountPrice?: number | null;
+  discountStartDate?: string | null;
+  discountEndDate?: string | null;
+  effectivePrice?: number;
+  formattedPrice?: string;
+  formattedEffectivePrice?: string;
+  unitsSold?: number;
+}
+
+export interface CatalogPagination {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface PublicCatalogResponse {
+  products: PublicProductItem[];
+  pagination: CatalogPagination;
+}
+
+export interface PredictiveSearchItem {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl: string | null;
+  modelCode: string | null;
+  brandName: string;
+  categoryName: string;
+  disciplineSlug: string;
+  availableStock: number;
+}
+
+export interface CatalogFacetsResponse {
+  disciplines: CatalogFacetOption[];
+  categories: CatalogFacetOption[];
+  brands: CatalogFacetOption[];
+  genders: {
+    gender: "HOMBRE" | "MUJER" | "NINO" | "UNISEX";
+    label: string;
+    count: number;
+  }[];
+  sizes: { size: string; count: number }[];
+  priceRange: { min: number; max: number };
+}
+
+export interface CatalogFacetOption {
+  name: string;
+  slug: string;
+  count: number;
+}
+
+/**
+ * Tipos específicos para la Ficha de Detalle de Producto (PDP - RF-14)
+ */
+
+export interface ColorOption {
+  color: string;
+  inStock: boolean;
+  imageUrl?: string | null;
+}
+
+export interface SizeOption {
+  size: string;
+  inStock: boolean;
+  availableStock: number;
+}
+
+export type ProductStockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+
+export interface PublicHighlightItem {
+  icon: string;
+  title: string;
+  text: string;
+  isCustomIcon?: boolean;
+}
+
+export interface PublicSizeGuide {
+  id: string;
+  name: string;
+  gender: string;
+  type: string;
+  unit: string;
+  fitNote: string | null;
+  columns: string[];
+  rows: Record<string, string>[];
+  guideImage: string | null;
+}
+
+export interface PublicCareInstruction {
+  icon?: string;
+  text: string;
+}
+
+export interface PublicCareGuide {
+  id: string;
+  name: string;
+  type: string;
+  summary: string | null;
+  instructions: PublicCareInstruction[];
+  warning: string | null;
+}
+
+export interface PublicDimensionsCm {
+  length?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface PublicProductDetail extends PublicProductItem {
+  colorOptions: ColorOption[];
+  sizeOptions: SizeOption[];
+  isLowStock: boolean;
+  stockStatus: ProductStockStatus;
+  shortDescription?: string | null;
+  highlights?: PublicHighlightItem[] | null;
+  specs?: Record<string, string> | null;
+  sizeGuideId?: string | null;
+  sizeGuide?: PublicSizeGuide | null;
+  careGuideId?: string | null;
+  careGuide?: PublicCareGuide | null;
+  weightGrams?: number | null;
+  dimensionsCm?: PublicDimensionsCm | null;
+}
+
+export interface VariantStockCheckResult {
+  variantId: string;
+  productId: string;
+  productName: string;
+  size: string;
+  color: string;
+  availableStock: number;
+  isAvailable: boolean;
+  isLowStock: boolean;
+  price: number;
+}
+
+/**
+ * ============================================================================
+ * CONTRATOS DE DATOS PARA LANDING PAGE OPTIMIZADA (RF-28)
+ * ============================================================================
+ */
+
+export type FlagshipDisciplineKey =
+  | "natacion"
+  | "voley"
+  | "crocs"
+  | "fitness"
+  | "calzado";
+
+export interface FeaturedDisciplineItem {
+  id: string;
+  key: FlagshipDisciplineKey;
+  name: string;
+  slug: string;
+  subtitle: string;
+  imageUrl: string;
+  linkUrl: string;
+  filterType: "discipline" | "category";
+  availableProductsCount: number;
+}
+
+export interface LandingProductItem extends PublicProductItem {
+  discountActive: boolean;
+  discountPercentage: number | null;
+  discountPrice: number | null;
+  discountStartDate: string | null;
+  discountEndDate: string | null;
+  effectivePrice: number;
+  formattedPrice: string;
+  formattedEffectivePrice: string;
+  unitsSold: number;
+}
+
+export interface LandingDataResponse {
+  banners: SerializedBanner[];
+  featuredDisciplines: FeaturedDisciplineItem[];
+  newArrivals: LandingProductItem[];
+  bestSellers: LandingProductItem[];
+  promoProducts: LandingProductItem[];
+  generatedAt: string;
+}
+
+export interface GetLandingPageDataResult {
+  success: boolean;
+  data?: LandingDataResponse;
+  error?: string;
+}

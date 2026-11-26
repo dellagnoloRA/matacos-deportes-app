@@ -1,0 +1,139 @@
+import React, { Suspense } from "react";
+import { Metadata } from "next";
+import {
+  getPublicCatalog,
+  getCatalogFacets,
+} from "@/server/actions/ecommerce/catalogActions";
+import { CatalogView } from "@/components/ecommerce/catalog/CatalogView";
+import {
+  EcommerceGenderEnum,
+  CatalogSortEnum,
+  type CatalogFilterInput,
+} from "@/schemas/ecommerce";
+import type {
+  CatalogPagination,
+  CatalogFacetsResponse,
+} from "@/types/ecommerce";
+
+export const metadata: Metadata = {
+  title: "Catálogo Completo • Matacos Deportes | Saavedra 241, Formosa",
+  description:
+    "Catálogo digital oficial con stock en tiempo real. Natación Speedo, balones Mikasa, Crocs originales, calzado e indumentaria deportiva. Envíos a toda Argentina.",
+};
+
+// Revalidar cada 30 segundos
+export const revalidate = 30;
+
+interface CatalogoPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function CatalogoPage({ searchParams }: CatalogoPageProps) {
+  const resolvedParams = await searchParams;
+
+  const getString = (val: string | string[] | undefined) =>
+    Array.isArray(val) ? val[0] : val;
+
+  const rawGender = getString(resolvedParams.genero)?.trim().toUpperCase();
+  const parsedGender = EcommerceGenderEnum.safeParse(rawGender);
+
+  const rawSort = getString(resolvedParams.sort)?.trim();
+  const parsedSort = CatalogSortEnum.safeParse(rawSort);
+
+  const filters: CatalogFilterInput = {
+    disciplineSlug:
+      getString(resolvedParams.disciplina) ||
+      getString(resolvedParams.discipline) ||
+      getString(resolvedParams.disciplineSlug) ||
+      undefined,
+    categorySlug:
+      getString(resolvedParams.categoria) ||
+      getString(resolvedParams.category) ||
+      getString(resolvedParams.categorySlug) ||
+      undefined,
+    brandSlug:
+      getString(resolvedParams.marca) ||
+      getString(resolvedParams.brand) ||
+      getString(resolvedParams.brandSlug) ||
+      undefined,
+    gender: parsedGender.success ? parsedGender.data : undefined,
+    size: getString(resolvedParams.talle) || undefined,
+    color: getString(resolvedParams.color) || undefined,
+    ofertas:
+      getString(resolvedParams.ofertas) === "true" ||
+      getString(resolvedParams.ofertas) === "1" ||
+      getString(resolvedParams.enOferta) === "true" ||
+      getString(resolvedParams.enOferta) === "1" ||
+      getString(resolvedParams.discount) === "true"
+        ? true
+        : undefined,
+    minPrice: resolvedParams.minPrice
+      ? Number(getString(resolvedParams.minPrice))
+      : undefined,
+    maxPrice: resolvedParams.maxPrice
+      ? Number(getString(resolvedParams.maxPrice))
+      : undefined,
+    search:
+      getString(resolvedParams.search) || getString(resolvedParams.q) || undefined,
+    sort: parsedSort.success ? parsedSort.data : "newest",
+    page: resolvedParams.page ? Number(getString(resolvedParams.page)) : 1,
+    limit: resolvedParams.limit ? Number(getString(resolvedParams.limit)) : 12,
+  };
+
+  const defaultPagination: CatalogPagination = {
+    page: 1,
+    limit: 12,
+    totalItems: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+
+  const defaultFacets: CatalogFacetsResponse = {
+    disciplines: [],
+    categories: [],
+    brands: [],
+    genders: [],
+    sizes: [],
+    priceRange: { min: 0, max: 150000 },
+  };
+
+  try {
+    const [catalogRes, facetsRes] = await Promise.all([
+      getPublicCatalog(filters),
+      getCatalogFacets(filters),
+    ]);
+
+    const products =
+      catalogRes.success && catalogRes.data ? catalogRes.data.products : [];
+    const pagination =
+      catalogRes.success && catalogRes.data
+        ? catalogRes.data.pagination
+        : defaultPagination;
+    const facets =
+      facetsRes.success && facetsRes.data ? facetsRes.data : defaultFacets;
+
+    return (
+      <Suspense fallback={null}>
+        <CatalogView
+          products={products}
+          pagination={pagination}
+          facets={facets}
+          activeFilters={filters}
+        />
+      </Suspense>
+    );
+  } catch (error) {
+    console.error("Error al renderizar el catálogo:", error);
+    return (
+      <Suspense fallback={null}>
+        <CatalogView
+          products={[]}
+          pagination={defaultPagination}
+          facets={defaultFacets}
+          activeFilters={filters}
+        />
+      </Suspense>
+    );
+  }
+}

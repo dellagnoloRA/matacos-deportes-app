@@ -102,6 +102,7 @@ export function QuickProductModal({
   const [customCategory, setCustomCategory] = useState("");
   const [brandName, setBrandName] = useState("Genérica");
   const [customBrand, setCustomBrand] = useState("");
+  const [gender, setGender] = useState<"HOMBRE" | "MUJER" | "NINO" | "UNISEX">("UNISEX");
   const [initialStock, setInitialStock] = useState<number>(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,6 +229,7 @@ export function QuickProductModal({
         disciplineName: finalDiscipline,
         categoryName: finalCategory,
         brandName: finalBrand,
+        gender,
         initialStock: Math.max(1, initialStock || 1),
       });
 
@@ -524,6 +526,47 @@ export function QuickProductModal({
                   autoFocus
                 />
               )}
+            </div>
+          </div>
+
+          {/* Clasificación por Género / Público Objetivo */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-bold text-slate-500">
+                Género / Público Objetivo
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {gender === "UNISEX" && "Unisex / Neutro"}
+                {gender === "HOMBRE" && "Masculino"}
+                {gender === "MUJER" && "Femenino"}
+                {gender === "NINO" && "Infantil"}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              {(
+                [
+                  { id: "UNISEX", label: "Unisex" },
+                  { id: "HOMBRE", label: "Hombre" },
+                  { id: "MUJER", label: "Mujer" },
+                  { id: "NINO", label: "Niños" },
+                ] as const
+              ).map((item) => {
+                const isSelected = gender === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setGender(item.id)}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? "bg-slate-900 text-white shadow-xs ring-1 ring-slate-900"
+                        : "bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

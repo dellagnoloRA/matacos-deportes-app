@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
   Package,
@@ -48,6 +49,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Palette,
+  EyeOff,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { DetailedProductItem, SizeConversion, InventoryMovementItem } from "./types";
@@ -56,6 +58,7 @@ import { StockAdjustmentModal, type OperationType } from "./StockAdjustmentModal
 import { ThermalLabelPrintModal } from "./ThermalLabelPrintModal";
 import {
   toggleProductActive,
+  toggleProductWebVisibility,
   deleteProduct,
   getProductById,
 } from "@/server/actions/productActions";
@@ -728,12 +731,115 @@ export function ProductDetailView({
         const totalStore = updatedVariants.reduce((sum: number, v: any) => sum + (v.stockStore || 0), 0);
         const totalWarehouse = updatedVariants.reduce((sum: number, v: any) => sum + (v.stockWarehouse || 0), 0);
 
+        const rawHighlights = Array.isArray(res.data.highlights)
+          ? res.data.highlights.flatMap((h) => {
+              if (!h || typeof h !== "object" || Array.isArray(h)) return [];
+              const rec = h as Record<string, unknown>;
+              return [
+                {
+                  icon: typeof rec.icon === "string" ? rec.icon : "zap",
+                  title: typeof rec.title === "string" ? rec.title : "",
+                  text: typeof rec.text === "string" ? rec.text : "",
+                  isCustomIcon:
+                    typeof rec.isCustomIcon === "boolean" ? rec.isCustomIcon : undefined,
+                },
+              ];
+            })
+          : null;
+
+        const rawSpecs =
+          res.data.specs && typeof res.data.specs === "object" && !Array.isArray(res.data.specs)
+            ? Object.fromEntries(
+                Object.entries(res.data.specs as Record<string, unknown>)
+                  .filter(([, v]) => v !== null && v !== undefined)
+                  .map(([k, v]) => [k, String(v)])
+              )
+            : null;
+
+        const rawSizeGuide = res.data.sizeGuide
+          ? {
+              id: res.data.sizeGuide.id,
+              name: res.data.sizeGuide.name,
+              gender: res.data.sizeGuide.gender,
+              type: res.data.sizeGuide.type,
+              unit: res.data.sizeGuide.unit,
+              fitNote: res.data.sizeGuide.fitNote,
+              columns: Array.isArray(res.data.sizeGuide.columns)
+                ? res.data.sizeGuide.columns.filter((c): c is string => typeof c === "string")
+                : [],
+              rows: Array.isArray(res.data.sizeGuide.rows)
+                ? res.data.sizeGuide.rows.flatMap((r) => {
+                    if (!r || typeof r !== "object" || Array.isArray(r)) return [];
+                    return [
+                      Object.fromEntries(
+                        Object.entries(r as Record<string, unknown>).map(([k, v]) => [
+                          k,
+                          v === null || v === undefined ? "" : String(v),
+                        ])
+                      ),
+                    ];
+                  })
+                : [],
+              guideImage: res.data.sizeGuide.guideImage,
+            }
+          : null;
+
+        const rawCareGuide = res.data.careGuide
+          ? {
+              id: res.data.careGuide.id,
+              name: res.data.careGuide.name,
+              type: res.data.careGuide.type,
+              summary: res.data.careGuide.summary,
+              instructions: Array.isArray(res.data.careGuide.instructions)
+                ? res.data.careGuide.instructions.flatMap((entry) => {
+                    if (typeof entry === "string" && entry.trim()) {
+                      return [{ text: entry.trim() }];
+                    }
+                    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+                      const rec = entry as Record<string, unknown>;
+                      const text = typeof rec.text === "string" ? rec.text.trim() : "";
+                      if (text) {
+                        return [
+                          {
+                            icon: typeof rec.icon === "string" ? rec.icon : undefined,
+                            text,
+                          },
+                        ];
+                      }
+                    }
+                    return [];
+                  })
+                : [],
+              warning: res.data.careGuide.warning,
+            }
+          : null;
+
+        const rawDims =
+          res.data.dimensionsCm &&
+          typeof res.data.dimensionsCm === "object" &&
+          !Array.isArray(res.data.dimensionsCm)
+            ? (res.data.dimensionsCm as { length?: number; width?: number; height?: number })
+            : null;
+
         const updatedDetailedProduct: DetailedProductItem = {
           ...product,
           price: Number(res.data.price),
-          costPrice: Number(res.data.costPrice),
+          costPrice: res.data.costPrice !== null && res.data.costPrice !== undefined ? Number(res.data.costPrice) : null,
           name: res.data.name,
           description: res.data.description || "",
+          shortDescription: res.data.shortDescription || null,
+          highlights: rawHighlights,
+          specs: rawSpecs,
+          sizeGuideId: res.data.sizeGuideId || null,
+          sizeGuide: rawSizeGuide,
+          careGuideId: res.data.careGuideId || null,
+          careGuide: rawCareGuide,
+          weightGrams: res.data.weightGrams ?? null,
+          dimensionsCm: rawDims,
+          gender: res.data.gender || product.gender,
+          modelCode: res.data.modelCode || product.modelCode,
+          status: res.data.status || product.status,
+          webVisible: (res.data.status || "PUBLISHED") === "PUBLISHED",
           imageUrl: res.data.imageUrl || undefined,
           images: res.data.images || [],
           variants: updatedVariants,
@@ -778,6 +884,35 @@ export function ProductDetailView({
   };
 
   const [isReactivating, setIsReactivating] = useState(false);
+  const [isTogglingWeb, setIsTogglingWeb] = useState(false);
+
+  const isWebVisible =
+    product.webVisible !== false &&
+    product.status !== "HIDDEN" &&
+    product.status !== "DRAFT";
+
+  const handleToggleWebVisibility = async () => {
+    try {
+      setIsTogglingWeb(true);
+      const nextVisible = !isWebVisible;
+      const res = await toggleProductWebVisibility(product.id, nextVisible);
+      if (res.success) {
+        const updated = {
+          ...product,
+          webVisible: nextVisible,
+          status: nextVisible ? "PUBLISHED" : "HIDDEN",
+        };
+        setProduct(updated);
+        if (onProductUpdate) {
+          onProductUpdate(updated);
+        }
+      }
+    } catch (err) {
+      console.error("Error al alternar visibilidad web:", err);
+    } finally {
+      setIsTogglingWeb(false);
+    }
+  };
 
   const handleReactivate = async () => {
     try {
@@ -853,18 +988,20 @@ export function ProductDetailView({
     return text.includes("calzado") || text.includes("zapatilla");
   }, [product.category, product.subcategory]);
 
-  // Si no es calzado y el usuario estaba en la pestaña de guía de talles, redirigir a visión general
+  const hasSizeGuideTab = isFootwear || Boolean(product.sizeGuide);
+
+  // Si no tiene guía ni es calzado y el usuario estaba en la pestaña de guía de talles, redirigir a visión general
   useEffect(() => {
-    if (!isFootwear && activeTab === "size_guide") {
+    if (!hasSizeGuideTab && activeTab === "size_guide") {
       setActiveTab("overview");
     }
-  }, [isFootwear, activeTab]);
+  }, [hasSizeGuideTab, activeTab]);
 
-  // Pestañas visibles (se oculta "Guía de Talles" si no es calzado)
+  // Pestañas visibles
   const visibleTabs = useMemo(() => {
-    if (isFootwear) return TABS;
+    if (hasSizeGuideTab) return TABS;
     return TABS.filter((tab) => tab.id !== "size_guide");
-  }, [isFootwear]);
+  }, [hasSizeGuideTab]);
 
   // Default size conversions if none provided
   const sizeConversions: SizeConversion[] =
@@ -905,11 +1042,43 @@ export function ProductDetailView({
                   <span>Inactivo</span>
                 </span>
               )}
+              {product.active !== false && !isWebVisible && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-300 bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700 whitespace-nowrap shrink-0">
+                  <EyeOff className="w-3 h-3" />
+                  <span>Oculto en Web</span>
+                </span>
+              )}
             </div>
           </div>
 
           {/* Right: Quick Actions - Solo iconos en resoluciones pequeñas/medianas, con texto en pantallas grandes */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Mostrar / Ocultar en Tienda Web */}
+            {product.active !== false && (
+              <button
+                onClick={handleToggleWebVisibility}
+                disabled={isTogglingWeb}
+                className={`inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold rounded-xl transition-all border shadow-2xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
+                  isWebVisible
+                    ? "text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-300"
+                    : "text-amber-300 bg-slate-800 hover:bg-slate-700 border-slate-700"
+                }`}
+                title={
+                  isWebVisible
+                    ? "Visible en la tienda online — Clic para ocultar de la tienda web"
+                    : "Oculto en la tienda online — Clic para mostrar en la tienda web"
+                }
+              >
+                {isWebVisible ? (
+                  <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
+                )}
+                <span className="hidden xl:inline">
+                  {isWebVisible ? "Visible en Web" : "Oculto en Web"}
+                </span>
+              </button>
+            )}
             {/* Registrar Venta Mostrador (Baja Rápida) */}
             <button
               onClick={() => handleOpenStockModal("VENTA_MOSTRADOR")}
@@ -944,11 +1113,20 @@ export function ProductDetailView({
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-slate-950 bg-[#c2f25b] hover:bg-[#b0e838] rounded-xl transition-all border border-lime-400 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
-              title="Editar datos del producto"
+              title="Edición rápida (precio, stock, variantes)"
             >
               <Edit3 className="w-4 h-4 shrink-0" />
               <span className="hidden xl:inline">Editar</span>
             </button>
+
+            <Link
+              href={`/admin/productos/${product.id}/editar`}
+              className="inline-flex items-center justify-center gap-1.5 p-2 xl:px-3.5 xl:py-2 text-xs font-bold text-emerald-950 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-300 shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
+              title="Editar ficha web completa (descripción, specs, guía de talles y cuidados)"
+            >
+              <ExternalLink className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span className="hidden xl:inline">Ficha Web</span>
+            </Link>
 
             {product.active === false ? (
               <button
@@ -1738,10 +1916,79 @@ export function ProductDetailView({
                 <span className="font-semibold text-slate-800 mt-0.5 block">{product.category} &gt; {product.subcategory || "General"}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-400 block font-medium">Género / Público</span>
+                <span className="font-semibold text-slate-900 text-sm mt-0.5 block">
+                  {product.gender === "HOMBRE"
+                    ? "Hombre"
+                    : product.gender === "MUJER"
+                    ? "Mujer"
+                    : product.gender === "NINO"
+                    ? "Niños"
+                    : "Unisex"}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span className="text-slate-400 block font-medium">Código de Modelo (Familia)</span>
                 <span className="font-mono font-semibold text-slate-800 mt-0.5 block">{product.modelCode || product.sku}</span>
               </div>
+              {product.sizeGuide && (
+                <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/80">
+                  <span className="text-emerald-700 block font-medium">Guía de Talles Asignada</span>
+                  <span className="font-semibold text-emerald-950 mt-0.5 block">{product.sizeGuide.name}</span>
+                </div>
+              )}
+              {product.careGuide && (
+                <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/80">
+                  <span className="text-emerald-700 block font-medium">Guía de Cuidados Asignada</span>
+                  <span className="font-semibold text-emerald-950 mt-0.5 block">{product.careGuide.name}</span>
+                </div>
+              )}
+              {product.weightGrams ? (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block font-medium">Peso</span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block">{product.weightGrams} g</span>
+                </div>
+              ) : null}
             </div>
+
+            {product.shortDescription && (
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                <span className="text-slate-400 block font-medium mb-1">Resumen Destacado</span>
+                <p className="font-medium text-slate-800">{product.shortDescription}</p>
+              </div>
+            )}
+
+            {product.specs && Object.keys(product.specs).length > 0 && (
+              <div className="pt-2 space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Ficha Técnica Personalizada
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {Object.entries(product.specs).map(([k, v]) => (
+                    <div key={k} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 block font-medium">{k}</span>
+                      <span className="font-semibold text-slate-900 mt-0.5 block">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {product.highlights && product.highlights.length > 0 && (
+              <div className="pt-2 space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Características Destacadas
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {product.highlights.map((h, i) => (
+                    <div key={i} className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100">
+                      <span className="font-bold text-slate-900 block">{h.title}</span>
+                      {h.text && <span className="text-slate-600 mt-0.5 block">{h.text}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2316,34 +2563,72 @@ export function ProductDetailView({
           </div>
         )}
 
-        {activeTab === "size_guide" && isFootwear && (
+        {activeTab === "size_guide" && hasSizeGuideTab && (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 space-y-4 animate-in fade-in-50">
-            <h2 className="text-base font-bold text-slate-900">Guía Completa de Medidas y Calce</h2>
-            <p className="text-xs text-slate-500">Tabla de equivalencias internacionales recomendada para clientes de Matacos Deportes.</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border border-slate-200 rounded-xl">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
-                  <tr>
-                    <th className="p-3">Argentina (AR)</th>
-                    <th className="p-3">Estados Unidos (USA)</th>
-                    <th className="p-3">Europa (EU)</th>
-                    <th className="p-3">Brasil (BR)</th>
-                    <th className="p-3">Longitud (CM)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sizeConversions.map((sc, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-3 font-bold text-slate-900">{sc.ar}</td>
-                      <td className="p-3">{sc.us}</td>
-                      <td className="p-3">{sc.eu}</td>
-                      <td className="p-3">{sc.br}</td>
-                      <td className="p-3 font-mono font-bold text-indigo-700">{sc.cm}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <h2 className="text-base font-bold text-slate-900">
+              {product.sizeGuide ? product.sizeGuide.name : "Guía Completa de Medidas y Calce"}
+            </h2>
+            {product.sizeGuide ? (
+              <div className="space-y-3">
+                {product.sizeGuide.fitNote && (
+                  <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <strong>Nota de calce:</strong> {product.sizeGuide.fitNote}
+                  </p>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border border-slate-200 rounded-xl">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
+                      <tr>
+                        {product.sizeGuide.columns.map((col) => (
+                          <th key={col} className="p-3">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {product.sizeGuide.rows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          {product.sizeGuide!.columns.map((col, cIdx) => (
+                            <td key={col} className={`p-3 ${cIdx === 0 ? "font-bold text-slate-900" : ""}`}>
+                              {row[col] || "-"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">Tabla de equivalencias internacionales recomendada para clientes de Matacos Deportes.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border border-slate-200 rounded-xl">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-3">Argentina (AR)</th>
+                        <th className="p-3">Estados Unidos (USA)</th>
+                        <th className="p-3">Europa (EU)</th>
+                        <th className="p-3">Brasil (BR)</th>
+                        <th className="p-3">Longitud (CM)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sizeConversions.map((sc, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900">{sc.ar}</td>
+                          <td className="p-3">{sc.us}</td>
+                          <td className="p-3">{sc.eu}</td>
+                          <td className="p-3">{sc.br}</td>
+                          <td className="p-3 font-mono font-bold text-indigo-700">{sc.cm}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

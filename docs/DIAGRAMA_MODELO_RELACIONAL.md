@@ -1,16 +1,23 @@
 # Diagrama del Modelo Relacional — Matacos Deportes
-**Esquema:** [`prisma/schema.prisma`](file:///C:/Proyectos/matacos-deportes-app/prisma/schema.prisma)  
+**Esquema:** [`prisma/schema.prisma`](file:///C:/Users/della/matacos-deportes-app/prisma/schema.prisma)  
 **Motor:** PostgreSQL 16 / Prisma ORM 6  
-**Visor interactivo (navegador):** [`docs/diagrama_modelo_relacional.html`](file:///C:/Proyectos/matacos-deportes-app/docs/diagrama_modelo_relacional.html)
+**Visor interactivo (navegador):** [`docs/diagrama_modelo_relacional.html`](file:///C:/Users/della/matacos-deportes-app/docs/diagrama_modelo_relacional.html)
 
 ---
 
 ```mermaid
 erDiagram
+    Profile ||--o{ Profile : "hereda de (parentProfileId)"
+    Profile ||--o{ ProfilePermission : "asigna permisos"
+    Permission ||--o{ ProfilePermission : "compone perfil"
+    Profile ||--o{ User : "clasifica"
+
     User ||--o{ Sale : "crea / atiende"
     User ||--o{ Sale : "vendedor salon"
     User ||--o{ Sale : "cajero mostrador"
     User ||--o{ CashShift : "abre / cierra turno"
+
+    Customer ||--o{ Sale : "compras e-commerce"
 
     Category ||--o{ Product : "clasifica"
     Brand ||--o{ Product : "marca"
@@ -28,12 +35,51 @@ erDiagram
     Sale ||--|{ SaleItem : "contiene lineas"
     Sale ||--|{ SalePayment : "medios de pago"
 
+    Profile {
+        string id PK "UUID"
+        string name UK "Nombre del perfil"
+        string description
+        int level "Jerarquia: 100 Admin, 50 Encargado, 10 Cajero"
+        boolean isSystem "Protegido"
+        string parentProfileId FK "Herencia reflexiva"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Permission {
+        string id PK "UUID"
+        string code UK "Codigo atomico (pos.vender, inventario.costos)"
+        string module "Modulo funcional"
+        string description
+    }
+
+    ProfilePermission {
+        string profileId PK,FK
+        string permissionId PK,FK
+    }
+
+    Customer {
+        string id PK "UUID (Aislado de empleados)"
+        string email UK
+        string password "Hash bcryptjs"
+        string name
+        string phone
+        string dni
+        string defaultAddress
+        string defaultCity
+        string defaultPostalCode
+        datetime createdAt
+        datetime updatedAt
+    }
+
     User {
         string id PK
+        string username UK "Identificador agil"
         string email UK
         string name
-        string password
-        enum role "ADMIN | CAJERO | DESPACHO"
+        string password "Hash bcryptjs"
+        enum role "ADMIN | CAJERO (legacy)"
+        string profileId FK "Perfil dinamico"
         boolean active
         datetime createdAt
         datetime updatedAt
@@ -66,7 +112,7 @@ erDiagram
         string disciplineId FK
         string categoryId FK
         string brandId FK
-        decimal costPrice
+        decimal costPrice "Restringido (inventario.costos)"
         decimal price
         boolean active
         boolean ignoreAlerts
@@ -94,10 +140,8 @@ erDiagram
         string barcode UK
         int stockStore "Stock salon"
         int stockWarehouse "Stock deposito"
-        int stockReserved "Stock preventas"
         int minStoreStock "Alerta salon"
         int minStock "Alerta proveedor"
-        decimal price
         datetime createdAt
         datetime updatedAt
     }
@@ -154,6 +198,15 @@ erDiagram
         string ticketCode "Preventa (#042)"
         string offlineId UK "UUID IndexedDB"
         string customerName
+        string customerEmail
+        string customerPhone
+        string customerDni
+        string shippingMethod
+        decimal shippingCost
+        string shippingAddress
+        string shippingCity
+        string shippingPostalCode
+        string customerId FK "Web Customer (null si invitado)"
         string channel "MOSTRADOR | WEB"
         enum status "PENDIENTE_PAGO | COMPLETADA | CANCELADA"
         decimal subtotalGross
