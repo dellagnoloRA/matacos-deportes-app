@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
 import { SizeGuideModal } from "./SizeGuideModal";
+import { ProductReviewsSection } from "./ProductReviewsSection";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import { getProductReviewsAction } from "@/server/actions/ecommerce/reviewActions";
+import type {
+  ProductReviewsSummary,
+  PublicProductReviewsResponse,
+} from "@/types/reviews";
 import {
   HighlightIcon,
   getSmartHighlightIcon,
@@ -230,10 +236,30 @@ export function ProductDetailView({
   const [postalCode, setPostalCode] = useState("");
   const [postalCalculated, setPostalCalculated] = useState(false);
 
-  // 4. Pestaña activa de los apartados inferiores
+  // 4. Pestaña activa de los apartados inferiores y resumen real de valoraciones
   const [activeTab, setActiveTab] = useState<
-    "descripcion" | "cuidados" | "talles"
+    "descripcion" | "cuidados" | "talles" | "valoraciones"
   >("descripcion");
+  const [initialReviewsData, setInitialReviewsData] =
+    useState<PublicProductReviewsResponse | null>(null);
+  const [reviewsSummary, setReviewsSummary] = useState<ProductReviewsSummary | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getProductReviewsAction({ productId: product.id })
+      .then((res) => {
+        if (mounted && res.success && res.data) {
+          setInitialReviewsData(res.data);
+          setReviewsSummary(res.data.summary);
+        }
+      })
+      .catch(() => {
+        // Silenciado si la BD no está disponible o aún no se aplicó la migración
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [product.id]);
 
   // Galería de fotos del producto (con fallbacks realistas si la BD tiene pocas fotos)
   const images = useMemo(() => {
@@ -453,6 +479,11 @@ export function ProductDetailView({
       availableStock: 5,
     }));
   }, [product.sizeOptions, product.variants, selectedColor]);
+
+  const availableSizeNames = useMemo(
+    () => sizesList.map((s) => s.size),
+    [sizesList]
+  );
 
   const hasSizeGuide = Boolean(
     product.sizeGuide &&
@@ -1067,6 +1098,29 @@ export function ProductDetailView({
                 Tabla de Talles
               </button>
             )}
+
+            <button
+              id="tab-valoraciones"
+              type="button"
+              role="tab"
+              aria-selected={effectiveActiveTab === "valoraciones"}
+              onClick={() => setActiveTab("valoraciones")}
+              className="pb-3 border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 border-transparent hover:text-slate-950 aria-selected:border-slate-950 aria-selected:text-slate-950 aria-selected:font-extrabold"
+            >
+              <span>
+                Valoraciones
+                {reviewsSummary && reviewsSummary.reviewsCount > 0
+                  ? ` (${reviewsSummary.reviewsCount})`
+                  : ""}
+              </span>
+              {reviewsSummary &&
+                reviewsSummary.reviewsCount > 0 &&
+                reviewsSummary.ratingAverage !== null && (
+                  <span className="text-amber-500 text-xs font-bold">
+                    ★ {reviewsSummary.ratingAverage.toFixed(1)}
+                  </span>
+                )}
+            </button>
           </div>
 
           {/* CONTENIDO DE CADA PESTAÑA */}
@@ -1312,6 +1366,20 @@ export function ProductDetailView({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ----------------- PESTAÑA 4: VALORACIONES (RESEÑAS REALES BD) ----------------- */}
+            {effectiveActiveTab === "valoraciones" && (
+              <div role="tabpanel" aria-labelledby="tab-valoraciones">
+                <ProductReviewsSection
+                  productId={product.id}
+                  productName={product.name}
+                  availableSizes={availableSizeNames}
+                  initialReviewsData={initialReviewsData}
+                  onSummaryChange={setReviewsSummary}
+                  onReviewsDataSync={setInitialReviewsData}
+                />
               </div>
             )}
           </div>

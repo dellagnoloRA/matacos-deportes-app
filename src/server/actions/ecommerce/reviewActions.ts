@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getCustomerSession } from "@/lib/customerSession";
 import { invalidateLandingCache } from "@/lib/landingCache";
+import type {
+  CreateOrUpdateReviewPayload,
+  GetProductReviewsQueryPayload,
+  ReportReviewPayload,
+} from "@/schemas/review";
 import {
   createOrUpdateCustomerReview,
   getCustomerReviewContext,
@@ -37,35 +42,65 @@ function invalidateProductReviewsCache(productId: string): void {
   }
 }
 
-export async function getProductReviewsAction(input: unknown): Promise<{
+export async function getProductReviewsAction(
+  input: GetProductReviewsQueryPayload
+): Promise<{
   success: boolean;
   data?: PublicProductReviewsResponse;
   error?: string;
 }> {
-  return getPublicProductReviews(input);
+  try {
+    return await getPublicProductReviews(input);
+  } catch (error) {
+    console.error("Error al consultar reseñas del producto:", error);
+    return {
+      success: false,
+      error: "No pudimos cargar las reseñas en este momento.",
+    };
+  }
 }
 
 export async function getCustomerReviewContextAction(
   productId: string
 ): Promise<CustomerReviewContext> {
-  const actor = await getCustomerSessionActor();
-  return getCustomerReviewContext(actor, productId);
+  try {
+    const actor = await getCustomerSessionActor();
+    return await getCustomerReviewContext(actor, productId);
+  } catch (error) {
+    console.error("Error al consultar contexto de reseña del cliente:", error);
+    return {
+      isAuthenticated: false,
+      hasVerifiedPurchase: false,
+      verifiedPurchasedSize: null,
+      existingReview: null,
+    };
+  }
 }
 
 export async function createOrUpdateReviewAction(
-  input: unknown
+  input: CreateOrUpdateReviewPayload
 ): Promise<CreateOrUpdateReviewResult> {
-  const actor = await getCustomerSessionActor();
-  const result = await createOrUpdateCustomerReview(actor, input);
+  try {
+    const actor = await getCustomerSessionActor();
+    const result = await createOrUpdateCustomerReview(actor, input);
 
-  if (result.success && result.data) {
-    invalidateProductReviewsCache(result.data.productId);
+    if (result.success && result.data) {
+      invalidateProductReviewsCache(result.data.productId);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error al guardar reseña de cliente:", error);
+    return {
+      success: false,
+      error: "No pudimos guardar tu reseña en este momento. Intentá nuevamente.",
+    };
   }
-
-  return result;
 }
 
-export async function reportReviewAction(input: unknown): Promise<{
+export async function reportReviewAction(
+  input: ReportReviewPayload
+): Promise<{
   success: boolean;
   data?: {
     productId: string;
@@ -75,14 +110,22 @@ export async function reportReviewAction(input: unknown): Promise<{
   };
   error?: string;
 }> {
-  const actor = await getCustomerSessionActor();
-  const result = await reportCustomerReview(actor, input);
+  try {
+    const actor = await getCustomerSessionActor();
+    const result = await reportCustomerReview(actor, input);
 
-  if (result.success && result.data?.movedToModeration) {
-    invalidateProductReviewsCache(result.data.productId);
+    if (result.success && result.data?.movedToModeration) {
+      invalidateProductReviewsCache(result.data.productId);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error al reportar reseña:", error);
+    return {
+      success: false,
+      error: "No pudimos registrar tu reporte en este momento.",
+    };
   }
-
-  return result;
 }
 
 export async function voteReviewHelpfulAction(reviewId: string): Promise<{
@@ -90,13 +133,21 @@ export async function voteReviewHelpfulAction(reviewId: string): Promise<{
   data?: { productId: string; helpfulVotes: number };
   error?: string;
 }> {
-  const result = await voteReviewHelpful(reviewId);
-  if (result.success && result.data) {
-    try {
-      revalidatePath(`/productos/${result.data.productId}`);
-    } catch {
-      // Silenciado en scripts CLI fuera del request lifecycle de Next.js
+  try {
+    const result = await voteReviewHelpful(reviewId);
+    if (result.success && result.data) {
+      try {
+        revalidatePath(`/productos/${result.data.productId}`);
+      } catch {
+        // Silenciado en scripts CLI fuera del request lifecycle de Next.js
+      }
     }
+    return result;
+  } catch (error) {
+    console.error("Error al votar reseña útil:", error);
+    return {
+      success: false,
+      error: "No pudimos registrar tu voto en este momento.",
+    };
   }
-  return result;
 }

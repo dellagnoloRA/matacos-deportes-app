@@ -59,6 +59,7 @@ export const CreateOrUpdateReviewSchema = z.object({
   fitFeedback: FitFeedbackSchema.nullish().transform((v) => v ?? null),
 });
 
+export type CreateOrUpdateReviewPayload = z.input<typeof CreateOrUpdateReviewSchema>;
 export type CreateOrUpdateReviewInput = z.infer<typeof CreateOrUpdateReviewSchema>;
 
 export const GetProductReviewsQuerySchema = z.object({
@@ -74,6 +75,7 @@ export const GetProductReviewsQuerySchema = z.object({
   sort: ReviewSortSchema.optional().default("recent"),
 });
 
+export type GetProductReviewsQueryPayload = z.input<typeof GetProductReviewsQuerySchema>;
 export type GetProductReviewsQueryInput = z.infer<typeof GetProductReviewsQuerySchema>;
 
 export const ReportReviewSchema = z.object({
@@ -87,6 +89,7 @@ export const ReportReviewSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : null)),
 });
 
+export type ReportReviewPayload = z.input<typeof ReportReviewSchema>;
 export type ReportReviewInput = z.infer<typeof ReportReviewSchema>;
 
 export const AdminReviewsFilterSchema = z.object({
