@@ -732,11 +732,29 @@ export function CustomerAccountView({
           </div>
         )}
 
-        {/* TAB 3: FAVORITOS */}
+        {/* TAB 3: FAVORITOS (Diseño estilo Mercado Libre) */}
         {activeTab === "favoritos" && (
-          <div>
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            {/* Cabecera de la sección Favoritos */}
+            <div className="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                  Favoritos
+                </h1>
+                <div className="mt-4 flex items-center gap-6">
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-emerald-800 border-b-2 border-emerald-700 pb-2 cursor-pointer transition-colors"
+                  >
+                    Mis favoritos ({favorites.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Listado de productos o estado vacío */}
             {favorites.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4">
+              <div className="p-12 text-center space-y-4">
                 <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto flex items-center justify-center text-slate-400">
                   <Heart className="w-8 h-8" />
                 </div>
@@ -750,51 +768,89 @@ export function CustomerAccountView({
                 </div>
                 <Link
                   href="/catalogo"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-wider"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-wider hover:bg-slate-800 transition-colors"
                 >
                   <span>Explorar Catálogo</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="divide-y divide-slate-100">
                 {favorites.map((fav) => (
                   <div
                     key={fav.productId}
-                    className="bg-white rounded-2xl border border-slate-200 p-4 flex gap-4 items-center justify-between"
+                    className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 hover:bg-slate-50/50 transition-colors group"
                   >
+                    {/* Imagen del producto */}
                     <Link
                       href={`/productos/${fav.productId}`}
-                      className="w-20 h-20 rounded-xl bg-slate-50 border border-slate-100 p-2 shrink-0 flex items-center justify-center"
+                      className="w-28 h-28 sm:w-36 sm:h-36 shrink-0 bg-white border border-slate-100 rounded-xl p-2 flex items-center justify-center overflow-hidden hover:border-slate-300 transition-colors"
                     >
                       <img
                         src={fav.imageUrl || "/placeholder-product.svg"}
                         alt={fav.name}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                       />
                     </Link>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                        {fav.brandName}
-                      </span>
-                      <Link
-                        href={`/productos/${fav.productId}`}
-                        className="text-xs font-bold text-slate-900 hover:text-[#00A811] line-clamp-2 block"
-                      >
-                        {fav.name}
-                      </Link>
-                      <span className="text-sm font-black text-[#00A811] block">
-                        {formatCurrency(fav.price)}
-                      </span>
+
+                    {/* Información y acciones estilo Mercado Libre */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        {/* Marca */}
+                        {fav.brandName && (
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                            {fav.brandName}
+                          </span>
+                        )}
+
+                        {/* Título */}
+                        <Link
+                          href={`/productos/${fav.productId}`}
+                          className="text-sm sm:text-base font-normal text-slate-900 hover:text-emerald-800 transition-colors line-clamp-2 leading-snug"
+                        >
+                          {fav.name}
+                        </Link>
+
+                        {/* Precio */}
+                        <div className="pt-1 flex items-baseline gap-2">
+                          <span className="text-xl sm:text-2xl font-light text-slate-900 tracking-tight">
+                            {formatCurrency(fav.price)}
+                          </span>
+                        </div>
+
+                        {/* Estado de stock */}
+                        <div className="pt-0.5">
+                          {fav.isAvailable ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                              Stock disponible
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                              Sin stock temporal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Enlaces de acciones inferiores */}
+                      <div className="mt-4 pt-2 flex items-center gap-4 text-xs font-semibold">
+                        <Link
+                          href={`/productos/${fav.productId}`}
+                          className="text-emerald-700 hover:text-emerald-900 transition-colors"
+                        >
+                          Ver detalle
+                        </Link>
+                        <span className="text-slate-300">•</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFavorite(fav.productId)}
+                          className="text-emerald-700 hover:text-red-600 transition-colors cursor-pointer"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFavorite(fav.productId)}
-                      className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                      title="Quitar de favoritos"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 ))}
               </div>
