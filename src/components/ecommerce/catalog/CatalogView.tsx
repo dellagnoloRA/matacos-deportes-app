@@ -14,8 +14,14 @@ import {
   Flame,
   ShoppingBag,
   Loader2,
+  LogIn,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { useCustomerStore } from "@/store/customerStore";
+import { toggleCustomerFavoriteAction } from "@/server/actions/ecommerce/customerActions";
 import type {
   PublicProductItem,
   CatalogPagination,
@@ -63,33 +69,73 @@ export function CatalogView({
     null
   );
 
-  // Wishlist state (persisted in localStorage)
-  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  // Customer store y favoritos autenticados
+  const { customer, isLoaded, fetchCustomer, setCustomer } = useCustomerStore();
+  const [favoriteLoadingId, setFavoriteLoadingId] = useState<string | null>(null);
 
+  // Toast interactivo de favoritos (solo para advertencia cuando NO está logueado)
+  const [favoriteToast, setFavoriteToast] = useState<{
+    show: boolean;
+    type: "login_required";
+    message: string;
+    productTitle?: string;
+  } | null>(null);
+
+  // Cargar sesión del cliente al montar si aún no se cargó
   useEffect(() => {
+    if (!isLoaded) {
+      fetchCustomer();
+    }
+  }, [isLoaded, fetchCustomer]);
+
+  // Temporizador para auto-ocultar el toast
+  useEffect(() => {
+    if (favoriteToast?.show) {
+      const timer = setTimeout(() => {
+        setFavoriteToast((prev) => (prev ? { ...prev, show: false } : null));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [favoriteToast]);
+
+  const handleToggleWishlist = async (productId: string, productName?: string) => {
+    // Si el usuario no está logueado, advertir que debe iniciar sesión
+    if (!customer) {
+      setFavoriteToast({
+        show: true,
+        type: "login_required",
+        message: "Tenés que iniciar sesión para guardar productos en tus favoritos.",
+        productTitle: productName,
+      });
+      return;
+    }
+
     try {
-      const stored = localStorage.getItem("matacos_wishlist");
-      if (stored) {
-        setWishlistIds(JSON.parse(stored));
+      setFavoriteLoadingId(productId);
+      const res = await toggleCustomerFavoriteAction(productId);
+      if (res.success && res.data) {
+        // Actualizar el estado en el store global inmediatamente (tilde / destilde silencioso y reactivo)
+        setCustomer({
+          ...customer,
+          favoriteProductIds: res.data.favoriteProductIds,
+        });
+      } else {
+        setFavoriteToast({
+          show: true,
+          type: "login_required",
+          message: res.error || "No se pudo actualizar tu lista de favoritos.",
+          productTitle: productName,
+        });
       }
     } catch {
-      // ignore
+      setFavoriteToast({
+        show: true,
+        type: "login_required",
+        message: "Ocurrió un error inesperado al conectar con el servidor.",
+      });
+    } finally {
+      setFavoriteLoadingId(null);
     }
-  }, []);
-
-  const handleToggleWishlist = (productId: string) => {
-    setWishlistIds((prev) => {
-      const exists = prev.includes(productId);
-      const next = exists
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId];
-      try {
-        localStorage.setItem("matacos_wishlist", JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
   };
 
   // Mobile filters drawer state
@@ -219,7 +265,10 @@ export function CatalogView({
                       product.totalAvailableStock > 0 &&
                       product.totalAvailableStock <= 3;
                     const isNavigatingThis = navigatingProductId === product.id;
-                    const isWishlisted = wishlistIds.includes(product.id);
+                    const isWishlisted = Boolean(
+                      customer?.favoriteProductIds?.includes(product.id)
+                    );
+                    const isFavoriteActionPending = favoriteLoadingId === product.id;
 
                     const hasOffer = Boolean(
                       product.isOffer ||
@@ -293,20 +342,30 @@ export function CatalogView({
                           {/* Botón de Favorito / Wishlist (arriba a la derecha) */}
                           <button
                             type="button"
+                            disabled={isFavoriteActionPending}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleWishlist(product.id);
+                              handleToggleWishlist(product.id, product.name);
                             }}
-                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/85 hover:bg-white text-slate-500 hover:text-red-500 border border-slate-200/80 shadow-2xs flex items-center justify-center transition-all z-10 cursor-pointer"
+                            className={`absolute top-2 right-2 w-7 h-7 rounded-full border shadow-2xs flex items-center justify-center transition-all z-10 cursor-pointer ${
+                              isWishlisted
+                                ? "bg-red-50 hover:bg-red-100 border-red-200 text-red-500"
+                                : "bg-white/90 hover:bg-white border-slate-200/80 text-slate-500 hover:text-red-500"
+                            } ${isFavoriteActionPending ? "opacity-60 cursor-wait" : ""}`}
                             title={isWishlisted ? "Quitar de favoritos" : "Guardar en favoritos"}
+                            aria-label={isWishlisted ? "Quitar de favoritos" : "Guardar en favoritos"}
                           >
-                            <Heart
-                              className={`w-3.5 h-3.5 transition-colors ${
-                                isWishlisted
-                                  ? "fill-red-500 text-red-500"
-                                  : "text-slate-500 hover:text-red-500"
-                              }`}
-                            />
+                            {isFavoriteActionPending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                            ) : (
+                              <Heart
+                                className={`w-3.5 h-3.5 transition-all ${
+                                  isWishlisted
+                                    ? "fill-red-500 text-red-500 scale-110"
+                                    : "text-slate-500 hover:text-red-500"
+                                }`}
+                              />
+                            )}
                           </button>
                         </div>
 
@@ -424,6 +483,87 @@ export function CatalogView({
 
       {/* Slide-over Cart Drawer */}
       <EcommerceCartDrawer />
+
+      {/* 6. Notificación flotante / Toast interactivo de favoritos */}
+      {favoriteToast?.show && (
+        <div
+          className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4"
+          onClick={() => setFavoriteToast(null)}
+        >
+          {/* Wrapper: círculo encima + tarjeta abajo */}
+          <div
+            className="relative w-full max-w-xs animate-in zoom-in-95 duration-200 pointer-events-auto flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Círculo con ícono flotando sobre la tarjeta */}
+            <div className="relative z-10 mb-[-28px] flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full border-4 border-white shadow-lg flex items-center justify-center bg-red-500">
+                <Heart className="w-7 h-7 text-white" />
+              </div>
+            </div>
+
+            {/* Tarjeta principal */}
+            <div className="w-full bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+              {/* Franja de color en el tope */}
+              <div className="h-1.5 bg-red-500" />
+
+              {/* Contenido */}
+              <div className="pt-10 pb-5 px-5">
+                {/* Título "Favoritos" centrado */}
+                <p className="text-center text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+                  Favoritos
+                </p>
+
+                {/* Subtítulo de acción */}
+                <p className="text-center text-base font-bold text-slate-900 leading-snug mb-1">
+                  Inicio de sesión requerido
+                </p>
+
+                {/* Mensaje descriptivo */}
+                <p className="text-center text-sm text-slate-700 leading-relaxed mb-1">
+                  {favoriteToast.message}
+                </p>
+
+                {/* Nombre del producto */}
+                {favoriteToast.productTitle && (
+                  <p className="text-center text-xs font-semibold text-slate-600 truncate mb-1">
+                    {favoriteToast.productTitle}
+                  </p>
+                )}
+
+                {/* Botón cerrar (X) arriba a la derecha */}
+                <button
+                  type="button"
+                  onClick={() => setFavoriteToast(null)}
+                  className="absolute top-10 right-4 text-slate-400 hover:text-slate-700 p-1 rounded-md transition-colors"
+                  aria-label="Cerrar notificación"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {/* Botones de Acción */}
+                <div className="mt-4 flex items-center gap-2">
+                  <Link
+                    href="/cuenta?mode=login&redirect=/catalogo"
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#00D615] hover:bg-[#00c013] text-black font-bold text-sm rounded-xl transition-colors shadow-sm"
+                    onClick={() => setFavoriteToast(null)}
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Iniciar Sesión</span>
+                  </Link>
+                  <Link
+                    href="/cuenta?mode=register&redirect=/catalogo"
+                    className="inline-flex items-center px-3 py-2.5 text-sm text-slate-600 hover:text-slate-800 font-medium border border-slate-200 hover:border-slate-300 rounded-xl transition-colors"
+                    onClick={() => setFavoriteToast(null)}
+                  >
+                    Crear cuenta
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

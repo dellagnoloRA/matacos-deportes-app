@@ -65,10 +65,20 @@ export default async function CuentaPage({ searchParams }: CuentaPageProps) {
       getCustomerFavoritesDetailsAction(),
     ]);
 
+    const VALID_TABS: AccountTab[] = [
+      "compras",
+      "favoritos",
+      "pedidos",
+      "preguntas",
+      "opiniones",
+      "perfil",
+    ];
+
     const initialTab: AccountTab =
-      resolved.tab === "perfil" || resolved.tab === "favoritos"
-        ? resolved.tab
-        : "pedidos";
+      typeof resolved.tab === "string" &&
+      VALID_TABS.includes(resolved.tab as AccountTab)
+        ? (resolved.tab as AccountTab)
+        : "compras";
 
     return (
       <CustomerAccountView

@@ -531,107 +531,77 @@ export function EcommerceHeader({
             {isUserMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
                 {customer ? (
-                  /* 1. Cliente logueado */
-                  <div className="divide-y divide-slate-100">
-                    <div className="p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#00D615] text-slate-950 font-black text-sm flex items-center justify-center shrink-0 shadow-sm shadow-[#00D615]/30">
-                          {customer.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-black text-white truncate uppercase tracking-tight">
-                            {customer.name}
-                          </p>
-                          <p className="text-[11px] text-slate-300 truncate">
-                            {customer.email}
-                          </p>
-                          <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wider text-[#00D615] bg-[#00D615]/20 px-1.5 py-0.5 rounded">
-                            Sesión Iniciada
-                          </span>
-                        </div>
+                  /* 1. Cliente logueado — estilo MercadoLibre */
+                  <div>
+                    {/* Cabecera: avatar + nombre + email + chevron arriba */}
+                    <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-slate-100">
+                      <div className="w-11 h-11 rounded-full bg-[#00D615] text-slate-950 font-black text-base flex items-center justify-center shrink-0 shadow-sm select-none">
+                        {customer.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-bold text-slate-900 truncate leading-tight">
+                          {customer.name.toUpperCase()}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {customer.email}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="p-2 space-y-1">
-                      {/* Opción Ver Favoritos */}
+                    {/* Lista de ítems estilo ML — solo texto, sin íconos */}
+                    <nav className="py-2">
+                      <Link
+                        href="/cuenta?tab=compras"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="block px-5 py-3 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer font-normal"
+                      >
+                        Compras
+                      </Link>
                       <Link
                         href="/cuenta?tab=favoritos"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-rose-50/70 text-slate-700 hover:text-rose-950 transition-colors group cursor-pointer"
+                        className="flex items-center justify-between px-5 py-3 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer font-normal"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
-                            <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-bold text-slate-900 block leading-tight">
-                              Mis Favoritos
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">
-                              {customer.favoriteProductIds?.length > 0
-                                ? `${customer.favoriteProductIds.length} artículos guardados`
-                                : "Sin artículos aún"}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
-                          {customer.favoriteProductIds?.length || 0}
-                        </span>
+                        <span>Favoritos</span>
+                        {(customer.favoriteProductIds?.length || 0) > 0 && (
+                          <span className="text-[11px] font-bold text-white bg-rose-500 min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center">
+                            {customer.favoriteProductIds.length}
+                          </span>
+                        )}
                       </Link>
-
-                      {/* Opción Mis Pedidos */}
                       <Link
                         href="/cuenta?tab=pedidos"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors group cursor-pointer"
+                        className="block px-5 py-3 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer font-normal"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                            <Package className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-bold text-slate-900 block leading-tight">
-                              Mis Pedidos
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">
-                              Historial y seguimiento de envíos
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                        Pedidos
                       </Link>
-
-                      {/* Opción Mi Perfil */}
+                      <div className="my-1 mx-5 border-t border-slate-100" />
                       <Link
-                        href="/cuenta?tab=perfil"
+                        href="/cuenta?tab=preguntas"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors group cursor-pointer"
+                        className="block px-5 py-3 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer font-normal"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-200 transition-colors">
-                            <User className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-bold text-slate-900 block leading-tight">
-                              Mi Perfil
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">
-                              Datos personales y entrega
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                        Preguntas frecuentes
                       </Link>
-                    </div>
+                      <Link
+                        href="/cuenta?tab=opiniones"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="block px-5 py-3 text-[14px] text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer font-normal"
+                      >
+                        Opiniones
+                      </Link>
+                    </nav>
 
-                    <div className="p-2 bg-slate-50">
+                    {/* Cerrar sesión */}
+                    <div className="border-t border-slate-100 px-5 py-3">
                       <button
                         type="button"
                         onClick={handleLogoutCustomer}
-                        className="w-full flex items-center gap-2 p-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors cursor-pointer"
+                        className="flex items-center gap-2 text-[14px] text-rose-500 hover:text-rose-700 transition-colors cursor-pointer font-normal"
                       >
                         <LogOut className="w-4 h-4 shrink-0" />
-                        <span>Cerrar Sesión</span>
+                        <span>Cerrar sesión</span>
                       </button>
                     </div>
                   </div>

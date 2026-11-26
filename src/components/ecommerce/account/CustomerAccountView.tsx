@@ -20,6 +20,8 @@ import {
   Loader2,
   Trash2,
   CreditCard,
+  HelpCircle,
+  Star,
 } from "lucide-react";
 import { EcommerceHeader } from "@/components/ecommerce/EcommerceHeader";
 import { EcommerceFooter } from "@/components/ecommerce/EcommerceFooter";
@@ -37,7 +39,13 @@ import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
 import { useCustomerStore } from "@/store/customerStore";
 
-export type AccountTab = "pedidos" | "perfil" | "favoritos";
+export type AccountTab =
+  | "compras"
+  | "favoritos"
+  | "pedidos"
+  | "preguntas"
+  | "opiniones"
+  | "perfil";
 
 interface CustomerAccountViewProps {
   initialCustomer: CustomerProfileDTO;
@@ -292,37 +300,24 @@ export function CustomerAccountView({
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button
             type="button"
-            onClick={() => setActiveTab("pedidos")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === "pedidos"
+            onClick={() => setActiveTab("compras")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "compras"
                 ? "bg-slate-950 text-white shadow-xs"
                 : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
             }`}
           >
             <Package className="w-4 h-4" />
-            <span>Mis Pedidos ({orders.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("perfil")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === "perfil"
-                ? "bg-slate-950 text-white shadow-xs"
-                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>Mis Datos y Dirección</span>
+            <span>Compras ({orders.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("favoritos")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "favoritos"
                 ? "bg-slate-950 text-white shadow-xs"
                 : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
@@ -331,10 +326,62 @@ export function CustomerAccountView({
             <Heart className="w-4 h-4" />
             <span>Favoritos ({favorites.length})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("pedidos")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "pedidos"
+                ? "bg-slate-950 text-white shadow-xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span>Pedidos ({orders.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("preguntas")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "preguntas"
+                ? "bg-slate-950 text-white shadow-xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+            <span>Preguntas frecuentes</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("opiniones")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "opiniones"
+                ? "bg-slate-950 text-white shadow-xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Star className="w-4 h-4" />
+            <span>Opiniones</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("perfil")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "perfil"
+                ? "bg-slate-950 text-white shadow-xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>Mis Datos y Dirección</span>
+          </button>
         </div>
 
-        {/* TAB 1: MIS PEDIDOS */}
-        {activeTab === "pedidos" && (
+        {/* TAB 1: COMPRAS / PEDIDOS */}
+        {(activeTab === "compras" || activeTab === "pedidos") && (
           <div className="space-y-4">
             {orders.length === 0 ? (
               <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4">
@@ -752,6 +799,117 @@ export function CustomerAccountView({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: PREGUNTAS FRECUENTES */}
+        {activeTab === "preguntas" && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 space-y-6">
+            <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#00A811] flex items-center justify-center shrink-0">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Preguntas Frecuentes
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Respuestas rápidas sobre tus compras, formas de pago, retiros y envíos en Matacos Deportes.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <Truck className="w-4 h-4 text-[#00A811]" />
+                  <span>¿Cómo retiro mi compra en Saavedra 241?</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  El retiro en nuestro salón es 100% gratuito. Una vez acreditado tu pago, preparamos tu pedido y te avisamos cuando esté listo con tu DNI y número de orden.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <CreditCard className="w-4 h-4 text-[#00A811]" />
+                  <span>¿Cuáles son los medios de pago aceptados?</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Podés pagar con Mercado Pago (tarjetas de débito, crédito en 3 y 6 cuotas) o mediante transferencia bancaria con descuento especial.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <Package className="w-4 h-4 text-[#00A811]" />
+                  <span>¿Cuánto demora el despacho de envíos?</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Despachamos por Correo Argentino a todo el país y por cadetería express dentro de Formosa Capital en menos de 24 horas hábiles.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <MessageCircle className="w-4 h-4 text-[#00A811]" />
+                  <span>¿Cómo solicito un cambio de talle o modelo?</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Tenés 30 días corridos para solicitar cambios en artículos sin uso y con etiqueta original, tanto en el local como coordinando por WhatsApp.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
+              <span className="text-xs text-slate-500 font-medium">
+                ¿Tenés otra consulta que no figura acá?
+              </span>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/preguntas-frecuentes"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span>Ver todas las preguntas</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <a
+                  href="https://wa.me/5493704287158?text=Hola%20Matacos%20Deportes!%20Tengo%20una%20consulta."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00D615] hover:bg-[#00c013] text-black text-xs font-bold transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Escribinos por WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: OPINIONES */}
+        {activeTab === "opiniones" && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 mx-auto flex items-center justify-center">
+              <Star className="w-8 h-8 fill-amber-400" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-black text-slate-900">
+                Tus Opiniones y Reseñas
+              </h2>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Aquí vas a poder consultar y gestionar las valoraciones que dejaste sobre los artículos comprados en Matacos Deportes.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/catalogo"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-wider hover:bg-slate-800 transition-colors"
+              >
+                <span>Explorar artículos para opinar</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         )}
       </main>

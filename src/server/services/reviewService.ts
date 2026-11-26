@@ -523,6 +523,12 @@ export async function createOrUpdateCustomerReview(
     textAudit.status === "REVIEW" ? textAudit.reasons.join(" ") : null;
 
   const verifiedPurchase = await repo.findVerifiedPurchase(customer.customerId, productId);
+  if (!verifiedPurchase) {
+    return {
+      success: false,
+      error: "Solo podés escribir una reseña si compraste este producto en Matacos Deportes.",
+    };
+  }
   const resolvedPurchasedSize = purchasedSize ?? verifiedPurchase?.purchasedSize ?? null;
 
   const outcome = await repo.upsertReviewAndRecalculate({
