@@ -22,6 +22,7 @@ import { WebOrdersView } from "./WebOrdersView";
 import { BannersManagementView } from "./BannersManagementView";
 import { InstallmentsManagementView } from "./InstallmentsManagementView";
 import { PromotionManagementView } from "./PromotionManagementView";
+import { ReviewsManagementView } from "./ReviewsManagementView";
 import { getCurrentUserAction } from "@/server/actions/authActions";
 import { SessionPayload } from "@/lib/session";
 import { getPendingSales } from "@/server/actions/posSaleActions";
@@ -77,14 +78,25 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<SessionPayload | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   useEffect(() => {
-    getCurrentUserAction().then(setCurrentUser);
+    let active = true;
+    getCurrentUserAction()
+      .then((user) => {
+        if (active) setCurrentUser(user);
+      })
+      .finally(() => {
+        if (active) setIsLoadingUser(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const hasPerm = useCallback((code: string) => {
     if (!currentUser) return false;
-    if (currentUser.role === "ADMIN") return true;
+    if (currentUser.role === "ADMIN" || (currentUser.level ?? 0) >= 100) return true;
     return currentUser.permissions?.includes(code) ?? false;
   }, [currentUser]);
 
@@ -95,6 +107,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     if (tab === "pos") return "pos";
     if (tab === "caja") return "caja";
     if (tab === "ecommerce") return "ecommerce";
+    if (tab === "resenas" || tab === "admin-resenas") return "resenas";
     if (tab === "configuracion") return "configuracion";
     if (tab === "usuarios") return "usuarios";
     if (tab === "perfiles") return "perfiles";
@@ -196,6 +209,13 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
       } else if (id === "admin-cuotas" || id === "cuotas") {
         updateUrl({
           tab: "cuotas",
+          seccion: null,
+          categoria: null,
+          producto: null,
+        });
+      } else if (id === "admin-resenas" || id === "resenas") {
+        updateUrl({
+          tab: "resenas",
           seccion: null,
           categoria: null,
           producto: null,
@@ -387,6 +407,25 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const activeSidebarItem =
+    currentTab === "usuarios"
+      ? "admin-usuarios"
+      : currentTab === "perfiles"
+      ? "admin-perfiles"
+      : currentTab === "banners"
+      ? "admin-banners"
+      : currentTab === "cuotas"
+      ? "admin-cuotas"
+      : currentTab === "resenas"
+      ? "admin-resenas"
+      : currentTab === "inventario"
+      ? `inventario-${currentInventorySubView}`
+      : currentTab === "pos"
+      ? `pos-${currentPosSubView}`
+      : currentTab === "analytics"
+      ? "inicio"
+      : currentTab;
+
   return (
     <div className="min-h-screen w-full bg-white text-slate-800 flex font-sans antialiased select-none relative">
       {/* Main App Container (Full Width & Height) */}
@@ -394,23 +433,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         {/* 1. Left Navigation Sidebar (Desktop Mode) */}
         {isDesktopLeftOpen && (
           <SidebarLeft
-            activeItem={
-              currentTab === "usuarios"
-                ? "admin-usuarios"
-                : currentTab === "perfiles"
-                ? "admin-perfiles"
-                : currentTab === "banners"
-                ? "admin-banners"
-                : currentTab === "cuotas"
-                ? "admin-cuotas"
-                : currentTab === "inventario"
-                ? `inventario-${currentInventorySubView}`
-                : currentTab === "pos"
-                ? `pos-${currentPosSubView}`
-                : currentTab === "analytics"
-                ? "inicio"
-                : currentTab
-            }
+            activeItem={activeSidebarItem}
             onSelectItem={handleSelectTab}
             onSelectCategory={handleSelectCategory}
             pendingSalesCount={pendingSalesCount}
@@ -461,6 +484,24 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
               <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
               <p className="text-xs text-slate-500 mt-1">
                 Tu perfil no cuenta con permisos para gestionar planes de cuotas (ecommerce.banners).
+              </p>
+            </div>
+          )
+        ) : currentTab === "resenas" ? (
+          isLoadingUser ? (
+            <div className="flex-1 p-10 flex items-center justify-center text-xs text-slate-500">
+              Verificando permisos...
+            </div>
+          ) : hasPerm("ecommerce.resenas") ? (
+            <ReviewsManagementView
+              isSidebarOpen={isDesktopLeftOpen}
+              onToggleSidebar={handleToggleLeft}
+            />
+          ) : (
+            <div className="flex-1 p-8 text-center bg-white border border-rose-200 rounded-2xl m-6">
+              <p className="text-sm font-bold text-rose-600">Acceso Restringido</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu perfil no cuenta con permisos para moderar reseñas web (ecommerce.resenas).
               </p>
             </div>
           )
@@ -855,23 +896,7 @@ export function DashboardView({ initialProducts }: DashboardViewProps = {}) {
         <SidebarLeft
           className="h-full w-full bg-[#06241d]"
           isMobile
-          activeItem={
-            currentTab === "usuarios"
-              ? "admin-usuarios"
-              : currentTab === "perfiles"
-              ? "admin-perfiles"
-              : currentTab === "banners"
-              ? "admin-banners"
-              : currentTab === "cuotas"
-              ? "admin-cuotas"
-              : currentTab === "inventario"
-              ? `inventario-${currentInventorySubView}`
-              : currentTab === "pos"
-              ? `pos-${currentPosSubView}`
-              : currentTab === "analytics"
-              ? "inicio"
-              : currentTab
-          }
+          activeItem={activeSidebarItem}
           onSelectItem={handleSelectTab}
           selectedCategory={selectedCategory}
           onSelectCategory={handleSelectCategory}
