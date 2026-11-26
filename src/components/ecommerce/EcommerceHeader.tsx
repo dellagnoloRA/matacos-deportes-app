@@ -20,13 +20,19 @@ import {
   Loader2,
   PackageCheck,
   ArrowRight,
+  Package,
+  LogOut,
+  Lock,
+  ChevronRight,
+  Store,
 } from "lucide-react";
 import { getPredictiveSearch } from "@/server/actions/ecommerce/catalogActions";
-import { getCurrentUserAction } from "@/server/actions/authActions";
+import { getCurrentUserAction, logoutAction } from "@/server/actions/authActions";
 import { getCurrentCustomerAction } from "@/server/actions/ecommerce/customerActions";
 import type { PredictiveSearchItem } from "@/types/ecommerce";
 import { formatCurrency } from "@/lib/utils";
 import { useCart } from "@/store/cartStore";
+import { useCustomerStore } from "@/store/customerStore";
 
 const ANNOUNCEMENTS = [
   { icon: Truck, text: "Envíos a todo el país", highlight: false },
@@ -67,13 +73,16 @@ export function EcommerceHeader({
   const [isSearching, setIsSearching] = useState(false);
   const [, startTransition] = useTransition();
 
+  const { customer, fetchCustomer, logout: logoutCustomerStore } = useCustomerStore();
   const [currentUser, setCurrentUser] = useState<{
     name: string;
     email: string;
     level: number;
     profileName: string | null;
   } | null>(null);
-  const [currentCustomerName, setCurrentCustomerName] = useState<string | null>(null);
+
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getCurrentUserAction()
@@ -87,14 +96,53 @@ export function EcommerceHeader({
           });
           return;
         }
-        return getCurrentCustomerAction().then((cRes) => {
-          if (cRes.success && cRes.data) {
-            setCurrentCustomerName(cRes.data.name);
-          }
-        });
+        fetchCustomer();
       })
       .catch(() => {});
-  }, []);
+  }, [fetchCustomer]);
+
+  // Cerrar menú de usuario al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsUserMenuOpen(false);
+      }
+    }
+
+    if (isUserMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isUserMenuOpen]);
+
+  const handleLogoutCustomer = async () => {
+    setIsUserMenuOpen(false);
+    await logoutCustomerStore();
+    router.push("/cuenta");
+    router.refresh();
+  };
+
+  const handleLogoutStaff = async () => {
+    setIsUserMenuOpen(false);
+    await logoutAction();
+    setCurrentUser(null);
+    router.push("/cuenta");
+    router.refresh();
+  };
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -437,35 +485,275 @@ export function EcommerceHeader({
           </div>
 
 
-          {/* User Account Link */}
-          <Link
-            href={currentUser ? "/admin" : "/cuenta"}
-            className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            title={currentUser ? "Ir al Panel de Gestión" : "Mi Cuenta"}
-            aria-label="Cuenta de usuario"
-          >
-            {currentUser ? (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <span className="w-6 h-6 rounded-full bg-slate-900 text-[#00D615] font-black text-[11px] flex items-center justify-center">
-                  {currentUser.name.charAt(0).toUpperCase()}
+          {/* User Account Popover (Personita) */}
+          <div ref={userMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsUserMenuOpen((prev) => !prev);
+                if (isSearchOpen) setIsSearchOpen(false);
+              }}
+              className="p-2 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer relative"
+              title={
+                currentUser
+                  ? `Sesión activa: ${currentUser.name}`
+                  : customer
+                  ? `Cuenta: ${customer.name}`
+                  : "Mi Cuenta y Favoritos"
+              }
+              aria-label="Cuenta de usuario"
+              aria-expanded={isUserMenuOpen}
+            >
+              {currentUser ? (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <span className="w-6 h-6 rounded-full bg-slate-900 text-[#00D615] font-black text-[11px] flex items-center justify-center">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="hidden md:inline max-w-24 truncate">
+                    {currentUser.name.split(" ")[0]}
+                  </span>
                 </span>
-                <span className="hidden md:inline max-w-24 truncate">
-                  {currentUser.name.split(" ")[0]}
+              ) : customer ? (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
+                    {customer.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="hidden md:inline max-w-24 truncate">
+                    {customer.name.split(" ")[0]}
+                  </span>
                 </span>
-              </span>
-            ) : currentCustomerName ? (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <span className="w-6 h-6 rounded-full bg-[#00D615] text-slate-950 font-black text-[11px] flex items-center justify-center">
-                  {currentCustomerName.charAt(0).toUpperCase()}
-                </span>
-                <span className="hidden md:inline max-w-24 truncate">
-                  {currentCustomerName.split(" ")[0]}
-                </span>
-              </span>
-            ) : (
-              <User className="w-5 h-5" />
+              ) : (
+                <User className="w-5 h-5" />
+              )}
+            </button>
+
+            {/* Dropdown Popover de la Personita */}
+            {isUserMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                {customer ? (
+                  /* 1. Cliente logueado */
+                  <div className="divide-y divide-slate-100">
+                    <div className="p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#00D615] text-slate-950 font-black text-sm flex items-center justify-center shrink-0 shadow-sm shadow-[#00D615]/30">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black text-white truncate uppercase tracking-tight">
+                            {customer.name}
+                          </p>
+                          <p className="text-[11px] text-slate-300 truncate">
+                            {customer.email}
+                          </p>
+                          <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wider text-[#00D615] bg-[#00D615]/20 px-1.5 py-0.5 rounded">
+                            Sesión Iniciada
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2 space-y-1">
+                      {/* Opción Ver Favoritos */}
+                      <Link
+                        href="/cuenta?tab=favoritos"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-rose-50/70 text-slate-700 hover:text-rose-950 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                            <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              Mis Favoritos
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              {customer.favoriteProductIds?.length > 0
+                                ? `${customer.favoriteProductIds.length} artículos guardados`
+                                : "Sin artículos aún"}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
+                          {customer.favoriteProductIds?.length || 0}
+                        </span>
+                      </Link>
+
+                      {/* Opción Mis Pedidos */}
+                      <Link
+                        href="/cuenta?tab=pedidos"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
+                            <Package className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              Mis Pedidos
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              Historial y seguimiento de envíos
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+
+                      {/* Opción Mi Perfil */}
+                      <Link
+                        href="/cuenta?tab=perfil"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-slate-200 transition-colors">
+                            <User className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              Mi Perfil
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              Datos personales y entrega
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+                    </div>
+
+                    <div className="p-2 bg-slate-50">
+                      <button
+                        type="button"
+                        onClick={handleLogoutCustomer}
+                        className="w-full flex items-center gap-2 p-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : currentUser ? (
+                  /* 2. Staff / Administrador logueado */
+                  <div className="divide-y divide-slate-100">
+                    <div className="p-4 bg-slate-950 text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 text-[#00D615] font-black text-sm flex items-center justify-center shrink-0 border border-emerald-500/40">
+                          {currentUser.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black text-white truncate uppercase tracking-tight">
+                            {currentUser.name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {currentUser.email}
+                          </p>
+                          <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wider text-[#00D615] bg-[#00D615]/20 px-1.5 py-0.5 rounded">
+                            {currentUser.profileName || "Personal Matacos"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2 space-y-1">
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-950 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              Panel de Gestión
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              Métricas, inventario y ventas
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+
+                      <Link
+                        href="/pos"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                            <Store className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              Punto de Venta (POS)
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              Mostrador Saavedra 241
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+                    </div>
+
+                    <div className="p-2 bg-slate-50">
+                      <button
+                        type="button"
+                        onClick={handleLogoutStaff}
+                        className="w-full flex items-center gap-2 p-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* 3. No está logueado: Aviso claro para iniciar sesión y ver favoritos */
+                  <div className="p-4 space-y-3.5">
+                    <div className="text-center space-y-1">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
+                        <Heart className="w-6 h-6 fill-amber-500 text-amber-500" />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight pt-1">
+                        ¿Querés ver tus favoritos?
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+                        Tenés que iniciar sesión en tu cuenta para acceder a tu lista de artículos guardados y gestionar tus pedidos.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-1">
+                      <Link
+                        href="/cuenta?mode=login&redirect=/cuenta?tab=favoritos"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full py-2.5 px-4 bg-[#00D615] hover:bg-[#00ba13] text-slate-950 rounded-xl font-black text-xs uppercase tracking-wider text-center block shadow-md shadow-[#00D615]/20 active:scale-98 transition-all cursor-pointer"
+                      >
+                        Iniciar Sesión
+                      </Link>
+
+                      <Link
+                        href="/cuenta?mode=register&redirect=/cuenta?tab=favoritos"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="w-full py-2 px-4 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider text-center block transition-colors cursor-pointer"
+                      >
+                        Crear Cuenta Nueva
+                      </Link>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                      <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>Acceso seguro a tu perfil</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-          </Link>
+          </div>
 
           {/* Shopping Cart Button */}
           <button
@@ -555,7 +843,28 @@ export function EcommerceHeader({
               </Link>
             </nav>
 
-            <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
+            <div className="mt-auto pt-6 border-t border-slate-100 space-y-2.5">
+              {/* Opción Mis Favoritos en menú móvil */}
+              <Link
+                href={customer ? "/cuenta?tab=favoritos" : "/cuenta?mode=login&redirect=/cuenta?tab=favoritos"}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-between w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100/80 text-rose-950 border border-rose-200/80 rounded-xl font-bold text-xs uppercase transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                  <span>Mis Favoritos</span>
+                </span>
+                {customer?.favoriteProductIds?.length ? (
+                  <span className="text-[10px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full">
+                    {customer.favoriteProductIds.length}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-rose-700">
+                    {customer ? "0" : "Ingresar"}
+                  </span>
+                )}
+              </Link>
+
               <Link
                 href={currentUser ? "/admin" : "/cuenta"}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -565,7 +874,7 @@ export function EcommerceHeader({
                 <span>
                   {currentUser
                     ? "Panel de Gestión"
-                    : currentCustomerName
+                    : customer
                     ? "Mi Cuenta"
                     : "Iniciar Sesión / Mi Cuenta"}
                 </span>
