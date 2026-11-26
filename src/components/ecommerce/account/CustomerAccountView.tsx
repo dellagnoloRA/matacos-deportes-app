@@ -625,15 +625,19 @@ export function CustomerAccountView({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nombre y Apellido *
+                    Nombre de usuario o Nombre y Apellido *
                   </label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    placeholder="Tu nombre o usuario visible"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-slate-900"
                   />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Este nombre es el que verás en tu cuenta y en tus reseñas.
+                  </span>
                 </div>
 
                 <div>

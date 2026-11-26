@@ -182,13 +182,21 @@ export async function registerCustomerAction(
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    // Generar un nombre de usuario predeterminado si no se envió o es vacío
+    let generatedName = data.name ? data.name.trim() : "";
+    if (!generatedName) {
+      const emailPrefix = normalizedEmail.split("@")[0].replace(/[^a-zA-Z0-9]/g, "");
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      generatedName = emailPrefix ? `Usuario_${emailPrefix}` : `Usuario_${randomSuffix}`;
+    }
+
     const txResult = await prisma.$transaction(async (tx) => {
       // 1.1 Crear registro en tabla Customer
       const createdCustomer = await tx.customer.create({
         data: {
           email: normalizedEmail,
           password: hashedPassword,
-          name: data.name.trim(),
+          name: generatedName,
           phone: data.phone ? data.phone.trim() : null,
           dni: data.dni ? data.dni.trim() : null,
           defaultAddress: data.defaultAddress

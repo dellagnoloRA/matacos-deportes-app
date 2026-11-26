@@ -8,8 +8,9 @@ export const CustomerRegisterSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(3, "El nombre completo debe tener al menos 3 caracteres")
-    .max(120, "El nombre no puede superar los 120 caracteres"),
+    .max(120, "El nombre no puede superar los 120 caracteres")
+    .optional()
+    .or(z.literal("")),
   email: z
     .string()
     .trim()
